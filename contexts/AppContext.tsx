@@ -739,13 +739,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordCount = Object.values(incomeData).flat().length + Object.values(expenseData).flat().length;
 
         const newReportData = {
-            name,
+            name: name,
+            user_id: user.id,
             income_data: transformResultsForSaving(incomeData),
             expense_data: transformResultsForSaving(expenseData),
             record_count: recordCount,
-            user_id: user.id
         };
-
+        
         try {
             const { data: insertedData, error } = await supabase
                 .from('saved_reports')
@@ -765,15 +765,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     expenseData: rehydrateReportData(insertedData.expense_data, churches),
                     recordCount: insertedData.record_count,
                 };
-                try {
-    setSavedReports(prev => [newReport, ...prev]);
-    showToast('Relatório salvo com sucesso!');
-} catch (err) {
-    Logger.error('Critical failure during report save', err);
-    showToast('Ocorreu um erro inesperado ao salvar.', 'error');
-} finally {
-    closeSaveReportModal();
-}
+                setSavedReports(prev => [newReport, ...prev]);
+                showToast('Relatório salvo com sucesso!');
+            }
+        } catch (err) {
+            Logger.error('Critical failure during report save', err);
+            showToast('Ocorreu um erro inesperado ao salvar.', 'error');
+        } finally {
+            closeSaveReportModal();
+        }
+    }, [savingReportState, user, reportPreviewData, churches, showToast, closeSaveReportModal]);
 
     const saveCurrentReport = useCallback(() => {
         if (!reportPreviewData) return;
