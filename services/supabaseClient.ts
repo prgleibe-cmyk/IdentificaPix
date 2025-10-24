@@ -5,7 +5,6 @@ import { Database } from '../types/supabase';
 // This is safe because the 'anon' key is designed to be public.
 // True data security is enforced by Row Level Security (RLS) policies in your Supabase project.
 const supabaseUrl = 'https://hirtcygvvxsmcrscuhsj.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpcnRjeWd2dnhzbWNyc2N1aHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2NTI2MjksImV4cCI6MjA3NDIyODYyOX0.L8PZHPkPO3Qm7bz-k61qnPr44t8p630i3-d4Mc5bOi4';
-
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA'
 // Create and export the Supabase client
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
