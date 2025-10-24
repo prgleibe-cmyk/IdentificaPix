@@ -746,26 +746,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             user_id: user.id
         };
 
-        const { data: insertedData, error } = await supabase
-            .from('saved_reports')
-            .insert(newReportData)
-            .select()
-            .single();
+        try {
+            const { data: insertedData, error } = await supabase
+                .from('saved_reports')
+                .insert(newReportData)
+                .select()
+                .single();
 
-        if (error) {
-            Logger.error('Error saving report', error);
-            showToast('Falha ao salvar relatório.', 'error');
-        } else if (insertedData) {
-            const newReport: SavedReport = {
-                id: insertedData.id,
-                name: insertedData.name,
-                createdAt: insertedData.created_at,
-                incomeData: rehydrateReportData(insertedData.income_data, churches),
-                expenseData: rehydrateReportData(insertedData.expense_data, churches),
-                recordCount: insertedData.record_count,
-            };
-            setSavedReports(prev => [newReport, ...prev]);
-            showToast('Relatório salvo com sucesso!');
+            if (error) {
+                Logger.error('Error saving report', error);
+                showToast('Falha ao salvar relatório.', 'error');
+            } else if (insertedData) {
+                const newReport: SavedReport = {
+                    id: insertedData.id,
+                    name: insertedData.name,
+                    createdAt: insertedData.created_at,
+                    incomeData: rehydrateReportData(insertedData.income_data, churches),
+                    expenseData: rehydrateReportData(insertedData.expense_data, churches),
+                    recordCount: insertedData.record_count,
+                };
+                setSavedReports(prev => [newReport, ...prev]);
+                showToast('Relatório salvo com sucesso!');
+            }
+        } catch (err) {
+            Logger.error('Critical failure during report save', err);
+            showToast('Ocorreu um erro inesperado ao salvar.', 'error');
         } finally {
             closeSaveReportModal();
         }
