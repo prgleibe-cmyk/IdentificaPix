@@ -736,7 +736,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             expenseData = groupResultsByChurch(expenseResults);
         }
         
-        recordCount = Object.values(incomeData).flat().length + Object.values(expenseData).flat().length;
+      recordCount = Object.values(incomeData).flat().length + Object.values(expenseData).flat().length;
 
         const newReportData = {
             name: name,
