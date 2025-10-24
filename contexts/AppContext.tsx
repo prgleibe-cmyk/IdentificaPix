@@ -765,16 +765,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     expenseData: rehydrateReportData(insertedData.expense_data, churches),
                     recordCount: insertedData.record_count,
                 };
-                setSavedReports(prev => [newReport, ...prev]);
-                showToast('Relatório salvo com sucesso!');
-            }
-        } catch (err) {
-            Logger.error('Critical failure during report save', err);
-            showToast('Ocorreu um erro inesperado ao salvar.', 'error');
-        } finally {
-            closeSaveReportModal();
-        }
-    }, [savingReportState, reportPreviewData, user, showToast, closeSaveReportModal, churches]);
+                try {
+    setSavedReports(prev => [newReport, ...prev]);
+    showToast('Relatório salvo com sucesso!');
+} catch (err) {
+    Logger.error('Critical failure during report save', err);
+    showToast('Ocorreu um erro inesperado ao salvar.', 'error');
+} finally {
+    closeSaveReportModal();
+}
 
     const saveCurrentReport = useCallback(() => {
         if (!reportPreviewData) return;
