@@ -1,19 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
-// Lê variáveis de ambiente do Vite
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_KEY;
+// Leitura das variáveis de ambiente
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_KEY?.trim();
 
-// Verificação preventiva para evitar erro de chave indefinida
+// Validação
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error(
-    '⚠️ Erro: Variáveis de ambiente do Supabase não definidas. Verifique se VITE_SUPABASE_URL e VITE_SUPABASE_KEY estão configuradas no Netlify.'
+    '❌ Erro: Variáveis do Supabase não definidas. ' +
+    'Verifique VITE_SUPABASE_URL e VITE_SUPABASE_KEY no Netlify.'
   );
 }
 
-// Cria e exporta o cliente Supabase (usa valores vazios se faltarem, apenas para evitar crash)
-export const supabase = createClient<Database>(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
-);
+// Evita crash — cria cliente só se ambas estiverem válidas
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey)
+  : (null as any);
