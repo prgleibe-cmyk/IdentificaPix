@@ -1,7 +1,5 @@
 import React, { createContext, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
-import Logger from '../utils/logger';
-import Metrics from '../utils/metrics';
 import {
     GroupedReportData,
     MatchResult,
@@ -156,8 +154,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 addLearnedAssociation(result.transaction, suggestedContributor, suggestedContributor.church);
             }
         } catch (error) {
-            Logger.error("AI Analysis failed", error, { transactionId });
-            Metrics.increment('apiErrors');
+            console.error("AI Analysis failed", error, { transactionId });
+            console.count("apiErrors"); // substitui Metrics.increment
             setAiSuggestion({ id: transactionId, name: "Erro na análise." });
         } finally {
             setLoadingAiId(null);
