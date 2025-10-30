@@ -4,43 +4,42 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>IdentificaPix - Sistema de Conciliação</title>
+    <title>IdentificaPix - Sistema de Conciliação</title>
 
-<!-- Removido o CDN do Tailwind -->
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
 
-<!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-</script>
+    <!-- XLSX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-<!-- XLSX -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Mammoth -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.0/mammoth.browser.min.js"></script>
 
-<!-- Mammoth -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.0/mammoth.browser.min.js"></script>
+    <!-- Import map para módulos externos -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react/": "https://aistudiocdn.com/react@^19.1.1/",
+        "react": "https://aistudiocdn.com/react@^19.1.1",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
+        "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.45.1"
+      }
+    }
+    </script>
 
-<!-- Import map para módulos externos -->
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
-    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.45.1"
-  }
-}
-</script>
+    <!-- CSS do Tailwind processado via PostCSS -->
+    <link rel="stylesheet" href="/index.css">
 
-<!-- CSS do Tailwind local -->
-<link rel="stylesheet" href="/index.css">
-
-<!-- Dark mode -->
-<style>
-  :root { color-scheme: light; }
-  html.dark { color-scheme: dark; }
-</style>
+    <!-- Dark mode -->
+    <style>
+      :root { color-scheme: light; }
+      html.dark { color-scheme: dark; }
+    </style>
+  </head>
 
   <body class="bg-slate-100 text-slate-800 font-sans dark:bg-slate-900 dark:text-slate-300">
     <div id="root"></div>

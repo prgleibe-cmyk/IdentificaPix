@@ -4,6 +4,17 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { SearchFilters } from '../../types';
 import { XMarkIcon } from '../Icons';
 
+// Valores padrão seguros para searchFilters
+const initialSearchFilters: SearchFilters = {
+    filterBy: 'none',
+    churchIds: [],
+    contributorName: '',
+    transactionType: 'all',
+    reconciliationStatus: 'all',
+    dateRange: { start: null, end: null },
+    valueFilter: { operator: 'any', value1: null, value2: null },
+};
+
 export const SearchFiltersModal: React.FC = () => {
     const { 
         isSearchFiltersOpen, 
@@ -15,10 +26,19 @@ export const SearchFiltersModal: React.FC = () => {
     } = useContext(AppContext);
     
     const { t } = useTranslation();
-    const [localFilters, setLocalFilters] = useState<SearchFilters>(currentFilters);
-    
+
+    // Inicializa localFilters garantindo valores padrão
+    const [localFilters, setLocalFilters] = useState<SearchFilters>({
+        ...initialSearchFilters,
+        ...currentFilters
+    });
+
+    // Sincroniza localFilters sempre que modal abre ou currentFilters mudam
     useEffect(() => {
-        setLocalFilters(currentFilters);
+        setLocalFilters({
+            ...initialSearchFilters,
+            ...currentFilters
+        });
     }, [isSearchFiltersOpen, currentFilters]);
 
     if (!isSearchFiltersOpen) return null;
@@ -32,23 +52,18 @@ export const SearchFiltersModal: React.FC = () => {
         clearSearchFilters();
         closeSearchFilters();
     }
-    
+
     const handleFilterTypeChange = (type: 'none' | 'church' | 'contributor') => {
         setLocalFilters(prev => {
             const newFilters = { ...prev, filterBy: type };
-            if (type !== 'church') {
-                newFilters.churchIds = [];
-            }
-            if (type !== 'contributor') {
-                newFilters.contributorName = '';
-            }
+            if (type !== 'church') newFilters.churchIds = [];
+            if (type !== 'contributor') newFilters.contributorName = '';
             return newFilters;
         });
     };
 
     const commonInputClass = "mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400";
     const radioCheckboxClass = "h-4 w-4 border-slate-300 dark:border-slate-600 text-blue-700 focus:ring-blue-600";
-
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -65,7 +80,7 @@ export const SearchFiltersModal: React.FC = () => {
                     <fieldset>
                         <legend className="text-base font-medium text-slate-900 dark:text-slate-100">{t('search.filterBy')}</legend>
                         <div className="mt-2 flex items-center gap-x-6">
-                             <div className="flex items-center">
+                            <div className="flex items-center">
                                 <input id="filter-by-none" type="radio" value="none" checked={localFilters.filterBy === 'none'} onChange={() => handleFilterTypeChange('none')} className={radioCheckboxClass} />
                                 <label htmlFor="filter-by-none" className="ml-2 block text-sm text-gray-900 dark:text-slate-200">{t('search.filterBy.none')}</label>
                             </div>
@@ -73,7 +88,7 @@ export const SearchFiltersModal: React.FC = () => {
                                 <input id="filter-by-church" type="radio" value="church" checked={localFilters.filterBy === 'church'} onChange={() => handleFilterTypeChange('church')} className={radioCheckboxClass} />
                                 <label htmlFor="filter-by-church" className="ml-2 block text-sm text-gray-900 dark:text-slate-200">{t('search.filterBy.church')}</label>
                             </div>
-                             <div className="flex items-center">
+                            <div className="flex items-center">
                                 <input id="filter-by-contributor" type="radio" value="contributor" checked={localFilters.filterBy === 'contributor'} onChange={() => handleFilterTypeChange('contributor')} className={radioCheckboxClass} />
                                 <label htmlFor="filter-by-contributor" className="ml-2 block text-sm text-gray-900 dark:text-slate-200">{t('search.filterBy.contributor')}</label>
                             </div>
@@ -105,15 +120,15 @@ export const SearchFiltersModal: React.FC = () => {
                         </fieldset>
                     )}
                     {localFilters.filterBy === 'contributor' && (
-                         <fieldset>
+                        <fieldset>
                             <div className="mt-2">
                                 <input type="text" placeholder={t('search.filterByContributorPlaceholder')} value={localFilters.contributorName} onChange={(e) => setLocalFilters(p => ({...p, contributorName: e.target.value}))} className={commonInputClass}/>
                             </div>
                         </fieldset>
                     )}
 
-                     {/* Transaction Type */}
-                     <fieldset>
+                    {/* Transaction Type */}
+                    <fieldset>
                         <legend className="text-sm font-medium text-slate-900 dark:text-slate-100">{t('search.filterByTransactionType')}</legend>
                         <div className="mt-2">
                             <select value={localFilters.transactionType} onChange={e => setLocalFilters(p => ({...p, transactionType: e.target.value as any}))} className={commonInputClass}>
@@ -147,7 +162,7 @@ export const SearchFiltersModal: React.FC = () => {
                                     <label htmlFor="start-date" className="sr-only">{t('search.from')}</label>
                                     <input type="date" id="start-date" value={localFilters.dateRange.start || ''} onChange={e => setLocalFilters(p => ({...p, dateRange: {...p.dateRange, start: e.target.value || null}}))} className={commonInputClass}/>
                                 </div>
-                                 <div>
+                                <div>
                                     <label htmlFor="end-date" className="sr-only">{t('search.to')}</label>
                                     <input type="date" id="end-date" value={localFilters.dateRange.end || ''} onChange={e => setLocalFilters(p => ({...p, dateRange: {...p.dateRange, end: e.target.value || null}}))} className={commonInputClass}/>
                                 </div>
@@ -179,7 +194,7 @@ export const SearchFiltersModal: React.FC = () => {
                                                 <label htmlFor="value1" className="sr-only">{t('search.minValueLabel')}</label>
                                                 <input type="number" id="value1" placeholder={t('search.minValueLabel')} value={localFilters.valueFilter.value1 ?? ''} onChange={e => setLocalFilters(p => ({...p, valueFilter: {...p.valueFilter, value1: e.target.value ? parseFloat(e.target.value) : null}}))} className={commonInputClass} />
                                             </div>
-                                             <div className="flex-1">
+                                            <div className="flex-1">
                                                 <label htmlFor="value2" className="sr-only">{t('search.maxValueLabel')}</label>
                                                 <input type="number" id="value2" placeholder={t('search.maxValueLabel')} value={localFilters.valueFilter.value2 ?? ''} onChange={e => setLocalFilters(p => ({...p, valueFilter: {...p.valueFilter, value2: e.target.value ? parseFloat(e.target.value) : null}}))} className={commonInputClass} />
                                             </div>

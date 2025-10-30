@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
@@ -15,7 +16,7 @@ export const SearchView: React.FC = () => {
         openManualIdentify, 
         loadingAiId, 
         setActiveView,
-        searchFilters,
+        searchFilters = {},
         openSearchFilters,
         saveFilteredReport,
     } = useContext(AppContext);
@@ -24,30 +25,44 @@ export const SearchView: React.FC = () => {
     const [query, setQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
+    const safeHistoricalResults = allHistoricalResults || [];
+
+    // Valores padrão para evitar erros
+    const safeFilters = useMemo(() => ({
+        filterBy: searchFilters.filterBy || 'none',
+        churchIds: searchFilters.churchIds || [],
+        contributorName: searchFilters.contributorName || '',
+        transactionType: searchFilters.transactionType || 'all',
+        reconciliationStatus: searchFilters.reconciliationStatus || 'all',
+        dateRange: searchFilters.dateRange || { start: null, end: null },
+        valueFilter: searchFilters.valueFilter || { operator: 'any', value1: null, value2: null },
+    }), [searchFilters]);
+
     const activeFilterCount = useMemo(() => {
         let count = 0;
-        if (searchFilters.dateRange.start || searchFilters.dateRange.end) count++;
-        if (searchFilters.valueFilter.operator !== 'any') count++;
-        if (searchFilters.filterBy === 'church' && searchFilters.churchIds.length > 0) count++;
-        if (searchFilters.filterBy === 'contributor' && searchFilters.contributorName.trim()) count++;
-        if (searchFilters.transactionType !== 'all') count++;
-        if (searchFilters.reconciliationStatus !== 'all') count++;
+        const { dateRange, valueFilter, filterBy, churchIds, contributorName, transactionType, reconciliationStatus } = safeFilters;
+        if (dateRange.start || dateRange.end) count++;
+        if (valueFilter.operator !== 'any') count++;
+        if (filterBy === 'church' && churchIds.length > 0) count++;
+        if (filterBy === 'contributor' && contributorName.trim()) count++;
+        if (transactionType !== 'all') count++;
+        if (reconciliationStatus !== 'all') count++;
         return count;
-    }, [searchFilters]);
+    }, [safeFilters]);
 
     const filteredResults = useMemo(() => {
-        let results = [...allHistoricalResults];
+        let results = [...safeHistoricalResults];
+        const { dateRange, valueFilter, filterBy, churchIds, contributorName, transactionType, reconciliationStatus } = safeFilters;
 
-        // 1. Apply advanced filters from the modal
-        // Transaction Type
-        if (searchFilters.transactionType === 'income') {
+        // Transaction Type filter
+        if (transactionType === 'income') {
             results = results.filter(r => r.transaction.amount > 0);
-        } else if (searchFilters.transactionType === 'expenses') {
+        } else if (transactionType === 'expenses') {
             results = results.filter(r => r.transaction.amount < 0);
         }
 
         // Reconciliation Status
-        switch (searchFilters.reconciliationStatus) {
+        switch (reconciliationStatus) {
             case 'confirmed_any':
                 results = results.filter(r => r.status === 'IDENTIFICADO');
                 break;
@@ -58,27 +73,27 @@ export const SearchView: React.FC = () => {
                 results = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
                 break;
             case 'confirmed_manual':
-                 results = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+                results = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
                 break;
         }
 
-        // Contributor Name
-        if (searchFilters.filterBy === 'contributor' && searchFilters.contributorName.trim()) {
-            const contributorQuery = searchFilters.contributorName.toLowerCase().trim();
+        // Contributor Name filter
+        if (filterBy === 'contributor' && contributorName.trim()) {
+            const contributorQuery = contributorName.toLowerCase().trim();
             results = results.filter(r => 
                 r.contributor?.name.toLowerCase().includes(contributorQuery) ||
                 r.contributor?.cleanedName?.toLowerCase().includes(contributorQuery)
             );
         }
-        
+
         // Church filter
-        if (searchFilters.filterBy === 'church' && searchFilters.churchIds.length > 0) {
-            results = results.filter(r => searchFilters.churchIds.includes(r.church.id));
+        if (filterBy === 'church' && churchIds.length > 0) {
+            results = results.filter(r => churchIds.includes(r.church.id));
         }
 
-        // Date range
-        const startDate = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
-        const endDate = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null; // Include the whole end day
+        // Date range filter
+        const startDate = dateRange.start ? new Date(dateRange.start).getTime() : null;
+        const endDate = dateRange.end ? new Date(dateRange.end).getTime() + 86400000 : null;
         if (startDate || endDate) {
             results = results.filter(r => {
                 const itemDate = parseDate(r.transaction.date)?.getTime();
@@ -88,9 +103,9 @@ export const SearchView: React.FC = () => {
                 return true;
             });
         }
-        
+
         // Value filter
-        const { operator, value1, value2 } = searchFilters.valueFilter;
+        const { operator, value1, value2 } = valueFilter;
         if (operator !== 'any' && value1 !== null) {
             results = results.filter(r => {
                 const amount = r.transaction.amount;
@@ -104,14 +119,14 @@ export const SearchView: React.FC = () => {
             });
         }
 
-        // 2. Apply text query on the already filtered results
+        // Text query filter
         if (query.trim()) {
             results = results.filter(r => filterByUniversalQuery(r, query));
         }
 
         return results;
-    }, [query, allHistoricalResults, searchFilters]);
-    
+    }, [query, safeHistoricalResults, safeFilters]);
+
     const summary = useMemo(() => {
         const income = filteredResults.filter(r => r.transaction.amount > 0).reduce((sum, r) => sum + r.transaction.amount, 0);
         const expenses = filteredResults.filter(r => r.transaction.amount < 0).reduce((sum, r) => sum + r.transaction.amount, 0);
@@ -127,22 +142,19 @@ export const SearchView: React.FC = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [query, searchFilters]);
+    }, [query, safeFilters]);
 
     const totalPages = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
     const paginatedResults = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return filteredResults.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredResults, currentPage]);
-    
-    const handleSave = () => {
-        saveFilteredReport(filteredResults);
-    };
 
+    const handleSave = () => saveFilteredReport(filteredResults);
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
-        
+
         const tableRows = filteredResults.map(r => `
             <tr>
                 <td>${r.transaction.date}</td>
@@ -194,17 +206,21 @@ export const SearchView: React.FC = () => {
         printWindow.print();
     };
 
-
-    if (allHistoricalResults.length === 0) {
-        return <EmptyState icon={<SearchIcon className="w-8 h-8 text-blue-700 dark:text-blue-400" />} title={t('empty.search.title')} message={t('empty.search.message')} action={{ text: t('empty.dashboard.saved.action'), onClick: () => setActiveView('upload') }} />;
+    if (safeHistoricalResults.length === 0) {
+        return <EmptyState 
+            icon={<SearchIcon className="w-8 h-8 text-blue-700 dark:text-blue-400" />} 
+            title={t('empty.search.title')} 
+            message={t('empty.search.message')} 
+            action={{ text: t('empty.dashboard.saved.action'), onClick: () => setActiveView('upload') }} 
+        />;
     }
 
     return (
         <>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">{t('search.title')}</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-6">{t('search.subtitle')}</p>
-            
-             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-grow">
                         <label htmlFor="search-query" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('search.nameDesc')}</label>
@@ -221,7 +237,7 @@ export const SearchView: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex-shrink-0 flex items-end gap-2">
-                         <button onClick={openSearchFilters} className="relative w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                        <button onClick={openSearchFilters} className="relative w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                             <AdjustmentsHorizontalIcon className="w-5 h-5" />
                             <span>{t('search.filters')}</span>
                             {activeFilterCount > 0 && (
@@ -229,20 +245,20 @@ export const SearchView: React.FC = () => {
                                     {activeFilterCount}
                                 </span>
                             )}
-                         </button>
-                         <button onClick={handlePrint} disabled={filteredResults.length === 0} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        </button>
+                        <button onClick={handlePrint} disabled={filteredResults.length === 0} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             <PrinterIcon className="w-5 h-5" />
                             <span>{t('common.print')}</span>
-                         </button>
-                          <button onClick={handleSave} disabled={filteredResults.length === 0} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                        </button>
+                        <button onClick={handleSave} disabled={filteredResults.length === 0} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed">
                             <FloppyDiskIcon className="w-5 h-5" />
                             <span>{t('common.save')}</span>
-                         </button>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            { (query || activeFilterCount > 0) && (
+            {(query || activeFilterCount > 0) && (
                 <div className="mt-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                     <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-3">{t('search.summaryTitle')}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -266,7 +282,7 @@ export const SearchView: React.FC = () => {
                                     <p className="font-semibold text-slate-900 dark:text-slate-100">{summary.identified}</p>
                                 </div>
                             </div>
-                             <div className="flex items-center">
+                            <div className="flex items-center">
                                 <XCircleIcon className="w-5 h-5 text-yellow-500 mr-2"/>
                                 <div>
                                     <p className="text-slate-500 dark:text-slate-400">{t('search.unidentified')}</p>
@@ -278,9 +294,8 @@ export const SearchView: React.FC = () => {
                 </div>
             )}
 
-
             {filteredResults.length > 0 ? (
-                 <ResultsTable 
+                <ResultsTable 
                     results={paginatedResults} 
                     onManualIdentify={openManualIdentify} 
                     loadingAiId={loadingAiId} 

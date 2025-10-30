@@ -20,7 +20,6 @@ import { ManualMatchModal } from './components/modals/ManualMatchModal';
 import { SaveReportModal } from './components/modals/SaveReportModal';
 import { SearchFiltersModal } from './components/modals/SearchFiltersModal';
 
-
 // --- Views (Lazy Loaded for performance) ---
 const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
 const UploadView = React.lazy(() => import('./views/UploadView').then(m => ({ default: m.UploadView })));
@@ -30,7 +29,6 @@ const SettingsView = React.lazy(() => import('./views/SettingsView').then(m => (
 const SavedReportsView = React.lazy(() => import('./views/SavedReportsView').then(m => ({ default: m.SavedReportsView })));
 const SearchView = React.lazy(() => import('./views/SearchView').then(m => ({ default: m.SearchView })));
 import { AuthView } from './views/AuthView';
-
 
 // --- Main Application Component ---
 function MainApp() {
@@ -109,7 +107,6 @@ function MainApp() {
 }
 
 // --- App Controller ---
-// This component checks the authentication state and renders either the login screen or the main app.
 const AppController: React.FC = () => {
     const { session, loading } = useAuth();
 
@@ -129,7 +126,6 @@ const AppController: React.FC = () => {
 }
 
 // --- Root Component ---
-// Wraps the entire application with necessary context providers.
 export default function App() {
     return (
         <I18nProvider>

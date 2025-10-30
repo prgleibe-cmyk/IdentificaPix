@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+svg:not([class*="w-"]) {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+img, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+body {
+  @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100;
+}

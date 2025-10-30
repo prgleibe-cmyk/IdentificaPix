@@ -26,9 +26,7 @@ const PreferencesTab: React.FC = () => {
     const { theme, toggleTheme, openDeleteConfirmation } = useContext(AppContext);
     const { t, language, setLanguage } = useTranslation();
 
-    const handleLanguageChange = (lang: Language) => {
-        setLanguage(lang);
-    };
+    const handleLanguageChange = (lang: Language) => setLanguage(lang);
 
     const dataManagementItems = [
         {
@@ -72,7 +70,7 @@ const PreferencesTab: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.language')}</label>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.language')}</label>
                         <div className="mt-2">
                             <select onChange={(e) => handleLanguageChange(e.target.value as Language)} value={language} className="block w-full max-w-xs rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm">
                                 <option value="pt">🇧🇷 Português</option>
@@ -84,7 +82,7 @@ const PreferencesTab: React.FC = () => {
                 </div>
             </div>
 
-             {/* Data Management Section */}
+            {/* Data Management Section */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center space-x-3 mb-4">
                     <CircleStackIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
@@ -110,16 +108,14 @@ const PreferencesTab: React.FC = () => {
                     ))}
                 </div>
 
-                 {/* Danger Zone for full reset */}
+                {/* Danger Zone */}
                 <div className="mt-8 pt-6 border-t border-red-500/30">
-                     <div className="p-4 border-l-4 border-red-400 bg-red-50 dark:bg-red-900/20 rounded-r-md">
+                    <div className="p-4 border-l-4 border-red-400 bg-red-50 dark:bg-red-900/20 rounded-r-md">
                         <div className="flex items-start space-x-3">
                             <ExclamationTriangleIcon className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
                             <div>
                                 <h4 className="font-semibold text-red-800 dark:text-red-300">{t('settings.dangerZone')}</h4>
-                                <p className="text-sm text-red-700 dark:text-red-400 mt-1">
-                                    {t('settings.dangerZone.desc')}
-                                </p>
+                                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{t('settings.dangerZone.desc')}</p>
                             </div>
                         </div>
                         <div className="mt-4 text-right">
@@ -139,37 +135,38 @@ const PreferencesTab: React.FC = () => {
 
 const AutomationTab: React.FC = () => {
     const { 
-        learnedAssociations, 
-        churches, 
+        learnedAssociations = [], 
+        churches = [], 
         openDeleteConfirmation, 
-        customIgnoreKeywords, 
+        customIgnoreKeywords = [], 
         addIgnoreKeyword,
         removeIgnoreKeyword 
     } = useContext(AppContext);
+
     const { t } = useTranslation();
     const [search, setSearch] = useState('');
     const [newKeyword, setNewKeyword] = useState('');
 
     const handleAddKeyword = (e: React.FormEvent) => {
         e.preventDefault();
-        addIgnoreKeyword(newKeyword);
-        setNewKeyword('');
+        if (newKeyword.trim()) {
+            addIgnoreKeyword(newKeyword);
+            setNewKeyword('');
+        }
     };
 
     const filteredAssociations = useMemo(() => learnedAssociations.filter(a => 
         a.normalizedDescription.toLowerCase().includes(search.toLowerCase()) ||
         a.contributorName.toLowerCase().includes(search.toLowerCase())
     ), [learnedAssociations, search]);
-    
+
     return (
         <div className="space-y-8">
-            {/* Custom Keywords Section */}
+            {/* Custom Keywords */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">{t('settings.keywords')}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                    {t('settings.keywords.desc')}
-                </p>
-                
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t('settings.keywords.desc')}</p>
+
                 <form onSubmit={handleAddKeyword} className="flex items-center gap-2 mb-4">
                     <input
                         type="text"
@@ -197,14 +194,14 @@ const AutomationTab: React.FC = () => {
                                 </button>
                             </div>
                         ))}
-                         {customIgnoreKeywords.length === 0 && (
+                        {customIgnoreKeywords.length === 0 && (
                             <p className="text-sm text-slate-500 dark:text-slate-400 p-4 text-center w-full">Nenhuma palavra-chave configurada.</p>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Learned Associations section */}
+            {/* Learned Associations */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center space-x-3 mb-4">
                     <BrainIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
@@ -215,7 +212,7 @@ const AutomationTab: React.FC = () => {
                     <input type="text" placeholder={t('settings.searchAssociation')} value={search} onChange={e => setSearch(e.target.value)} className="pl-10 p-2 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" />
                 </div>
                 <div className="max-h-96 overflow-y-auto pr-2 space-y-2">
-                {filteredAssociations.map((assoc: LearnedAssociation) => {
+                    {filteredAssociations.map((assoc: LearnedAssociation) => {
                         const churchName = churches.find(c => c.id === assoc.churchId)?.name || 'Igreja desconhecida';
                         return (
                             <div key={assoc.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md text-sm">
@@ -232,14 +229,13 @@ const AutomationTab: React.FC = () => {
                                 </button>
                             </div>
                         );
-                })}
-                {filteredAssociations.length === 0 && <p className="text-center py-8 text-slate-500 dark:text-slate-400">{t('settings.noAssociation')}</p>}
+                    })}
+                    {filteredAssociations.length === 0 && <p className="text-center py-8 text-slate-500 dark:text-slate-400">{t('settings.noAssociation')}</p>}
                 </div>
             </div>
         </div>
     );
 };
-
 
 export const SettingsView: React.FC = () => {
     const { t } = useTranslation();

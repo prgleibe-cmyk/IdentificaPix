@@ -11,16 +11,16 @@ export interface Contributor {
 }
 
 export interface Bank {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 export interface Church {
-    id: string;
-    name: string;
-    address: string;
-    logoUrl: string;
-    pastor: string;
+  id: string;
+  name: string;
+  address: string;
+  logoUrl: string;
+  pastor: string;
 }
 
 export interface Transaction {
@@ -32,8 +32,8 @@ export interface Transaction {
 }
 
 export interface ContributorFile {
-    church: Church;
-    contributors: Contributor[];
+  church: Church;
+  contributors: Contributor[];
 }
 
 // --- Reconciliation and Matching ---
@@ -57,47 +57,79 @@ export interface LearnedAssociation {
   contributorName: string;
 }
 
-
 // --- Application UI State Types ---
 
-export type ViewType = 'dashboard' | 'upload' | 'reports' | 'settings' | 'cadastro' | 'savedReports' | 'search';
+export type ViewType =
+  | 'dashboard'
+  | 'upload'
+  | 'reports'
+  | 'settings'
+  | 'cadastro'
+  | 'savedReports'
+  | 'search';
 
 export type Theme = 'light' | 'dark';
-
 export type Language = 'pt' | 'en' | 'es';
 
 export type ChurchFormData = Omit<Church, 'id'>;
-
 export type SettingsTab = 'preferences' | 'automation';
 
 export interface DeletingItem {
-  type: 'bank' | 'church' | 'association' | 'all-data' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'report-group' | 'report-saved' | 'report-row';
+  type:
+    | 'bank'
+    | 'church'
+    | 'association'
+    | 'all-data'
+    | 'uploaded-files'
+    | 'match-results'
+    | 'learned-associations'
+    | 'report-group'
+    | 'report-saved'
+    | 'report-row';
   id: string;
   name: string;
   meta?: {
     reportType?: 'income' | 'expenses';
-  }
+  };
 }
 
 export type ComparisonType = 'income' | 'expenses' | 'both';
 
 export interface SearchFilters {
-    dateRange: {
-        start: string | null;
-        end: string | null;
-    };
-    valueFilter: {
-        operator: 'any' | 'exact' | 'gt' | 'lt' | 'between';
-        value1: number | null;
-        value2: number | null;
-    };
-    transactionType: 'all' | 'income' | 'expenses';
-    reconciliationStatus: 'all' | 'confirmed_any' | 'confirmed_auto' | 'confirmed_manual' | 'unconfirmed';
-    filterBy: 'none' | 'church' | 'contributor';
-    churchIds: string[];
-    contributorName: string;
+  dateRange: {
+    start: string | null;
+    end: string | null;
+  };
+  valueFilter: {
+    operator: 'any' | 'exact' | 'gt' | 'lt' | 'between';
+    value1: number | null;
+    value2: number | null;
+  };
+  transactionType: 'all' | 'income' | 'expenses';
+  reconciliationStatus:
+    | 'all'
+    | 'confirmed_any'
+    | 'confirmed_auto'
+    | 'confirmed_manual'
+    | 'unconfirmed';
+  filterBy: 'none' | 'church' | 'contributor';
+  churchIds: string[];
+  contributorName: string;
 }
 
+// --- Initial/default values for AppContext ---
+
+export const initialSearchFilters: SearchFilters = {
+  dateRange: { start: null, end: null },
+  valueFilter: { operator: 'any', value1: null, value2: null },
+  transactionType: 'all',
+  reconciliationStatus: 'all',
+  filterBy: 'none',
+  churchIds: [],
+  contributorName: '',
+};
+
+export const DEFAULT_IGNORE_KEYWORDS = ['pix', 'transferência', 'doação', 'depósito'];
 
 // --- New Type for Grouped Reports ---
 export type GroupedReportData = Record<string, MatchResult[]>;
@@ -115,8 +147,12 @@ export interface SavedReport {
 export interface SavingReportState {
   type: 'global' | 'group' | 'filtered';
   results?: MatchResult[];
-  // For group saves
   groupId?: string;
   groupName?: string;
   reportType?: 'income' | 'expenses';
+}
+
+export interface ManualMatchState {
+  transactionId: string;
+  matchedContributorId?: string;
 }
