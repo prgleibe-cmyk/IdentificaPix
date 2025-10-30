@@ -18,21 +18,20 @@
     <!-- Mammoth -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.0/mammoth.browser.min.js"></script>
 
-    <!-- Import map para módulos externos -->
+    <!-- Import map para módulos externos (removido o @supabase) -->
     <script type="importmap">
     {
       "imports": {
         "react/": "https://aistudiocdn.com/react@^19.1.1/",
         "react": "https://aistudiocdn.com/react@^19.1.1",
         "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
-        "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.45.1"
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0"
       }
     }
     </script>
 
-    <!-- CSS do Tailwind processado via PostCSS -->
-    <link rel="stylesheet" href="/index.css">
+    <!-- Tailwind gerado via PostCSS (corrigido caminho) -->
+    <link rel="stylesheet" href="/src/estilos/base.css">
 
     <!-- Dark mode -->
     <style>
