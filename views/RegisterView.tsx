@@ -15,7 +15,8 @@ const ListItem: React.FC<ListItemProps> = memo(({ children, actions }) => (
 
 // --- Confirm Delete Modal ---
 const ConfirmDeleteModal: React.FC<{ type: 'bank' | 'church'; id: string; name: string; onClose: () => void }> = ({ type, id, name, onClose }) => {
-    const { banks, setBanks, churches, setChurches } = useContext(AppContext);
+    const context = useContext(AppContext) ?? { banks: [], churches: [], setBanks: () => {}, setChurches: () => {} };
+    const { banks, setBanks, churches, setChurches } = context;
     const { t } = useTranslation();
 
     const handleDelete = () => {
@@ -40,19 +41,16 @@ const ConfirmDeleteModal: React.FC<{ type: 'bank' | 'church'; id: string; name: 
 
 // --- Edit Bank Modal ---
 const EditBankModal: React.FC<{ bankId: string; currentName: string; onClose: () => void }> = ({ bankId, currentName, onClose }) => {
-    const { banks, setBanks } = useContext(AppContext);
+    const context = useContext(AppContext) ?? { banks: [], setBanks: () => {} };
+    const { banks, setBanks } = context;
     const { t } = useTranslation();
     const [name, setName] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = async () => {
         setIsSaving(true);
-        try {
-            setBanks(banks.map(b => (b.id === bankId ? { ...b, name } : b)));
-        } finally {
-            setIsSaving(false);
-            onClose();
-        }
+        try { setBanks(banks.map(b => (b.id === bankId ? { ...b, name } : b))); }
+        finally { setIsSaving(false); onClose(); }
     };
 
     return (
@@ -71,13 +69,14 @@ const EditBankModal: React.FC<{ bankId: string; currentName: string; onClose: ()
 
 // --- Edit Church Modal ---
 const EditChurchModal: React.FC<{ churchId: string; currentData: ChurchFormData; onClose: () => void }> = ({ churchId, currentData, onClose }) => {
-    const { churches, setChurches } = useContext(AppContext);
+    const context = useContext(AppContext) ?? { churches: [], setChurches: () => {} };
+    const { churches, setChurches } = context;
     const { t } = useTranslation();
     const [data, setData] = useState<ChurchFormData>(currentData);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleLogoUpload = (file: File) => {
-        if (file && file.type.startsWith('image/')) {
+        if (file?.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = e => setData(d => ({ ...d, logoUrl: e.target?.result as string }));
             reader.readAsDataURL(file);
@@ -86,12 +85,8 @@ const EditChurchModal: React.FC<{ churchId: string; currentData: ChurchFormData;
 
     const handleSave = async () => {
         setIsSaving(true);
-        try {
-            setChurches(churches.map(c => (c.id === churchId ? { ...c, ...data } : c)));
-        } finally {
-            setIsSaving(false);
-            onClose();
-        }
+        try { setChurches(churches.map(c => (c.id === churchId ? { ...c, ...data } : c))); }
+        finally { setIsSaving(false); onClose(); }
     };
 
     return (
@@ -113,7 +108,8 @@ const EditChurchModal: React.FC<{ churchId: string; currentData: ChurchFormData;
 
 // --- Bank Form ---
 const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
-    const { addBank } = useContext(AppContext);
+    const context = useContext(AppContext) ?? { addBank: async () => {} };
+    const { addBank } = context;
     const { t } = useTranslation();
     const [name, setName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -121,13 +117,8 @@ const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        try {
-            await addBank({ name });
-            setName('');
-            onCancel();
-        } finally {
-            setIsSaving(false);
-        }
+        try { await addBank({ name }); setName(''); onCancel(); }
+        finally { setIsSaving(false); }
     };
 
     return (
@@ -146,13 +137,14 @@ const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
 
 // --- Church Form ---
 const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
-    const { addChurch } = useContext(AppContext);
+    const context = useContext(AppContext) ?? { addChurch: async () => {} };
+    const { addChurch } = context;
     const { t } = useTranslation();
     const [data, setData] = useState<ChurchFormData>({ name: '', address: '', pastor: '', logoUrl: '' });
     const [isSaving, setIsSaving] = useState(false);
 
     const handleLogoUpload = (file: File) => {
-        if (file && file.type.startsWith('image/')) {
+        if (file?.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = e => setData(d => ({ ...d, logoUrl: e.target?.result as string }));
             reader.readAsDataURL(file);
@@ -162,13 +154,8 @@ const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        try {
-            await addChurch(data);
-            setData({ name: '', address: '', pastor: '', logoUrl: '' });
-            onCancel();
-        } finally {
-            setIsSaving(false);
-        }
+        try { await addChurch(data); setData({ name: '', address: '', pastor: '', logoUrl: '' }); onCancel(); }
+        finally { setIsSaving(false); }
     };
 
     return (
