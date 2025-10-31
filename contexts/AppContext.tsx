@@ -53,19 +53,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [searchFilters, setSearchFiltersState] = useState<SearchFilters>({});
 
-    // --- Efeito para aplicar dark mode no <html> ---
+    // --- Efeito dark mode ---
     useEffect(() => {
         const root = window.document.documentElement;
-        if (theme === 'dark') {
-            root.classList.add('dark');
-        } else {
-            root.classList.remove('dark');
-        }
+        if (theme === 'dark') root.classList.add('dark');
+        else root.classList.remove('dark');
         localStorage.setItem('theme', theme);
     }, [theme]);
 
-    // --- Funções temporárias para compilação ---
+    // --- Toast ---
     const showToast = (msg: string, type: string) => console.log(`[Toast] ${type}: ${msg}`);
+
+    // --- Funções temporárias ---
     const getAISuggestion = async (tx: Transaction, contributors: Contributor[]) => "Teste";
     const addLearnedAssociation = (tx: Transaction, contributor: Contributor, church: Church) => {};
     const groupResultsByChurch = (results: MatchResult[]) => ({});
@@ -106,38 +105,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const addIgnoreKeyword = () => {};
     const removeIgnoreKeyword = () => {};
 
-    // --- Funções de cadastro conectadas ao Supabase ---
-const addBank = async (bankData: Omit<Bank, 'id'>) => {
-    if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
-
-    try {
-        console.log('🟦 Enviando dados para Supabase:', bankData);
-
-        const { data, error } = await supabase
-            .from('banks')
-            .insert([{ name: bankData.name }]) // garante que só o campo name é enviado
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        console.log('✅ Banco salvo no Supabase:', data);
-
-        setBanks(prev => [...prev, data]);
-        showToast('Banco cadastrado com sucesso!', 'success');
-    } catch (err: any) {
-        console.error('❌ Erro ao cadastrar banco:', err);
-        showToast(`Erro ao cadastrar banco: ${err.message}`, 'error');
-    }
-};
+    // --- Cadastro Banco/Supabase ---
+    const addBank = async (bankData: Omit<Bank, 'id'>) => {
+        if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
+        try {
+            const { data, error } = await supabase.from('banks').insert([{ name: bankData.name }]).select().single();
+            if (error) throw error;
+            setBanks(prev => [...prev, data]);
+            showToast('Banco cadastrado com sucesso!', 'success');
+        } catch (err: any) {
+            console.error('Erro ao cadastrar banco:', err);
+            showToast(`Erro ao cadastrar banco: ${err.message}`, 'error');
+        }
+    };
 
     const addChurch = async (churchData: Omit<Church, 'id'>) => {
         if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
-
         try {
             const { data, error } = await supabase.from('churches').insert([churchData]).select().single();
             if (error) throw error;
-
             setChurches(prev => [...prev, data]);
             showToast('Igreja cadastrada com sucesso!', 'success');
         } catch (err: any) {
@@ -146,12 +132,10 @@ const addBank = async (bankData: Omit<Bank, 'id'>) => {
         }
     };
 
-    // --- Funções principais ---
+    // --- Relatórios ---
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
         if (reportType === 'income') {
-            setMatchResults(prev => prev.map(row =>
-                row.transaction.id === updatedRow.transaction.id ? updatedRow : row
-            ));
+            setMatchResults(prev => prev.map(row => row.transaction.id === updatedRow.transaction.id ? updatedRow : row));
         }
     }, [setMatchResults]);
 
@@ -188,34 +172,15 @@ const addBank = async (bankData: Omit<Bank, 'id'>) => {
         try {
             const suggestion = await getAISuggestion(result.transaction, allContributorsWithChurch);
             setAiSuggestion({ id: transactionId, name: suggestion });
-
-            const suggestedContributor = allContributorsWithChurch.find(c => c.name.toLowerCase() === suggestion.toLowerCase());
-            if (suggestedContributor) {
-                const updatedRow: MatchResult = {
-                    ...result,
-                    contributor: suggestedContributor,
-                    church: suggestedContributor.church,
-                    status: 'IDENTIFICADO',
-                    matchMethod: 'AI'
-                };
-
-                if (activeView === 'reports' && reportType) {
-                    updateReportData(updatedRow, reportType);
-                } else {
-                    setMatchResults(prev => prev.map(r => r.transaction.id === transactionId ? updatedRow : r));
-                }
-
-                addLearnedAssociation(result.transaction, suggestedContributor, suggestedContributor.church);
-            }
         } catch (error) {
-            console.error("AI Analysis failed", error, { transactionId });
-            console.count("apiErrors"); // substitui Metrics.increment
+            console.error("AI Analysis failed", error);
             setAiSuggestion({ id: transactionId, name: "Erro na análise." });
         } finally {
             setLoadingAiId(null);
         }
-    }, [matchResults, reportPreviewData, allContributorsWithChurch, updateReportData, activeView]);
+    }, [matchResults, reportPreviewData, allContributorsWithChurch]);
 
+    // --- Context Value ---
     const value = useMemo(() => ({
         theme, banks, churches, learnedAssociations, bankStatementFile, contributorFiles, matchResults, activeView,
         isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
