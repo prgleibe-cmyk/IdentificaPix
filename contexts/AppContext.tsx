@@ -8,14 +8,12 @@ import {
     SavedReport,
     Bank,
     Church,
-    ChurchFormData,
     DeletingItem,
     SearchFilters
 } from '../types';
 
 // --- Valor default seguro para o contexto (evita undefined) ---
 const defaultContextValue: any = {
-    // estados
     theme: 'light',
     banks: [] as Bank[],
     churches: [] as Church[],
@@ -149,7 +147,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // --- Toast ---
     const showToast = (msg: string, type: string) => {
         setToast({ message: msg, type });
-        // também loga para debugging
         console.log(`[Toast] ${type}: ${msg}`);
     };
 
@@ -158,10 +155,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const addLearnedAssociation = (tx: Transaction, contributor: Contributor, church: Church) => {};
     const groupResultsByChurch = (results: MatchResult[]) => ({});
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
-    const handleStatementUpload = () => {};
-    const handleContributorsUpload = () => {};
+
+    // --- UPLOAD HANDLERS CORRIGIDOS ---
+    const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
+        setBankStatementFile({ bankId, content, fileName });
+    };
+
+    const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
+        setContributorFiles(prev => {
+            const existingIndex = prev.findIndex(f => f.churchId === churchId);
+            if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = { churchId, content, fileName };
+                return updated;
+            }
+            return [...prev, { churchId, content, fileName }];
+        });
+    };
+
+    // --- REMOÇÃO DE ARQUIVOS ---
     const removeBankStatementFile = () => setBankStatementFile(null);
-    const removeContributorFile = () => setContributorFiles([]);
+    const removeContributorFile = (churchId?: string) => {
+        if (!churchId) return setContributorFiles([]);
+        setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
+    };
+
+    // --- Outras funções já existentes ---
     const handleCompare = () => {};
     const openEditBank = (b?: Bank | null) => setEditingBank(b ?? null);
     const closeEditBank = () => setEditingBank(null);
@@ -211,37 +230,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCustomIgnoreKeywords(prev => prev.filter(k => k !== kw));
     };
 
-    // --- Cadastro Banco/Supabase ---
-    // Observação: aceitamos tanto addBank('Nome') quanto addBank({ name: 'Nome' })
+    // --- Cadastro Banco ---
     const addBank = async (bankData: any) => {
         if (!supabase) {
             showToast('Erro: Supabase não inicializado.', 'error');
             return null;
         }
-
-        // Normaliza entrada
         let name: string | undefined;
         if (typeof bankData === 'string') name = bankData;
         else if (bankData && typeof bankData.name === 'string') name = bankData.name;
         else if (bankData && bankData.name) name = String(bankData.name);
-
         if (!name || !name.trim()) {
             showToast('Nome do banco inválido.', 'error');
             return null;
         }
-
         try {
             const payload = { name: name.trim() };
             const { data, error } = await supabase.from('banks').insert([payload]).select().single();
-
             if (error) {
-                // erro vindo do supabase
                 console.error('Erro ao cadastrar banco (supabase):', error);
                 showToast(`Erro ao cadastrar banco: ${error.message ?? error}`, 'error');
                 return null;
             }
-
-            // atualiza estado local
             setBanks(prev => [...prev, data]);
             showToast('Banco cadastrado com sucesso!', 'success');
             return data;
@@ -252,34 +262,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     };
 
-    // --- Cadastro Igreja / Supabase ---
+    // --- Cadastro Igreja ---
     const addChurch = async (churchData: any) => {
         if (!supabase) {
             showToast('Erro: Supabase não inicializado.', 'error');
             return null;
         }
-
-        // valida campos mínimos
         const name = churchData?.name?.toString()?.trim() ?? '';
         const address = churchData?.address?.toString()?.trim() ?? '';
         const pastor = churchData?.pastor?.toString()?.trim() ?? '';
         const logoUrl = churchData?.logoUrl ?? '';
-
         if (!name) {
             showToast('Nome da igreja inválido.', 'error');
             return null;
         }
-
         try {
             const payload = { name, address, pastor, logoUrl };
             const { data, error } = await supabase.from('churches').insert([payload]).select().single();
-
             if (error) {
                 console.error('Erro ao cadastrar igreja (supabase):', error);
                 showToast(`Erro ao cadastrar igreja: ${error.message ?? error}`, 'error');
                 return null;
             }
-
             setChurches(prev => [...prev, data]);
             showToast('Igreja cadastrada com sucesso!', 'success');
             return data;
@@ -300,7 +304,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const handleAnalyze = useCallback(async (transactionId: string) => {
         let result: MatchResult | undefined;
         let reportType: 'income' | 'expenses' | undefined;
-
         if (reportPreviewData) {
             for (const type of ['income', 'expenses'] as const) {
                 for (const cId in reportPreviewData[type]) {
@@ -314,17 +317,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (result) break;
             }
         }
-
         if (!result) {
             result = matchResults.find(r => r.transaction.id === transactionId);
             if (result) reportType = 'income';
         }
-
         if (!result) {
             showToast('Não foi possível encontrar a transação para análise.', 'error');
             return;
         }
-
         setLoadingAiId(transactionId);
         setAiSuggestion(null);
         try {
