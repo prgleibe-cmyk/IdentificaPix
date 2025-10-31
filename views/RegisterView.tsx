@@ -11,10 +11,10 @@ import { ChurchFormData } from '../types';
 // Ícones
 import { SearchIcon, PlusCircleIcon, PencilIcon, TrashIcon } from '../components/Icons';
 
-// Modals
-import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal';
-import EditBankModal from '../components/modals/EditBankModal';
-import EditChurchModal from '../components/modals/EditChurchModal';
+// Modals (corrigido: named imports)
+import { ConfirmDeleteModal } from '../components/modals/ConfirmDeleteModal';
+import { EditBankModal } from '../components/modals/EditBankModal';
+import { EditChurchModal } from '../components/modals/EditChurchModal';
 
 // Serviços
 import { supabase } from "../services/supabaseClient";
