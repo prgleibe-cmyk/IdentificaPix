@@ -78,11 +78,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const openEditBank = () => {};
     const closeEditBank = () => {};
     const updateBank = () => {};
-    const addBank = () => {};
     const openEditChurch = () => {};
     const closeEditChurch = () => {};
     const updateChurch = () => {};
-    const addChurch = () => {};
     const openDeleteConfirmation = () => {};
     const closeDeleteConfirmation = () => {};
     const confirmDeletion = () => {};
@@ -107,6 +105,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const clearSearchFilters = () => {};
     const addIgnoreKeyword = () => {};
     const removeIgnoreKeyword = () => {};
+
+    // --- Funções de cadastro conectadas ao Supabase ---
+    const addBank = async (bankData: Omit<Bank, 'id'>) => {
+        if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
+
+        try {
+            const { data, error } = await supabase.from('banks').insert([bankData]).select().single();
+            if (error) throw error;
+
+            setBanks(prev => [...prev, data]);
+            showToast('Banco cadastrado com sucesso!', 'success');
+        } catch (err: any) {
+            console.error('Erro ao cadastrar banco:', err);
+            showToast(`Erro ao cadastrar banco: ${err.message}`, 'error');
+        }
+    };
+
+    const addChurch = async (churchData: Omit<Church, 'id'>) => {
+        if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
+
+        try {
+            const { data, error } = await supabase.from('churches').insert([churchData]).select().single();
+            if (error) throw error;
+
+            setChurches(prev => [...prev, data]);
+            showToast('Igreja cadastrada com sucesso!', 'success');
+        } catch (err: any) {
+            console.error('Erro ao cadastrar igreja:', err);
+            showToast(`Erro ao cadastrar igreja: ${err.message}`, 'error');
+        }
+    };
 
     // --- Funções principais ---
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {

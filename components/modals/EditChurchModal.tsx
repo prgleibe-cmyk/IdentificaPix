@@ -5,7 +5,7 @@ import { ChurchFormData } from '../../types';
 import { XMarkIcon } from '../Icons';
 
 export const EditChurchModal: React.FC = () => {
-    const { editingChurch, updateChurch, closeEditChurch } = useContext(AppContext);
+    const { editingChurch, addChurch, updateChurch, closeEditChurch } = useContext(AppContext);
     const { t } = useTranslation();
     const [formData, setFormData] = useState<ChurchFormData>({ name: '', address: '', pastor: '', logoUrl: '' });
 
@@ -38,9 +38,14 @@ export const EditChurchModal: React.FC = () => {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        updateChurch(editingChurch.id, formData);
+        if (editingChurch.id) {
+            await updateChurch(editingChurch.id, formData);
+        } else {
+            await addChurch(formData);
+        }
+        closeEditChurch();
     };
 
     return (
@@ -49,26 +54,27 @@ export const EditChurchModal: React.FC = () => {
                 <form onSubmit={handleSubmit}>
                     <div className="p-6 max-h-[80vh] overflow-y-auto">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{t('modal.editChurch')}</h3>
+                            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                                {editingChurch.id ? t('modal.editChurch') : t('modal.addChurch')}
+                            </h3>
                             <button type="button" onClick={closeEditChurch} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                                 <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
                         <div className="mt-4 space-y-4">
-                            {/* Form Fields */}
                             <div>
-                                <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.churchName')}</label>
-                                <input type="text" id="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
+                                <label htmlFor="edit-church-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.churchName')}</label>
+                                <input type="text" id="edit-church-name" value={formData.name} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
                             </div>
                             <div>
-                                <label htmlFor="address" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.address')}</label>
-                                <input type="text" id="address" value={formData.address} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
+                                <label htmlFor="edit-church-address" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.address')}</label>
+                                <input type="text" id="edit-church-address" value={formData.address} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
                             </div>
                             <div>
-                                <label htmlFor="pastor" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.pastor')}</label>
-                                <input type="text" id="pastor" value={formData.pastor} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
+                                <label htmlFor="edit-church-pastor" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.pastor')}</label>
+                                <input type="text" id="edit-church-pastor" value={formData.pastor} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
                             </div>
-                             <div>
+                            <div>
                                 <label htmlFor="edit-church-logo-upload" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.logo')}</label>
                                 <div className="mt-1 flex items-center space-x-4">
                                     <img 
