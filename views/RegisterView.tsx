@@ -15,8 +15,7 @@ const ListItem: React.FC<ListItemProps> = memo(({ children, actions }) => (
 
 // --- Confirm Delete Modal ---
 const ConfirmDeleteModal: React.FC<{ type: 'bank' | 'church'; id: string; name: string; onClose: () => void }> = ({ type, id, name, onClose }) => {
-    const context = useContext(AppContext) ?? { banks: [], churches: [], setBanks: () => {}, setChurches: () => {} };
-    const { banks, setBanks, churches, setChurches } = context;
+    const { banks, setBanks, churches, setChurches } = useContext(AppContext);
     const { t } = useTranslation();
 
     const handleDelete = () => {
@@ -41,16 +40,19 @@ const ConfirmDeleteModal: React.FC<{ type: 'bank' | 'church'; id: string; name: 
 
 // --- Edit Bank Modal ---
 const EditBankModal: React.FC<{ bankId: string; currentName: string; onClose: () => void }> = ({ bankId, currentName, onClose }) => {
-    const context = useContext(AppContext) ?? { banks: [], setBanks: () => {} };
-    const { banks, setBanks } = context;
+    const { banks, setBanks } = useContext(AppContext);
     const { t } = useTranslation();
     const [name, setName] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = async () => {
         setIsSaving(true);
-        try { setBanks(banks.map(b => (b.id === bankId ? { ...b, name } : b))); }
-        finally { setIsSaving(false); onClose(); }
+        try {
+            setBanks(banks.map(b => (b.id === bankId ? { ...b, name } : b)));
+        } finally {
+            setIsSaving(false);
+            onClose();
+        }
     };
 
     return (
@@ -69,14 +71,13 @@ const EditBankModal: React.FC<{ bankId: string; currentName: string; onClose: ()
 
 // --- Edit Church Modal ---
 const EditChurchModal: React.FC<{ churchId: string; currentData: ChurchFormData; onClose: () => void }> = ({ churchId, currentData, onClose }) => {
-    const context = useContext(AppContext) ?? { churches: [], setChurches: () => {} };
-    const { churches, setChurches } = context;
+    const { churches, setChurches } = useContext(AppContext);
     const { t } = useTranslation();
     const [data, setData] = useState<ChurchFormData>(currentData);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleLogoUpload = (file: File) => {
-        if (file?.type.startsWith('image/')) {
+        if (file && file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = e => setData(d => ({ ...d, logoUrl: e.target?.result as string }));
             reader.readAsDataURL(file);
@@ -85,8 +86,12 @@ const EditChurchModal: React.FC<{ churchId: string; currentData: ChurchFormData;
 
     const handleSave = async () => {
         setIsSaving(true);
-        try { setChurches(churches.map(c => (c.id === churchId ? { ...c, ...data } : c))); }
-        finally { setIsSaving(false); onClose(); }
+        try {
+            setChurches(churches.map(c => (c.id === churchId ? { ...c, ...data } : c)));
+        } finally {
+            setIsSaving(false);
+            onClose();
+        }
     };
 
     return (
@@ -108,8 +113,7 @@ const EditChurchModal: React.FC<{ churchId: string; currentData: ChurchFormData;
 
 // --- Bank Form ---
 const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
-    const context = useContext(AppContext) ?? { addBank: async () => {} };
-    const { addBank } = context;
+    const { addBank } = useContext(AppContext);
     const { t } = useTranslation();
     const [name, setName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -117,8 +121,13 @@ const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        try { await addBank({ name }); setName(''); onCancel(); }
-        finally { setIsSaving(false); }
+        try {
+            await addBank({ name });
+            setName('');
+            onCancel();
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -137,14 +146,13 @@ const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
 
 // --- Church Form ---
 const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
-    const context = useContext(AppContext) ?? { addChurch: async () => {} };
-    const { addChurch } = context;
+    const { addChurch } = useContext(AppContext);
     const { t } = useTranslation();
     const [data, setData] = useState<ChurchFormData>({ name: '', address: '', pastor: '', logoUrl: '' });
     const [isSaving, setIsSaving] = useState(false);
 
     const handleLogoUpload = (file: File) => {
-        if (file?.type.startsWith('image/')) {
+        if (file && file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = e => setData(d => ({ ...d, logoUrl: e.target?.result as string }));
             reader.readAsDataURL(file);
@@ -154,12 +162,33 @@ const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        try { await addChurch(data); setData({ name: '', address: '', pastor: '', logoUrl: '' }); onCancel(); }
-        finally { setIsSaving(false); }
+        try {
+            await addChurch(data);
+            setData({ name: '', address: '', pastor: '', logoUrl: '' });
+            onCancel();
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-3 mb-4">
+            <div>
+                <label htmlFor="church-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.churchName')}</label>
+                <input id="church-name" type="text" value={data.name} onChange={e => setData(d => ({ ...d, name: e.target.value }))} required className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400"/>
+            </div>
+            <div>
+                <label htmlFor="church-address" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.address')}</label>
+                <input id="church-address" type="text" value={data.address} onChange={e => setData(d => ({ ...d, address: e.target.value }))} required className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400"/>
+            </div>
+            <div>
+                <label htmlFor="church-pastor" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.pastor')}</label>
+                <input id="church-pastor" type="text" value={data.pastor} onChange={e => setData(d => ({ ...d, pastor: e.target.value }))} required className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400"/>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.logo')}</label>
+                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleLogoUpload(e.target.files[0])} className="mt-1 w-full text-sm text-slate-500"/>
+            </div>
             <div className="flex items-center space-x-2 pt-2">
                 <button type="submit" disabled={isSaving} className="w-full py-2 px-4 bg-blue-700 text-white rounded-md hover:bg-blue-800">{t('common.save')}</button>
                 <button type="button" onClick={onCancel} className="w-full py-2 px-4 border border-blue-700 text-blue-700 rounded-md hover:bg-blue-700 hover:text-white transition-colors">{t('common.cancel')}</button>
