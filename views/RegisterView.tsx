@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo, useEffect } from 'react';
+import React, { useContext, useState, useMemo, memo, useEffect } from 'react';
 import {
   Tabs,
   TabsContent,
@@ -8,103 +8,117 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from "../services/supabaseClient";
-import { useTranslation } from 'react-i18next';
+import { useToast } from '@/components/ui/use-toast';
+
+// ✅ Import seguro do Supabase
+import { supabase } from '../lib/supabase';
 
 const RegisterView = memo(() => {
-  const { t } = useTranslation();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('bank');
-  const [bankName, setBankName] = useState('');
-  const [churchName, setChurchName] = useState('');
+  const [bankData, setBankData] = useState({ nome_banco: '', codigo_banco: '' });
+  const [churchData, setChurchData] = useState({ nome_igreja: '', cnpj_igreja: '' });
   const [loading, setLoading] = useState(false);
-  const [banks, setBanks] = useState<any[]>([]);
-  const [churches, setChurches] = useState<any[]>([]);
 
-  // 🔄 Carrega registros existentes
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: bankData } = await supabase.from('banks').select('*');
-      const { data: churchData } = await supabase.from('churches').select('*');
-      if (bankData) setBanks(bankData);
-      if (churchData) setChurches(churchData);
-    };
-    fetchData();
-  }, []);
-
-  // 🏦 Cadastro de banco
-  const handleRegisterBank = async () => {
-    if (!bankName.trim()) return;
-    setLoading(true);
-    const { error } = await supabase.from('banks').insert([{ name: bankName.trim() }]);
-    if (!error) {
-      setBankName('');
-      const { data } = await supabase.from('banks').select('*');
-      if (data) setBanks(data);
-    }
-    setLoading(false);
+  const handleBankChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBankData({ ...bankData, [e.target.name]: e.target.value });
   };
 
-  // ⛪ Cadastro de igreja
-  const handleRegisterChurch = async () => {
-    if (!churchName.trim()) return;
-    setLoading(true);
-    const { error } = await supabase.from('churches').insert([{ name: churchName.trim() }]);
-    if (!error) {
-      setChurchName('');
-      const { data } = await supabase.from('churches').select('*');
-      if (data) setChurches(data);
-    }
-    setLoading(false);
+  const handleChurchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setChurchData({ ...churchData, [e.target.name]: e.target.value });
   };
 
-  // 🧠 Memoriza as listas
-  const renderedBanks = useMemo(
-    () => banks.map((b) => <li key={b.id}>{b.name}</li>),
-    [banks]
-  );
+  const handleBankSubmit = async () => {
+    if (!bankData.nome_banco || !bankData.codigo_banco) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos do banco.' });
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.from('bancos').insert([bankData]);
+    setLoading(false);
 
-  const renderedChurches = useMemo(
-    () => churches.map((c) => <li key={c.id}>{c.name}</li>),
-    [churches]
-  );
+    if (error) {
+      toast({ title: 'Erro ao cadastrar banco', description: error.message });
+    } else {
+      toast({ title: 'Banco cadastrado com sucesso!' });
+      setBankData({ nome_banco: '', codigo_banco: '' });
+    }
+  };
+
+  const handleChurchSubmit = async () => {
+    if (!churchData.nome_igreja || !churchData.cnpj_igreja) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos da igreja.' });
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.from('igrejas').insert([churchData]);
+    setLoading(false);
+
+    if (error) {
+      toast({ title: 'Erro ao cadastrar igreja', description: error.message });
+    } else {
+      toast({ title: 'Igreja cadastrada com sucesso!' });
+      setChurchData({ nome_igreja: '', cnpj_igreja: '' });
+    }
+  };
 
   return (
-    <div className="max-w-lg mx-auto p-6">
+    <div className="p-4 max-w-lg mx-auto">
       <Tabs defaultValue="bank" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-2 mb-4">
-          <TabsTrigger value="bank">{t('banks')}</TabsTrigger>
-          <TabsTrigger value="church">{t('churches')}</TabsTrigger>
+        <TabsList className="grid grid-cols-2 w-full mb-4">
+          <TabsTrigger value="bank">Banco</TabsTrigger>
+          <TabsTrigger value="church">Igreja</TabsTrigger>
         </TabsList>
 
-        {/* 🏦 Aba de Bancos */}
         <TabsContent value="bank">
-          <div className="space-y-3">
-            <Label>{t('register_bank')}</Label>
-            <Input
-              placeholder={t('bank_name_placeholder')}
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-            />
-            <Button onClick={handleRegisterBank} disabled={loading}>
-              {loading ? t('saving') : t('save')}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="nome_banco">Nome do Banco</Label>
+              <Input
+                id="nome_banco"
+                name="nome_banco"
+                value={bankData.nome_banco}
+                onChange={handleBankChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="codigo_banco">Código do Banco</Label>
+              <Input
+                id="codigo_banco"
+                name="codigo_banco"
+                value={bankData.codigo_banco}
+                onChange={handleBankChange}
+              />
+            </div>
+            <Button onClick={handleBankSubmit} disabled={loading}>
+              {loading ? 'Cadastrando...' : 'Cadastrar Banco'}
             </Button>
-            <ul className="mt-4 space-y-1">{renderedBanks}</ul>
           </div>
         </TabsContent>
 
-        {/* ⛪ Aba de Igrejas */}
         <TabsContent value="church">
-          <div className="space-y-3">
-            <Label>{t('register_church')}</Label>
-            <Input
-              placeholder={t('church_name_placeholder')}
-              value={churchName}
-              onChange={(e) => setChurchName(e.target.value)}
-            />
-            <Button onClick={handleRegisterChurch} disabled={loading}>
-              {loading ? t('saving') : t('save')}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="nome_igreja">Nome da Igreja</Label>
+              <Input
+                id="nome_igreja"
+                name="nome_igreja"
+                value={churchData.nome_igreja}
+                onChange={handleChurchChange}
+              />
+            </div>
+            <div>
+              <Label htmlFor="cnpj_igreja">CNPJ da Igreja</Label>
+              <Input
+                id="cnpj_igreja"
+                name="cnpj_igreja"
+                value={churchData.cnpj_igreja}
+                onChange={handleChurchChange}
+              />
+            </div>
+            <Button onClick={handleChurchSubmit} disabled={loading}>
+              {loading ? 'Cadastrando...' : 'Cadastrar Igreja'}
             </Button>
-            <ul className="mt-4 space-y-1">{renderedChurches}</ul>
           </div>
         </TabsContent>
       </Tabs>
@@ -112,5 +126,4 @@ const RegisterView = memo(() => {
   );
 });
 
-RegisterView.displayName = 'RegisterView';
 export default RegisterView;
