@@ -1,16 +1,14 @@
-import React, { useContext, useState, useMemo, memo, useEffect } from 'react';
+import React, { useContext, useState, useMemo, memo, useEffect } from "react";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger
-} from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
-
-// ✅ Import seguro do Supabase
+} from "../components/ui/tabs";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { useToast } from "../components/ui/use-toast";
 import { supabase } from "../services/supabaseClient";
 
 const RegisterView = memo(() => {
