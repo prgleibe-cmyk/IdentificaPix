@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 
 // ✅ Import seguro do Supabase
-import { supabase } from '../lib/supabase';
+import { supabase } from "../services/supabaseClient";
 
 const RegisterView = memo(() => {
   const { toast } = useToast();
