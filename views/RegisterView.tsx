@@ -1,7 +1,19 @@
-// React e hooks
-import React, { useContext, useState, useEffect, useMemo, memo } from 'react';
+// React e hooks padrão
+import React, { useContext, useState, useMemo, memo, useEffect } from 'react';
 
-// Contextos
+// Componentes UI internos
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger
+} from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
+
+// Contextos e hooks
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 
@@ -11,13 +23,8 @@ import { ChurchFormData } from '../types';
 // Ícones
 import { SearchIcon, PlusCircleIcon, PencilIcon, TrashIcon } from '../components/Icons';
 
-// Modals (named imports)
-import { ConfirmDeleteModal } from '../components/modals/ConfirmDeleteModal';
-import { EditBankModal } from '../components/modals/EditBankModal';
-import { EditChurchModal } from '../components/modals/EditChurchModal';
-
-// Serviços
-import { supabase } from "../services/supabaseClient";
+// Supabase
+import { supabase } from '../services/supabaseClient';
 
 // --- Reusable List Item ---
 interface ListItemProps { children: React.ReactNode; actions: React.ReactNode; }
