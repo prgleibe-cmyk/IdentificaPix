@@ -30,10 +30,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      if (event.target) event.target.value = '';
-      return;
-    }
+    if (!file) return;
 
     setIsParsing(true);
 
@@ -43,6 +40,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
       let csvContent = '';
 
       if (fileNameLower.endsWith('.pdf')) {
+        if (!pdfjsLib) throw new Error('pdfjsLib não carregado');
         const typedarray = new Uint8Array(fileBuffer);
         const pdf = await pdfjsLib.getDocument(typedarray).promise;
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -75,6 +73,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
           });
         }
       } else if (fileNameLower.endsWith('.docx')) {
+        if (!mammoth) throw new Error('mammoth não carregado');
         const result = await mammoth.convertToHtml({ arrayBuffer: fileBuffer });
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = result.value;
@@ -94,6 +93,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
           csvContent = textResult.value.replace(/\r\n?/g, '\n');
         }
       } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
+        if (!XLSX) throw new Error('XLSX não carregado');
         const data = new Uint8Array(fileBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
@@ -103,13 +103,15 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
         csvContent = new TextDecoder().decode(fileBuffer);
       }
 
+      // Chamada do handler de upload
       onFileUpload(csvContent, file.name);
       Metrics.increment('filesParsed');
     } catch (error: any) {
-      Logger.error("Error parsing file", error, { fileName: file?.name });
+      Logger.error("Erro ao processar arquivo", error, { fileName: file?.name });
       Metrics.increment('parsingErrors');
     } finally {
       setIsParsing(false);
+      // Limpa o input apenas após o processamento
       if (event.target) event.target.value = '';
     }
   };
