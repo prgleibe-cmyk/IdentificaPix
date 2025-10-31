@@ -1,127 +1,189 @@
-import React, { useContext, useState, useMemo, memo, useEffect } from "react";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from "../components/ui/tabs";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { useToast } from "../components/ui/use-toast";
+// React e hooks
+import React, { useContext, useState, useEffect, useMemo, memo } from 'react';
+
+// Contextos
+import { AppContext } from '../contexts/AppContext';
+import { useTranslation } from '../contexts/I18nContext';
+
+// Tipos
+import { ChurchFormData } from '../types';
+
+// Ícones
+import { SearchIcon, PlusCircleIcon, PencilIcon, TrashIcon } from '../components/Icons';
+
+// Modals
+import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal';
+import EditBankModal from '../components/modals/EditBankModal';
+import EditChurchModal from '../components/modals/EditChurchModal';
+
+// Serviços
 import { supabase } from "../services/supabaseClient";
 
-const RegisterView = memo(() => {
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('bank');
-  const [bankData, setBankData] = useState({ nome_banco: '', codigo_banco: '' });
-  const [churchData, setChurchData] = useState({ nome_igreja: '', cnpj_igreja: '' });
-  const [loading, setLoading] = useState(false);
+// --- Reusable List Item ---
+interface ListItemProps { children: React.ReactNode; actions: React.ReactNode; }
+const ListItem: React.FC<ListItemProps> = memo(({ children, actions }) => (
+    <li className="flex items-center justify-between text-sm bg-slate-50 dark:bg-slate-700/50 p-2.5 rounded-md">
+        <div className="flex-1 min-w-0 pr-4">{children}</div>
+        <div className="flex-shrink-0 flex items-center space-x-3">{actions}</div>
+    </li>
+));
 
-  const handleBankChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setBankData({ ...bankData, [e.target.name]: e.target.value });
-  };
+// --- Bank Form ---
+const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
+    const ctx = useContext(AppContext);
+    const { addBank = async () => {} } = ctx || {};
+    const { t } = useTranslation();
+    const [name, setName] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
-  const handleChurchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setChurchData({ ...churchData, [e.target.name]: e.target.value });
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            await addBank({ name });
+            setName('');
+            onCancel();
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
-  const handleBankSubmit = async () => {
-    if (!bankData.nome_banco || !bankData.codigo_banco) {
-      toast({ title: 'Erro', description: 'Preencha todos os campos do banco.' });
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.from('bancos').insert([bankData]);
-    setLoading(false);
-
-    if (error) {
-      toast({ title: 'Erro ao cadastrar banco', description: error.message });
-    } else {
-      toast({ title: 'Banco cadastrado com sucesso!' });
-      setBankData({ nome_banco: '', codigo_banco: '' });
-    }
-  };
-
-  const handleChurchSubmit = async () => {
-    if (!churchData.nome_igreja || !churchData.cnpj_igreja) {
-      toast({ title: 'Erro', description: 'Preencha todos os campos da igreja.' });
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.from('igrejas').insert([churchData]);
-    setLoading(false);
-
-    if (error) {
-      toast({ title: 'Erro ao cadastrar igreja', description: error.message });
-    } else {
-      toast({ title: 'Igreja cadastrada com sucesso!' });
-      setChurchData({ nome_igreja: '', cnpj_igreja: '' });
-    }
-  };
-
-  return (
-    <div className="p-4 max-w-lg mx-auto">
-      <Tabs defaultValue="bank" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-2 w-full mb-4">
-          <TabsTrigger value="bank">Banco</TabsTrigger>
-          <TabsTrigger value="church">Igreja</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="bank">
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="nome_banco">Nome do Banco</Label>
-              <Input
-                id="nome_banco"
-                name="nome_banco"
-                value={bankData.nome_banco}
-                onChange={handleBankChange}
-              />
+    return (
+        <form onSubmit={handleSubmit} className="space-y-3 mb-4">
+            <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Nome do banco" className="w-full p-2 border rounded-md"/>
+            <div className="flex space-x-2">
+                <button type="submit" disabled={isSaving} className="w-full py-2 px-4 bg-blue-700 text-white rounded-md">Salvar</button>
+                <button type="button" onClick={onCancel} className="w-full py-2 px-4 border rounded-md">Cancelar</button>
             </div>
-            <div>
-              <Label htmlFor="codigo_banco">Código do Banco</Label>
-              <Input
-                id="codigo_banco"
-                name="codigo_banco"
-                value={bankData.codigo_banco}
-                onChange={handleBankChange}
-              />
-            </div>
-            <Button onClick={handleBankSubmit} disabled={loading}>
-              {loading ? 'Cadastrando...' : 'Cadastrar Banco'}
-            </Button>
-          </div>
-        </TabsContent>
+        </form>
+    );
+};
 
-        <TabsContent value="church">
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="nome_igreja">Nome da Igreja</Label>
-              <Input
-                id="nome_igreja"
-                name="nome_igreja"
-                value={churchData.nome_igreja}
-                onChange={handleChurchChange}
-              />
+// --- Church Form ---
+const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
+    const ctx = useContext(AppContext);
+    const { addChurch = async () => {} } = ctx || {};
+    const { t } = useTranslation();
+    const [data, setData] = useState<ChurchFormData>({ name: '', address: '', pastor: '', logoUrl: '' });
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleLogoUpload = (file: File) => {
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = e => setData(d => ({ ...d, logoUrl: e.target?.result as string }));
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            await addChurch(data);
+            setData({ name: '', address: '', pastor: '', logoUrl: '' });
+            onCancel();
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-3 mb-4">
+            <input type="text" value={data.name} onChange={e => setData(d => ({ ...d, name: e.target.value }))} required placeholder="Nome da igreja" className="w-full p-2 border rounded-md"/>
+            <input type="text" value={data.address} onChange={e => setData(d => ({ ...d, address: e.target.value }))} required placeholder="Endereço" className="w-full p-2 border rounded-md"/>
+            <input type="text" value={data.pastor} onChange={e => setData(d => ({ ...d, pastor: e.target.value }))} required placeholder="Pastor" className="w-full p-2 border rounded-md"/>
+            <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleLogoUpload(e.target.files[0])}/>
+            <div className="flex space-x-2">
+                <button type="submit" disabled={isSaving} className="w-full py-2 px-4 bg-blue-700 text-white rounded-md">Salvar</button>
+                <button type="button" onClick={onCancel} className="w-full py-2 px-4 border rounded-md">Cancelar</button>
             </div>
-            <div>
-              <Label htmlFor="cnpj_igreja">CNPJ da Igreja</Label>
-              <Input
-                id="cnpj_igreja"
-                name="cnpj_igreja"
-                value={churchData.cnpj_igreja}
-                onChange={handleChurchChange}
-              />
+        </form>
+    );
+};
+
+// --- Lists ---
+const BanksList: React.FC<{ onEdit: (id:string,name:string)=>void; onDelete: (id:string,name:string)=>void }> = ({ onEdit, onDelete }) => {
+    const ctx = useContext(AppContext);
+    const { banks = [] } = ctx || {};
+    const [search, setSearch] = useState('');
+    const filteredBanks = useMemo(() => banks.filter(b => (b.name || '').toLowerCase().includes(search.toLowerCase())), [banks, search]);
+
+    return (
+        <div>
+            <input type="text" placeholder="Buscar banco" value={search} onChange={e => setSearch(e.target.value)} className="w-full p-2 border rounded-md mb-2"/>
+            <ul>
+                {filteredBanks.map(bank => (
+                    <ListItem key={bank.id} actions={
+                        <>
+                            <button onClick={() => onEdit(bank.id, bank.name)}>Editar</button>
+                            <button onClick={() => onDelete(bank.id, bank.name)}>Excluir</button>
+                        </>
+                    }>
+                        {bank.name}
+                    </ListItem>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+const ChurchesList: React.FC<{ onEdit:(data:ChurchFormData,id:string)=>void; onDelete:(id:string,name:string)=>void }> = ({ onEdit, onDelete }) => {
+    const ctx = useContext(AppContext);
+    const { churches = [] } = ctx || {};
+    const [search, setSearch] = useState('');
+    const filteredChurches = useMemo(() => churches.filter(c => (c.name || '').toLowerCase().includes(search.toLowerCase())), [churches, search]);
+
+    return (
+        <div>
+            <input type="text" placeholder="Buscar igreja" value={search} onChange={e => setSearch(e.target.value)} className="w-full p-2 border rounded-md mb-2"/>
+            <ul>
+                {filteredChurches.map(church => (
+                    <ListItem key={church.id} actions={
+                        <>
+                            <button onClick={() => onEdit(church, church.id)}>Editar</button>
+                            <button onClick={() => onDelete(church.id, church.name)}>Excluir</button>
+                        </>
+                    }>
+                        {church.name}
+                    </ListItem>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+// --- Main View ---
+const RegisterView: React.FC = () => {
+    const { t } = useTranslation();
+    const [showNewBankForm, setShowNewBankForm] = useState(false);
+    const [showNewChurchForm, setShowNewChurchForm] = useState(false);
+    const [editingBank, setEditingBank] = useState<{id:string,name:string}|null>(null);
+    const [editingChurch, setEditingChurch] = useState<{data:ChurchFormData,id:string}|null>(null);
+    const [deletingItem, setDeletingItem] = useState<{type:'bank'|'church',id:string,name:string}|null>(null);
+
+    return (
+        <div>
+            <h2>Registrar</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Banks */}
+                <div className="p-4 border rounded-md">
+                    {!showNewBankForm && <button onClick={() => setShowNewBankForm(true)}>Novo Banco</button>}
+                    {showNewBankForm && <BankForm onCancel={() => setShowNewBankForm(false)}/>}
+                    <BanksList onEdit={(id,name)=>setEditingBank({id,name})} onDelete={(id,name)=>setDeletingItem({type:'bank',id,name})}/>
+                </div>
+                {/* Churches */}
+                <div className="p-4 border rounded-md">
+                    {!showNewChurchForm && <button onClick={() => setShowNewChurchForm(true)}>Nova Igreja</button>}
+                    {showNewChurchForm && <ChurchForm onCancel={() => setShowNewChurchForm(false)}/>}
+                    <ChurchesList onEdit={(data,id)=>setEditingChurch({data,id})} onDelete={(id,name)=>setDeletingItem({type:'church',id,name})}/>
+                </div>
             </div>
-            <Button onClick={handleChurchSubmit} disabled={loading}>
-              {loading ? 'Cadastrando...' : 'Cadastrar Igreja'}
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-});
+
+            {editingBank && <EditBankModal bankId={editingBank.id} currentName={editingBank.name} onClose={()=>setEditingBank(null)}/>}
+            {editingChurch && <EditChurchModal churchId={editingChurch.id} currentData={editingChurch.data} onClose={()=>setEditingChurch(null)}/>}
+            {deletingItem && <ConfirmDeleteModal type={deletingItem.type} id={deletingItem.id} name={deletingItem.name} onClose={()=>setDeletingItem(null)}/>}
+        </div>
+    );
+};
 
 export default RegisterView;
