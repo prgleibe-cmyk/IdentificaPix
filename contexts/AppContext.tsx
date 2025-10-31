@@ -107,20 +107,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const removeIgnoreKeyword = () => {};
 
     // --- Funções de cadastro conectadas ao Supabase ---
-    const addBank = async (bankData: Omit<Bank, 'id'>) => {
-        if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
+const addBank = async (bankData: Omit<Bank, 'id'>) => {
+    if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
 
-        try {
-            const { data, error } = await supabase.from('banks').insert([bankData]).select().single();
-            if (error) throw error;
+    try {
+        console.log('🟦 Enviando dados para Supabase:', bankData);
 
-            setBanks(prev => [...prev, data]);
-            showToast('Banco cadastrado com sucesso!', 'success');
-        } catch (err: any) {
-            console.error('Erro ao cadastrar banco:', err);
-            showToast(`Erro ao cadastrar banco: ${err.message}`, 'error');
-        }
-    };
+        const { data, error } = await supabase
+            .from('banks')
+            .insert([{ name: bankData.name }]) // garante que só o campo name é enviado
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        console.log('✅ Banco salvo no Supabase:', data);
+
+        setBanks(prev => [...prev, data]);
+        showToast('Banco cadastrado com sucesso!', 'success');
+    } catch (err: any) {
+        console.error('❌ Erro ao cadastrar banco:', err);
+        showToast(`Erro ao cadastrar banco: ${err.message}`, 'error');
+    }
+};
 
     const addChurch = async (churchData: Omit<Church, 'id'>) => {
         if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
