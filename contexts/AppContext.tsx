@@ -1,6 +1,5 @@
 import React, { createContext, useState, useCallback, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { supabase } from '../services/supabaseClient';
 import {
     GroupedReportData,
     MatchResult,
@@ -10,89 +9,11 @@ import {
     Bank,
     Church,
     DeletingItem,
-    SearchFilters
+    SearchFilters,
+    ComparisonType
 } from '../types';
 
-const defaultContextValue: any = {
-    theme: 'light',
-    banks: [] as Bank[],
-    churches: [] as Church[],
-    learnedAssociations: [] as any[],
-    bankStatementFile: null,
-    contributorFiles: [] as any[],
-    matchResults: [] as MatchResult[],
-    activeView: 'reports',
-    isLoading: false,
-    loadingAiId: null,
-    aiSuggestion: null,
-    similarityLevel: 70,
-    dayTolerance: 3,
-    editingBank: null,
-    editingChurch: null,
-    manualIdentificationTx: null,
-    deletingItem: null,
-    toast: null,
-    summary: null,
-    allContributorsWithChurch: [] as Contributor[],
-    isCompareDisabled: false,
-    reportPreviewData: null,
-    savedReports: [] as SavedReport[],
-    comparisonType: 'default',
-    customIgnoreKeywords: [] as string[],
-    savingReportState: null,
-    allHistoricalResults: [] as any[],
-    allHistoricalContributors: [] as any[],
-    isSearchFiltersOpen: false,
-    searchFilters: {} as SearchFilters,
-    toggleTheme: () => {},
-    setActiveView: (_v: any) => {},
-    setBanks: (_b: any) => {},
-    setChurches: (_c: any) => {},
-    setSimilarityLevel: (_n: any) => {},
-    setDayTolerance: (_n: any) => {},
-    setMatchResults: (_m: any) => {},
-    setReportPreviewData: (_r: any) => {},
-    addIgnoreKeyword: (_k: any) => {},
-    removeIgnoreKeyword: (_k: any) => {},
-    handleStatementUpload: () => {},
-    handleContributorsUpload: () => {},
-    removeBankStatementFile: () => {},
-    removeContributorFile: () => {},
-    handleCompare: () => {},
-    handleAnalyze: async () => {},
-    updateReportData: (_u: any, _t: any) => {},
-    openEditBank: (_b?: any) => {},
-    closeEditBank: () => {},
-    updateBank: (_id?: any, _name?: any) => {},
-    addBank: async (_: any) => {},
-    openEditChurch: (_c?: any) => {},
-    closeEditChurch: () => {},
-    updateChurch: (_id?: any, _data?: any) => {},
-    addChurch: async (_: any) => {},
-    openDeleteConfirmation: (_: any) => {},
-    closeDeleteConfirmation: () => {},
-    confirmDeletion: () => {},
-    openManualIdentify: (_?: any) => {},
-    closeManualIdentify: () => {},
-    confirmManualIdentification: () => {},
-    openManualMatchModal: (_?: any) => {},
-    closeManualMatchModal: () => {},
-    confirmManualAssociation: (_?: any) => {},
-    showToast: (_m: any, _t: any) => {},
-    handleBackToSettings: () => {},
-    saveCurrentReport: () => {},
-    saveGroupReport: () => {},
-    viewSavedReport: (_id?: any) => {},
-    manualMatchState: null,
-    confirmSaveReport: () => {},
-    closeSaveReportModal: () => {},
-    discardCurrentReport: () => {},
-    saveFilteredReport: () => {},
-    openSearchFilters: () => {},
-    closeSearchFilters: () => {},
-    setSearchFilters: (_f: any) => {},
-    clearSearchFilters: () => {},
-};
+const defaultContextValue: any = {};
 
 export const AppContext = createContext<any>(defaultContextValue);
 
@@ -111,27 +32,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
     const [activeView, setActiveView] = useState<'reports' | 'settings'>('reports');
     const [isLoading, setIsLoading] = useState(false);
-    const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
-    const [aiSuggestion, setAiSuggestion] = useState<any>(null);
     const [similarityLevel, setSimilarityLevel] = useState<number>(70);
     const [dayTolerance, setDayTolerance] = useState<number>(3);
-    const [editingBank, setEditingBank] = useState<Bank | null>(null);
-    const [editingChurch, setEditingChurch] = useState<Church | null>(null);
-    const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
-    const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
-    const [toast, setToast] = useState<any>(null);
-    const [summary, setSummary] = useState<any>(null);
-    const [allContributorsWithChurch, setAllContributorsWithChurch] = useState<Contributor[]>([]);
     const [isCompareDisabled, setIsCompareDisabled] = useState(false);
-    const [reportPreviewData, setReportPreviewData] = useState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(null);
-    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-    const [comparisonType, setComparisonType] = useState<'default' | 'custom'>('default');
-    const [customIgnoreKeywords, setCustomIgnoreKeywords] = useState<string[]>([]);
-    const [savingReportState, setSavingReportState] = useState<any>(null);
-    const [allHistoricalResults, setAllHistoricalResults] = useState<any[]>([]);
-    const [allHistoricalContributors, setAllHistoricalContributors] = useState<any[]>([]);
-    const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
-    const [searchFilters, setSearchFiltersState] = useState<SearchFilters>({});
+    const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -140,12 +44,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('theme', theme);
     }, [theme]);
 
+    const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+
     const showToast = (msg: string, type: string) => {
-        setToast({ message: msg, type });
         console.log(`[Toast] ${type}: ${msg}`);
     };
-
-    const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
     const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
         setBankStatementFile({ bankId, content, fileName });
@@ -169,18 +72,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
     };
 
-    // --- IMPLEMENTAÇÃO CORRIGIDA DO handleCompare ---
     const handleCompare = async () => {
+        if (!bankStatementFile || contributorFiles.length === 0) {
+            showToast('Carregue o extrato bancário e os arquivos das igrejas antes de comparar.', 'error');
+            return;
+        }
+
+        setIsCompareDisabled(true);
+        setIsLoading(true);
+        showToast('Iniciando comparação...', 'info');
+
         try {
-            if (!bankStatementFile || contributorFiles.length === 0) {
-                showToast('Carregue o extrato bancário e os arquivos das igrejas antes de comparar.', 'error');
-                return;
-            }
-
-            setIsCompareDisabled(true);
-            setIsLoading(true);
-            showToast('Iniciando comparação...', 'info');
-
             const parseCSV = (content: string) =>
                 Papa.parse(content, { header: true, skipEmptyLines: true }).data;
 
@@ -208,9 +110,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         if (diffDays <= dayTolerance && isSimilar) {
                             results.push({
                                 transaction: { id: crypto.randomUUID(), amount: bAmount, date: bDate.toISOString() },
-                                matchedContributor: { id: contributor.churchId, name: contributor.churchName },
-                                confidence: similarityLevel,
-                                matchType: 'auto'
+                                contributor: { id: contributor.churchId, name: contributor.churchName } as Contributor,
+                                status: 'IDENTIFICADO',
+                                matchMethod: 'AUTOMATIC',
+                                similarity: similarityLevel,
+                                church: churches.find(c => c.id === contributor.churchId)!
                             } as MatchResult);
                         }
                     }
@@ -221,57 +125,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setIsLoading(false);
             setIsCompareDisabled(false);
 
-            if (results.length === 0) {
-                showToast('Nenhuma correspondência encontrada.', 'warning');
-            } else {
-                showToast(`Comparação concluída: ${results.length} correspondências encontradas.`, 'success');
-            }
-
+            showToast(`Comparação concluída: ${results.length} correspondências encontradas.`, 'success');
         } catch (err) {
-            console.error('Erro em handleCompare:', err);
+            console.error(err);
             showToast('Erro ao processar comparação.', 'error');
-            setIsCompareDisabled(false);
             setIsLoading(false);
+            setIsCompareDisabled(false);
         }
     };
 
-    // --- Funções restantes (sem alterações) ---
-    const openEditBank = (b?: Bank | null) => setEditingBank(b ?? null);
-    const closeEditBank = () => setEditingBank(null);
-    const updateBank = (id?: string, name?: string) => {
-        if (!id) return;
-        setBanks(prev => prev.map(b => b.id === id ? { ...b, name: name ?? b.name } : b));
-    };
-    const openEditChurch = (c?: Church | null) => setEditingChurch(c ?? null);
-    const closeEditChurch = () => setEditingChurch(null);
-    const updateChurch = (id?: string, data?: Partial<Church>) => {
-        if (!id || !data) return;
-        setChurches(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
-    };
-    const openDeleteConfirmation = (item?: DeletingItem | null) => setDeletingItem(item ?? null);
-    const closeDeleteConfirmation = () => setDeletingItem(null);
-    const confirmDeletion = () => {
-        if (!deletingItem) return;
-        if (deletingItem.type === 'bank') setBanks(prev => prev.filter(b => b.id !== deletingItem.id));
-        if (deletingItem.type === 'church') setChurches(prev => prev.filter(c => c.id !== deletingItem.id));
-        setDeletingItem(null);
-    };
-
-    const handleAnalyze = useCallback(async (transactionId: string) => {}, []);
-
     const value = useMemo(() => ({
-        theme, banks, churches, learnedAssociations, bankStatementFile, contributorFiles, matchResults, activeView,
-        isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
-        manualIdentificationTx, deletingItem, toast, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
-        savedReports, comparisonType, setComparisonType, customIgnoreKeywords, savingReportState, allHistoricalResults, allHistoricalContributors,
-        isSearchFiltersOpen, searchFilters, toggleTheme, setActiveView, setBanks, setChurches, setSimilarityLevel, setDayTolerance,
-        setMatchResults, setReportPreviewData, addIgnoreKeyword:()=>{}, removeIgnoreKeyword:()=>{},
-        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
-        handleCompare, handleAnalyze, openEditBank, closeEditBank, updateBank, openEditChurch, closeEditChurch,
-        updateChurch, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, showToast
+        theme,
+        banks,
+        churches,
+        learnedAssociations,
+        bankStatementFile,
+        contributorFiles,
+        matchResults,
+        activeView,
+        isLoading,
+        similarityLevel,
+        dayTolerance,
+        isCompareDisabled,
+        comparisonType,
+        setComparisonType,
+        toggleTheme,
+        setBanks,
+        setChurches,
+        setSimilarityLevel,
+        setDayTolerance,
+        setMatchResults,
+        handleStatementUpload,
+        handleContributorsUpload,
+        removeBankStatementFile,
+        removeContributorFile,
+        handleCompare
     }), [
-        theme, banks, churches, bankStatementFile, contributorFiles, matchResults, isLoading,
-        similarityLevel, dayTolerance, isCompareDisabled
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults,
+        isLoading, similarityLevel, dayTolerance, isCompareDisabled, comparisonType
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
