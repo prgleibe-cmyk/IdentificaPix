@@ -76,35 +76,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const removeContributorFile = () => {};
     const handleCompare = () => {};
     const openEditBank = () => {};
-    const closeEditBank = () => setEditingBank(null);
-    const updateBank = async (id: string, data: Partial<Bank>) => {
-        if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
-        try {
-            const { error } = await supabase.from('banks').update(data).eq('id', id);
-            if (error) throw error;
-            setBanks(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
-            showToast('Banco atualizado com sucesso!', 'success');
-            setEditingBank(null);
-        } catch (err: any) {
-            console.error('Erro ao atualizar banco:', err);
-            showToast(`Erro ao atualizar banco: ${err.message}`, 'error');
-        }
-    };
+    const closeEditBank = () => {};
+    const updateBank = () => {};
     const openEditChurch = () => {};
-    const closeEditChurch = () => setEditingChurch(null);
-    const updateChurch = async (id: string, data: Partial<Church>) => {
-        if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
-        try {
-            const { error } = await supabase.from('churches').update(data).eq('id', id);
-            if (error) throw error;
-            setChurches(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
-            showToast('Igreja atualizada com sucesso!', 'success');
-            setEditingChurch(null);
-        } catch (err: any) {
-            console.error('Erro ao atualizar igreja:', err);
-            showToast(`Erro ao atualizar igreja: ${err.message}`, 'error');
-        }
-    };
+    const closeEditChurch = () => {};
+    const updateChurch = () => {};
     const openDeleteConfirmation = () => {};
     const closeDeleteConfirmation = () => {};
     const confirmDeletion = () => {};
@@ -133,9 +109,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // --- Funções de cadastro conectadas ao Supabase ---
     const addBank = async (bankData: Omit<Bank, 'id'>) => {
         if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
+
         try {
             const { data, error } = await supabase.from('banks').insert([bankData]).select().single();
             if (error) throw error;
+
             setBanks(prev => [...prev, data]);
             showToast('Banco cadastrado com sucesso!', 'success');
         } catch (err: any) {
@@ -146,9 +124,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const addChurch = async (churchData: Omit<Church, 'id'>) => {
         if (!supabase) return showToast('Erro: Supabase não inicializado.', 'error');
+
         try {
             const { data, error } = await supabase.from('churches').insert([churchData]).select().single();
             if (error) throw error;
+
             setChurches(prev => [...prev, data]);
             showToast('Igreja cadastrada com sucesso!', 'success');
         } catch (err: any) {
@@ -220,7 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         } catch (error) {
             console.error("AI Analysis failed", error, { transactionId });
-            console.count("apiErrors");
+            console.count("apiErrors"); // substitui Metrics.increment
             setAiSuggestion({ id: transactionId, name: "Erro na análise." });
         } finally {
             setLoadingAiId(null);
