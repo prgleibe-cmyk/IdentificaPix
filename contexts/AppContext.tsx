@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import {
     GroupedReportData,
@@ -17,7 +17,12 @@ export const AppContext = createContext<any>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // --- Estados ---
-    const [theme, setTheme] = useState<'light' | 'dark'>('light');
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        if (typeof window !== 'undefined') {
+            return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
+        }
+        return 'light';
+    });
     const [banks, setBanks] = useState<Bank[]>([]);
     const [churches, setChurches] = useState<Church[]>([]);
     const [learnedAssociations, setLearnedAssociations] = useState<any[]>([]);
@@ -47,6 +52,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [allHistoricalContributors, setAllHistoricalContributors] = useState<any[]>([]);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [searchFilters, setSearchFiltersState] = useState<SearchFilters>({});
+
+    // --- Efeito para aplicar dark mode no <html> ---
+    useEffect(() => {
+        const root = window.document.documentElement;
+        if (theme === 'dark') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+        localStorage.setItem('theme', theme);
+    }, [theme]);
 
     // --- Funções temporárias para compilação ---
     const showToast = (msg: string, type: string) => console.log(`[Toast] ${type}: ${msg}`);
