@@ -11,7 +11,7 @@ import { ChurchFormData } from '../types';
 // Ícones
 import { SearchIcon, PlusCircleIcon, PencilIcon, TrashIcon } from '../components/Icons';
 
-// Modals (corrigido: named imports)
+// Modals (named imports)
 import { ConfirmDeleteModal } from '../components/modals/ConfirmDeleteModal';
 import { EditBankModal } from '../components/modals/EditBankModal';
 import { EditChurchModal } from '../components/modals/EditChurchModal';
