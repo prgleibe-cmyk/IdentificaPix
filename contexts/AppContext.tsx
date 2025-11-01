@@ -14,7 +14,6 @@ import {
 } from '../types';
 
 const defaultContextValue: any = {};
-
 export const AppContext = createContext<any>(defaultContextValue);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -23,8 +22,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (typeof window !== 'undefined') return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
         return 'light';
     });
-    const [banks, setBanks] = useState<Bank[]>([]);
-    const [churches, setChurches] = useState<Church[]>([]);
+
+    // 🔹 Carregar bancos e igrejas do localStorage
+    const [banks, setBanks] = useState<Bank[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(localStorage.getItem('banks') || '[]');
+        } catch {
+            return [];
+        }
+    });
+    const [churches, setChurches] = useState<Church[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(localStorage.getItem('churches') || '[]');
+        } catch {
+            return [];
+        }
+    });
+
     const [learnedAssociations, setLearnedAssociations] = useState<any[]>([]);
     const [bankStatementFile, setBankStatementFile] = useState<any>(null);
     const [contributorFiles, setContributorFiles] = useState<any[]>([]);
@@ -69,9 +85,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log(`[Toast] ${type}: ${msg}`);
     };
 
+    // --- Persistir bancos e igrejas ---
+    useEffect(() => {
+        localStorage.setItem('banks', JSON.stringify(banks));
+    }, [banks]);
+
+    useEffect(() => {
+        localStorage.setItem('churches', JSON.stringify(churches));
+    }, [churches]);
+
     // --- Upload de arquivos ---
     const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
         setBankStatementFile({ bankId, content, fileName });
+        showToast('Extrato carregado com sucesso!', 'success');
     };
 
     const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
@@ -84,6 +110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             return [...prev, { churchId, content, fileName }];
         });
+        showToast('Arquivo da igreja carregado com sucesso!', 'success');
     };
 
     const removeBankStatementFile = () => setBankStatementFile(null);
@@ -94,7 +121,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // --- Comparação ---
     const handleCompare = async () => {
-        console.log('🚀 handleCompare acionado');
         if (!bankStatementFile || contributorFiles.length === 0) {
             showToast('Carregue o extrato bancário e os arquivos das igrejas antes de comparar.', 'error');
             return;
@@ -103,39 +129,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsCompareDisabled(true);
         setIsLoading(true);
         showToast('Iniciando comparação...', 'info');
-        console.log('📊 Iniciando leitura dos arquivos...');
 
         try {
             const parseCSV = (content: string) =>
                 Papa.parse(content, { header: true, skipEmptyLines: true }).data;
 
             const bankData = parseCSV(bankStatementFile.content);
-            console.log('✅ Extrato bancário processado:', bankData.length, 'linhas');
-
             const contributorsData = contributorFiles.map(f => ({
                 churchId: f.churchId,
                 churchName: churches.find(c => c.id === f.churchId)?.name || f.fileName,
                 data: parseCSV(f.content)
             }));
-            console.log('✅ Arquivos de igrejas processados:', contributorsData.length);
 
             const results: MatchResult[] = [];
-            let totalChecks = 0;
-
             for (const contributor of contributorsData) {
                 for (const cRow of contributor.data) {
                     const cAmount = parseFloat(cRow.amount || cRow.valor || '0');
                     const cDate = new Date(cRow.date || cRow.data);
 
-                    if (!cAmount || isNaN(cAmount) || !cDate.getTime()) continue;
-
                     for (const bRow of bankData) {
                         const bAmount = parseFloat(bRow.amount || bRow.valor || '0');
                         const bDate = new Date(bRow.date || bRow.data);
 
-                        if (!bAmount || isNaN(bAmount) || !bDate.getTime()) continue;
-
-                        totalChecks++;
                         const diffDays = Math.abs((bDate.getTime() - cDate.getTime()) / (1000 * 3600 * 24));
                         const diffPercent = Math.abs(((bAmount - cAmount) / cAmount) * 100);
                         const isSimilar = diffPercent <= (100 - similarityLevel);
@@ -154,19 +169,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
 
-            console.log(`🔍 Comparação finalizada: ${totalChecks} combinações verificadas`);
-            console.log(`✅ Resultados encontrados: ${results.length}`);
-
             setMatchResults(results);
-            setIsLoading(false);
-            setIsCompareDisabled(false);
-
-            if (results.length === 0) showToast('Nenhuma correspondência encontrada.', 'warning');
-            else showToast(`Comparação concluída: ${results.length} correspondências encontradas.`, 'success');
-
+            showToast(
+                results.length === 0
+                    ? 'Nenhuma correspondência encontrada.'
+                    : `Comparação concluída: ${results.length} correspondências encontradas.`,
+                results.length === 0 ? 'warning' : 'success'
+            );
         } catch (err) {
-            console.error('❌ Erro durante handleCompare:', err);
+            console.error(err);
             showToast('Erro ao processar comparação.', 'error');
+        } finally {
             setIsLoading(false);
             setIsCompareDisabled(false);
         }
@@ -210,8 +223,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleCompare, handleAnalyze, openEditBank, closeEditBank, updateBank, openEditChurch, closeEditChurch,
         updateChurch, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, showToast
     }), [
-        theme, banks, churches, bankStatementFile, contributorFiles, matchResults, isLoading,
-        similarityLevel, dayTolerance, isCompareDisabled, comparisonType
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults,
+        isLoading, similarityLevel, dayTolerance, isCompareDisabled, comparisonType
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
