@@ -51,7 +51,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [allHistoricalResults, setAllHistoricalResults] = useState<any[]>([]);
     const [allHistoricalContributors, setAllHistoricalContributors] = useState<any[]>([]);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
-    const [searchFilters, setSearchFiltersState] = useState<SearchFilters>({});
+    const [searchFilters, setSearchFiltersState] = useState<SearchFilters>({} as SearchFilters);
 
     // --- Tema ---
     useEffect(() => {
@@ -157,7 +157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     };
 
-    // --- Funções para bancos, igrejas e exclusão ---
+    // --- Funções auxiliares ---
     const openEditBank = (b?: Bank | null) => setEditingBank(b ?? null);
     const closeEditBank = () => setEditingBank(null);
     const updateBank = (id?: string, name?: string) => {

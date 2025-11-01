@@ -2,6 +2,7 @@ import './estilos/base.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { AppProvider } from './contexts/AppContext';  // ✅ adiciona o contexto
 
 const rootElement = document.getElementById('root');
 
@@ -9,9 +10,11 @@ if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <App />
+      <AppProvider>
+        <App />
+      </AppProvider>
     </React.StrictMode>
   );
 } else {
-  console.error('Failed to find the root element');
+  console.error('❌ Falha ao encontrar o elemento root');
 }
