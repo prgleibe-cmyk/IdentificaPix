@@ -20,21 +20,6 @@ export const ComparisonSettingsForm: React.FC = () => {
 
     const finalIsCompareDisabled = comparisonType === 'income' ? isCompareDisabled : !bankStatementFile;
 
-    // 🔍 Função de teste de clique
-    const handleClickCompare = () => {
-        console.log("🚀 Clique detectado no botão comparar!");
-        try {
-            if (typeof handleCompare === 'function') {
-                console.log("✅ Função handleCompare existe, executando...");
-                handleCompare();
-            } else {
-                console.error("❌ handleCompare não é uma função ou não foi passado pelo contexto!");
-            }
-        } catch (err) {
-            console.error("⚠️ Erro ao executar handleCompare:", err);
-        }
-    };
-
     return (
         <>
             <div className="mb-8">
@@ -55,38 +40,29 @@ export const ComparisonSettingsForm: React.FC = () => {
                 </div>
             </div>
 
-            {(comparisonType === 'income' || comparisonType === 'both') && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                    <div>
+            { (comparisonType === 'income' || comparisonType === 'both') && (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div>
                         <label htmlFor="similarity" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.similarityLevel')}</label>
                         <input id="similarity" type="range" min="10" max="100" value={similarityLevel} onChange={e => setSimilarityLevel(parseInt(e.target.value, 10))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-2 dark:bg-slate-700" />
                         <div className="text-center font-bold text-slate-800 dark:text-slate-200 mt-1">{similarityLevel}%</div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('settings.similarityDesc')}</p>
-                    </div>
-                    <div>
+                        </div>
+                        <div>
                         <label htmlFor="tolerance" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.dayTolerance')}</label>
                         <input id="tolerance" type="range" min="0" max="30" value={dayTolerance} onChange={e => setDayTolerance(parseInt(e.target.value, 10))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-2 dark:bg-slate-700" />
                         <div className="text-center font-bold text-slate-800 dark:text-slate-200 mt-1">{dayTolerance} {language === 'pt' ? 'dias' : language === 'es' ? 'días' : 'days'}</div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t('settings.dayToleranceDesc')}</p>
+                        </div>
                     </div>
-                </div>
+                </>
             )}
-
-            {/* 🔍 Botão de teste */}
-            <button
-                onClick={handleClickCompare}
-                disabled={finalIsCompareDisabled}
-                className="w-full mt-8 flex items-center justify-center space-x-2 px-6 py-3 text-sm font-medium text-white bg-blue-700 rounded-md hover:bg-blue-800 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
-            >
-                <ArrowsRightLeftIcon className="w-5 h-5" />
+            <button onClick={handleCompare} disabled={finalIsCompareDisabled} className="w-full mt-8 flex items-center justify-center space-x-2 px-6 py-3 text-sm font-medium text-white bg-blue-700 rounded-md hover:bg-blue-800 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors">
+                <ArrowsRightLeftIcon className="w-5 h-5"/>
                 <span>{t('settings.startComparison')}</span>
             </button>
-
-            {finalIsCompareDisabled && (
-                <p className="text-center text-xs text-red-500 dark:text-red-400 mt-2">
-                    {t('settings.startComparisonError')}
-                </p>
-            )}
+            {finalIsCompareDisabled && <p className="text-center text-xs text-red-500 dark:text-red-400 mt-2">{t('settings.startComparisonError')}</p>}
         </>
     );
 };

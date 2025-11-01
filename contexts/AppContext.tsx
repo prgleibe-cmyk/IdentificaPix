@@ -94,6 +94,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // --- Comparação ---
     const handleCompare = async () => {
+        console.log('🚀 handleCompare acionado');
         if (!bankStatementFile || contributorFiles.length === 0) {
             showToast('Carregue o extrato bancário e os arquivos das igrejas antes de comparar.', 'error');
             return;
@@ -102,28 +103,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsCompareDisabled(true);
         setIsLoading(true);
         showToast('Iniciando comparação...', 'info');
+        console.log('📊 Iniciando leitura dos arquivos...');
 
         try {
             const parseCSV = (content: string) =>
                 Papa.parse(content, { header: true, skipEmptyLines: true }).data;
 
             const bankData = parseCSV(bankStatementFile.content);
+            console.log('✅ Extrato bancário processado:', bankData.length, 'linhas');
+
             const contributorsData = contributorFiles.map(f => ({
                 churchId: f.churchId,
                 churchName: churches.find(c => c.id === f.churchId)?.name || f.fileName,
                 data: parseCSV(f.content)
             }));
+            console.log('✅ Arquivos de igrejas processados:', contributorsData.length);
 
             const results: MatchResult[] = [];
+            let totalChecks = 0;
+
             for (const contributor of contributorsData) {
                 for (const cRow of contributor.data) {
                     const cAmount = parseFloat(cRow.amount || cRow.valor || '0');
                     const cDate = new Date(cRow.date || cRow.data);
 
+                    if (!cAmount || isNaN(cAmount) || !cDate.getTime()) continue;
+
                     for (const bRow of bankData) {
                         const bAmount = parseFloat(bRow.amount || bRow.valor || '0');
                         const bDate = new Date(bRow.date || bRow.data);
 
+                        if (!bAmount || isNaN(bAmount) || !bDate.getTime()) continue;
+
+                        totalChecks++;
                         const diffDays = Math.abs((bDate.getTime() - cDate.getTime()) / (1000 * 3600 * 24));
                         const diffPercent = Math.abs(((bAmount - cAmount) / cAmount) * 100);
                         const isSimilar = diffPercent <= (100 - similarityLevel);
@@ -142,6 +154,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
 
+            console.log(`🔍 Comparação finalizada: ${totalChecks} combinações verificadas`);
+            console.log(`✅ Resultados encontrados: ${results.length}`);
+
             setMatchResults(results);
             setIsLoading(false);
             setIsCompareDisabled(false);
@@ -150,7 +165,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             else showToast(`Comparação concluída: ${results.length} correspondências encontradas.`, 'success');
 
         } catch (err) {
-            console.error(err);
+            console.error('❌ Erro durante handleCompare:', err);
             showToast('Erro ao processar comparação.', 'error');
             setIsLoading(false);
             setIsCompareDisabled(false);
