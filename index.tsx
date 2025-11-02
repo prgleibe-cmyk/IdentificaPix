@@ -2,7 +2,7 @@ import './estilos/base.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { AppProvider } from './contexts/AppContext';  // ✅ agora é este!
+import { AppProvider } from './contexts/AppContext'; // ✅ Importa o AppProvider correto
 
 const rootElement = document.getElementById('root');
 
