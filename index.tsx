@@ -2,7 +2,7 @@ import './estilos/base.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { AppProvider } from './contexts/AppContext';  // ✅ adiciona o contexto
+import { AppProvider } from './contexts/AppProvider';  // ✅ Corrigido: agora importa do arquivo certo
 
 const rootElement = document.getElementById('root');
 
