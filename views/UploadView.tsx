@@ -15,7 +15,6 @@ export const UploadView: React.FC = () => {
     handleContributorsUpload,
     removeBankStatementFile,
     removeContributorFile,
-    isCompareDisabled,
   } = useContext(AppContext);
 
   const { t } = useTranslation();
@@ -26,6 +25,7 @@ export const UploadView: React.FC = () => {
     () => banks.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase())),
     [banks, bankSearch]
   );
+
   const filteredChurches = useMemo(
     () => churches.filter(c => c.name.toLowerCase().includes(churchSearch.toLowerCase())),
     [churches, churchSearch]
@@ -38,7 +38,7 @@ export const UploadView: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
-        {/* Bank Statement Upload Section */}
+        {/* Bancos */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
           <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">1. {t('upload.statementTitle')}</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">{t('upload.statementSubtitle')}</p>
@@ -72,7 +72,7 @@ export const UploadView: React.FC = () => {
           </div>
         </div>
 
-        {/* Contributor Lists Upload Section */}
+        {/* Igrejas */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
           <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">2. {t('upload.contributorsTitle')}</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">{t('upload.contributorsSubtitle')}</p>
@@ -109,15 +109,14 @@ export const UploadView: React.FC = () => {
         </div>
       </div>
 
-      {!isCompareDisabled && (
-        <div className="mt-8 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center space-x-3 mb-6">
-            <ArrowsRightLeftIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">3. {t('settings.comparisonTitle')}</h3>
-          </div>
-          <ComparisonSettingsForm />
+      {/* Comparação sempre renderizada */}
+      <div className="mt-8 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center space-x-3 mb-6">
+          <ArrowsRightLeftIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">3. {t('settings.comparisonTitle')}</h3>
         </div>
-      )}
+        <ComparisonSettingsForm />
+      </div>
     </>
   );
 };
