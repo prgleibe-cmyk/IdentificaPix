@@ -8,6 +8,8 @@ import {
   ComparisonType
 } from '../types';
 
+console.log('🔥 AppContext foi carregado com sucesso!');
+
 export const AppContext = createContext<any>({});
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
