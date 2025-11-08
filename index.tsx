@@ -1,11 +1,5 @@
-console.log('🧭 Início do index.tsx');
-
-try {
-  const test = require('./contexts/AppContext');
-  console.log('✅ AppContext foi encontrado e importado:', test);
-} catch (err) {
-  console.error('❌ Erro ao importar AppContext:', err);
-}
+alert('✅ index.tsx está sendo executado!');
+console.log('✅ index.tsx realmente está sendo executado!');
 
 import './estilos/base.css';
 import React from 'react';
