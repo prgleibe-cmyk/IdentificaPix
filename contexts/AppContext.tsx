@@ -1,3 +1,5 @@
+alert('🚀 AppContext.tsx foi carregado!');
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 
 // 🔥 Log para confirmar carregamento
