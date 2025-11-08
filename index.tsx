@@ -1,13 +1,12 @@
-alert('✅ index.tsx está sendo executado!');
-console.log('✅ index.tsx realmente está sendo executado!');
-
 import './estilos/base.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { AppProvider } from './contexts/AppContext'; // ✅ caminho correto (sem src)
+import { AppProvider } from './contexts/AppContext'; // ✅ Corrigido para estrutura sem "src"
 
 const rootElement = document.getElementById('root');
+
+console.log('✅ index.tsx carregado com sucesso'); // <-- Teste de verificação
 
 if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
