@@ -1,136 +1,244 @@
-import React, { createContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useCallback, useMemo, useEffect } from 'react';
 import Papa from 'papaparse';
-import { v4 as uuidv4 } from 'uuid';
 import {
-  Bank, Church, Contributor, MatchResult,
-  GroupedReportData, Transaction, DeletingItem,
-  SearchFilters, ComparisonType, SavedReport
+    GroupedReportData,
+    MatchResult,
+    Transaction,
+    Contributor,
+    SavedReport,
+    Bank,
+    Church,
+    DeletingItem,
+    SearchFilters,
+    ComparisonType
 } from '../types';
 
-export const AppContext = createContext<any>(null);
+const defaultContextValue: any = {};
+export const AppContext = createContext<any>(defaultContextValue);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  console.log('🟢 AppProvider MONTADO');
+    // --- Tema ---
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        if (typeof window !== 'undefined') return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';
+        return 'light';
+    });
 
-  const [banks, setBanks] = useState<Bank[]>(() => {
-    try {
-      const data = JSON.parse(localStorage.getItem('banks') || '[]');
-      console.log('📦 Bancos carregados:', data);
-      return data;
-    } catch {
-      return [];
-    }
-  });
-
-  const [churches, setChurches] = useState<Church[]>(() => {
-    try {
-      const data = JSON.parse(localStorage.getItem('churches') || '[]');
-      console.log('📦 Igrejas carregadas:', data);
-      return data;
-    } catch {
-      return [];
-    }
-  });
-
-  const [bankStatementFile, setBankStatementFile] = useState<any>(null);
-  const [contributorFiles, setContributorFiles] = useState<any[]>([]);
-  const [similarityLevel, setSimilarityLevel] = useState(70);
-  const [dayTolerance, setDayTolerance] = useState(3);
-  const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
-  const [isCompareDisabled, setIsCompareDisabled] = useState(false);
-  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
-
-  // 🔹 Persistência no localStorage
-  useEffect(() => {
-    localStorage.setItem('banks', JSON.stringify(banks));
-  }, [banks]);
-
-  useEffect(() => {
-    localStorage.setItem('churches', JSON.stringify(churches));
-  }, [churches]);
-
-  const showToast = (msg: string, type: string) => {
-    console.log(`[Toast] ${type}: ${msg}`);
-  };
-
-  const handleCompare = async () => {
-    console.log('🚀 handleCompare foi chamado');
-    if (!bankStatementFile || contributorFiles.length === 0) {
-      showToast('Carregue o extrato bancário e os arquivos das igrejas antes de comparar.', 'error');
-      return;
-    }
-
-    setIsCompareDisabled(true);
-    showToast('Iniciando comparação...', 'info');
-
-    try {
-      const parseCSV = (content: string) => Papa.parse(content, { header: true, skipEmptyLines: true }).data;
-      const bankData = parseCSV(bankStatementFile.content);
-      const contributorsData = contributorFiles.map(f => ({
-        churchId: f.churchId,
-        data: parseCSV(f.content)
-      }));
-
-      const results: MatchResult[] = [];
-      for (const c of contributorsData) {
-        for (const cRow of c.data) {
-          const cAmount = parseFloat(cRow.amount || cRow.valor || '0');
-          const cDate = new Date(cRow.date || cRow.data);
-          for (const bRow of bankData) {
-            const bAmount = parseFloat(bRow.amount || bRow.valor || '0');
-            const bDate = new Date(bRow.date || bRow.data);
-            const diffDays = Math.abs((bDate.getTime() - cDate.getTime()) / (1000 * 3600 * 24));
-            const diffPercent = Math.abs(((bAmount - cAmount) / cAmount) * 100);
-            const isSimilar = diffPercent <= (100 - similarityLevel);
-            if (diffDays <= dayTolerance && isSimilar) {
-              results.push({
-                transaction: { id: uuidv4(), amount: bAmount, date: bDate.toISOString() },
-                contributor: { id: c.churchId, name: 'Igreja' } as Contributor,
-                status: 'IDENTIFICADO',
-                matchMethod: 'AUTOMATIC',
-                similarity: similarityLevel,
-              });
-            }
-          }
+    // --- Bancos e Igrejas ---
+    const [banks, setBanks] = useState<Bank[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(localStorage.getItem('banks') || '[]');
+        } catch {
+            return [];
         }
-      }
+    });
 
-      setMatchResults(results);
-      showToast(`Comparação concluída com ${results.length} correspondências`, 'success');
-    } catch (err) {
-      console.error('❌ Erro na comparação:', err);
-      showToast('Erro ao processar comparação.', 'error');
-    } finally {
-      setIsCompareDisabled(false);
-    }
-  };
+    const [churches, setChurches] = useState<Church[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            return JSON.parse(localStorage.getItem('churches') || '[]');
+        } catch {
+            return [];
+        }
+    });
 
-  const value = useMemo(() => ({
-    banks,
-    churches,
-    setBanks,
-    setChurches,
-    showToast,
-    handleCompare,
-    similarityLevel,
-    setSimilarityLevel,
-    dayTolerance,
-    setDayTolerance,
-    comparisonType,
-    setComparisonType,
-    isCompareDisabled,
-    bankStatementFile,
-    setBankStatementFile,
-    contributorFiles,
-    setContributorFiles
-  }), [
-    banks, churches, similarityLevel, dayTolerance,
-    comparisonType, isCompareDisabled, bankStatementFile, contributorFiles
-  ]);
+    const [learnedAssociations, setLearnedAssociations] = useState<any[]>([]);
+    const [bankStatementFile, setBankStatementFile] = useState<any>(null);
+    const [contributorFiles, setContributorFiles] = useState<any[]>([]);
+    const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
+    const [activeView, setActiveView] = useState<'reports' | 'settings'>('reports');
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
+    const [aiSuggestion, setAiSuggestion] = useState<any>(null);
+    const [similarityLevel, setSimilarityLevel] = useState<number>(70);
+    const [dayTolerance, setDayTolerance] = useState<number>(3);
+    const [editingBank, setEditingBank] = useState<Bank | null>(null);
+    const [editingChurch, setEditingChurch] = useState<Church | null>(null);
+    const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
+    const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
+    const [toast, setToast] = useState<any>(null);
+    const [summary, setSummary] = useState<any>(null);
+    const [allContributorsWithChurch, setAllContributorsWithChurch] = useState<Contributor[]>([]);
+    const [isCompareDisabled, setIsCompareDisabled] = useState(false);
+    const [reportPreviewData, setReportPreviewData] = useState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(null);
+    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
+    const [customIgnoreKeywords, setCustomIgnoreKeywords] = useState<string[]>([]);
+    const [savingReportState, setSavingReportState] = useState<any>(null);
+    const [allHistoricalResults, setAllHistoricalResults] = useState<any[]>([]);
+    const [allHistoricalContributors, setAllHistoricalContributors] = useState<any[]>([]);
+    const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
+    const [searchFilters, setSearchFiltersState] = useState<SearchFilters>({} as SearchFilters);
 
-  return (
-    <AppContext.Provider value={value}>
-      {children}
-    </AppContext.Provider>
-  );
+    // --- Tema ---
+    useEffect(() => {
+        const root = window.document.documentElement;
+        if (theme === 'dark') root.classList.add('dark');
+        else root.classList.remove('dark');
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+
+    const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+
+    // --- Toast ---
+    const showToast = (msg: string, type: string) => {
+        setToast({ message: msg, type });
+        console.log(`[Toast] ${type}: ${msg}`);
+    };
+
+    // --- Adicionar Banco/Igreja com persistência ---
+    const addBank = (bank: Bank) => {
+        setBanks(prev => {
+            const updated = [...prev, bank];
+            localStorage.setItem('banks', JSON.stringify(updated));
+            return updated;
+        });
+        showToast('Banco cadastrado com sucesso!', 'success');
+    };
+
+    const addChurch = (church: Church) => {
+        setChurches(prev => {
+            const updated = [...prev, church];
+            localStorage.setItem('churches', JSON.stringify(updated));
+            return updated;
+        });
+        showToast('Igreja cadastrada com sucesso!', 'success');
+    };
+
+    // --- Upload de arquivos ---
+    const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
+        setBankStatementFile({ bankId, content, fileName });
+        showToast('Extrato carregado com sucesso!', 'success');
+    };
+
+    const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
+        setContributorFiles(prev => {
+            const existingIndex = prev.findIndex(f => f.churchId === churchId);
+            if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = { churchId, content, fileName };
+                return updated;
+            }
+            return [...prev, { churchId, content, fileName }];
+        });
+        showToast('Arquivo da igreja carregado com sucesso!', 'success');
+    };
+
+    const removeBankStatementFile = () => setBankStatementFile(null);
+    const removeContributorFile = (churchId?: string) => {
+        if (!churchId) return setContributorFiles([]);
+        setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
+    };
+
+    // --- Comparação ---
+    const handleCompare = async () => {
+        if (!bankStatementFile || contributorFiles.length === 0) {
+            showToast('Carregue o extrato bancário e os arquivos das igrejas antes de comparar.', 'error');
+            return;
+        }
+
+        setIsCompareDisabled(true);
+        setIsLoading(true);
+        showToast('Iniciando comparação...', 'info');
+
+        try {
+            const parseCSV = (content: string) =>
+                Papa.parse(content, { header: true, skipEmptyLines: true }).data;
+
+            const bankData = parseCSV(bankStatementFile.content);
+            const contributorsData = contributorFiles.map(f => ({
+                churchId: f.churchId,
+                churchName: churches.find(c => c.id === f.churchId)?.name || f.fileName,
+                data: parseCSV(f.content)
+            }));
+
+            const results: MatchResult[] = [];
+            for (const contributor of contributorsData) {
+                for (const cRow of contributor.data) {
+                    const cAmount = parseFloat(cRow.amount || cRow.valor || '0');
+                    const cDate = new Date(cRow.date || cRow.data);
+
+                    for (const bRow of bankData) {
+                        const bAmount = parseFloat(bRow.amount || bRow.valor || '0');
+                        const bDate = new Date(bRow.date || bRow.data);
+
+                        const diffDays = Math.abs((bDate.getTime() - cDate.getTime()) / (1000 * 3600 * 24));
+                        const diffPercent = Math.abs(((bAmount - cAmount) / cAmount) * 100);
+                        const isSimilar = diffPercent <= (100 - similarityLevel);
+
+                        if (diffDays <= dayTolerance && isSimilar) {
+                            results.push({
+                                transaction: { id: crypto.randomUUID(), amount: bAmount, date: bDate.toISOString() },
+                                contributor: { id: contributor.churchId, name: contributor.churchName } as Contributor,
+                                status: 'IDENTIFICADO',
+                                matchMethod: 'AUTOMATIC',
+                                similarity: similarityLevel,
+                                church: churches.find(c => c.id === contributor.churchId)!
+                            } as MatchResult);
+                        }
+                    }
+                }
+            }
+
+            setMatchResults(results);
+            showToast(
+                results.length === 0
+                    ? 'Nenhuma correspondência encontrada.'
+                    : `Comparação concluída: ${results.length} correspondências encontradas.`,
+                results.length === 0 ? 'warning' : 'success'
+            );
+        } catch (err) {
+            console.error(err);
+            showToast('Erro ao processar comparação.', 'error');
+        } finally {
+            setIsLoading(false);
+            setIsCompareDisabled(false);
+        }
+    };
+
+    // --- Outras funções auxiliares ---
+    const openEditBank = (b?: Bank | null) => setEditingBank(b ?? null);
+    const closeEditBank = () => setEditingBank(null);
+    const updateBank = (id?: string, name?: string) => {
+        if (!id) return;
+        setBanks(prev => prev.map(b => b.id === id ? { ...b, name: name ?? b.name } : b));
+        localStorage.setItem('banks', JSON.stringify(banks));
+    };
+
+    const openEditChurch = (c?: Church | null) => setEditingChurch(c ?? null);
+    const closeEditChurch = () => setEditingChurch(null);
+    const updateChurch = (id?: string, data?: Partial<Church>) => {
+        if (!id || !data) return;
+        setChurches(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+        localStorage.setItem('churches', JSON.stringify(churches));
+    };
+
+    const openDeleteConfirmation = (item?: DeletingItem | null) => setDeletingItem(item ?? null);
+    const closeDeleteConfirmation = () => setDeletingItem(null);
+    const confirmDeletion = () => {
+        if (!deletingItem) return;
+        if (deletingItem.type === 'bank') setBanks(prev => prev.filter(b => b.id !== deletingItem.id));
+        if (deletingItem.type === 'church') setChurches(prev => prev.filter(c => c.id !== deletingItem.id));
+        setDeletingItem(null);
+    };
+
+    const handleAnalyze = useCallback(async (transactionId: string) => {}, []);
+
+    // --- Context value ---
+    const value = useMemo(() => ({
+        theme, banks, churches, learnedAssociations, bankStatementFile, contributorFiles, matchResults, activeView,
+        isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
+        manualIdentificationTx, deletingItem, toast, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
+        savedReports, comparisonType, setComparisonType, customIgnoreKeywords, savingReportState, allHistoricalResults, allHistoricalContributors,
+        isSearchFiltersOpen, searchFilters, toggleTheme, setActiveView, setBanks, setChurches, setSimilarityLevel, setDayTolerance,
+        setMatchResults, setReportPreviewData, addBank, addChurch, addIgnoreKeyword:()=>{}, removeIgnoreKeyword:()=>{},
+        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
+        handleCompare, handleAnalyze, openEditBank, closeEditBank, updateBank, openEditChurch, closeEditChurch,
+        updateChurch, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, showToast
+    }), [
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults,
+        isLoading, similarityLevel, dayTolerance, isCompareDisabled, comparisonType
+    ]);
+
+    return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
