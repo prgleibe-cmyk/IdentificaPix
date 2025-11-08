@@ -196,5 +196,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ]
   );
 
+useEffect(() => {
+  try {
+    localStorage.setItem('teste', 'ok');
+    const valor = localStorage.getItem('teste');
+    console.log('🔍 Teste localStorage:', valor);
+  } catch (err) {
+    console.error('❌ Erro ao acessar localStorage:', err);
+  }
+}, []);
+
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
