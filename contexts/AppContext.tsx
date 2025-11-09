@@ -88,7 +88,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
 
-  // Persistência
+  // Persistência local
   useEffect(() => {
     localStorage.setItem("banks", JSON.stringify(banks));
   }, [banks]);
@@ -100,7 +100,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
   const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
 
-  // 🔹 Leitura de arquivos CSV/XLS/XLSX
+  // 🔹 Função para leitura de arquivos CSV/XLS/XLSX
   const readFile = async (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -112,9 +112,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (file.name.endsWith(".csv")) {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
             const rows = text.split(/\r?\n/).map((row) => row.split(","));
-            resolve(rows.map((r) => ({ date: r[0], name: r[1], value: parseFloat(r[2] || 0) })));
+            resolve(rows);
           } else {
-            // XLSX/XLS
+            const array = typeof data === "string" ? new Uint8Array([]) : new Uint8Array(data as ArrayBuffer);
             const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
@@ -153,18 +153,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // 🔹 Comparação final
+  // 🔹 Normalização de strings
+  const normalize = (str: string) =>
+    str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/PIX|DIZIMO/gi, "")
+      .trim()
+      .toLowerCase();
+
+  // 🔹 Comparação
   const handleCompare = () => {
     if (!bankStatementFile) {
       showToast("Nenhum extrato carregado.", "error");
       return;
     }
+
     setIsLoading(true);
 
     setTimeout(() => {
-      const cleanBank = bankStatementFile.data.map((row: any) => ({
-        date: row.date || row.Data || "",
-        name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
+      const cleanedBank = bankStatementFile.data.map((row: any) => ({
+        date: new Date(row.date || row.Data || ""),
+        name: normalize(row.name || row.Nome || ""),
         value: parseFloat(row.value || row.Valor || 0),
       }));
 
@@ -172,21 +182,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const unidentified: any[] = [];
 
       contributorFiles.forEach((churchFile) => {
-        const cleanContributors = churchFile.data.map((row: any) => ({
-          date: row.date || row.Data || "",
-          name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
+        const cleanedContributors = churchFile.data.map((row: any) => ({
+          date: new Date(row.date || row.Data || ""),
+          name: normalize(row.name || row.Nome || ""),
           value: parseFloat(row.value || row.Valor || 0),
         }));
 
         const matched: any[] = [];
-        cleanContributors.forEach((c) => {
-          const found = cleanBank.find(
-            (b) =>
-              b.name.toLowerCase() === c.name.toLowerCase() &&
-              Math.abs(b.value - c.value) <= 0.01
-          );
-          if (found) matched.push({ ...c, matched: true });
-          else unidentified.push(c);
+        cleanedContributors.forEach((contributor) => {
+          const found = cleanedBank.find((b) => {
+            const sameName = b.name === contributor.name;
+            const sameValue = Math.abs(b.value - contributor.value) <= 0.01;
+            const sameDate =
+              Math.abs(b.date.getTime() - contributor.date.getTime()) / (1000 * 3600 * 24) <= dayTolerance;
+
+            if (comparisonType === "income") return sameName && sameValue && contributor.value > 0 && sameDate;
+            if (comparisonType === "expenses") return sameName && sameValue && contributor.value < 0 && sameDate;
+            return sameName && sameValue && sameDate;
+          });
+
+          if (found) matched.push({ ...contributor, matched: true });
+          else unidentified.push(contributor);
         });
 
         resultsByChurch[churchFile.churchId] = matched;
@@ -197,7 +213,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.log("Não identificados:", unidentified);
 
       setIsLoading(false);
-    }, 1000);
+    }, 500);
   };
 
   const showToast = (msg: string, type: "success" | "error") => {
