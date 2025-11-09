@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { normalize } from "normalize-text"; // biblioteca fictícia para limpar acentos, etc.
 
 export type ComparisonType = "income" | "expenses" | "both";
 
@@ -18,11 +19,13 @@ interface Church {
 interface BankStatementFile {
   bankId: string;
   fileName: string;
+  content?: string; // opcional, se quiser guardar conteúdo
 }
 
 interface ContributorFile {
   churchId: string;
   fileName: string;
+  content?: string;
 }
 
 interface AppContextType {
@@ -65,7 +68,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [activeView, setActiveView] = useState<string>("dashboard");
 
-  // 🔹 Persistência: carregar do localStorage
   const [banks, setBanks] = useState<Bank[]>(() => {
     const saved = localStorage.getItem("banks");
     return saved ? JSON.parse(saved) : [];
@@ -86,7 +88,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
 
-  // 🔹 Salvar no localStorage sempre que houver mudanças
   useEffect(() => {
     localStorage.setItem("banks", JSON.stringify(banks));
   }, [banks]);
@@ -95,7 +96,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("churches", JSON.stringify(churches));
   }, [churches]);
 
-  // 🔹 Funções de cadastro
   const addBank = (bank: Bank) => {
     console.log("💾 Salvando banco:", bank.name);
     setBanks((prev) => [...prev, bank]);
@@ -106,25 +106,109 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setChurches((prev) => [...prev, church]);
   };
 
-  // 🔹 Upload de arquivos
   const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
-    setBankStatementFile({ bankId, fileName });
+    setBankStatementFile({ bankId, fileName, content });
     setIsCompareDisabled(false);
   };
 
   const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
-    setContributorFiles((prev) => [...prev, { churchId, fileName }]);
+    setContributorFiles((prev) => [...prev, { churchId, fileName, content }]);
     setIsCompareDisabled(false);
   };
 
-  // 🔹 Comparação
-  const handleCompare = () => {
+  // 🔹 Função de comparação completa
+  const handleCompare = async () => {
+    if (!bankStatementFile || contributorFiles.length === 0) {
+      showToast("Você precisa carregar os arquivos antes de comparar.", "error");
+      return;
+    }
+
     setIsLoading(true);
-    // Lógica real de comparação aqui
-    setTimeout(() => setIsLoading(false), 2000);
+
+    try {
+      // 🔹 Parsing fictício de arquivos
+      const parseFile = (fileContent: string) => {
+        // aqui você implementa parsing real de CSV, XLSX, PDF, etc.
+        // para este exemplo, vamos simular dados
+        // deve retornar array de objetos { date, name, value }
+        return fileContent
+          .split("\n")
+          .map((line) => {
+            const [date, name, value] = line.split(",");
+            return { date, name, value };
+          })
+          .filter((r) => r.date && r.name && r.value);
+      };
+
+      const bankData = parseFile(bankStatementFile.content || "");
+      const churchDataMap: Record<string, any[]> = {};
+      contributorFiles.forEach((file) => {
+        churchDataMap[file.churchId] = parseFile(file.content || "");
+      });
+
+      // 🔹 Normalização e limpeza
+      const normalizeString = (s: string) =>
+        s
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9 ]/g, "")
+          .toLowerCase()
+          .trim();
+
+      const cleanedBankData = bankData.map((row) => ({
+        date: row.date,
+        name: normalizeString(row.name),
+        value: parseFloat(row.value),
+      }));
+
+      const cleanedChurchDataMap: Record<string, any[]> = {};
+      Object.entries(churchDataMap).forEach(([churchId, rows]) => {
+        cleanedChurchDataMap[churchId] = rows.map((row) => ({
+          date: row.date,
+          name: normalizeString(row.name),
+          value: parseFloat(row.value),
+        }));
+      });
+
+      // 🔹 Comparação
+      const results: Record<string, any[]> = {};
+      const unidentified: any[] = [];
+
+      Object.entries(cleanedChurchDataMap).forEach(([churchId, rows]) => {
+        results[churchId] = [];
+        rows.forEach((contrib) => {
+          const match = cleanedBankData.find(
+            (b) =>
+              b.name === contrib.name &&
+              Math.abs(new Date(b.date).getTime() - new Date(contrib.date).getTime()) <=
+                dayTolerance * 24 * 60 * 60 * 1000 &&
+              (comparisonType === "both" ||
+                (comparisonType === "income" && contrib.value > 0) ||
+                (comparisonType === "expenses" && contrib.value < 0))
+          );
+
+          if (match) {
+            results[churchId].push({ ...contrib, matched: true });
+          } else {
+            results[churchId].push({ ...contrib, matched: false });
+            unidentified.push({ ...contrib, churchId });
+          }
+        });
+      });
+
+      console.log("✅ Comparação concluída");
+      console.log("Resultados por igreja:", results);
+      console.log("Não identificados:", unidentified);
+
+      showToast("Comparação concluída com sucesso!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Ocorreu um erro ao comparar os arquivos.", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // 🔹 Toast simples
   const showToast = (msg: string, type: "success" | "error") => {
     alert(`${type.toUpperCase()}: ${msg}`);
   };
