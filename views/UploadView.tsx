@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm';
-import { ArrowUpTrayIcon } from '@heroicons/react/24/solid'; // Corrigido
+import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
 export const UploadView: React.FC = () => {
   const {
@@ -38,20 +38,18 @@ export const UploadView: React.FC = () => {
     id: string
   ) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      showToast('Nenhum arquivo selecionado', 'error');
+      return;
+    }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (type === 'bank') handleStatementUpload(content, file.name, id);
-      else handleContributorsUpload(content, file.name, id);
-    };
-    reader.readAsText(file);
+    if (type === 'bank') handleStatementUpload(file, id);
+    else handleContributorsUpload(file, id);
   };
 
   return (
     <div className="p-6 space-y-10 max-w-5xl mx-auto">
-      {/* === Bancos === */}
+      {/* Bancos */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
@@ -96,7 +94,7 @@ export const UploadView: React.FC = () => {
         )}
       </div>
 
-      {/* === Igrejas === */}
+      {/* Igrejas */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
@@ -140,7 +138,7 @@ export const UploadView: React.FC = () => {
         )}
       </div>
 
-      {/* === Configurações de Comparação === */}
+      {/* Configurações de Comparação */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md">
         <h2 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-200">
           Configurações da Comparação

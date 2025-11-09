@@ -45,8 +45,8 @@ interface AppContextType {
   bankStatementFile: BankStatementFile | null;
   contributorFiles: ContributorFile[];
 
-  handleStatementUpload: (file: File | undefined, bankId: string) => void;
-  handleContributorsUpload: (file: File | undefined, churchId: string) => void;
+  handleStatementUpload: (file: File, bankId: string) => void;
+  handleContributorsUpload: (file: File, churchId: string) => void;
 
   isCompareDisabled: boolean;
   isLoading: boolean;
@@ -100,11 +100,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
   const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
 
-  // 🔹 Função genérica para ler arquivos CSV/XLS/XLSX
+  // 🔹 Leitura de arquivos CSV/XLS/XLSX
   const readFile = async (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
-      if (!file) return reject("Arquivo indefinido");
-
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -114,9 +112,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (file.name.endsWith(".csv")) {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
             const rows = text.split(/\r?\n/).map((row) => row.split(","));
-            resolve(rows);
+            resolve(rows.map((r) => ({ date: r[0], name: r[1], value: parseFloat(r[2] || 0) })));
           } else {
-            // XLS/XLSX
+            // XLSX/XLS
             const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
@@ -133,9 +131,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const handleStatementUpload = async (file: File | undefined, bankId: string) => {
-    if (!file) return showToast("Nenhum arquivo selecionado", "error");
-
+  const handleStatementUpload = async (file: File, bankId: string) => {
     try {
       const data = await readFile(file);
       setBankStatementFile({ bankId, fileName: file.name, data });
@@ -146,9 +142,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const handleContributorsUpload = async (file: File | undefined, churchId: string) => {
-    if (!file) return showToast("Nenhum arquivo selecionado", "error");
-
+  const handleContributorsUpload = async (file: File, churchId: string) => {
     try {
       const data = await readFile(file);
       setContributorFiles((prev) => [...prev, { churchId, fileName: file.name, data }]);
@@ -159,7 +153,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // 🔹 Comparação
+  // 🔹 Comparação final
   const handleCompare = () => {
     if (!bankStatementFile) {
       showToast("Nenhum extrato carregado.", "error");
@@ -168,8 +162,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
 
     setTimeout(() => {
-      // Limpeza e preparação dos dados
-      const cleanedBank = bankStatementFile.data.map((row: any) => ({
+      const cleanBank = bankStatementFile.data.map((row: any) => ({
         date: row.date || row.Data || "",
         name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
         value: parseFloat(row.value || row.Valor || 0),
@@ -179,24 +172,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const unidentified: any[] = [];
 
       contributorFiles.forEach((churchFile) => {
-        const cleanedContributors = churchFile.data.map((row: any) => ({
+        const cleanContributors = churchFile.data.map((row: any) => ({
           date: row.date || row.Data || "",
           name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
           value: parseFloat(row.value || row.Valor || 0),
         }));
 
         const matched: any[] = [];
-
-        cleanedContributors.forEach((contributor) => {
-          const found = cleanedBank.find((b) => {
-            return (
-              b.name.toLowerCase() === contributor.name.toLowerCase() &&
-              Math.abs(b.value - contributor.value) <= 0.01
-            );
-          });
-
-          if (found) matched.push({ ...contributor, matched: true });
-          else unidentified.push(contributor);
+        cleanContributors.forEach((c) => {
+          const found = cleanBank.find(
+            (b) =>
+              b.name.toLowerCase() === c.name.toLowerCase() &&
+              Math.abs(b.value - c.value) <= 0.01
+          );
+          if (found) matched.push({ ...c, matched: true });
+          else unidentified.push(c);
         });
 
         resultsByChurch[churchFile.churchId] = matched;
