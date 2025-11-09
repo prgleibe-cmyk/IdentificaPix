@@ -11,9 +11,6 @@ export const UploadView: React.FC = () => {
     addChurch,
     handleStatementUpload,
     handleContributorsUpload,
-    handleCompare,
-    isCompareDisabled,
-    isLoading,
     bankStatementFile,
     contributorFiles,
     showToast,
@@ -149,21 +146,6 @@ export const UploadView: React.FC = () => {
           Configurações da Comparação
         </h2>
         <ComparisonSettingsForm />
-      </div>
-
-      {/* === Botão Iniciar Comparação === */}
-      <div className="flex justify-center">
-        <button
-          onClick={handleCompare}
-          disabled={isCompareDisabled || isLoading}
-          className={`px-8 py-3 rounded-md font-semibold text-white transition ${
-            isCompareDisabled || isLoading
-              ? 'bg-slate-400 cursor-not-allowed'
-              : 'bg-blue-700 hover:bg-blue-800'
-          }`}
-        >
-          {isLoading ? 'Comparando...' : 'Iniciar Comparação'}
-        </button>
       </div>
     </div>
   );
