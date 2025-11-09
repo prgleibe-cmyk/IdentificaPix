@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { normalize } from "normalize-text"; // biblioteca fictícia para limpar acentos, etc.
+import * as XLSX from "xlsx";
+import pdfParse from "pdf-parse";
 
 export type ComparisonType = "income" | "expenses" | "both";
 
@@ -19,13 +20,15 @@ interface Church {
 interface BankStatementFile {
   bankId: string;
   fileName: string;
-  content?: string; // opcional, se quiser guardar conteúdo
+  content?: string;
+  type?: string;
 }
 
 interface ContributorFile {
   churchId: string;
   fileName: string;
   content?: string;
+  type?: string;
 }
 
 interface AppContextType {
@@ -45,8 +48,8 @@ interface AppContextType {
   bankStatementFile: BankStatementFile | null;
   contributorFiles: ContributorFile[];
 
-  handleStatementUpload: (content: string, fileName: string, bankId: string) => void;
-  handleContributorsUpload: (content: string, fileName: string, churchId: string) => void;
+  handleStatementUpload: (file: File, bankId: string) => void;
+  handleContributorsUpload: (file: File, churchId: string) => void;
 
   isCompareDisabled: boolean;
   isLoading: boolean;
@@ -59,6 +62,9 @@ interface AppContextType {
   setDayTolerance: (value: number) => void;
   comparisonType: ComparisonType;
   setComparisonType: (type: ComparisonType) => void;
+
+  comparisonResults: Record<string, any[]>;
+  unidentifiedResults: any[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -88,6 +94,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
 
+  const [comparisonResults, setComparisonResults] = useState<Record<string, any[]>>({});
+  const [unidentifiedResults, setUnidentifiedResults] = useState<any[]>([]);
+
+  // persistência
   useEffect(() => {
     localStorage.setItem("banks", JSON.stringify(banks));
   }, [banks]);
@@ -96,88 +106,118 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("churches", JSON.stringify(churches));
   }, [churches]);
 
-  const addBank = (bank: Bank) => {
-    console.log("💾 Salvando banco:", bank.name);
-    setBanks((prev) => [...prev, bank]);
+  const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
+  const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
+
+  // Leitura genérica de arquivos CSV, XLSX ou PDF
+  const readFileContent = async (file: File): Promise<string> => {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (extension === "csv" || extension === "txt") {
+      return file.text();
+    } else if (extension === "xlsx") {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+      return sheet;
+    } else if (extension === "pdf") {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfData = await pdfParse(arrayBuffer);
+      return pdfData.text;
+    } else {
+      throw new Error("Tipo de arquivo não suportado");
+    }
   };
 
-  const addChurch = (church: Church) => {
-    console.log("💾 Salvando igreja:", church);
-    setChurches((prev) => [...prev, church]);
+  const handleStatementUpload = async (file: File, bankId: string) => {
+    try {
+      const content = await readFileContent(file);
+      setBankStatementFile({ bankId, fileName: file.name, content, type: file.type });
+      setIsCompareDisabled(false);
+    } catch (err) {
+      console.error(err);
+      showToast("Erro ao ler arquivo do banco", "error");
+    }
   };
 
-  const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
-    setBankStatementFile({ bankId, fileName, content });
-    setIsCompareDisabled(false);
+  const handleContributorsUpload = async (file: File, churchId: string) => {
+    try {
+      const content = await readFileContent(file);
+      setContributorFiles((prev) => [...prev, { churchId, fileName: file.name, content, type: file.type }]);
+      setIsCompareDisabled(false);
+    } catch (err) {
+      console.error(err);
+      showToast("Erro ao ler arquivo da igreja", "error");
+    }
   };
 
-  const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
-    setContributorFiles((prev) => [...prev, { churchId, fileName, content }]);
-    setIsCompareDisabled(false);
+  // Identifica as colunas data, nome e valor
+  const parseFile = (content: string): any[] => {
+    const lines = content.split("\n").filter((l) => l.trim());
+    if (!lines.length) return [];
+
+    const headers = lines[0].split(/[,;\t]/).map((h) => h.trim().toLowerCase());
+    const dataRows = lines.slice(1);
+
+    const guessIndexes = { date: 0, name: 1, value: 2 }; // default
+
+    // Tenta detectar colunas pelo conteúdo
+    dataRows.forEach((row) => {
+      const cols = row.split(/[,;\t]/);
+      cols.forEach((c, i) => {
+        const val = c.trim();
+        if (!isNaN(Date.parse(val))) guessIndexes.date = i;
+        else if (!isNaN(parseFloat(val.replace(",", ".")))) guessIndexes.value = i;
+        else guessIndexes.name = i;
+      });
+    });
+
+    return dataRows.map((row) => {
+      const cols = row.split(/[,;\t]/);
+      return {
+        date: cols[guessIndexes.date]?.trim(),
+        name: cols[guessIndexes.name]?.trim(),
+        value: parseFloat(cols[guessIndexes.value]?.replace(",", ".") || "0"),
+      };
+    });
   };
 
-  // 🔹 Função de comparação completa
+  const normalizeString = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9 ]/g, "")
+      .toLowerCase()
+      .trim();
+
   const handleCompare = async () => {
     if (!bankStatementFile || contributorFiles.length === 0) {
-      showToast("Você precisa carregar os arquivos antes de comparar.", "error");
+      showToast("Carregue todos os arquivos antes de comparar", "error");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // 🔹 Parsing fictício de arquivos
-      const parseFile = (fileContent: string) => {
-        // aqui você implementa parsing real de CSV, XLSX, PDF, etc.
-        // para este exemplo, vamos simular dados
-        // deve retornar array de objetos { date, name, value }
-        return fileContent
-          .split("\n")
-          .map((line) => {
-            const [date, name, value] = line.split(",");
-            return { date, name, value };
-          })
-          .filter((r) => r.date && r.name && r.value);
-      };
-
-      const bankData = parseFile(bankStatementFile.content || "");
-      const churchDataMap: Record<string, any[]> = {};
-      contributorFiles.forEach((file) => {
-        churchDataMap[file.churchId] = parseFile(file.content || "");
-      });
-
-      // 🔹 Normalização e limpeza
-      const normalizeString = (s: string) =>
-        s
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9 ]/g, "")
-          .toLowerCase()
-          .trim();
-
-      const cleanedBankData = bankData.map((row) => ({
-        date: row.date,
-        name: normalizeString(row.name),
-        value: parseFloat(row.value),
+      const bankDataRaw = parseFile(bankStatementFile.content || "");
+      const bankData = bankDataRaw.map((r) => ({
+        ...r,
+        name: normalizeString(r.name),
       }));
 
-      const cleanedChurchDataMap: Record<string, any[]> = {};
-      Object.entries(churchDataMap).forEach(([churchId, rows]) => {
-        cleanedChurchDataMap[churchId] = rows.map((row) => ({
-          date: row.date,
-          name: normalizeString(row.name),
-          value: parseFloat(row.value),
-        }));
-      });
-
-      // 🔹 Comparação
       const results: Record<string, any[]> = {};
       const unidentified: any[] = [];
 
-      Object.entries(cleanedChurchDataMap).forEach(([churchId, rows]) => {
-        results[churchId] = [];
-        rows.forEach((contrib) => {
-          const match = cleanedBankData.find(
+      for (const file of contributorFiles) {
+        const rowsRaw = parseFile(file.content || "");
+        const rows = rowsRaw.map((r) => ({
+          ...r,
+          name: normalizeString(r.name),
+        }));
+
+        results[file.churchId] = [];
+        for (const contrib of rows) {
+          const match = bankData.find(
             (b) =>
               b.name === contrib.name &&
               Math.abs(new Date(b.date).getTime() - new Date(contrib.date).getTime()) <=
@@ -188,30 +228,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           );
 
           if (match) {
-            results[churchId].push({ ...contrib, matched: true });
+            results[file.churchId].push({ ...contrib, matched: true });
           } else {
-            results[churchId].push({ ...contrib, matched: false });
-            unidentified.push({ ...contrib, churchId });
+            results[file.churchId].push({ ...contrib, matched: false });
+            unidentified.push({ ...contrib, churchId: file.churchId });
           }
-        });
-      });
+        }
+      }
 
-      console.log("✅ Comparação concluída");
-      console.log("Resultados por igreja:", results);
-      console.log("Não identificados:", unidentified);
+      setComparisonResults(results);
+      setUnidentifiedResults(unidentified);
 
       showToast("Comparação concluída com sucesso!", "success");
     } catch (err) {
       console.error(err);
-      showToast("Ocorreu um erro ao comparar os arquivos.", "error");
+      showToast("Erro ao comparar arquivos", "error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const showToast = (msg: string, type: "success" | "error") => {
-    alert(`${type.toUpperCase()}: ${msg}`);
-  };
+  const showToast = (msg: string, type: "success" | "error") => alert(`${type.toUpperCase()}: ${msg}`);
 
   return (
     <AppContext.Provider
@@ -240,6 +277,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setDayTolerance,
         comparisonType,
         setComparisonType,
+        comparisonResults,
+        unidentifiedResults,
       }}
     >
       {children}
@@ -253,6 +292,6 @@ export const useAppContext = (): AppContextType => {
   return context;
 };
 
-console.log("✅ AppContext.tsx carregado com sucesso!");
+console.log("✅ AppContext.tsx final carregado!");
 
 export { AppContext };
