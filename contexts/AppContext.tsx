@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import * as XLSX from "xlsx"; // para leitura de Excel
-import Papa from "papaparse"; // para CSV
+import * as XLSX from "xlsx";
+import Papa from "papaparse";
 
 export type ComparisonType = "income" | "expenses" | "both";
 
@@ -19,14 +19,12 @@ interface Church {
 
 interface BankStatementFile {
   bankId: string;
-  fileName: string;
-  content?: string;
+  file: File;
 }
 
 interface ContributorFile {
   churchId: string;
-  fileName: string;
-  content?: string;
+  file: File;
 }
 
 interface AppContextType {
@@ -46,8 +44,8 @@ interface AppContextType {
   bankStatementFile: BankStatementFile | null;
   contributorFiles: ContributorFile[];
 
-  handleStatementUpload: (content: string, fileName: string, bankId: string) => void;
-  handleContributorsUpload: (content: string, fileName: string, churchId: string) => void;
+  handleStatementUpload: (file: File, bankId: string) => void;
+  handleContributorsUpload: (file: File, churchId: string) => void;
 
   isCompareDisabled: boolean;
   isLoading: boolean;
@@ -97,6 +95,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("churches", JSON.stringify(churches));
   }, [churches]);
 
+  // 🔹 Funções de cadastro
   const addBank = (bank: Bank) => {
     console.log("💾 Salvando banco:", bank.name);
     setBanks((prev) => [...prev, bank]);
@@ -107,66 +106,141 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setChurches((prev) => [...prev, church]);
   };
 
-  const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
-    setBankStatementFile({ bankId, fileName, content });
+  // 🔹 Upload de arquivos
+  const handleStatementUpload = (file: File, bankId: string) => {
+    setBankStatementFile({ bankId, file });
     setIsCompareDisabled(false);
   };
 
-  const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
-    setContributorFiles((prev) => [...prev, { churchId, fileName, content }]);
+  const handleContributorsUpload = (file: File, churchId: string) => {
+    setContributorFiles((prev) => [...prev, { churchId, file }]);
     setIsCompareDisabled(false);
   };
 
-  const parseFileContent = (file: BankStatementFile | ContributorFile) => {
-    if (!file.content) return [];
-    const lower = file.fileName.toLowerCase();
-    try {
-      if (lower.endsWith(".csv")) {
-        const parsed = Papa.parse(file.content, { header: true, skipEmptyLines: true });
-        return parsed.data;
-      } else if (lower.endsWith(".xls") || lower.endsWith(".xlsx")) {
-        const workbook = XLSX.read(file.content, { type: "binary" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        return XLSX.utils.sheet_to_json(sheet);
-      } else {
-        console.warn("Formato não suportado ainda:", file.fileName);
-        return [];
-      }
-    } catch (err) {
-      console.error("Erro ao parsear arquivo:", file.fileName, err);
-      return [];
-    }
+  // 🔹 Função para normalizar nomes (remover acentos, maiúsculas, palavras indesejadas)
+  const normalizeName = (name: string) => {
+    let normalized = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove acentos
+      .replace(/[^a-zA-Z0-9 ]/g, "") // remove pontuação
+      .toUpperCase();
+    // remove palavras comuns como PIX, DÍZIMO etc.
+    ["PIX", "DIZIMO", "DÍZIMO"].forEach((word) => {
+      normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "gi"), "");
+    });
+    return normalized.trim();
   };
 
-  const handleCompare = () => {
+  // 🔹 Função para ler qualquer arquivo Excel ou CSV
+  const readFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = e.target?.result;
+        if (!data) return reject("Arquivo vazio");
+
+        try {
+          if (file.name.endsWith(".csv")) {
+            const parsed = Papa.parse(data as string, { header: true });
+            resolve(parsed.data);
+          } else if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+            resolve(json);
+          } else {
+            reject("Formato de arquivo não suportado");
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      if (file.name.endsWith(".csv")) reader.readAsText(file);
+      else reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // 🔹 Identificação das colunas Data, Nome e Valor
+  const identifyColumns = (rows: any[]) => {
+    const sample = rows[0] || {};
+    let dateCol = "", nameCol = "", valueCol = "";
+
+    Object.keys(sample).forEach((key) => {
+      const values = rows.map((r) => String(r[key] || ""));
+      if (!dateCol && values.some((v) => /\d{2}\/\d{2}\/\d{4}/.test(v))) dateCol = key;
+      else if (!valueCol && values.some((v) => /^[\d.,]+$/.test(v))) valueCol = key;
+      else if (!nameCol) nameCol = key;
+    });
+
+    return { dateCol, nameCol, valueCol };
+  };
+
+  // 🔹 Comparação principal
+  const handleCompare = async () => {
     if (!bankStatementFile || contributorFiles.length === 0) {
-      showToast("Carregue os arquivos antes de comparar!", "error");
+      showToast("É necessário carregar os arquivos do banco e das igrejas", "error");
       return;
     }
 
     setIsLoading(true);
-    console.log("🔹 Iniciando comparação...");
+    try {
+      // 1️⃣ Ler banco
+      const bankData = await readFile(bankStatementFile.file);
+      const { dateCol: bankDateCol, nameCol: bankNameCol, valueCol: bankValueCol } = identifyColumns(bankData);
 
-    // 1️⃣ Ler e imprimir dados do banco
-    const bankData = parseFileContent(bankStatementFile);
-    console.log("✅ Dados do banco:", bankData);
+      // Normalizar banco
+      const normalizedBankData = bankData.map((row) => ({
+        date: row[bankDateCol],
+        name: normalizeName(row[bankNameCol]),
+        value: parseFloat(String(row[bankValueCol]).replace(",", ".")) || 0,
+      }));
 
-    // 2️⃣ Ler e imprimir dados das igrejas
-    contributorFiles.forEach((churchFile) => {
-      const data = parseFileContent(churchFile);
-      console.log(`✅ Dados da igreja ${churchFile.churchId}:`, data);
-    });
+      const resultsByChurch: Record<string, any[]> = {};
+      let unidentified: any[] = [];
 
-    // Aqui paramos para garantir que todos os dados foram carregados corretamente
-    // Em próximas etapas podemos adicionar:
-    // - Identificação das colunas data/nome/valor
-    // - Limpeza dos nomes
-    // - Comparação
-    // - Relatórios
+      // 2️⃣ Ler cada igreja
+      for (const contrib of contributorFiles) {
+        const data = await readFile(contrib.file);
+        const { dateCol, nameCol, valueCol } = identifyColumns(data);
 
-    setIsLoading(false);
-    console.log("✅ Checagem dos arquivos concluída.");
+        const normalizedData = data.map((row) => ({
+          date: row[dateCol],
+          name: normalizeName(row[nameCol]),
+          value: parseFloat(String(row[valueCol]).replace(",", ".")) || 0,
+        }));
+
+        // Comparação simples: encontrar transações correspondentes por nome e valor
+        const matched: any[] = [];
+        normalizedData.forEach((cRow) => {
+          const matchIndex = normalizedBankData.findIndex(
+            (bRow) =>
+              bRow.name === cRow.name &&
+              Math.abs(bRow.value - cRow.value) < 0.01 // tolerância
+          );
+          if (matchIndex >= 0) {
+            matched.push(cRow);
+            normalizedBankData.splice(matchIndex, 1); // remover banco usado
+          } else {
+            unidentified.push({ ...cRow, churchId: contrib.churchId });
+          }
+        });
+
+        resultsByChurch[contrib.churchId] = matched;
+      }
+
+      console.log("✅ Comparação concluída");
+      console.log("Resultados por igreja:", resultsByChurch);
+      console.log("Não identificados:", unidentified);
+
+      // Aqui você pode gerar download de CSV ou PDF se desejar
+
+    } catch (err) {
+      console.error("Erro durante a comparação:", err);
+      showToast("Erro ao processar os arquivos. Verifique os formatos.", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const showToast = (msg: string, type: "success" | "error") => {
