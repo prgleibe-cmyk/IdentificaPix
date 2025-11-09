@@ -5,6 +5,8 @@ interface AppContextType {
   setUser: (user: string | null) => void;
   loading: boolean;
   setLoading: (value: boolean) => void;
+  activeView: string;
+  setActiveView: (view: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -12,9 +14,12 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [activeView, setActiveView] = useState<string>("dashboard");
 
   return (
-    <AppContext.Provider value={{ user, setUser, loading, setLoading }}>
+    <AppContext.Provider
+      value={{ user, setUser, loading, setLoading, activeView, setActiveView }}
+    >
       {children}
     </AppContext.Provider>
   );
@@ -28,5 +33,7 @@ export const useAppContext = (): AppContextType => {
   return context;
 };
 
-// 🔹 Debug simples para ver se o contexto está carregando
+// 🔹 Debug simples para confirmar que o contexto foi carregado
 console.log("✅ AppContext.tsx carregado com sucesso!");
+
+export { AppContext };
