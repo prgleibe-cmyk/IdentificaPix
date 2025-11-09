@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm';
-import { ArrowsUpTrayIcon } from '@heroicons/react/24/solid';
+import { ArrowUpTrayIcon } from '@heroicons/react/24/solid'; // Corrigido
 
 export const UploadView: React.FC = () => {
   const {
@@ -81,7 +81,7 @@ export const UploadView: React.FC = () => {
                   htmlFor={`bank-${bank.id}`}
                   className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
                 >
-                  <ArrowsUpTrayIcon className="w-5 h-5" />
+                  <ArrowUpTrayIcon className="w-5 h-5" />
                   {bankStatementFile?.bankId === bank.id
                     ? bankStatementFile.fileName
                     : 'Carregar extrato'}
@@ -126,7 +126,7 @@ export const UploadView: React.FC = () => {
                   htmlFor={`church-${church.id}`}
                   className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
                 >
-                  <ArrowsUpTrayIcon className="w-5 h-5" />
+                  <ArrowUpTrayIcon className="w-5 h-5" />
                   {contributorFiles.find((f) => f.churchId === church.id)?.fileName ||
                     'Carregar arquivo'}
                 </label>
