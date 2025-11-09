@@ -2,11 +2,8 @@
 export default {
   content: [
     "./index.html",
-    "./index.tsx",
-    "./estilos/**/*.css"
-    "./components/**/*.{js,ts,jsx,tsx}",
-    "./contexts/**/*.{js,ts,jsx,tsx}",
-    "./views/**/*.{js,ts,jsx,tsx}"
+    "./**/*.{js,ts,jsx,tsx}", // Inclui toda a raiz
+    "./estilos/**/*.css"      // Corrige o aviso de pattern inválido
   ],
   darkMode: "class",
   theme: {
