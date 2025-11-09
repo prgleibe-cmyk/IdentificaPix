@@ -1,13 +1,15 @@
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./index.html",
-    "./**/*.{js,ts,jsx,tsx}",  // 🔹 Inclui toda a raiz
-    "./estilos/**/*.{css}"      // 🔹 Garante que o base.css seja processado
-  ],
-  darkMode: "class",
-  theme: {
-    extend: {},
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// Configuração padrão do Vite para apps React + TypeScript na raiz
+export default defineConfig({
+  plugins: [react()],
+  root: '.', // garante que ele leia o index.html da raiz
+  build: {
+    outDir: 'dist',
   },
-  plugins: [],
-};
+  server: {
+    port: 5173,
+    open: true,
+  },
+})
