@@ -1,15 +1,17 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
-// Configuração padrão do Vite para React + TypeScript
+// ✅ Configuração limpa e compatível com projeto sem pasta src
 export default defineConfig({
   plugins: [react()],
-  root: '.',
-  build: {
-    outDir: 'dist',
-  },
+  root: ".", // raiz do projeto
+  publicDir: "public", // se tiver assets públicos
   server: {
     port: 5173,
     open: true,
   },
-})
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+  },
+});

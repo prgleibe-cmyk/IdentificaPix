@@ -320,8 +320,8 @@ export const DashboardView: React.FC = () => {
     
     const { t, language } = useTranslation();
 
-    // If there are no saved reports, show an empty state message
-    if (savedReports.length === 0) {
+    // 🔹 Evita erro caso savedReports ainda não tenha carregado
+    if (!savedReports || !Array.isArray(savedReports) || savedReports.length === 0) {
         return (
             <EmptyState
                 icon={<UploadIcon className="w-8 h-8 text-blue-700 dark:text-blue-400" />}
