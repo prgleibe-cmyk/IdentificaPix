@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
 export type ComparisonType = "income" | "expenses" | "both";
 
@@ -12,7 +12,7 @@ interface Church {
   name: string;
   address?: string;
   pastor?: string;
-  logoUrl?: string; // agora opcional
+  logoUrl?: string;
 }
 
 interface BankStatementFile {
@@ -65,8 +65,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [activeView, setActiveView] = useState<string>("dashboard");
 
-  const [banks, setBanks] = useState<Bank[]>([]);
-  const [churches, setChurches] = useState<Church[]>([]);
+  // 🔹 Persistência: carregar do localStorage
+  const [banks, setBanks] = useState<Bank[]>(() => {
+    const saved = localStorage.getItem("banks");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [churches, setChurches] = useState<Church[]>(() => {
+    const saved = localStorage.getItem("churches");
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [bankStatementFile, setBankStatementFile] = useState<BankStatementFile | null>(null);
   const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
@@ -77,6 +85,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [similarityLevel, setSimilarityLevel] = useState<number>(70);
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
+
+  // 🔹 Salvar no localStorage sempre que houver mudanças
+  useEffect(() => {
+    localStorage.setItem("banks", JSON.stringify(banks));
+  }, [banks]);
+
+  useEffect(() => {
+    localStorage.setItem("churches", JSON.stringify(churches));
+  }, [churches]);
 
   // 🔹 Funções de cadastro
   const addBank = (bank: Bank) => {
@@ -152,7 +169,6 @@ export const useAppContext = (): AppContextType => {
   return context;
 };
 
-// 🔹 Debug simples para confirmar que o contexto foi carregado
 console.log("✅ AppContext.tsx carregado com sucesso!");
 
 export { AppContext };
