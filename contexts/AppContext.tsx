@@ -1,50 +1,32 @@
-alert('🚀 AppContext.tsx foi carregado!');
+import React, { createContext, useContext, useState, ReactNode } from "react";
 
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-
-// 🔥 Log para confirmar carregamento
-console.log('✅ AppContext.tsx foi carregado!');
-
-// Tipos do contexto
 interface AppContextType {
-  banco: string | null;
-  igreja: string | null;
-  setBanco: (valor: string | null) => void;
-  setIgreja: (valor: string | null) => void;
+  user: string | null;
+  setUser: (user: string | null) => void;
+  loading: boolean;
+  setLoading: (value: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [banco, setBanco] = useState<string | null>(() => localStorage.getItem('banco'));
-  const [igreja, setIgreja] = useState<string | null>(() => localStorage.getItem('igreja'));
-
-  // 🔥 Logar sempre que for renderizado
-  useEffect(() => {
-    console.log('🔥 AppProvider foi inicializado');
-  }, []);
-
-  // Persistência local (simples, sem Supabase ainda)
-  useEffect(() => {
-    if (banco) localStorage.setItem('banco', banco);
-  }, [banco]);
-
-  useEffect(() => {
-    if (igreja) localStorage.setItem('igreja', igreja);
-  }, [igreja]);
+  const [user, setUser] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   return (
-    <AppContext.Provider value={{ banco, igreja, setBanco, setIgreja }}>
+    <AppContext.Provider value={{ user, setUser, loading, setLoading }}>
       {children}
     </AppContext.Provider>
   );
 };
 
-// Hook auxiliar para usar o contexto
-export const useAppContext = () => {
+export const useAppContext = (): AppContextType => {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useAppContext deve ser usado dentro de um <AppProvider>');
+    throw new Error("useAppContext deve ser usado dentro de um AppProvider");
   }
   return context;
 };
+
+// 🔹 Debug simples para ver se o contexto está carregando
+console.log("✅ AppContext.tsx carregado com sucesso!");
