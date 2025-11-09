@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Configuração padrão do Vite para apps React + TypeScript na raiz
+// Configuração padrão do Vite para React + TypeScript
 export default defineConfig({
   plugins: [react()],
-  root: '.', // garante que ele leia o index.html da raiz
+  root: '.',
   build: {
     outDir: 'dist',
   },

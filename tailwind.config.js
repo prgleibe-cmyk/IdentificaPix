@@ -3,7 +3,7 @@ export default {
   content: [
     "./index.html",
     "./index.tsx",
-    "./estilos/**/*.{css}",       // base.css
+    "./estilos/**/*.css"
     "./components/**/*.{js,ts,jsx,tsx}",
     "./contexts/**/*.{js,ts,jsx,tsx}",
     "./views/**/*.{js,ts,jsx,tsx}"
