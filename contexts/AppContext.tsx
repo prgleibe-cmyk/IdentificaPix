@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
+import * as XLSX from "xlsx";
 
 export type ComparisonType = "income" | "expenses" | "both";
 
@@ -19,13 +19,13 @@ interface Church {
 interface BankStatementFile {
   bankId: string;
   fileName: string;
-  content?: string; // opcional, pode conter o arquivo carregado
+  content: string; // arquivo carregado
 }
 
 interface ContributorFile {
   churchId: string;
   fileName: string;
-  content?: string;
+  content: string; // arquivo carregado
 }
 
 interface AppContextType {
@@ -51,8 +51,6 @@ interface AppContextType {
   isCompareDisabled: boolean;
   isLoading: boolean;
   handleCompare: () => void;
-  comparisonResults: Record<string, any>;
-  unidentifiedResults: any[];
   showToast: (msg: string, type: "success" | "error") => void;
 
   similarityLevel: number;
@@ -86,21 +84,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isCompareDisabled, setIsCompareDisabled] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const [comparisonResults, setComparisonResults] = useState<Record<string, any>>({});
-  const [unidentifiedResults, setUnidentifiedResults] = useState<any[]>([]);
-
   const [similarityLevel, setSimilarityLevel] = useState<number>(70);
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
 
-  // Persistência no localStorage
-  useEffect(() => {
-    localStorage.setItem("banks", JSON.stringify(banks));
-  }, [banks]);
-
-  useEffect(() => {
-    localStorage.setItem("churches", JSON.stringify(churches));
-  }, [churches]);
+  // Persistência
+  useEffect(() => { localStorage.setItem("banks", JSON.stringify(banks)); }, [banks]);
+  useEffect(() => { localStorage.setItem("churches", JSON.stringify(churches)); }, [churches]);
 
   const addBank = (bank: Bank) => {
     setBanks((prev) => [...prev, bank]);
@@ -111,89 +101,120 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
-    setBankStatementFile({ content, fileName, bankId });
+    setBankStatementFile({ bankId, fileName, content });
     setIsCompareDisabled(false);
   };
 
   const handleContributorsUpload = (content: string, fileName: string, churchId: string) => {
-    setContributorFiles((prev) => [...prev, { content, fileName, churchId }]);
+    setContributorFiles((prev) => [...prev, { churchId, fileName, content }]);
     setIsCompareDisabled(false);
   };
 
-  // 🔹 Normalização
-  const normalizeString = (str: string) =>
-    str
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9 ]/g, "")
-      .trim()
-      .toLowerCase();
-
-  const parseDate = (val: string | Date) => {
-    if (val instanceof Date) return val;
-    const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d;
+  const cleanName = (name: string) => {
+    const forbidden = ["PIX", "DÍZIMO", "DIZIMO"];
+    let n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    forbidden.forEach(f => { n = n.replace(new RegExp(f, "gi"), ""); });
+    n = n.replace(/[^A-Z0-9 ]/g, "").trim();
+    return n;
   };
 
-  const parseValue = (val: string | number) => {
-    if (typeof val === "number") return val;
-    const n = parseFloat(val.replace(",", ".").replace(/[^\d.-]/g, ""));
-    return isNaN(n) ? 0 : n;
+  const parseFile = (file: BankStatementFile | ContributorFile) => {
+    let rows: any[] = [];
+    try {
+      if (file.fileName.endsWith(".csv")) {
+        const lines = file.content.split(/\r?\n/).filter(l => l.trim() !== "");
+        const headers = lines[0].split(",");
+        rows = lines.slice(1).map(line => {
+          const values = line.split(",");
+          const obj: any = {};
+          headers.forEach((h, i) => { obj[h] = values[i]; });
+          return obj;
+        });
+      } else if (file.fileName.endsWith(".xlsx") || file.fileName.endsWith(".xls")) {
+        const workbook = XLSX.read(file.content, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        rows = sheet as any[];
+      } else if (file.fileName.endsWith(".pdf")) {
+        // Para simplicidade, tratar PDF como CSV (em produção usar pdf-parse)
+        const lines = file.content.split(/\r?\n/).filter(l => l.trim() !== "");
+        const headers = lines[0].split(",");
+        rows = lines.slice(1).map(line => {
+          const values = line.split(",");
+          const obj: any = {};
+          headers.forEach((h, i) => { obj[h] = values[i]; });
+          return obj;
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao ler arquivo:", file.fileName, err);
+    }
+    return rows;
   };
 
-  // 🔹 Comparação
+  const identifyColumns = (rows: any[]) => {
+    const columns: any = {};
+    if (rows.length === 0) return columns;
+    const keys = Object.keys(rows[0]);
+    keys.forEach(k => {
+      const sample = rows.map(r => r[k]).filter(Boolean).slice(0, 10).join(" ");
+      if (/\d{2}\/\d{2}\/\d{4}/.test(sample)) columns.date = k;
+      else if (/^\d+(\.\d{2})?$/.test(sample) || /^\d+,\d{2}$/.test(sample)) columns.value = k;
+      else columns.name = k;
+    });
+    return columns;
+  };
+
   const handleCompare = () => {
     if (!bankStatementFile || contributorFiles.length === 0) {
-      alert("📌 É necessário enviar os arquivos antes de comparar");
+      showToast("Carregue os arquivos antes de comparar", "error");
       return;
     }
 
     setIsLoading(true);
 
     setTimeout(() => {
-      // Aqui você deve processar e limpar os arquivos reais.
-      // No exemplo, vamos simular dados lidos:
-      const bankData = [
-        { name: "Dízimo João", date: "2025-11-08", value: 100 },
-        { name: "PIX Maria", date: "2025-11-08", value: 150 },
-      ];
+      const bankRows = parseFile(bankStatementFile);
+      const bankCols = identifyColumns(bankRows);
 
-      const contributorsData = contributorFiles.map((f) => ({
-        churchId: f.churchId,
-        contributors: [
-          { name: "João", date: "2025-11-08", value: 100 },
-          { name: "Maria", date: "2025-11-08", value: 150 },
-          { name: "Pedro", date: "2025-11-08", value: 200 },
-        ],
-      }));
+      const resultsByChurch: Record<string, any[]> = {};
+      const unidentified: any[] = [];
 
-      const results: Record<string, any[]> = {};
-      let unidentified: any[] = [];
+      contributorFiles.forEach(cf => {
+        const church = churches.find(c => c.id === cf.churchId);
+        if (!church) return;
 
-      contributorsData.forEach(({ churchId, contributors }) => {
-        results[churchId] = [];
-        contributors.forEach((contrib) => {
-          const match = bankData.find(
-            (b) =>
-              normalizeString(b.name).includes(normalizeString(contrib.name)) &&
-              Math.abs(parseValue(b.value) - parseValue(contrib.value)) < 0.01
-          );
-          if (match) {
-            results[churchId].push({ ...contrib, matchedValue: match.value });
-          } else {
-            unidentified.push(contrib);
-          }
+        const churchRows = parseFile(cf);
+        const churchCols = identifyColumns(churchRows);
+
+        const matched: any[] = [];
+
+        churchRows.forEach(cr => {
+          const crName = cleanName(cr[churchCols.name]);
+          const crValue = parseFloat((cr[churchCols.value] || "0").toString().replace(",", "."));
+          const crDate = new Date(cr[churchCols.date]);
+
+          const match = bankRows.find(br => {
+            const brName = cleanName(br[bankCols.name]);
+            const brValue = parseFloat((br[bankCols.value] || "0").toString().replace(",", "."));
+            const brDate = new Date(br[bankCols.date]);
+            const dateDiff = Math.abs(brDate.getTime() - crDate.getTime()) / (1000 * 3600 * 24);
+            return brName === crName && Math.abs(brValue - crValue) < 0.01 && dateDiff <= dayTolerance;
+          });
+
+          if (match) matched.push({ ...cr, matched: true });
+          else unidentified.push({ ...cr, churchId: cf.churchId });
         });
+
+        resultsByChurch[cf.churchId] = matched;
       });
 
-      setComparisonResults(results);
-      setUnidentifiedResults(unidentified);
-      setIsLoading(false);
-
       console.log("✅ Comparação concluída");
-      console.log("Resultados por igreja:", results);
+      console.log("Resultados por igreja:", resultsByChurch);
       console.log("Não identificados:", unidentified);
-    }, 1000);
+
+      setIsLoading(false);
+    }, 500);
   };
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -220,8 +241,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         isCompareDisabled,
         isLoading,
         handleCompare,
-        comparisonResults,
-        unidentifiedResults,
         showToast,
         similarityLevel,
         setSimilarityLevel,
@@ -243,5 +262,4 @@ export const useAppContext = (): AppContextType => {
 };
 
 console.log("✅ AppContext.tsx carregado com sucesso!");
-
 export { AppContext };
