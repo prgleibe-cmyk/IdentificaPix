@@ -1,12 +1,12 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
-import { ComparisonSettingsForm } from '../components/ComparisonSettingsForm';
+import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm'; // <-- caminho corrigido
 import { ArrowsUpTrayIcon } from '@heroicons/react/24/solid';
 
 export const UploadView: React.FC = () => {
   const {
-    banks = [],
-    churches = [],
+    banks,
+    churches,
     addBank,
     addChurch,
     handleStatementUpload,
@@ -15,7 +15,7 @@ export const UploadView: React.FC = () => {
     isCompareDisabled,
     isLoading,
     bankStatementFile,
-    contributorFiles = [],
+    contributorFiles,
     showToast,
   } = useContext(AppContext);
 
@@ -67,7 +67,6 @@ export const UploadView: React.FC = () => {
             + Adicionar Banco
           </button>
         </div>
-
         {banks.length === 0 ? (
           <p className="text-slate-500 text-sm">Nenhum banco cadastrado.</p>
         ) : (
@@ -115,7 +114,6 @@ export const UploadView: React.FC = () => {
             + Adicionar Igreja
           </button>
         </div>
-
         {churches.length === 0 ? (
           <p className="text-slate-500 text-sm">Nenhuma igreja cadastrada.</p>
         ) : (
@@ -133,8 +131,8 @@ export const UploadView: React.FC = () => {
                   className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
                 >
                   <ArrowsUpTrayIcon className="w-5 h-5" />
-                  {contributorFiles.find((f) => f.churchId === church.id)
-                    ?.fileName || 'Carregar arquivo'}
+                  {contributorFiles.find((f) => f.churchId === church.id)?.fileName ||
+                    'Carregar arquivo'}
                 </label>
                 <input
                   id={`church-${church.id}`}
