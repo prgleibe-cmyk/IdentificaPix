@@ -45,8 +45,8 @@ interface AppContextType {
   bankStatementFile: BankStatementFile | null;
   contributorFiles: ContributorFile[];
 
-  handleStatementUpload: (file: File, bankId: string) => void;
-  handleContributorsUpload: (file: File, churchId: string) => void;
+  handleStatementUpload: (file: File | undefined, bankId: string) => void;
+  handleContributorsUpload: (file: File | undefined, churchId: string) => void;
 
   isCompareDisabled: boolean;
   isLoading: boolean;
@@ -97,19 +97,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("churches", JSON.stringify(churches));
   }, [churches]);
 
-  const addBank = (bank: Bank) => {
-    setBanks((prev) => [...prev, bank]);
-  };
+  const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
+  const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
 
-  const addChurch = (church: Church) => {
-    setChurches((prev) => [...prev, church]);
-  };
-
-  // 🔹 Leitura de arquivos XLSX/XLS/CSV
+  // Função para ler XLSX/XLS e CSV
   const readFile = async (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
@@ -119,13 +113,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
             const rows = text
               .split(/\r?\n/)
-              .filter((r) => r.trim() !== "")
+              .filter((r) => r.trim())
               .map((row) => row.split(","));
             resolve(rows);
           } else {
-            // XLSX/XLS
-            const arrayBuffer = data as ArrayBuffer;
-            const workbook = XLSX.read(arrayBuffer, { type: "array" });
+            const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
@@ -135,68 +127,95 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           reject(err);
         }
       };
-
       reader.onerror = (err) => reject(err);
-
       if (file.name.endsWith(".csv")) reader.readAsText(file);
       else reader.readAsArrayBuffer(file);
     });
   };
 
-  const handleStatementUpload = async (file: File, bankId: string) => {
+  const handleStatementUpload = async (file: File | undefined, bankId: string) => {
+    if (!file) {
+      showToast("Nenhum arquivo selecionado.", "error");
+      return;
+    }
     try {
       const data = await readFile(file);
       setBankStatementFile({ bankId, fileName: file.name, data });
       setIsCompareDisabled(false);
+      showToast(`Arquivo do banco "${file.name}" carregado com sucesso!`, "success");
     } catch (err) {
       console.error("Erro ao ler arquivo:", file.name, err);
       showToast(`Erro ao ler arquivo: ${file.name}`, "error");
     }
   };
 
-  const handleContributorsUpload = async (file: File, churchId: string) => {
+  const handleContributorsUpload = async (file: File | undefined, churchId: string) => {
+    if (!file) {
+      showToast("Nenhum arquivo selecionado.", "error");
+      return;
+    }
     try {
       const data = await readFile(file);
       setContributorFiles((prev) => [...prev, { churchId, fileName: file.name, data }]);
       setIsCompareDisabled(false);
+      showToast(`Arquivo da igreja "${file.name}" carregado com sucesso!`, "success");
     } catch (err) {
       console.error("Erro ao ler arquivo:", file.name, err);
       showToast(`Erro ao ler arquivo: ${file.name}`, "error");
     }
   };
 
-  // 🔹 Comparação
+  // Função de limpeza de nomes (remover PIX, Dízimo etc.)
+  const cleanName = (name: string) => {
+    return name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remover acentos
+      .replace(/PIX|DIZIMO|DÍZIMO/gi, "")
+      .replace(/[^a-zA-Z0-9 ]/g, "") // remover caracteres especiais
+      .trim()
+      .toLowerCase();
+  };
+
+  // Função de comparação
   const handleCompare = () => {
     if (!bankStatementFile) {
       showToast("Nenhum extrato carregado.", "error");
       return;
     }
+    if (contributorFiles.length === 0) {
+      showToast("Nenhum arquivo de contribuinte carregado.", "error");
+      return;
+    }
+
     setIsLoading(true);
+
     setTimeout(() => {
+      // Limpar dados do banco
       const cleanedBank = bankStatementFile.data.map((row: any) => ({
         date: row.date || row.Data || "",
-        name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
+        name: cleanName(row.name || row.Nome || ""),
         value: parseFloat(row.value || row.Valor || 0),
       }));
 
       const resultsByChurch: Record<string, any[]> = {};
       const unidentified: any[] = [];
 
+      // Para cada igreja
       contributorFiles.forEach((churchFile) => {
         const cleanedContributors = churchFile.data.map((row: any) => ({
           date: row.date || row.Data || "",
-          name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
+          name: cleanName(row.name || row.Nome || ""),
           value: parseFloat(row.value || row.Valor || 0),
         }));
 
         const matched: any[] = [];
+
         cleanedContributors.forEach((contributor) => {
-          const found = cleanedBank.find((b) => {
-            return (
-              b.name.toLowerCase() === contributor.name.toLowerCase() &&
+          const found = cleanedBank.find(
+            (b) =>
+              b.name === contributor.name &&
               Math.abs(b.value - contributor.value) <= 0.01
-            );
-          });
+          );
           if (found) matched.push({ ...contributor, matched: true });
           else unidentified.push(contributor);
         });
@@ -209,6 +228,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.log("Não identificados:", unidentified);
 
       setIsLoading(false);
+      showToast("Comparação concluída com sucesso!", "success");
     }, 1000);
   };
 
