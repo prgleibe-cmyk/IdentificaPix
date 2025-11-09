@@ -97,10 +97,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("churches", JSON.stringify(churches));
   }, [churches]);
 
-  const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
-  const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
+  const addBank = (bank: Bank) => {
+    setBanks((prev) => [...prev, bank]);
+  };
 
-  // 🔹 Função genérica para ler XLSX/XLS e CSV
+  const addChurch = (church: Church) => {
+    setChurches((prev) => [...prev, church]);
+  };
+
+  // Leitura de arquivos XLSX, XLS e CSV
   const readFile = async (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -108,6 +113,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         try {
           const data = e.target?.result;
           if (!data) return reject("Arquivo vazio");
+
           if (file.name.endsWith(".csv")) {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
             const rows = text.split(/\r?\n/).map((row) => row.split(","));
@@ -151,28 +157,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // 🔹 Identificação automática das colunas
-  const guessColumns = (rows: any[]): { nameCol: string; valueCol: string; dateCol: string } => {
-    const sample = rows[0];
-    let nameCol = "";
-    let valueCol = "";
-    let dateCol = "";
-
-    Object.keys(sample).forEach((col) => {
-      const values = rows.map((r) => r[col]);
-      const numCount = values.filter((v) => !isNaN(parseFloat(v))).length;
-      const dateCount = values.filter((v) => !isNaN(new Date(v).getTime())).length;
-
-      if (numCount / values.length > 0.7) valueCol = col;
-      else if (dateCount / values.length > 0.7) dateCol = col;
-      else nameCol = col;
-    });
-
-    return { nameCol, valueCol, dateCol };
-  };
-
-  const cleanName = (name: string, ignoredWords: string[] = ["PIX", "DIZIMO"]) => {
-    let cleaned = name
+  // 🔹 Função de limpeza de nomes
+  const cleanName = (name: any, ignoredWords: string[] = ["PIX", "DIZIMO"]) => {
+    if (!name) return "";
+    let cleaned = String(name)
       .replace(/\d+/g, "")
       .toLowerCase()
       .normalize("NFD")
@@ -187,19 +175,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return cleaned;
   };
 
-  // 🔹 Comparação
+  // 🔹 Identificação automática das colunas
+  const detectColumns = (data: any[]) => {
+    const firstRow = data[0];
+    const columns = Object.keys(firstRow);
+    let nameCol = "", dateCol = "", valueCol = "";
+
+    for (let col of columns) {
+      const sample = data.map((row) => row[col]).filter(Boolean);
+      if (sample.every((v) => !isNaN(Date.parse(v)))) dateCol = col;
+      else if (sample.every((v) => !isNaN(parseFloat(v)))) valueCol = col;
+      else nameCol = col;
+    }
+
+    return { nameCol, dateCol, valueCol };
+  };
+
   const handleCompare = () => {
     if (!bankStatementFile) {
       showToast("Nenhum extrato carregado.", "error");
       return;
     }
-
     setIsLoading(true);
+
     setTimeout(() => {
-      const { nameCol: bankNameCol, valueCol: bankValueCol, dateCol: bankDateCol } = guessColumns(bankStatementFile.data);
+      const { nameCol: bankNameCol, dateCol: bankDateCol, valueCol: bankValueCol } = detectColumns(bankStatementFile.data);
+
       const cleanedBank = bankStatementFile.data.map((row: any) => ({
-        date: new Date(row[bankDateCol]),
-        name: cleanName(row[bankNameCol]),
+        date: bankDateCol ? new Date(row[bankDateCol]) : null,
+        name: bankNameCol ? cleanName(row[bankNameCol]) : "",
         value: parseFloat(row[bankValueCol]) || 0,
       }));
 
@@ -207,18 +211,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const unidentified: any[] = [];
 
       contributorFiles.forEach((churchFile) => {
-        const { nameCol: contribNameCol, valueCol: contribValueCol, dateCol: contribDateCol } = guessColumns(churchFile.data);
+        const { nameCol: contribNameCol, dateCol: contribDateCol, valueCol: contribValueCol } = detectColumns(churchFile.data);
 
         const cleanedContributors = churchFile.data.map((row: any) => ({
-          date: new Date(row[contribDateCol]),
-          name: cleanName(row[contribNameCol]),
+          date: contribDateCol ? new Date(row[contribDateCol]) : null,
+          name: contribNameCol ? cleanName(row[contribNameCol]) : "",
           value: parseFloat(row[contribValueCol]) || 0,
         }));
 
         const matched: any[] = [];
         cleanedContributors.forEach((contributor) => {
-          const found = cleanedBank.find((b) =>
-            b.name === contributor.name && Math.abs(b.value - contributor.value) <= 0.01
+          const found = cleanedBank.find(
+            (b) =>
+              b.name === contributor.name &&
+              Math.abs(b.value - contributor.value) <= 0.01
           );
           if (found) matched.push({ ...contributor, matched: true });
           else unidentified.push(contributor);
@@ -232,10 +238,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       console.log("Não identificados:", unidentified);
 
       setIsLoading(false);
-    }, 1000);
+    }, 100);
   };
 
-  const showToast = (msg: string, type: "success" | "error") => alert(`${type.toUpperCase()}: ${msg}`);
+  const showToast = (msg: string, type: "success" | "error") => {
+    alert(`${type.toUpperCase()}: ${msg}`);
+  };
 
   return (
     <AppContext.Provider
