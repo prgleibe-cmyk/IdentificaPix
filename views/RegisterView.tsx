@@ -238,7 +238,7 @@ const BankForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
         setIsSaving(true);
         try {
             console.log('💾 Salvando banco:', name);
-            await addBank({ name });
+            await addBank({ id: crypto.randomUUID(), name });
             setName('');
             onCancel();
         } catch (err) {
@@ -304,7 +304,7 @@ const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
         setIsSaving(true);
         try {
             console.log('💾 Salvando igreja:', data);
-            await addChurch(data);
+            await addChurch({ id: crypto.randomUUID(), ...data });
             setData({ name: '', address: '', pastor: '', logoUrl: '' });
             onCancel();
         } catch (err) {
@@ -346,19 +346,14 @@ const ChurchForm: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                 </label>
                 <div className="mt-1 flex items-center space-x-4">
                     <img
-                        src={
-                            data.logoUrl ||
-                            'https://placehold.co/100x100/e2e8f0/64748b?text=?'
-                        }
+                        src={data.logoUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=?'}
                         alt="Pré-visualização do logo"
                         className="w-16 h-16 rounded-md object-cover bg-slate-200"
                     />
                     <input
                         type="file"
                         accept="image/*"
-                        onChange={e =>
-                            e.target.files?.[0] && handleLogoUpload(e.target.files[0])
-                        }
+                        onChange={e => e.target.files?.[0] && handleLogoUpload(e.target.files[0])}
                         className="block w-full text-sm"
                     />
                 </div>
@@ -458,12 +453,8 @@ const ChurchesList: React.FC<{ onEdit: (data: ChurchFormData, id: string) => voi
         () =>
             (churches || []).filter(
                 c =>
-                    (c.name || '')
-                        .toLowerCase()
-                        .includes(search.toLowerCase()) ||
-                    (c.pastor || '')
-                        .toLowerCase()
-                        .includes(search.toLowerCase())
+                    (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+                    (c.pastor || '').toLowerCase().includes(search.toLowerCase())
             ),
         [churches, search]
     );
@@ -503,7 +494,7 @@ const ChurchesList: React.FC<{ onEdit: (data: ChurchFormData, id: string) => voi
                     >
                         <div className="flex items-center space-x-3">
                             <img
-                                src={church.logoUrl}
+                                src={church.logoUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=?'}
                                 alt={`Logo ${church.name}`}
                                 className="w-8 h-8 rounded-md object-cover bg-slate-200 flex-shrink-0"
                             />

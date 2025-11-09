@@ -10,6 +10,9 @@ interface Bank {
 interface Church {
   id: string;
   name: string;
+  address?: string;
+  pastor?: string;
+  logoUrl?: string; // agora opcional
 }
 
 interface BankStatementFile {
@@ -75,9 +78,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
 
-  const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
-  const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
+  // 🔹 Funções de cadastro
+  const addBank = (bank: Bank) => {
+    console.log("💾 Salvando banco:", bank.name);
+    setBanks((prev) => [...prev, bank]);
+  };
 
+  const addChurch = (church: Church) => {
+    console.log("💾 Salvando igreja:", church);
+    setChurches((prev) => [...prev, church]);
+  };
+
+  // 🔹 Upload de arquivos
   const handleStatementUpload = (content: string, fileName: string, bankId: string) => {
     setBankStatementFile({ bankId, fileName });
     setIsCompareDisabled(false);
@@ -88,12 +100,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setIsCompareDisabled(false);
   };
 
+  // 🔹 Comparação
   const handleCompare = () => {
     setIsLoading(true);
-    // Aqui você coloca a lógica real de comparação
+    // Lógica real de comparação aqui
     setTimeout(() => setIsLoading(false), 2000);
   };
 
+  // 🔹 Toast simples
   const showToast = (msg: string, type: "success" | "error") => {
     alert(`${type.toUpperCase()}: ${msg}`);
   };
