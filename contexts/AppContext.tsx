@@ -105,23 +105,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setChurches((prev) => [...prev, church]);
   };
 
-  // 🔹 Função genérica para ler XLSX/XLS e CSV
+  // 🔹 Leitura de arquivos XLSX/XLS/CSV
   const readFile = async (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
+
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
           if (!data) return reject("Arquivo vazio");
-          let workbook;
+
           if (file.name.endsWith(".csv")) {
             const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
-            const rows = text.split(/\r?\n/).map((row) => row.split(","));
+            const rows = text
+              .split(/\r?\n/)
+              .filter((r) => r.trim() !== "")
+              .map((row) => row.split(","));
             resolve(rows);
           } else {
             // XLSX/XLS
-            const array = typeof data === "string" ? new Uint8Array([]) : new Uint8Array(data as ArrayBuffer);
-            workbook = XLSX.read(data, { type: "array" });
+            const arrayBuffer = data as ArrayBuffer;
+            const workbook = XLSX.read(arrayBuffer, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
@@ -131,7 +135,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           reject(err);
         }
       };
+
       reader.onerror = (err) => reject(err);
+
       if (file.name.endsWith(".csv")) reader.readAsText(file);
       else reader.readAsArrayBuffer(file);
     });
@@ -167,7 +173,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     setIsLoading(true);
     setTimeout(() => {
-      // Preparar dados limpos (remover colunas extras, limpar nomes)
       const cleanedBank = bankStatementFile.data.map((row: any) => ({
         date: row.date || row.Data || "",
         name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
@@ -183,6 +188,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           name: (row.name || row.Nome || "").replace(/PIX|DIZIMO/gi, "").trim(),
           value: parseFloat(row.value || row.Valor || 0),
         }));
+
         const matched: any[] = [];
         cleanedContributors.forEach((contributor) => {
           const found = cleanedBank.find((b) => {
@@ -194,6 +200,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (found) matched.push({ ...contributor, matched: true });
           else unidentified.push(contributor);
         });
+
         resultsByChurch[churchFile.churchId] = matched;
       });
 
