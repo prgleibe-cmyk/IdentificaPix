@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
-import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm'; // <-- caminho corrigido
+import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm';
 import { ArrowsUpTrayIcon } from '@heroicons/react/24/solid';
 
 export const UploadView: React.FC = () => {
@@ -76,9 +76,7 @@ export const UploadView: React.FC = () => {
                 key={bank.id}
                 className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700 rounded-lg"
               >
-                <span className="text-slate-800 dark:text-slate-200">
-                  {bank.name}
-                </span>
+                <span className="text-slate-800 dark:text-slate-200">{bank.name}</span>
                 <label
                   htmlFor={`bank-${bank.id}`}
                   className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
@@ -123,9 +121,7 @@ export const UploadView: React.FC = () => {
                 key={church.id}
                 className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700 rounded-lg"
               >
-                <span className="text-slate-800 dark:text-slate-200">
-                  {church.name}
-                </span>
+                <span className="text-slate-800 dark:text-slate-200">{church.name}</span>
                 <label
                   htmlFor={`church-${church.id}`}
                   className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
