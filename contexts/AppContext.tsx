@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx"; // para leitura de Excel
+import Papa from "papaparse"; // para CSV
 
 export type ComparisonType = "income" | "expenses" | "both";
 
@@ -19,13 +20,13 @@ interface Church {
 interface BankStatementFile {
   bankId: string;
   fileName: string;
-  content: string; // arquivo carregado
+  content?: string;
 }
 
 interface ContributorFile {
   churchId: string;
   fileName: string;
-  content: string; // arquivo carregado
+  content?: string;
 }
 
 interface AppContextType {
@@ -88,15 +89,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [dayTolerance, setDayTolerance] = useState<number>(5);
   const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
 
-  // Persistência
-  useEffect(() => { localStorage.setItem("banks", JSON.stringify(banks)); }, [banks]);
-  useEffect(() => { localStorage.setItem("churches", JSON.stringify(churches)); }, [churches]);
+  useEffect(() => {
+    localStorage.setItem("banks", JSON.stringify(banks));
+  }, [banks]);
+
+  useEffect(() => {
+    localStorage.setItem("churches", JSON.stringify(churches));
+  }, [churches]);
 
   const addBank = (bank: Bank) => {
+    console.log("💾 Salvando banco:", bank.name);
     setBanks((prev) => [...prev, bank]);
   };
 
   const addChurch = (church: Church) => {
+    console.log("💾 Salvando igreja:", church);
     setChurches((prev) => [...prev, church]);
   };
 
@@ -110,111 +117,56 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setIsCompareDisabled(false);
   };
 
-  const cleanName = (name: string) => {
-    const forbidden = ["PIX", "DÍZIMO", "DIZIMO"];
-    let n = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-    forbidden.forEach(f => { n = n.replace(new RegExp(f, "gi"), ""); });
-    n = n.replace(/[^A-Z0-9 ]/g, "").trim();
-    return n;
-  };
-
-  const parseFile = (file: BankStatementFile | ContributorFile) => {
-    let rows: any[] = [];
+  const parseFileContent = (file: BankStatementFile | ContributorFile) => {
+    if (!file.content) return [];
+    const lower = file.fileName.toLowerCase();
     try {
-      if (file.fileName.endsWith(".csv")) {
-        const lines = file.content.split(/\r?\n/).filter(l => l.trim() !== "");
-        const headers = lines[0].split(",");
-        rows = lines.slice(1).map(line => {
-          const values = line.split(",");
-          const obj: any = {};
-          headers.forEach((h, i) => { obj[h] = values[i]; });
-          return obj;
-        });
-      } else if (file.fileName.endsWith(".xlsx") || file.fileName.endsWith(".xls")) {
+      if (lower.endsWith(".csv")) {
+        const parsed = Papa.parse(file.content, { header: true, skipEmptyLines: true });
+        return parsed.data;
+      } else if (lower.endsWith(".xls") || lower.endsWith(".xlsx")) {
         const workbook = XLSX.read(file.content, { type: "binary" });
         const sheetName = workbook.SheetNames[0];
-        const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-        rows = sheet as any[];
-      } else if (file.fileName.endsWith(".pdf")) {
-        // Para simplicidade, tratar PDF como CSV (em produção usar pdf-parse)
-        const lines = file.content.split(/\r?\n/).filter(l => l.trim() !== "");
-        const headers = lines[0].split(",");
-        rows = lines.slice(1).map(line => {
-          const values = line.split(",");
-          const obj: any = {};
-          headers.forEach((h, i) => { obj[h] = values[i]; });
-          return obj;
-        });
+        const sheet = workbook.Sheets[sheetName];
+        return XLSX.utils.sheet_to_json(sheet);
+      } else {
+        console.warn("Formato não suportado ainda:", file.fileName);
+        return [];
       }
     } catch (err) {
-      console.error("Erro ao ler arquivo:", file.fileName, err);
+      console.error("Erro ao parsear arquivo:", file.fileName, err);
+      return [];
     }
-    return rows;
-  };
-
-  const identifyColumns = (rows: any[]) => {
-    const columns: any = {};
-    if (rows.length === 0) return columns;
-    const keys = Object.keys(rows[0]);
-    keys.forEach(k => {
-      const sample = rows.map(r => r[k]).filter(Boolean).slice(0, 10).join(" ");
-      if (/\d{2}\/\d{2}\/\d{4}/.test(sample)) columns.date = k;
-      else if (/^\d+(\.\d{2})?$/.test(sample) || /^\d+,\d{2}$/.test(sample)) columns.value = k;
-      else columns.name = k;
-    });
-    return columns;
   };
 
   const handleCompare = () => {
     if (!bankStatementFile || contributorFiles.length === 0) {
-      showToast("Carregue os arquivos antes de comparar", "error");
+      showToast("Carregue os arquivos antes de comparar!", "error");
       return;
     }
 
     setIsLoading(true);
+    console.log("🔹 Iniciando comparação...");
 
-    setTimeout(() => {
-      const bankRows = parseFile(bankStatementFile);
-      const bankCols = identifyColumns(bankRows);
+    // 1️⃣ Ler e imprimir dados do banco
+    const bankData = parseFileContent(bankStatementFile);
+    console.log("✅ Dados do banco:", bankData);
 
-      const resultsByChurch: Record<string, any[]> = {};
-      const unidentified: any[] = [];
+    // 2️⃣ Ler e imprimir dados das igrejas
+    contributorFiles.forEach((churchFile) => {
+      const data = parseFileContent(churchFile);
+      console.log(`✅ Dados da igreja ${churchFile.churchId}:`, data);
+    });
 
-      contributorFiles.forEach(cf => {
-        const church = churches.find(c => c.id === cf.churchId);
-        if (!church) return;
+    // Aqui paramos para garantir que todos os dados foram carregados corretamente
+    // Em próximas etapas podemos adicionar:
+    // - Identificação das colunas data/nome/valor
+    // - Limpeza dos nomes
+    // - Comparação
+    // - Relatórios
 
-        const churchRows = parseFile(cf);
-        const churchCols = identifyColumns(churchRows);
-
-        const matched: any[] = [];
-
-        churchRows.forEach(cr => {
-          const crName = cleanName(cr[churchCols.name]);
-          const crValue = parseFloat((cr[churchCols.value] || "0").toString().replace(",", "."));
-          const crDate = new Date(cr[churchCols.date]);
-
-          const match = bankRows.find(br => {
-            const brName = cleanName(br[bankCols.name]);
-            const brValue = parseFloat((br[bankCols.value] || "0").toString().replace(",", "."));
-            const brDate = new Date(br[bankCols.date]);
-            const dateDiff = Math.abs(brDate.getTime() - crDate.getTime()) / (1000 * 3600 * 24);
-            return brName === crName && Math.abs(brValue - crValue) < 0.01 && dateDiff <= dayTolerance;
-          });
-
-          if (match) matched.push({ ...cr, matched: true });
-          else unidentified.push({ ...cr, churchId: cf.churchId });
-        });
-
-        resultsByChurch[cf.churchId] = matched;
-      });
-
-      console.log("✅ Comparação concluída");
-      console.log("Resultados por igreja:", resultsByChurch);
-      console.log("Não identificados:", unidentified);
-
-      setIsLoading(false);
-    }, 500);
+    setIsLoading(false);
+    console.log("✅ Checagem dos arquivos concluída.");
   };
 
   const showToast = (msg: string, type: "success" | "error") => {
