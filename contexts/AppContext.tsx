@@ -165,21 +165,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // 🔹 Função utilitária para normalizar nomes
-  const normalizeName = (name: string) => {
-    const ignoredWords = ["PIX", "DÍZIMO"];
-    let cleaned = name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\d+/g, "")
-      .trim();
-    ignoredWords.forEach((word) => {
-      const re = new RegExp(word.toLowerCase(), "g");
-      cleaned = cleaned.replace(re, "");
-    });
-    return cleaned;
-  };
+  // 🔹 Função utilitária para normalizar nomes (versão robusta)
+const normalizeName = (name: any) => {
+  if (typeof name !== "string") {
+    if (name === null || name === undefined) return "";
+    name = String(name);
+  }
+
+  const ignoredWords = ["PIX", "DÍZIMO"];
+  let cleaned = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\d+/g, "")
+    .trim();
+
+  ignoredWords.forEach((word) => {
+    const re = new RegExp(word.toLowerCase(), "g");
+    cleaned = cleaned.replace(re, "");
+  });
+
+  return cleaned.trim();
+};
 
   // 🔹 Função para identificar colunas
   const identifyColumns = (row: any) => {
