@@ -27,6 +27,9 @@ export const ReportsView: React.FC = () => {
 
   const { resultsByChurch, unidentified } = comparisonResults;
 
+  console.log("📊 Estrutura dos resultados:", resultsByChurch);
+console.log("📊 Estrutura de uma igreja:", Object.values(resultsByChurch)[0]);
+
   return (
     <div className="p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">
