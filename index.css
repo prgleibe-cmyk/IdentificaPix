@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
-/* ----- SEU CSS ORIGINAL (COMPATÍVEL COM TAILWIND V4) ----- */
-
+/* SEU CSS */
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -12,23 +11,17 @@ svg:not([class*="w-"]) {
   height: 1.5rem;
 }
 
-img,
-svg {
+img, svg {
   max-width: 100%;
   height: auto;
 }
 
-/* 🔥 Tailwind 4 NÃO aceita mais .dark body { ... }
-   Agora deve ser assim: 
-   body { }   e   .dark { } 
-*/
-
 body {
   background-color: white;
-  color: #0f172a; /* slate-900 */
+  color: #0f172a;
 }
 
-.dark {
-  background-color: #0f172a !important; /* slate-900 */
-  color: #f1f5f9 !important; /* slate-100 */
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
