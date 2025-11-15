@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Seu CSS original */
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -18,5 +19,11 @@ img, svg {
 }
 
 body {
-  @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100;
+  background-color: white;
+  color: #0f172a;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
