@@ -2,16 +2,17 @@
 export default {
   content: [
     "./index.html",
-    "./components/**/*.{ts,tsx}",
-    "./views/**/*.{ts,tsx}",
-    "./contexts/**/*.{ts,tsx}",
-    "./hooks/**/*.{ts,tsx}",
-    "./services/**/*.{ts,tsx}",
-    "./utils/**/*.{ts,tsx}",
-    "./lib/**/*.{ts,tsx}",
-    "./types/**/*.{ts,tsx}",
+    "./index.tsx",
     "./App.tsx",
-    "./index.tsx"
+    "./components/**/*.{ts,tsx,js,jsx}",
+    "./views/**/*.{ts,tsx,js,jsx}",
+    "./contexts/**/*.{ts,tsx,js,jsx}",
+    "./hooks/**/*.{ts,tsx,js,jsx}",
+    "./services/**/*.{ts,tsx,js,jsx}",
+    "./lib/**/*.{ts,tsx,js,jsx}",
+    "./types/**/*.{ts,tsx,js,jsx}",
+    "./utils/**/*.{ts,tsx,js,jsx}",
+    "./estilos/**/*.{css}"
   ],
   theme: {
     extend: {},
