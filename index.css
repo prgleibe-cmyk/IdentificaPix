@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Seu CSS original */
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -17,9 +18,8 @@ img, svg {
   height: auto;
 }
 
-/* Estilo do body sem @apply */
 body {
-  background-color: #ffffff;
+  background-color: white;
   color: #0f172a;
 }
 
