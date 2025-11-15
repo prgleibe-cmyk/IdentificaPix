@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* ----- SEU CSS ORIGINAL ----- */
+/* ----- SEU CSS ORIGINAL (COMPATÍVEL COM TAILWIND V4) ----- */
 
+/* Essas regras podem ficar, Tailwind não reclama */
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -12,19 +13,20 @@ svg:not([class*="w-"]) {
   height: 1.5rem;
 }
 
-img, svg {
+img,
+svg {
   max-width: 100%;
   height: auto;
 }
 
-/* body NÃO pode mais usar @apply */
-/* Agora deve ser CSS normal */
+/* body pode ter estilos manuais normalmente */
 body {
   background-color: white;
   color: #0f172a; /* slate-900 */
 }
 
-.dark body {
+/* Ajuste do modo escuro — agora precisa ser assim */
+:root.dark body {
   background-color: #0f172a; /* slate-900 */
   color: #f1f5f9; /* slate-100 */
 }
