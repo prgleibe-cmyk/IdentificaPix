@@ -2,7 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 import { Contributor, Transaction } from '../types';
 import { Logger, Metrics } from './monitoringService';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// ❗ Correção: process.env não existe no navegador.
+// React (Vite) usa import.meta.env com prefixo VITE_
+const ai = new GoogleGenAI({
+  apiKey: import.meta.env.VITE_API_KEY as string
+});
 
 export const getAISuggestion = async (
   transaction: Transaction,
