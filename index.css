@@ -1,6 +1,7 @@
-/* REMOVIDO: @import "tailwindcss"; */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* SEU CSS */
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -17,11 +18,5 @@ img, svg {
 }
 
 body {
-  background-color: white;
-  color: #0f172a;
-}
-
-.dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100;
 }

@@ -1,24 +1,32 @@
 {
-  "name": "identificapix",
+  "name": "copy-of-identificapix",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "tailwind": "tailwindcss -i ./index.css -o ./output.css --watch"
   },
   "dependencies": {
-    "@google/genai": "^1.29.1",
-    "@supabase/supabase-js": "^2.81.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "@google/genai": "^1.27.0",
+    "@heroicons/react": "^2.2.0",
+    "@netlify/functions": "^5.0.1",
+    "@supabase/supabase-js": "^2.45.1",
+    "mammoth": "^1.11.0",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.4.296",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "autoprefixer": "^10.4.22",
-    "postcss": "^8.5.6",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.13",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
