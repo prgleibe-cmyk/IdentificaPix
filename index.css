@@ -18,9 +18,9 @@ img, svg {
   height: auto;
 }
 
-/* Remova bg-white do CSS e deixe como estilo padrão do body */
+/* Ajuste para evitar erro do Tailwind no Vercel */
 body {
-  background-color: #ffffff; /* inline style seguro, não causa erro */
+  background-color: #ffffff; /* mantido igual ao bg-white */
   color: #0f172a;
 }
 
