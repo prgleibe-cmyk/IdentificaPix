@@ -2,7 +2,6 @@
 
 /* ----- SEU CSS ORIGINAL (COMPATÍVEL COM TAILWIND V4) ----- */
 
-/* Essas regras podem ficar, Tailwind não reclama */
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -19,14 +18,17 @@ svg {
   height: auto;
 }
 
-/* body pode ter estilos manuais normalmente */
+/* 🔥 Tailwind 4 NÃO aceita mais .dark body { ... }
+   Agora deve ser assim: 
+   body { }   e   .dark { } 
+*/
+
 body {
   background-color: white;
   color: #0f172a; /* slate-900 */
 }
 
-/* Ajuste do modo escuro — agora precisa ser assim */
-:root.dark body {
-  background-color: #0f172a; /* slate-900 */
-  color: #f1f5f9; /* slate-100 */
+.dark {
+  background-color: #0f172a !important; /* slate-900 */
+  color: #f1f5f9 !important; /* slate-100 */
 }
