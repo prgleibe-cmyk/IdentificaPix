@@ -1,26 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Seu CSS original */
-svg {
-  display: inline-block;
-  vertical-align: middle;
-}
-
-svg:not([class*="w-"]) {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-img, svg {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Ajuste para evitar erro do Tailwind no Vercel */
 body {
-  background-color: #ffffff; /* mantido igual ao bg-white */
+  background-color: #ffffff;
   color: #0f172a;
 }
 
