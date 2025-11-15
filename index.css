@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ----- SEU CSS ORIGINAL ----- */
 
 svg {
   display: inline-block;
@@ -17,6 +17,14 @@ img, svg {
   height: auto;
 }
 
+/* body NÃO pode mais usar @apply */
+/* Agora deve ser CSS normal */
 body {
-  @apply bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100;
+  background-color: white;
+  color: #0f172a; /* slate-900 */
+}
+
+.dark body {
+  background-color: #0f172a; /* slate-900 */
+  color: #f1f5f9; /* slate-100 */
 }

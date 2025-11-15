@@ -2,11 +2,11 @@
 export default {
   content: [
     "./index.html",
-    "./**/*.{html,js,ts,jsx,tsx,css}", // Inclui index.css e toda a raiz
+    "./**/*.{js,ts,jsx,tsx,html,css}"
   ],
-  darkMode: "class",
   theme: {
     extend: {},
   },
+  darkMode: "class",
   plugins: [],
 };
