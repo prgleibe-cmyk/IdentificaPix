@@ -78,37 +78,30 @@ export type Database = {
       }
       learned_associations: {
         Row: {
-          church_id: string
-          contributor_name: string
-          created_at: string
           id: string
+          created_at: string
+          user_id: string
           normalized_description: string
-          user_id: string | null
+          contributor_normalized_name: string
+          church_id: string
         }
         Insert: {
-          church_id: string
-          contributor_name: string
-          created_at?: string
           id?: string
+          created_at?: string
+          user_id: string
           normalized_description: string
-          user_id?: string | null
+          contributor_normalized_name: string
+          church_id: string
         }
         Update: {
-          church_id?: string
-          contributor_name?: string
-          created_at?: string
           id?: string
+          created_at?: string
+          user_id?: string
           normalized_description?: string
-          user_id?: string | null
+          contributor_normalized_name?: string
+          church_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "learned_associations_church_id_fkey"
-            columns: ["church_id"]
-            isOneToOne: false
-            referencedRelation: "churches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "learned_associations_user_id_fkey"
             columns: ["user_id"]
@@ -116,35 +109,39 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "learned_associations_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          }
         ]
       }
       saved_reports: {
         Row: {
           created_at: string
-          expense_data: Json
+          data: Json
           id: string
-          income_data: Json
           name: string
           record_count: number
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
-          expense_data: Json
+          data: Json
           id?: string
-          income_data: Json
           name: string
           record_count: number
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
-          expense_data?: Json
+          data?: Json
           id?: string
-          income_data?: Json
           name?: string
           record_count?: number
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {

@@ -1,293 +1,1237 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import * as XLSX from "xlsx";
+import React, { createContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useAuth } from './AuthContext';
+import { usePersistentState } from '../hooks/usePersistentState';
+import {
+    Transaction,
+    Contributor,
+    MatchResult,
+    Bank,
+    Church,
+    ContributorFile,
+    ViewType,
+    Theme,
+    ChurchFormData,
+    DeletingItem,
+    ComparisonType,
+    GroupedReportData,
+    SearchFilters,
+    SavedReport,
+    SavingReportState,
+    LearnedAssociation,
+    SourceFile,
+} from '../types';
+import { parseBankStatement, parseContributors, matchTransactions, normalizeString, processExpenses, cleanTransactionDescriptionForDisplay, parseDate, calculateNameSimilarity, PLACEHOLDER_CHURCH } from '../services/processingService';
+import { getAISuggestion } from '../services/geminiService';
+import { Logger, Metrics } from '../services/monitoringService';
+import { supabase } from '../services/supabaseClient';
+import { useTranslation } from './I18nContext';
+import { Json, TablesInsert } from '../types/supabase';
 
-export type ComparisonType = "income" | "expenses" | "both";
+// --- Feature Flag ---
+const FEATURE_FLAGS = {
+    useNewReconciliationPipeline: true,
+};
 
-interface Bank {
-  id: string;
-  name: string;
-}
+const DEFAULT_IGNORE_KEYWORDS = [
+    'DÍZIMOS',
+    'OFERTAS',
+    'MISSÕES',
+    'TERRENO - NOVA SEDE',
+    'PIX',
+    'TED',
+    'DOC',
+    'Transferência',
+    'Pagamento',
+    'Recebimento',
+    'Depósito',
+    'Contribuição',
+    'Sr',
+    'Sra',
+    'Dr',
+    'Dra'
+];
 
-interface Church {
-  id: string;
-  name: string;
-  address?: string;
-  pastor?: string;
-  logoUrl?: string;
-}
 
-interface BankStatementFile {
-  bankId: string;
-  fileName: string;
-  data: any[];
-}
-
-interface ContributorFile {
-  churchId: string;
-  fileName: string;
-  data: any[];
-}
-
-interface ComparisonResults {
-  resultsByChurch: Record<string, any[]>;
-  unidentified: any[];
-}
-
-interface AppContextType {
-  user: string | null;
-  setUser: (user: string | null) => void;
-  loading: boolean;
-  setLoading: (value: boolean) => void;
-  activeView: string;
-  setActiveView: (view: string) => void;
-
-  banks: Bank[];
-  addBank: (bank: Bank) => void;
-
-  churches: Church[];
-  addChurch: (church: Church) => void;
-
-  bankStatementFile: BankStatementFile | null;
-  contributorFiles: ContributorFile[];
-
-  handleStatementUpload: (file: File, bankId: string) => void;
-  handleContributorsUpload: (file: File, churchId: string) => void;
-
-  isCompareDisabled: boolean;
-  isLoading: boolean;
-  handleCompare: () => void;
-  comparisonResults: ComparisonResults | null;
-  showToast: (msg: string, type: "success" | "error") => void;
-
-  similarityLevel: number;
-  setSimilarityLevel: (value: number) => void;
-  dayTolerance: number;
-  setDayTolerance: (value: number) => void;
-  comparisonType: ComparisonType;
-  setComparisonType: (type: ComparisonType) => void;
-}
-
-const AppContext = createContext<AppContextType | undefined>(undefined);
-
-export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [activeView, setActiveView] = useState<string>("dashboard");
-
-  const [banks, setBanks] = useState<Bank[]>(() => {
-    const saved = localStorage.getItem("banks");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [churches, setChurches] = useState<Church[]>(() => {
-    const saved = localStorage.getItem("churches");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [bankStatementFile, setBankStatementFile] = useState<BankStatementFile | null>(null);
-  const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
-
-  const [isCompareDisabled, setIsCompareDisabled] = useState<boolean>(true);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  const [similarityLevel, setSimilarityLevel] = useState<number>(70);
-  const [dayTolerance, setDayTolerance] = useState<number>(5);
-  const [comparisonType, setComparisonType] = useState<ComparisonType>("both");
-
-  const [comparisonResults, setComparisonResults] = useState<ComparisonResults | null>(null);
-
-  // 🔹 Persistência
-  useEffect(() => {
-    localStorage.setItem("banks", JSON.stringify(banks));
-  }, [banks]);
-
-  useEffect(() => {
-    localStorage.setItem("churches", JSON.stringify(churches));
-  }, [churches]);
-
-  const addBank = (bank: Bank) => setBanks((prev) => [...prev, bank]);
-  const addChurch = (church: Church) => setChurches((prev) => [...prev, church]);
-
-  // 🔹 Leitura de arquivos XLSX/CSV
-  const readFile = async (file: File): Promise<any[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = e.target?.result;
-          if (!data) return reject("Arquivo vazio");
-          if (file.name.endsWith(".csv")) {
-            const text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
-            const rows = text.split(/\r?\n/).map((row) => row.split(","));
-            resolve(rows);
-          } else {
-            const workbook = XLSX.read(data, { type: "array" });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-            resolve(json);
-          }
-        } catch (err) {
-          reject(err);
+// --- Helper for grouping results ---
+const groupResultsByChurch = (results: MatchResult[]): GroupedReportData => {
+    return results.reduce((acc, result) => {
+        const churchId = result.church.id || 'unidentified';
+        if (!acc[churchId]) {
+            acc[churchId] = [];
         }
-      };
-      reader.onerror = (err) => reject(err);
-      if (file.name.endsWith(".csv")) reader.readAsText(file);
-      else reader.readAsArrayBuffer(file);
-    });
-  };
+        acc[churchId].push(result);
+        return acc;
+    }, {} as GroupedReportData);
+};
 
-  const handleStatementUpload = async (file: File, bankId: string) => {
-    try {
-      const data = await readFile(file);
-      setBankStatementFile({ bankId, fileName: file.name, data });
-      setIsCompareDisabled(false);
-    } catch (err) {
-      console.error("Erro ao ler arquivo:", file.name, err);
-      showToast(`Erro ao ler arquivo: ${file.name}`, "error");
-    }
-  };
+// Helper function to calculate date differences, isolated here to avoid circular dependencies
+const daysDifference = (date1: Date, date2: Date): number => {
+    const timeDiff = Math.abs(date2.getTime() - date1.getTime());
+    return Math.ceil(timeDiff / (1000 * 3600 * 24));
+};
 
-  const handleContributorsUpload = async (file: File, churchId: string) => {
-    try {
-      const data = await readFile(file);
-      setContributorFiles((prev) => [...prev, { churchId, fileName: file.name, data }]);
-      setIsCompareDisabled(false);
-    } catch (err) {
-      console.error("Erro ao ler arquivo:", file.name, err);
-      showToast(`Erro ao ler arquivo: ${file.name}`, "error");
-    }
-  };
 
-  // 🔹 Normalização de nomes (segura e à prova de erro)
-  const normalizeName = (name: any) => {
-    if (typeof name !== "string") {
-      if (name === null || name === undefined) return "";
-      name = String(name);
-    }
-    const ignoredWords = ["PIX", "DÍZIMO"];
-    let cleaned = name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\d+/g, "")
-      .trim();
-    ignoredWords.forEach((w) => {
-      const re = new RegExp(w.toLowerCase(), "g");
-      cleaned = cleaned.replace(re, "");
-    });
-    return cleaned.trim();
-  };
+// --- Define the shape of the context state and actions ---
+interface AppContextType {
+    // State
+    theme: Theme;
+    banks: Bank[];
+    churches: Church[];
+    bankStatementFile: { bankId: string, content: string, fileName: string } | null;
+    contributorFiles: { churchId: string; content: string; fileName: string }[];
+    matchResults: MatchResult[]; // This will hold INCOME results for the dashboard
+    reportPreviewData: { income: GroupedReportData; expenses: GroupedReportData } | null;
+    activeView: ViewType;
+    isLoading: boolean;
+    loadingAiId: string | null;
+    aiSuggestion: { id: string, name: string } | null;
+    similarityLevel: number;
+    dayTolerance: number;
+    comparisonType: ComparisonType;
+    customIgnoreKeywords: string[];
+    editingBank: Bank | null;
+    editingChurch: Church | null;
+    manualIdentificationTx: Transaction | null;
+    manualMatchState: { record: MatchResult, suggestions: Transaction[] } | null;
+    deletingItem: DeletingItem | null;
+    toast: { message: string; type: 'success' | 'error' } | null;
+    
+    // NEW STATE for search and saved reports
+    savedReports: SavedReport[];
+    allHistoricalResults: MatchResult[];
+    isSearchFiltersOpen: boolean;
+    searchFilters: SearchFilters;
+    savingReportState: SavingReportState | null;
+    divergenceConfirmation: MatchResult | null;
+    learnedAssociations: LearnedAssociation[];
 
-  // 🔹 Identificar colunas de dados
-  const identifyColumns = (row: any) => {
-    const colNames = Object.keys(row);
-    let dateCol = "", valueCol = "", nameCol = "";
-    colNames.forEach((key) => {
-      const sample = row[key];
-      if (typeof sample === "string" && /\d{2}\/\d{2}\/\d{4}/.test(sample)) dateCol = key;
-      else if (!isNaN(parseFloat(sample))) valueCol = key;
-      else if (typeof sample === "string") nameCol = key;
-    });
-    return { dateCol, valueCol, nameCol };
-  };
+    // Derived State
+    summary: {
+        autoConfirmed: { count: number; value: number; };
+        manualConfirmed: { count: number; value: number; };
+        pending: { count: number; value: number; };
+        identifiedCount: number;
+        unidentifiedCount: number;
+        totalValue: number;
+        valuePerChurch: [string, number][];
+    };
+    allContributorsWithChurch: (Contributor & { church: Church; uniqueId: string })[];
+    isCompareDisabled: boolean;
 
-  // 🔹 Comparação de dados
-  const handleCompare = () => {
-    if (!bankStatementFile) {
-      showToast("Nenhum extrato carregado.", "error");
-      return;
-    }
+    // Actions
+    toggleTheme: () => void;
+    setActiveView: React.Dispatch<React.SetStateAction<ViewType>>;
+    setBanks: React.Dispatch<React.SetStateAction<Bank[]>>;
+    setChurches: React.Dispatch<React.SetStateAction<Church[]>>;
+    setSimilarityLevel: React.Dispatch<React.SetStateAction<number>>;
+    setDayTolerance: React.Dispatch<React.SetStateAction<number>>;
+    setMatchResults: React.Dispatch<React.SetStateAction<MatchResult[]>>;
+    setReportPreviewData: React.Dispatch<React.SetStateAction<{ income: GroupedReportData; expenses: GroupedReportData } | null>>;
+    setComparisonType: React.Dispatch<React.SetStateAction<ComparisonType>>;
+    addIgnoreKeyword: (keyword: string) => void;
+    removeIgnoreKeyword: (keyword: string) => void;
 
-    setIsLoading(true);
+    handleStatementUpload: (content: string, fileName: string, bankId: string) => void;
+    handleContributorsUpload: (content: string, fileName: string, churchId: string) => void;
+    removeBankStatementFile: () => void;
+    removeContributorFile: (churchId: string) => void;
+    
+    handleCompare: () => void;
+    handleAnalyze: (transactionId: string) => void;
+    handleBackToSettings: () => void;
+    
+    updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses') => void;
 
-    setTimeout(() => {
-      const resultsByChurch: Record<string, any[]> = {};
-      const unidentified: any[] = [];
+    // CRUD Actions
+    openEditBank: (bank: Bank) => void;
+    closeEditBank: () => void;
+    updateBank: (bankId: string, name: string) => void;
+    addBank: (name: string) => void;
 
-      const bankCols = identifyColumns(bankStatementFile.data[0] || {});
-      const cleanedBank = bankStatementFile.data.map((row: any) => ({
-        date: row[bankCols.dateCol] || "",
-        name: normalizeName(row[bankCols.nameCol] || ""),
-        value: parseFloat(row[bankCols.valueCol]) || 0,
-      }));
+    openEditChurch: (church: Church) => void;
+    closeEditChurch: () => void;
+    updateChurch: (churchId: string, data: ChurchFormData) => void;
+    addChurch: (data: ChurchFormData) => void;
 
-      contributorFiles.forEach((churchFile) => {
-        const churchCols = identifyColumns(churchFile.data[0] || {});
-        const cleanedContributors = churchFile.data.map((row: any) => ({
-          date: row[churchCols.dateCol] || "",
-          name: normalizeName(row[churchCols.nameCol] || ""),
-          value: parseFloat(row[churchCols.valueCol]) || 0,
-        }));
+    openManualIdentify: (transactionId: string) => void;
+    closeManualIdentify: () => void;
+    confirmManualIdentification: (transactionId: string, churchId: string) => void;
 
-        const matched: any[] = [];
-        cleanedContributors.forEach((contributor) => {
-          const found = cleanedBank.find((b) => b.name === contributor.name && Math.abs(b.value - contributor.value) <= 0.01);
-          if (found) matched.push({ ...contributor, matched: true });
-          else unidentified.push(contributor);
+    openManualMatchModal: (recordToMatch: MatchResult) => void;
+    closeManualMatchModal: () => void;
+    confirmManualAssociation: (selectedTx: Transaction) => void;
+
+    openDeleteConfirmation: (item: DeletingItem) => void;
+    closeDeleteConfirmation: () => void;
+    confirmDeletion: () => void;
+
+    // Report Actions
+    discardCurrentReport: () => void;
+    
+    showToast: (message: string, type?: 'success' | 'error') => void;
+    
+    // NEW ACTIONS
+    openSearchFilters: () => void;
+    closeSearchFilters: () => void;
+    setSearchFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
+    clearSearchFilters: () => void;
+
+    viewSavedReport: (reportId: string) => void;
+    saveFilteredReport: (results: MatchResult[]) => void;
+    
+    openSaveReportModal: (state: SavingReportState) => void;
+    closeSaveReportModal: () => void;
+    confirmSaveReport: (name: string) => void;
+
+    openDivergenceModal: (match: MatchResult) => void;
+    closeDivergenceModal: () => void;
+    confirmDivergence: (divergentMatch: MatchResult) => void;
+    rejectDivergence: (divergentMatch: MatchResult) => void;
+}
+
+// Create the context
+export const AppContext = createContext<AppContextType>(null!);
+
+const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+    dateRange: { start: null, end: null },
+    valueFilter: { operator: 'any', value1: null, value2: null },
+    transactionType: 'all',
+    reconciliationStatus: 'all',
+    filterBy: 'none',
+    churchIds: [],
+    contributorName: '',
+};
+
+// --- Provider Component ---
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
+    const { t, language } = useTranslation();
+    
+    // --- State Management ---
+    const [theme, setTheme] = usePersistentState<Theme>('identificapix-theme', 'light');
+    const [banks, setBanks] = useState<Bank[]>([]);
+    const [churches, setChurches] = useState<Church[]>([]);
+    
+    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement', null);
+    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors', []);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results', []);
+    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview', null);
+    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>('identificapix-similarity', 80);
+    const [dayTolerance, setDayTolerance] = usePersistentState<number>('identificapix-daytolerance', 2);
+    const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
+    const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>('identificapix-ignore-keywords', DEFAULT_IGNORE_KEYWORDS);
+    
+    const [activeView, setActiveView] = useState<ViewType>('dashboard');
+    const [isLoading, setIsLoading] = useState<boolean>(true); // Start as true to load initial data
+    const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
+    const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+    const [manualMatchState, setManualMatchState] = useState<{ record: MatchResult, suggestions: Transaction[] } | null>(null);
+
+    const [editingBank, setEditingBank] = useState<Bank | null>(null);
+    const [editingChurch, setEditingChurch] = useState<Church | null>(null);
+    const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
+    const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [divergenceConfirmation, setDivergenceConfirmation] = useState<MatchResult | null>(null);
+
+    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
+    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>('identificapix-search-filters', DEFAULT_SEARCH_FILTERS);
+    const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
+    const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
+
+
+    // --- Effects ---
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+    }, [theme]);
+    
+    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    }, []);
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchData = async () => {
+            setIsLoading(true);
+            const [churchesResult, banksResult, savedReportsResult, learnedAssociationsResult] = await Promise.all([
+                supabase.from('churches').select('*').order('name'),
+                supabase.from('banks').select('*').order('name'),
+                supabase.from('saved_reports').select('*').order('created_at', { ascending: false }),
+                supabase.from('learned_associations').select('*'),
+            ]);
+    
+            if (churchesResult.error) {
+                Logger.error('Error fetching churches', churchesResult.error);
+                showToast('Falha ao carregar os dados das igrejas.', 'error');
+            } else {
+                setChurches(churchesResult.data as any || []);
+            }
+    
+            if (banksResult.error) {
+                Logger.error('Error fetching banks', banksResult.error);
+                showToast('Falha ao carregar os dados dos bancos.', 'error');
+            } else {
+                setBanks(banksResult.data as any || []);
+            }
+
+            if (savedReportsResult.error) {
+                Logger.error('Error fetching saved reports', savedReportsResult.error);
+                showToast('Falha ao carregar os relatórios salvos.', 'error');
+            } else {
+                const mappedReports = (savedReportsResult.data || []).map(report => {
+                    const isOldFormat = Array.isArray(report.data);
+                    let reportData;
+                    if (isOldFormat) {
+                        reportData = { results: report.data as MatchResult[], sourceFiles: [], bankStatementFile: null };
+                    } else {
+                        const data = report.data as { results: MatchResult[]; sourceFiles: SourceFile[]; bankStatementFile?: { bankId: string; content: string; fileName: string } | null };
+                        reportData = {
+                            results: data.results,
+                            sourceFiles: data.sourceFiles,
+                            bankStatementFile: data.bankStatementFile || null,
+                        };
+                    }
+    
+                    return {
+                        id: report.id,
+                        name: report.name,
+                        createdAt: report.created_at,
+                        recordCount: report.record_count,
+                        data: reportData,
+                        user_id: report.user_id,
+                    };
+                });
+                setSavedReports(mappedReports as SavedReport[]);
+
+                // If there's no active report session, populate the dashboard with historical data.
+                if (matchResults.length === 0 && mappedReports.length > 0) {
+                    const historicalResults = mappedReports.flatMap(report => report.data.results);
+                    // The dashboard primarily shows income, so we filter for that.
+                    const historicalIncomeResults = historicalResults.filter(r => r.transaction.amount >= 0);
+                    setMatchResults(historicalIncomeResults);
+                }
+            }
+
+            if (learnedAssociationsResult.error) {
+                Logger.error('Error fetching learned associations', learnedAssociationsResult.error);
+            } else {
+                const associations = (learnedAssociationsResult.data || []).map(a => ({
+                    id: a.id,
+                    normalizedDescription: a.normalized_description,
+                    contributorNormalizedName: a.contributor_normalized_name,
+                    churchId: a.church_id,
+                    user_id: a.user_id,
+                }));
+                setLearnedAssociations(associations);
+            }
+    
+            setIsLoading(false);
+        };
+    
+        fetchData();
+    }, [user, showToast]);
+
+    // --- Memoized Derived State ---
+    const summary = useMemo(() => {
+        const results = matchResults;
+        const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
+        const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+        const pending = results.filter(r => r.status === 'NÃO IDENTIFICADO');
+
+        const valuePerChurch = new Map<string, number>();
+        results.forEach(r => {
+            if (r.status === 'IDENTIFICADO' && r.church.name !== '---' && r.transaction.amount > 0) {
+                const current = valuePerChurch.get(r.church.name) || 0;
+                valuePerChurch.set(r.church.name, current + r.transaction.amount);
+            }
         });
-        resultsByChurch[churchFile.churchId] = matched;
-      });
 
-      setComparisonResults({ resultsByChurch, unidentified });
+        return {
+            autoConfirmed: {
+                count: autoConfirmed.length,
+                value: autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0),
+            },
+            manualConfirmed: {
+                count: manualConfirmed.length,
+                value: manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0),
+            },
+            pending: {
+                count: pending.length,
+                value: pending.reduce((sum, r) => sum + r.transaction.amount, 0),
+            },
+            identifiedCount: autoConfirmed.length + manualConfirmed.length,
+            unidentifiedCount: pending.length,
+            totalValue: results.reduce((sum, r) => sum + r.transaction.amount, 0),
+            valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
+        };
+    }, [matchResults]);
 
-      console.log("✅ Comparação concluída");
-      console.log("Resultados por igreja:", resultsByChurch);
-      console.log("Não identificados:", unidentified);
+    const allContributorsWithChurch = useMemo<(Contributor & { church: Church; uniqueId: string })[]>(() => {
+        return contributorFiles.flatMap(file => {
+            const church = churches.find(c => c.id === file.churchId);
+            if (!church) return [];
+            const contributors = parseContributors(file.content, customIgnoreKeywords);
+            return contributors.map((contributor, index) => ({
+                ...contributor,
+                church,
+                uniqueId: `${church.id}-${contributor.normalizedName}-${index}`
+            }));
+        });
+    }, [contributorFiles, churches, customIgnoreKeywords]);
+    
+    const allHistoricalResults = useMemo(() => {
+        return savedReports.flatMap(report => report.data.results);
+    }, [savedReports]);
 
-      // ✅ Redirecionar automaticamente para relatórios
-      setActiveView("reports");
+    const isCompareDisabled = useMemo(() => !bankStatementFile || contributorFiles.length === 0, [bankStatementFile, contributorFiles]);
 
-      setIsLoading(false);
-      showToast("Comparação concluída com sucesso!", "success");
-    }, 500);
-  };
+    // --- Memoized Actions & Callbacks ---
+    
+    const learnAssociation = useCallback(async (matchResult: MatchResult) => {
+        if (!user || !matchResult.contributor?.normalizedName || !matchResult.church?.id || matchResult.church.id === 'unidentified') {
+            return;
+        }
+    
+        const association: TablesInsert<'learned_associations'> = {
+            user_id: user.id,
+            contributor_normalized_name: matchResult.contributor.normalizedName,
+            normalized_description: normalizeString(matchResult.transaction.description, customIgnoreKeywords),
+            church_id: matchResult.church.id,
+        };
+    
+        const { error } = await supabase
+            .from('learned_associations')
+            .upsert(association, { onConflict: 'contributor_normalized_name' });
+        
+        if (error) {
+            Logger.error('Error saving learned association', error);
+        } else {
+            setLearnedAssociations(prev => {
+                const existingIndex = prev.findIndex(la => la.contributorNormalizedName === association.contributor_normalized_name);
+                const newAssociation: LearnedAssociation = { ...association, contributorNormalizedName: association.contributor_normalized_name, churchId: association.church_id, normalizedDescription: association.normalized_description };
+                if (existingIndex > -1) {
+                    const updated = [...prev];
+                    updated[existingIndex] = newAssociation;
+                    return updated;
+                }
+                return [...prev, newAssociation];
+            });
+        }
+    }, [user, customIgnoreKeywords]);
 
-  const showToast = (msg: string, type: "success" | "error") => {
-    console.log(`${type.toUpperCase()}: ${msg}`);
-    alert(`${type.toUpperCase()}: ${msg}`);
-  };
+    const clearUploadedFiles = useCallback(() => {
+        setBankStatementFile(null);
+        setContributorFiles([]);
+        showToast("Arquivos carregados foram removidos.", 'success');
+    }, [setBankStatementFile, setContributorFiles, showToast]);
+    
+    const removeBankStatementFile = useCallback(() => {
+        setBankStatementFile(null);
+        showToast("Extrato bancário removido.", 'success');
+    }, [setBankStatementFile, showToast]);
+    
+    const removeContributorFile = useCallback((churchId: string) => {
+        setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
+        showToast("Lista de contribuintes removida.", 'success');
+    }, [setContributorFiles, showToast]);
 
-  return (
-    <AppContext.Provider
-      value={{
-        user,
-        setUser,
-        loading,
-        setLoading,
-        activeView,
-        setActiveView,
-        banks,
-        addBank,
-        churches,
-        addChurch,
-        bankStatementFile,
-        contributorFiles,
-        handleStatementUpload,
-        handleContributorsUpload,
-        isCompareDisabled,
-        isLoading,
-        handleCompare,
-        comparisonResults,
-        showToast,
-        similarityLevel,
-        setSimilarityLevel,
-        dayTolerance,
-        setDayTolerance,
-        comparisonType,
-        setComparisonType,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  );
+    const clearMatchResults = useCallback(() => {
+        setMatchResults([]);
+        setReportPreviewData(null);
+        showToast("Resultados da conciliação foram limpos.", 'success');
+    }, [setMatchResults, setReportPreviewData, showToast]);
+
+    const resetApplicationData = useCallback(async () => {
+        if (!user) return;
+        const [banksError, churchesError, reportsError, associationsError] = await Promise.all([
+            supabase.from('banks').delete().eq('user_id', user.id),
+            supabase.from('churches').delete().eq('user_id', user.id),
+            supabase.from('saved_reports').delete().eq('user_id', user.id),
+            supabase.from('learned_associations').delete().eq('user_id', user.id),
+        ]);
+
+        if(banksError.error || churchesError.error || reportsError.error || associationsError.error) {
+            showToast("Erro ao limpar dados no banco de dados.", 'error');
+        } else {
+             setChurches([]);
+             setBanks([]);
+             setSavedReports([]);
+             setLearnedAssociations([]);
+        }
+        
+        setBankStatementFile(null);
+        setContributorFiles([]);
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setSimilarityLevel(80);
+        setDayTolerance(2);
+        setCustomIgnoreKeywords(DEFAULT_IGNORE_KEYWORDS);
+        showToast("Todos os dados da aplicação foram redefinidos.", 'success');
+    }, [user, setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, setSavedReports, showToast]);
+
+
+    const toggleTheme = useCallback(() => setTheme(prev => (prev === 'light' ? 'dark' : 'light')), [setTheme]);
+
+    const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string) => {
+        setBankStatementFile({ bankId, content, fileName });
+    }, [setBankStatementFile]);
+
+    const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string) => {
+        setContributorFiles(prev => {
+            const existing = prev.filter(f => f.churchId !== churchId);
+            return [...existing, { churchId, content, fileName }];
+        });
+    }, [setContributorFiles]);
+
+    const handleCompare = useCallback(async () => {
+        if (isCompareDisabled && comparisonType !== 'expenses') return;
+        if (!bankStatementFile) return;
+    
+        setIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Allow UI to update
+        Metrics.reset();
+        const startTime = performance.now();
+        Logger.info('Comparison process started on main thread', { comparisonType });
+    
+        try {
+            const transactions = parseBankStatement(bankStatementFile.content, customIgnoreKeywords);
+            const incomeTransactions = transactions.filter(t => t.amount > 0);
+            const expenseTransactions = transactions.filter(t => t.amount < 0);
+            
+            const parsedContributorFiles = contributorFiles.map(file => ({
+                church: churches.find(c => c.id === file.churchId),
+                contributors: parseContributors(file.content, customIgnoreKeywords),
+            })).filter(f => f.church) as ContributorFile[];
+    
+            const previewResults: { income: GroupedReportData; expenses: GroupedReportData } = { income: {}, expenses: {} };
+            let incomeResultsForDashboard: MatchResult[] = [];
+    
+            if (comparisonType === 'income' || comparisonType === 'both') {
+                if (incomeTransactions.length > 0) {
+                    const incomeResults = matchTransactions(
+                        incomeTransactions, parsedContributorFiles, { similarityThreshold: similarityLevel, dayTolerance }, learnedAssociations, churches, customIgnoreKeywords
+                    );
+                    previewResults.income = groupResultsByChurch(incomeResults);
+                    incomeResultsForDashboard = incomeResults;
+                }
+            }
+            
+            if (comparisonType === 'expenses' || comparisonType === 'both') {
+                if (expenseTransactions.length > 0) {
+                    const expenseResults = processExpenses(expenseTransactions);
+                    previewResults.expenses = { 'all_expenses_group': expenseResults };
+                }
+            }
+    
+            const incomeTxCount = incomeTransactions.length;
+            const expenseTxCount = expenseTransactions.length;
+    
+            if ((comparisonType === 'income' || comparisonType === 'both') && incomeTxCount === 0) {
+                 showToast('O extrato não contém entradas (valores positivos).', 'error');
+            }
+            if ((comparisonType === 'expenses' || comparisonType === 'both') && expenseTxCount === 0) {
+                 showToast('O extrato não contém saídas (valores negativos).', 'error');
+            }
+    
+            setAllTransactions(transactions);
+            setReportPreviewData(previewResults);
+            setMatchResults(comparisonType === 'expenses' ? [] : incomeResultsForDashboard);
+            setActiveView('reports');
+    
+        } catch (error) {
+            Logger.error("Comparison process failed", error);
+            Metrics.increment('parsingErrors');
+            showToast("Falha ao processar os arquivos. Verifique o formato.", 'error');
+        } finally {
+            const endTime = performance.now();
+            Metrics.set('processingTimeMs', endTime - startTime);
+            Logger.info('Comparison process finished', { durationMs: Metrics.get().processingTimeMs });
+            setIsLoading(false);
+        }
+    }, [
+        isCompareDisabled, bankStatementFile, contributorFiles, churches, similarityLevel, 
+        dayTolerance, comparisonType, customIgnoreKeywords, showToast, learnedAssociations,
+        setAllTransactions, setReportPreviewData, setMatchResults, setActiveView, setIsLoading
+    ]);
+    
+    const handleBackToSettings = useCallback(() => {
+        setActiveView('upload');
+        setReportPreviewData(null);
+    }, [setActiveView, setReportPreviewData]);
+
+    const discardCurrentReport = useCallback(() => {
+        setReportPreviewData(null);
+        setBankStatementFile(null);
+        setContributorFiles([]);
+        setMatchResults([]); // Clear current results
+        showToast("Sessão descartada. Você pode iniciar uma nova conciliação.", 'success');
+        setActiveView('upload');
+    }, [setReportPreviewData, setBankStatementFile, setContributorFiles, setMatchResults, showToast, setActiveView]);
+
+    const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
+        if (updatedRow.contributor) {
+            updatedRow.contributor.cleanedName = cleanTransactionDescriptionForDisplay(updatedRow.contributor.name, customIgnoreKeywords);
+            updatedRow.contributor.normalizedName = normalizeString(updatedRow.contributor.name, customIgnoreKeywords);
+        }
+        
+        updatedRow.transaction.cleanedDescription = cleanTransactionDescriptionForDisplay(updatedRow.transaction.description, customIgnoreKeywords);
+
+        setReportPreviewData(prevData => {
+            if (!prevData) return null;
+    
+            const reportGroups = { ...prevData[reportType] };
+            let originalChurchId: string | null = null;
+    
+            for (const churchId in reportGroups) {
+                if (reportGroups[churchId].some(r => r.transaction.id === updatedRow.transaction.id)) {
+                    originalChurchId = churchId;
+                    break;
+                }
+            }
+    
+            if (!originalChurchId) return prevData;
+    
+            const newChurchId = updatedRow.church.id;
+    
+            if (originalChurchId === newChurchId) {
+                reportGroups[newChurchId] = reportGroups[newChurchId].map(r =>
+                    r.transaction.id === updatedRow.transaction.id ? updatedRow : r
+                );
+            } else {
+                reportGroups[originalChurchId] = reportGroups[originalChurchId].filter(
+                    r => r.transaction.id !== updatedRow.transaction.id
+                );
+    
+                const existingNewGroup = reportGroups[newChurchId] || [];
+                reportGroups[newChurchId] = [...existingNewGroup, updatedRow];
+            }
+    
+            const newPreviewData = { ...prevData, [reportType]: reportGroups };
+            return newPreviewData;
+        });
+    
+        if (reportType === 'income') {
+            setMatchResults(prev => prev.map(row =>
+                row.transaction.id === updatedRow.transaction.id ? updatedRow : row
+            ));
+        }
+    }, [setReportPreviewData, setMatchResults, customIgnoreKeywords]);
+
+    const handleAnalyze = useCallback(async (transactionId: string) => {
+        let result: MatchResult | undefined;
+        let reportType: 'income' | 'expenses' | undefined;
+    
+        if (reportPreviewData) {
+            for (const type of ['income', 'expenses'] as const) {
+                for (const cId in reportPreviewData[type]) {
+                    const found = reportPreviewData[type][cId].find(r => r.transaction.id === transactionId);
+                    if (found) {
+                        result = found;
+                        reportType = type;
+                        break;
+                    }
+                }
+                if (result) break;
+            }
+        }
+    
+        if (!result) {
+            result = matchResults.find(r => r.transaction.id === transactionId);
+            if (result) {
+                reportType = 'income'; 
+            }
+        }
+        
+        if (!result) {
+            showToast('Não foi possível encontrar a transação para análise.', 'error');
+            return;
+        }
+    
+        setLoadingAiId(transactionId);
+        setAiSuggestion(null);
+        try {
+            const suggestion = await getAISuggestion(result.transaction, allContributorsWithChurch);
+            setAiSuggestion({ id: transactionId, name: suggestion });
+    
+            const suggestedContributor = allContributorsWithChurch.find(c => c.name.toLowerCase() === suggestion.toLowerCase());
+            if (suggestedContributor) {
+                const updatedRow: MatchResult = { 
+                    ...result, 
+                    contributor: suggestedContributor, 
+                    church: suggestedContributor.church, 
+                    status: 'IDENTIFICADO', 
+                    matchMethod: 'AI' 
+                };
+                
+                if (activeView === 'reports' && reportType) {
+                    updateReportData(updatedRow, reportType);
+                } else {
+                     setMatchResults(prev => prev.map(r => r.transaction.id === transactionId ? updatedRow : r));
+                }
+                learnAssociation(updatedRow);
+            }
+        } catch (error) {
+            Logger.error("AI Analysis failed", error, { transactionId });
+            Metrics.increment('apiErrors');
+            setAiSuggestion({ id: transactionId, name: "Erro na análise." });
+        } finally {
+            setLoadingAiId(null);
+        }
+    }, [matchResults, reportPreviewData, allContributorsWithChurch, setMatchResults, updateReportData, activeView, showToast, learnAssociation]);
+
+    const normalizeForComparison = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, '').trim();
+
+    const addIgnoreKeyword = useCallback((keyword: string) => {
+        const trimmedKeyword = keyword.trim();
+        if (!trimmedKeyword) return;
+
+        const normalizedNewKeyword = normalizeForComparison(trimmedKeyword);
+        if (!normalizedNewKeyword) return;
+        
+        setCustomIgnoreKeywords(prev => {
+            const isDuplicate = prev.some(k => normalizeForComparison(k) === normalizedNewKeyword);
+            if (isDuplicate) {
+                showToast(`'${trimmedKeyword}' já está na lista.`, 'error');
+                return prev;
+            }
+            showToast(`'${trimmedKeyword}' adicionado.`, 'success');
+            return [...prev, trimmedKeyword];
+        });
+    }, [setCustomIgnoreKeywords, showToast]);
+
+    const removeIgnoreKeyword = useCallback((keywordToRemove: string) => {
+        setCustomIgnoreKeywords(prev => prev.filter(k => k !== keywordToRemove));
+        showToast(`'${keywordToRemove}' removido.`, 'success');
+    }, [setCustomIgnoreKeywords, showToast]);
+    
+    const addBank = useCallback(async (name: string) => {
+        if (!name.trim() || !user) return;
+        const { data: insertedData, error } = await supabase
+            .from('banks')
+            .insert({ name: name.trim() })
+            .select()
+            .single();
+
+        if (error) {
+            Logger.error('Error adding bank', error);
+            showToast('Falha ao adicionar banco.', 'error');
+        } else if (insertedData) {
+            setBanks(prev => [...prev, insertedData as any]);
+            showToast('Banco adicionado com sucesso!', 'success');
+        }
+    }, [user, showToast]);
+
+    const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
+    const closeEditBank = useCallback(() => setEditingBank(null), []);
+    
+    const updateBank = useCallback(async (bankId: string, name: string) => {
+        if (!name.trim()) return;
+        const { data: updatedData, error } = await supabase
+            .from('banks')
+            .update({ name: name.trim() })
+            .eq('id', bankId)
+            .select()
+            .single();
+
+        if (error) {
+            Logger.error('Error updating bank', error);
+            showToast('Falha ao atualizar banco.', 'error');
+        } else if (updatedData) {
+            setBanks(prev => prev.map(b => (b.id === bankId ? (updatedData as any) : b)));
+            showToast('Banco atualizado com sucesso!', 'success');
+            closeEditBank();
+        }
+    }, [showToast, closeEditBank]);
+    
+    const addChurch = useCallback(async (data: ChurchFormData) => {
+        if (!data.name.trim() || !user) return;
+
+        const newChurchData = {
+            name: data.name.trim(),
+            address: data.address.trim(),
+            pastor: data.pastor.trim(),
+            logoUrl: data.logoUrl || `https://placehold.co/100x100/1e293b/ffffff?text=${data.name.trim().charAt(0)}`,
+        };
+
+        const { data: insertedData, error } = await supabase
+            .from('churches')
+            .insert(newChurchData)
+            .select()
+            .single();
+
+        if (error) {
+            Logger.error('Error adding church', error);
+            showToast('Falha ao adicionar igreja.', 'error');
+        } else if (insertedData) {
+            setChurches(prev => [...prev, insertedData as any]);
+            showToast('Igreja adicionada com sucesso!', 'success');
+        }
+    }, [user, showToast]);
+
+    const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
+    const closeEditChurch = useCallback(() => setEditingChurch(null), []);
+    
+    const updateChurch = useCallback(async (churchId: string, data: ChurchFormData) => {
+        if (!data.name.trim()) return;
+        
+        const { data: updatedData, error } = await supabase
+            .from('churches')
+            .update(data)
+            .eq('id', churchId)
+            .select()
+            .single();
+
+        if (error) {
+            Logger.error('Error updating church', error);
+            showToast('Falha ao atualizar igreja.', 'error');
+        } else if (updatedData) {
+            setChurches(prev => prev.map(c => (c.id === churchId ? (updatedData as any) : c)));
+            showToast('Igreja atualizada com sucesso!', 'success');
+            closeEditChurch();
+        }
+    }, [showToast, closeEditChurch]);
+    
+    const openManualIdentify = useCallback((transactionId: string) => {
+        const resultsSource = reportPreviewData?.income['unidentified'] || matchResults;
+        const result = resultsSource.find(r => r.transaction.id === transactionId && r.status === 'NÃO IDENTIFICADO');
+        if(result) {
+            setManualIdentificationTx(result.transaction);
+        } else {
+             const allResults = Object.values(reportPreviewData?.income || {}).flat();
+             const found = allResults.find(r => r.transaction.id === transactionId);
+             if (found) setManualIdentificationTx(found.transaction);
+        }
+    }, [matchResults, reportPreviewData]);
+    const closeManualIdentify = useCallback(() => setManualIdentificationTx(null), []);
+    
+    const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
+        const unidentifiedResults = reportPreviewData?.income['unidentified'] || [];
+        const originalResult = unidentifiedResults.find(r => r.transaction.id === transactionId);
+        const church = churches.find(c => c.id === churchId);
+    
+        if (!originalResult || !church) {
+            showToast('Erro ao encontrar registro ou igreja.', 'error');
+            return;
+        }
+    
+        const newContributor: Contributor = {
+            id: `manual-${transactionId}`,
+            name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
+        };
+    
+        const updatedRow: MatchResult = {
+            ...originalResult,
+            status: 'IDENTIFICADO',
+            church,
+            contributor: newContributor,
+            matchMethod: 'MANUAL',
+            similarity: 100,
+            contributorAmount: originalResult.transaction.amount,
+        };
+        
+        updateReportData(updatedRow, 'income');
+        learnAssociation(updatedRow);
+    
+        showToast('Identificação salva e relatório da igreja atualizado com sucesso!', 'success');
+        closeManualIdentify();
+    }, [reportPreviewData, churches, updateReportData, showToast, closeManualIdentify, learnAssociation]);
+
+
+    const openManualMatchModal = useCallback((recordToMatch: MatchResult) => {
+        if (!recordToMatch.contributor) return;
+
+        // Get all transaction IDs that have already been identified
+        const matchedTxIds = new Set(
+            Object.values(reportPreviewData?.income || {})
+                .flat()
+                .filter(r => r.status === 'IDENTIFICADO' && !r.transaction.id.startsWith('pending-'))
+                .map(r => r.transaction.id)
+        );
+        
+        // The complete list of available transactions from the bank statement
+        const availableTransactions = allTransactions.filter(tx => !matchedTxIds.has(tx.id) && tx.amount > 0);
+        
+        // --- Scoring logic to sort, not filter ---
+        const contributorDate = parseDate(recordToMatch.contributor.date || '');
+        const contributorAmount = recordToMatch.contributor.amount;
+
+        const scoredSuggestions = availableTransactions.map(tx => {
+            const txDate = parseDate(tx.date);
+            let amountScore = 0;
+            if (contributorAmount && tx.amount > 0) {
+                const diff = Math.abs(tx.amount - contributorAmount);
+                const pctDiff = diff / contributorAmount;
+                amountScore = Math.max(0, 100 - (pctDiff * 200));
+            }
+
+            let dateScore = 50;
+            if (txDate && contributorDate) {
+                 const diff = daysDifference(txDate, contributorDate);
+                 dateScore = (diff <= dayTolerance) ? (100 - (diff / dayTolerance) * 50) : 0;
+            }
+            
+            const nameScore = calculateNameSimilarity(tx.description, recordToMatch.contributor!, customIgnoreKeywords);
+            const finalScore = (nameScore * 10) + amountScore + (dateScore / 10);
+
+            return { tx, score: finalScore };
+        });
+
+        // Sort all available transactions by score to show the best matches first
+        const sortedSuggestions = scoredSuggestions
+            .sort((a, b) => b.score - a.score)
+            .map(s => s.tx);
+
+        setManualMatchState({ record: recordToMatch, suggestions: sortedSuggestions });
+    }, [allTransactions, reportPreviewData, dayTolerance, customIgnoreKeywords]);
+
+    const closeManualMatchModal = useCallback(() => {
+        setManualMatchState(null);
+    }, []);
+
+    const confirmManualAssociation = useCallback((selectedTx: Transaction) => {
+        if (!manualMatchState) return;
+        const { record: recordToMatch } = manualMatchState;
+
+        const updateState = (prevState: MatchResult[]): MatchResult[] => {
+            const originalBankTxResult = prevState.find(r => r.transaction.id === selectedTx.id);
+            if (!originalBankTxResult) return prevState;
+
+            const mergedResult: MatchResult = {
+                ...originalBankTxResult,
+                contributor: recordToMatch.contributor,
+                church: recordToMatch.church,
+                status: 'IDENTIFICADO',
+                matchMethod: 'MANUAL',
+                similarity: 100,
+                contributorAmount: recordToMatch.contributor?.amount,
+                transaction: selectedTx,
+            };
+            
+            learnAssociation(mergedResult);
+
+            const updatedList = prevState.filter(r => 
+                r.transaction.id !== recordToMatch.transaction.id && 
+                r.transaction.id !== selectedTx.id
+            );
+            updatedList.push(mergedResult);
+            return updatedList;
+        };
+        
+        setMatchResults(updateState);
+
+        setReportPreviewData(prev => {
+            if (!prev) return null;
+            
+            const newIncomeData = { ...prev.income };
+            const idOfPending = recordToMatch.transaction.id;
+            const churchIdOfPending = recordToMatch.church.id;
+            const idOfBankTx = selectedTx.id;
+
+            let originalBankTxResult: MatchResult | undefined;
+            let churchIdOfBankTx: string | undefined;
+
+            for(const [cId, results] of Object.entries(newIncomeData)) {
+                const found = (results as MatchResult[]).find(r => r.transaction.id === idOfBankTx);
+                if(found) {
+                    originalBankTxResult = found;
+                    churchIdOfBankTx = cId;
+                    break;
+                }
+            }
+            
+            if (!originalBankTxResult || !churchIdOfBankTx) return prev;
+
+            const mergedResult: MatchResult = {
+                ...originalBankTxResult,
+                contributor: recordToMatch.contributor,
+                church: recordToMatch.church,
+                status: 'IDENTIFICADO',
+                matchMethod: 'MANUAL',
+                similarity: 100,
+                contributorAmount: recordToMatch.contributor?.amount,
+                transaction: selectedTx,
+            };
+            
+            newIncomeData[churchIdOfBankTx] = (newIncomeData[churchIdOfBankTx] || []).filter(r => r.transaction.id !== idOfBankTx);
+            if (newIncomeData[churchIdOfBankTx].length === 0) delete newIncomeData[churchIdOfBankTx];
+
+            newIncomeData[churchIdOfPending] = (newIncomeData[churchIdOfPending] || []).filter(r => r.transaction.id !== idOfPending);
+            if (newIncomeData[churchIdOfPending].length === 0) delete newIncomeData[churchIdOfPending];
+            
+            const targetChurchId = mergedResult.church.id;
+            newIncomeData[targetChurchId] = [...(newIncomeData[targetChurchId] || []), mergedResult];
+
+            return { ...prev, income: newIncomeData };
+        });
+
+        closeManualMatchModal();
+        showToast('Associação manual confirmada com sucesso!');
+    }, [manualMatchState, closeManualMatchModal, showToast, setMatchResults, setReportPreviewData, learnAssociation]);
+
+
+    const openDeleteConfirmation = useCallback((item: DeletingItem) => setDeletingItem(item), []);
+    const closeDeleteConfirmation = useCallback(() => setDeletingItem(null), []);
+
+    const confirmDeletion = useCallback(async () => {
+        if (!deletingItem) return;
+
+        switch (deletingItem.type) {
+            case 'bank':
+                const { error: bankError } = await supabase.from('banks').delete().eq('id', deletingItem.id);
+                if (bankError) {
+                    Logger.error('Error deleting bank', bankError);
+                    showToast('Falha ao excluir banco.', 'error');
+                } else {
+                    setBanks(prev => prev.filter(b => b.id !== deletingItem.id));
+                    if (bankStatementFile?.bankId === deletingItem.id) {
+                        setBankStatementFile(null);
+                    }
+                    showToast('Banco excluído com sucesso!', 'success');
+                }
+                break;
+            case 'church':
+                const { error: churchError } = await supabase.from('churches').delete().eq('id', deletingItem.id);
+                if (churchError) {
+                    Logger.error('Error deleting church', churchError);
+                    showToast('Falha ao excluir igreja.', 'error');
+                } else {
+                    setChurches(prev => prev.filter(c => c.id !== deletingItem.id));
+                    setContributorFiles(prev => prev.filter(f => f.churchId !== deletingItem.id));
+                    showToast('Igreja excluída com sucesso!', 'success');
+                }
+                break;
+            case 'report-group':
+                const { meta } = deletingItem;
+                if (meta?.reportType) {
+                    setReportPreviewData(prev => {
+                        if (!prev) return null;
+                        const newPreviewData = { ...prev };
+                        const groupData = { ...newPreviewData[meta.reportType] };
+                        delete groupData[deletingItem.id];
+                        newPreviewData[meta.reportType] = groupData;
+                        return newPreviewData;
+                    });
+                     if (meta.reportType === 'income') {
+                        setMatchResults(prev => prev.filter(r => r.church.id !== deletingItem.id));
+                    }
+                }
+                break;
+            case 'report-row':
+                setReportPreviewData(prev => {
+                    if (!prev) return null;
+                    const newPreview = { income: { ...prev.income }, expenses: { ...prev.expenses } };
+
+                    // Search and remove from income
+                    for (const churchId in newPreview.income) {
+                        newPreview.income[churchId] = newPreview.income[churchId].filter(
+                            r => r.transaction.id !== deletingItem.id
+                        );
+                    }
+
+                    // Search and remove from expenses
+                    for (const groupId in newPreview.expenses) {
+                        newPreview.expenses[groupId] = newPreview.expenses[groupId].filter(
+                            r => r.transaction.id !== deletingItem.id
+                        );
+                    }
+                    return newPreview;
+                });
+                setMatchResults(prev => prev.filter(r => r.transaction.id !== deletingItem.id));
+                showToast('Linha do relatório excluída com sucesso!', 'success');
+                break;
+            case 'uploaded-files':
+                clearUploadedFiles();
+                break;
+            case 'match-results':
+                clearMatchResults();
+                break;
+            case 'all-data':
+                await resetApplicationData();
+                break;
+            case 'report-saved':
+                const { error: deleteError } = await supabase.from('saved_reports').delete().eq('id', deletingItem.id);
+                if (deleteError) {
+                    Logger.error('Error deleting saved report', deleteError);
+                    showToast('Falha ao excluir o relatório salvo.', 'error');
+                } else {
+                    setSavedReports(prev => prev.filter(r => r.id !== deletingItem.id));
+                    showToast('Relatório salvo excluído com sucesso!', 'success');
+                }
+                break;
+        }
+        closeDeleteConfirmation();
+    }, [deletingItem, bankStatementFile, setBankStatementFile, setContributorFiles, setReportPreviewData, setMatchResults, closeDeleteConfirmation, resetApplicationData, clearUploadedFiles, clearMatchResults, showToast, setSavedReports]);
+
+    const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
+    const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
+    const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
+
+    const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
+    const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
+
+    const confirmSaveReport = useCallback(async (name: string) => {
+        if (!savingReportState || !user) return;
+
+        // If saving from a search, don't include source files as they are not in context.
+        const sourceFilesToSave = savingReportState.type === 'search' ? [] : contributorFiles;
+        const bankStatementToSave = savingReportState.type === 'search' ? null : bankStatementFile;
+
+        const reportToSave = {
+            name,
+            user_id: user.id,
+            record_count: savingReportState.results.length,
+            data: {
+                results: savingReportState.results,
+                sourceFiles: sourceFilesToSave,
+                bankStatementFile: bankStatementToSave,
+            } as unknown as Json,
+        };
+
+        const { data: insertedReport, error } = await supabase
+            .from('saved_reports')
+            .insert(reportToSave)
+            .select()
+            .single();
+
+        if (error) {
+            Logger.error('Error saving report', error);
+            showToast('Falha ao salvar o relatório.', 'error');
+        } else if (insertedReport) {
+            const newSavedReport: SavedReport = {
+                id: insertedReport.id,
+                name: insertedReport.name,
+                createdAt: insertedReport.created_at,
+                recordCount: insertedReport.record_count,
+                data: insertedReport.data as { results: MatchResult[], sourceFiles: SourceFile[], bankStatementFile?: { bankId: string, content: string, fileName: string } | null },
+                user_id: insertedReport.user_id,
+            };
+            setSavedReports(prev => [newSavedReport, ...prev]);
+            showToast(t('reports.saveReportSuccess'), 'success');
+        }
+        
+        closeSaveReportModal();
+    }, [savingReportState, user, showToast, closeSaveReportModal, t, contributorFiles, bankStatementFile]);
+
+    const viewSavedReport = useCallback((reportId: string) => {
+        const report = savedReports.find(r => r.id === reportId);
+        if (!report) return;
+
+        const { results, sourceFiles, bankStatementFile } = report.data;
+
+        // Restore files state for this session
+        setContributorFiles(sourceFiles || []);
+        setBankStatementFile(bankStatementFile || null);
+
+        const incomeResults = results.filter(r => r.transaction.amount >= 0);
+        const expenseResults = results.filter(r => r.transaction.amount < 0);
+        
+        const incomeGrouped = groupResultsByChurch(incomeResults);
+        const expenseGrouped: GroupedReportData = expenseResults.length > 0 ? { 'all_expenses_group': expenseResults } : {};
+
+        setReportPreviewData({ income: incomeGrouped, expenses: expenseGrouped });
+        setMatchResults(incomeResults);
+        setActiveView('reports');
+    }, [savedReports, setReportPreviewData, setMatchResults, setActiveView, setContributorFiles, setBankStatementFile]);
+
+    const saveFilteredReport = useCallback((results: MatchResult[]) => {
+        openSaveReportModal({
+            type: 'search',
+            results: results,
+        });
+    }, [openSaveReportModal]);
+
+    const openDivergenceModal = useCallback((match: MatchResult) => {
+        setDivergenceConfirmation(match);
+    }, []);
+
+    const closeDivergenceModal = useCallback(() => setDivergenceConfirmation(null), []);
+
+    const confirmDivergence = useCallback((divergentMatch: MatchResult) => {
+        learnAssociation(divergentMatch);
+        closeDivergenceModal();
+    }, [learnAssociation, closeDivergenceModal]);
+
+    const rejectDivergence = useCallback((divergentMatch: MatchResult) => {
+        // User rejected the match. Revert it to unidentified.
+        const revertedMatch: MatchResult = {
+            ...divergentMatch,
+            status: 'NÃO IDENTIFICADO',
+            contributor: null,
+            church: PLACEHOLDER_CHURCH,
+            matchMethod: undefined,
+            similarity: 0,
+            contributorAmount: undefined,
+            divergence: undefined,
+        };
+
+        // Find which report type it's in (income/expenses)
+        let reportType: 'income' | 'expenses' | undefined;
+        if (reportPreviewData) {
+            for (const type of ['income', 'expenses'] as const) {
+                for (const cId in reportPreviewData[type]) {
+                    if (reportPreviewData[type][cId].some(r => r.transaction.id === revertedMatch.transaction.id)) {
+                        reportType = type;
+                        break;
+                    }
+                }
+                if (reportType) break;
+            }
+        }
+
+        if (reportType) {
+            updateReportData(revertedMatch, reportType);
+        } else {
+            setMatchResults(prev => prev.map(r => r.transaction.id === revertedMatch.transaction.id ? revertedMatch : r));
+        }
+        
+        closeDivergenceModal();
+    }, [reportPreviewData, updateReportData, setMatchResults, closeDivergenceModal]);
+    
+    const value = useMemo(() => ({
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults, activeView,
+        isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
+        manualIdentificationTx, deletingItem, toast, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
+        comparisonType, setComparisonType, customIgnoreKeywords,
+        savedReports, allHistoricalResults, isSearchFiltersOpen, searchFilters, savingReportState,
+        divergenceConfirmation, learnedAssociations,
+        toggleTheme, setActiveView, setBanks, setChurches, setSimilarityLevel, setDayTolerance, setMatchResults, setReportPreviewData,
+        addIgnoreKeyword, removeIgnoreKeyword,
+        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
+        handleCompare, handleAnalyze, updateReportData,
+        openEditBank, closeEditBank, updateBank, addBank,
+        openEditChurch, closeEditChurch, updateChurch, addChurch,
+        openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
+        openManualIdentify, closeManualIdentify, confirmManualIdentification,
+        openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
+        showToast, handleBackToSettings, manualMatchState,
+        discardCurrentReport,
+        openSearchFilters, closeSearchFilters, setSearchFilters, clearSearchFilters,
+        viewSavedReport, saveFilteredReport, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
+        openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
+    }), [
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults, activeView,
+        isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
+        manualIdentificationTx, deletingItem, toast, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
+        comparisonType, customIgnoreKeywords, savedReports, allHistoricalResults, isSearchFiltersOpen, searchFilters, savingReportState,
+        divergenceConfirmation, learnedAssociations,
+        toggleTheme, setActiveView, setBanks, setChurches, setSimilarityLevel, setDayTolerance, setMatchResults, setReportPreviewData,
+        addIgnoreKeyword, removeIgnoreKeyword,
+        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
+        handleCompare, handleAnalyze, updateReportData,
+        openEditBank, closeEditBank, updateBank, addBank,
+        openEditChurch, closeEditChurch, updateChurch, addChurch,
+        openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
+        openManualIdentify, closeManualIdentify, confirmManualIdentification,
+        openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
+        showToast, handleBackToSettings, manualMatchState,
+        discardCurrentReport,
+        openSearchFilters, closeSearchFilters, setSearchFilters, clearSearchFilters,
+        viewSavedReport, saveFilteredReport, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
+        openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
+    ]);
+
+    return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
-
-export const useAppContext = (): AppContextType => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useAppContext deve ser usado dentro de um AppProvider");
-  return context;
-};
-
-console.log("✅ AppContext.tsx carregado com sucesso!");
-export { AppContext };

@@ -3,7 +3,7 @@ import { MatchResult } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
-import { PencilIcon, FloppyDiskIcon, XCircleIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon } from '../Icons';
+import { PencilIcon, FloppyDiskIcon, XCircleIcon, CheckCircleIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon, InformationCircleIcon, ExclamationTriangleIcon } from '../Icons';
 import { cleanTransactionDescriptionForDisplay, PLACEHOLDER_CHURCH } from '../../services/processingService';
 
 type SortDirection = 'asc' | 'desc';
@@ -48,7 +48,7 @@ const SortableHeader: React.FC<{
 
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort }) => {
     const { t, language } = useTranslation();
-    const { churches, showToast, openManualMatchModal, openDeleteConfirmation } = useContext(AppContext);
+    const { churches, showToast, openManualMatchModal, openDeleteConfirmation, openDivergenceModal } = useContext(AppContext);
     const [editingRowId, setEditingRowId] = useState<string | null>(null);
     const [draftRow, setDraftRow] = useState<MatchResult | null>(null);
 
@@ -114,6 +114,17 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         setDraftRow(null);
     };
 
+    const getSimilarityBadgeClasses = (similarity: number | null | undefined): string => {
+        const value = similarity ?? 0;
+        if (value >= 80) {
+            return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
+        }
+        if (value >= 60) {
+            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
+        }
+        return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
+    };
+
     const inputClass = "w-full bg-transparent border border-blue-500 rounded px-1 py-0.5";
     const selectClass = "w-full bg-transparent border border-blue-500 rounded px-1 py-0.5 dark:bg-slate-900";
 
@@ -128,14 +139,54 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
 
     return (
         <div className="p-2 overflow-x-auto">
-            <table className={`w-full text-base text-left text-slate-600 dark:text-slate-300 table-auto ${reportType === 'income' ? 'print-income-table' : 'print-expense-table'}`}>
+            <table className={`w-full text-sm text-left text-slate-600 dark:text-slate-300 table-auto ${reportType === 'income' ? 'print-income-table' : 'print-expense-table'}`}>
                 <thead className="text-sm text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-700">
                     <tr>
                         {reportType === 'income' ? (
                             <>
-                                <SortableHeader sortKey="date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
+                                <th scope="col" className="px-4 py-3 font-medium w-[12%]">
+                                    <div className="flex items-center gap-1.5">
+                                        <button onClick={() => onSort('date')} className="flex items-center gap-1 group">
+                                            <span>{t('table.date')}</span>
+                                            <span className="opacity-30 group-hover:opacity-100 transition-opacity">
+                                                {sortConfig?.key === 'date' ? (
+                                                    sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
+                                                ) : (
+                                                <ChevronUpIcon className="w-3 h-3" />
+                                                )}
+                                            </span>
+                                        </button>
+                                        <div className="relative group">
+                                            <InformationCircleIcon className="w-4 h-4 text-slate-400" />
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs px-3 py-2 text-xs text-white bg-slate-700 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                                <span className="font-semibold text-blue-300">Azul:</span> Data da lista da Igreja.<br />
+                                                <span className="font-semibold">Padrão:</span> Data do extrato bancário.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
                                 <SortableHeader sortKey="church.name" title={t('table.church')} sortConfig={sortConfig} onSort={onSort} className="w-[20%]" />
-                                <SortableHeader sortKey="contributor.name" title={t('table.name')} sortConfig={sortConfig} onSort={onSort} className="w-[30%]" />
+                                <th scope="col" className="px-4 py-3 font-medium w-[30%]">
+                                    <div className="flex items-center gap-1.5">
+                                        <button onClick={() => onSort('contributor.name')} className="flex items-center gap-1 group">
+                                            <span>Contribuinte / Descrição</span>
+                                            <span className="opacity-30 group-hover:opacity-100 transition-opacity">
+                                                {sortConfig?.key === 'contributor.name' ? (
+                                                    sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
+                                                ) : (
+                                                <ChevronUpIcon className="w-3 h-3" />
+                                                )}
+                                            </span>
+                                        </button>
+                                        <div className="relative group">
+                                            <InformationCircleIcon className="w-4 h-4 text-slate-400" />
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs px-3 py-2 text-xs text-white bg-slate-700 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                                <span className="font-semibold text-blue-300">Azul:</span> Nome do contribuinte.<br />
+                                                <span className="font-semibold">Padrão:</span> Descrição do extrato.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
                                 <SortableHeader sortKey="similarity" title={t('table.percentage')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
                                 <SortableHeader sortKey="contributor.amount" title="Valor Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[15%] text-right" />
                                 <SortableHeader sortKey="status" title={t('table.status')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
@@ -160,7 +211,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         
                         const transactionDate = currentRow.transaction.date;
                         const contributorDate = currentRow.contributor?.date;
-                        const datesDiffer = contributorDate && transactionDate && transactionDate !== contributorDate && !currentRow.transaction.id.startsWith('pending-');
+                        const showBothDates = contributorDate && !currentRow.transaction.id.startsWith('pending-');
                         const displayDate = contributorDate || transactionDate;
 
                         return (
@@ -168,10 +219,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 <td className="px-4 py-3 whitespace-nowrap">
                                     {isEditing ? (
                                         <input type="text" value={displayDate} onChange={e => handleEditChange('transaction.date', e.target.value)} className={inputClass} />
-                                    ) : datesDiffer ? (
+                                    ) : showBothDates ? (
                                         <div>
-                                            <div className="text-sm text-slate-500 dark:text-slate-400">Igr: <span className="text-slate-700 dark:text-slate-300">{contributorDate}</span></div>
-                                            <div className="text-sm text-slate-500 dark:text-slate-400">Ext: <span className="text-slate-700 dark:text-slate-300">{transactionDate}</span></div>
+                                            <div className="text-sm font-medium text-blue-600 dark:text-blue-400">{contributorDate}</div>
+                                            <div className="text-sm text-slate-500 dark:text-slate-400">{transactionDate}</div>
                                         </div>
                                     ) : (
                                         displayDate
@@ -191,23 +242,21 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                         <td className="px-4 py-3 break-words">
                                             {isEditing ? (
                                                 <input type="text" value={currentRow.contributor?.name || ''} onChange={e => handleEditChange('contributor.name', e.target.value)} className={inputClass + (currentRow.status === 'NÃO IDENTIFICADO' ? ' bg-slate-100 dark:bg-slate-700 cursor-not-allowed' : '')} disabled={currentRow.status === 'NÃO IDENTIFICADO' && !currentRow.contributor} />
-                                            ) : currentRow.status === 'IDENTIFICADO' && currentRow.contributor ? (
+                                            ) : currentRow.contributor ? (
                                                     <div>
-                                                        <div className="text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                                            Igreja: <span className="font-medium text-slate-700 dark:text-slate-300">{currentRow.contributor.cleanedName || currentRow.contributor.name}</span>
-                                                        </div>
-                                                        <div className="text-sm text-slate-500 dark:text-slate-400">
-                                                            Extrato: <span className="font-medium text-slate-700 dark:text-slate-300">{currentRow.transaction.cleanedDescription || currentRow.transaction.description}</span>
-                                                        </div>
+                                                        <div className="font-medium text-blue-600 dark:text-blue-400">{currentRow.contributor.cleanedName || currentRow.contributor.name}</div>
+                                                        {currentRow.transaction.id.startsWith('pending-') ? null : (
+                                                            <div className="text-sm text-slate-500 dark:text-slate-400">{currentRow.transaction.cleanedDescription || currentRow.transaction.description}</div>
+                                                        )}
                                                     </div>
-                                                ) : currentRow.contributor ? (
-                                                    <div className="font-medium text-slate-800 dark:text-slate-200">{currentRow.contributor.cleanedName || currentRow.contributor.name}</div>
                                                 ) : (
                                                     <div className="font-medium text-slate-800 dark:text-slate-200">{currentRow.transaction.cleanedDescription || currentRow.transaction.description}</div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-center">
-                                            <span className="font-mono text-blue-700 dark:text-blue-400">{currentRow.similarity?.toFixed(0) ?? '0'}%</span>
+                                            <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full ${getSimilarityBadgeClasses(currentRow.similarity)}`}>
+                                                {currentRow.similarity?.toFixed(0) ?? '0'}%
+                                            </span>
                                         </td>
                                         <td className="px-4 py-3 text-right whitespace-nowrap">
                                             <span className="font-semibold text-slate-700 dark:text-slate-300">
@@ -245,31 +294,47 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                             <option value="NÃO IDENTIFICADO">{t('table.status.unidentified')}</option>
                                         </select>
                                     ) : (
-                                        <div className="flex justify-center">
+                                        <div className="flex items-center justify-center">
                                             <StatusIcon row={currentRow} />
+                                            {currentRow.divergence && (
+                                                <div className="relative group ml-1.5">
+                                                    <button
+                                                        onClick={() => openDivergenceModal(currentRow)}
+                                                        className="p-0.5 rounded-full"
+                                                        aria-label="Revisar divergência"
+                                                    >
+                                                        <ExclamationTriangleIcon className="w-4 h-4 text-yellow-500" />
+                                                    </button>
+                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs px-3 py-2 text-xs text-white bg-slate-700 rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                                        Divergência detectada! Este contribuinte geralmente está associado a outra igreja. Clique para revisar.
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                    <div className="flex items-center justify-center space-x-2">
+                                    <div className="flex items-center justify-center space-x-0.5">
                                         {isEditing ? (
                                             <>
-                                                <button onClick={handleSave} className="text-green-600 hover:text-green-500"><FloppyDiskIcon className="w-5 h-5" /></button>
-                                                <button onClick={handleCancel} className="text-red-600 hover:text-red-500"><XCircleIcon className="w-5 h-5" /></button>
+                                                <button onClick={handleSave} className="p-1.5 rounded-md text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:bg-slate-700 transition-colors"><FloppyDiskIcon className="w-5 h-5" /></button>
+                                                <button onClick={handleCancel} className="p-1.5 rounded-md text-red-600 hover:bg-red-100 dark:text-red-500 dark:hover:bg-slate-700 transition-colors"><XCircleIcon className="w-5 h-5" /></button>
                                             </>
                                         ) : (
                                             <>
-                                                <button onClick={() => handleEditClick(result)} className="text-slate-500 hover:text-blue-600"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleEditClick(result)} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-slate-700 transition-colors">
+                                                    <PencilIcon className="w-5 h-5 stroke-current" />
+                                                </button>
                                                 <button
                                                     onClick={() => openDeleteConfirmation({ 
                                                         type: 'report-row', 
                                                         id: result.transaction.id, 
                                                         name: `a linha "${result.transaction.cleanedDescription || result.transaction.description}"` 
                                                     })}
-                                                    className="text-slate-500 hover:text-red-600"
+                                                    className="p-1.5 rounded-md text-red-600 hover:bg-red-100 dark:text-red-500 dark:hover:bg-slate-700 transition-colors"
                                                     aria-label={t('common.delete')}
                                                 >
-                                                    <TrashIcon className="w-4 h-4" />
+                                                    <TrashIcon className="w-5 h-5 stroke-current" />
                                                 </button>
                                             </>
                                         )}

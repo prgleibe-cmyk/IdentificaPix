@@ -1,5 +1,5 @@
 import { Transaction, Contributor, MatchResult, ContributorFile, Church, LearnedAssociation } from '../types';
-import { Logger } from './monitoringService';
+import { Logger, Metrics } from './monitoringService';
 
 // --- Centralized Constants ---
 
@@ -685,8 +685,9 @@ export const cleanTransactionDescriptionForDisplay = (description: string, custo
 
 
 /**
- * Calculates the similarity between a transaction description and a contributor's name,
- * giving heavy priority to a matching first name.
+ * Calculates the similarity between a transaction description and a contributor's name
+ * using the Sørensen-Dice coefficient, which provides a balanced score based on shared words.
+ * This method considers the full name and is less biased by just the first name.
  * @param description The raw transaction description.
  * @param contributor The contributor's object.
  * @param customKeywords Optional keywords to ignore during normalization.
@@ -696,46 +697,26 @@ export const calculateNameSimilarity = (description: string, contributor: Contri
     const normalizedDesc = normalizeString(description, customKeywords);
     const normalizedContributorName = contributor.normalizedName || normalizeString(contributor.name, customKeywords);
 
-    const descriptionWords = normalizedDesc.split(' ').filter(p => p.length > 0);
-    const contributorWords = normalizedContributorName.split(' ').filter(p => p.length > 0);
-
-    if (descriptionWords.length === 0 || contributorWords.length === 0) {
+    if (!normalizedDesc || !normalizedContributorName) {
         return 0;
     }
 
-    const descFirstName = descriptionWords[0];
-    const contributorFirstName = contributorWords[0];
-    
-    // Base score is 80 if first names match, giving a strong advantage.
-    // If they don't match, we still calculate similarity but cap it below 80
-    // to ensure a first-name match is always better.
-    if (descFirstName === contributorFirstName) {
-        let score = 80;
-        const descRemainder = descriptionWords.slice(1);
-        const contributorRemainder = contributorWords.slice(1);
+    const descWords = new Set(normalizedDesc.split(' ').filter(Boolean));
+    const contributorWords = new Set(normalizedContributorName.split(' ').filter(Boolean));
 
-        if (descRemainder.length === 0 || contributorRemainder.length === 0) {
-            return 100; // If first name matches and one of them is a single name, it's a very strong match.
-        }
-        
-        // Calculate similarity of the rest of the name for the remaining 20 points.
-        const intersection = new Set(descRemainder.filter(word => new Set(contributorRemainder).has(word)));
-        const similarity = intersection.size / Math.max(descRemainder.length, contributorRemainder.length);
-        score += similarity * 20;
-        
-        return Math.min(100, score);
-    } else {
-        // Fallback for when first names don't match.
-        const allDescWords = new Set(descriptionWords);
-        const allContributorWords = new Set(contributorWords);
-        const intersection = new Set([...allDescWords].filter(word => allContributorWords.has(word)));
-        
-        // Calculate similarity based on all words.
-        const similarity = intersection.size / Math.max(allDescWords.size, allContributorWords.size);
-        
-        // Cap the score at 79 to ensure it's always lower than a first-name match.
-        return similarity * 79;
+    if (descWords.size === 0 || contributorWords.size === 0) {
+        return 0;
     }
+
+    // Find the intersection of words
+    const intersection = new Set([...descWords].filter(word => contributorWords.has(word)));
+
+    // Calculate Sørensen–Dice coefficient
+    // This gives a score from 0 to 1 based on shared words.
+    // Formula: 2 * |A ∩ B| / (|A| + |B|)
+    const diceCoefficient = (2 * intersection.size) / (descWords.size + contributorWords.size);
+
+    return diceCoefficient * 100;
 };
 
 
@@ -841,177 +822,162 @@ export const matchTransactions = (
         dayTolerance: number;
     },
     learnedAssociations: LearnedAssociation[],
+    churches: Church[],
     customIgnoreKeywords: string[] = []
 ): MatchResult[] => {
-    Logger.info(`Starting transaction matching`, { 
-        numTransactions: transactions.length,
-        numContributorFiles: contributorFiles.length,
-        numLearnedAssociations: learnedAssociations.length 
-    });
-    const allResults: MatchResult[] = [];
-    const processedTransactionIds = new Set<string>();
+    // Flatten all contributors and give them a unique ID if they don't have one.
+    const allContributors = contributorFiles.flatMap(file =>
+        file.contributors.map((c, index) => ({ 
+            ...c, 
+            id: c.id || `contrib-${file.church.id}-${index}`, // Ensure unique ID
+            church: file.church 
+        }))
+    );
 
-    // 1. Pre-pass for learned associations
-    transactions.forEach(transaction => {
-        const normalizedDesc = normalizeString(transaction.description, customIgnoreKeywords);
-        const learnedMatch = learnedAssociations.find(a => a.normalizedDescription === normalizedDesc);
-
-        if (learnedMatch) {
-            const church = contributorFiles.find(cf => cf.church.id === learnedMatch.churchId)?.church;
-            const contributorList = contributorFiles.find(cf => cf.church.id === learnedMatch.churchId)?.contributors;
-            const contributor = contributorList?.find(c => normalizeString(c.name) === normalizeString(learnedMatch.contributorName));
-
-            if (church && contributor) {
-                allResults.push({
-                    transaction,
-                    contributor,
-                    church,
-                    status: 'IDENTIFICADO',
-                    matchMethod: 'LEARNED',
-                    similarity: 100, // Learned matches are considered 100%
-                    contributorAmount: contributor.amount,
-                });
-                processedTransactionIds.add(transaction.id);
-            }
-        }
-    });
-
-    // 2. Main pass for automatic matching
-    const allPossiblePairs: { 
-        transaction: Transaction;
-        contributor: Contributor;
-        church: Church;
-        score: number;
-        nameSimilarity: number;
-    }[] = [];
-
-    const remainingTransactions = transactions.filter(t => !processedTransactionIds.has(t.id));
-
-    remainingTransactions.forEach(transaction => {
-        const transactionDate = parseDate(transaction.date);
-        if (!transactionDate) return;
-
-        contributorFiles.forEach(({ church, contributors }) => {
-            contributors.forEach(contributor => {
-                const contributorDate = parseDate(contributor.date || '');
-
-                const isDateWithinTolerance = !contributorDate || daysDifference(transactionDate, contributorDate) <= options.dayTolerance;
-                if (!isDateWithinTolerance) {
-                    return;
-                }
-
-                const nameScore = calculateNameSimilarity(transaction.description, contributor, customIgnoreKeywords);
-                if (nameScore < options.similarityThreshold) {
-                    return;
-                }
-
-                const amountScore = calculateAmountSimilarity(transaction.amount, contributor.amount);
-                const dateScore = calculateDateSimilarity(transactionDate, contributorDate, options.dayTolerance);
-                const rankingScore = (nameScore * 10000) + (amountScore * 100) + dateScore;
-
-                allPossiblePairs.push({
-                    transaction,
-                    contributor,
-                    church,
-                    score: rankingScore,
-                    nameSimilarity: nameScore,
-                });
-            });
-        });
-    });
-
-    allPossiblePairs.sort((a, b) => b.score - a.score);
-
+    const learnedMap = new Map(learnedAssociations.map(la => [la.normalizedDescription, la]));
+    
+    const finalResults: MatchResult[] = [];
     const matchedTransactionIds = new Set<string>();
     const matchedContributorIds = new Set<string>();
 
-    allPossiblePairs.forEach(pair => {
-        if (pair.contributor.id && !matchedTransactionIds.has(pair.transaction.id) && !matchedContributorIds.has(pair.contributor.id)) {
-            allResults.push({
-                transaction: pair.transaction,
-                contributor: pair.contributor,
-                status: 'IDENTIFICADO',
-                church: pair.church,
-                matchMethod: 'AUTOMATIC',
-                similarity: pair.nameSimilarity,
-                contributorAmount: pair.contributor.amount,
-            });
-            
-            matchedTransactionIds.add(pair.transaction.id);
-            processedTransactionIds.add(pair.transaction.id);
-            matchedContributorIds.add(pair.contributor.id);
+    // Step 1: Handle Learned Associations first (highest priority)
+    transactions.forEach(transaction => {
+        const normalizedDesc = normalizeString(transaction.description, customIgnoreKeywords);
+        const learnedMatch = learnedMap.get(normalizedDesc);
+        if (learnedMatch) {
+            const contributor = allContributors.find(c => 
+                c.normalizedName === learnedMatch.contributorNormalizedName && 
+                !matchedContributorIds.has(c.id!)
+            );
+            if (contributor) {
+                finalResults.push({
+                    transaction,
+                    contributor,
+                    status: 'IDENTIFICADO',
+                    church: contributor.church,
+                    matchMethod: 'LEARNED',
+                    similarity: 100,
+                    contributorAmount: contributor.amount,
+                });
+                matchedTransactionIds.add(transaction.id);
+                matchedContributorIds.add(contributor.id!);
+            }
         }
     });
 
-    // 3. Post-pass for UNMATCHED CONTRIBUTORS from church lists
-    contributorFiles.forEach(({ church, contributors }) => {
-        contributors.forEach(contributor => {
-            if (contributor.id && !matchedContributorIds.has(contributor.id)) {
-                allResults.push({
-                    transaction: {
-                        id: `pending-${contributor.id}`,
-                        date: contributor.date || '---',
-                        description: contributor.name, // Use contributor name as placeholder
-                        cleanedDescription: contributor.cleanedName,
-                        amount: contributor.amount || 0,
-                    },
-                    contributor: contributor,
-                    status: 'NÃO IDENTIFICADO',
-                    church: church,
-                    similarity: 0,
-                    contributorAmount: contributor.amount,
+    // Step 2: Create all possible high-scoring pairs from remaining items
+    const potentialMatches: {
+        transaction: Transaction;
+        contributor: Contributor & { church: Church };
+        score: number;
+    }[] = [];
+
+    const availableTransactions = transactions.filter(t => !matchedTransactionIds.has(t.id));
+    const availableContributors = allContributors.filter(c => c.id! && !matchedContributorIds.has(c.id!));
+
+    for (const transaction of availableTransactions) {
+        for (const contributor of availableContributors) {
+            const nameScore = calculateNameSimilarity(transaction.description, contributor, customIgnoreKeywords);
+            
+            if (nameScore >= options.similarityThreshold) {
+                const txDate = parseDate(transaction.date);
+                const contributorDate = contributor.date ? parseDate(contributor.date) : null;
+                
+                if (txDate && contributorDate && daysDifference(txDate, contributorDate) > options.dayTolerance) {
+                    continue; 
+                }
+                
+                potentialMatches.push({
+                    transaction,
+                    contributor,
+                    score: nameScore,
                 });
             }
-        });
-    });
+        }
+    }
 
-    // 4. Post-pass for any remaining unidentified transactions
+    // Step 3: Sort pairs by score, descending
+    potentialMatches.sort((a, b) => b.score - a.score);
+
+    // Step 4: Greedily assign best matches
+    for (const match of potentialMatches) {
+        if (match.contributor.id && !matchedTransactionIds.has(match.transaction.id) && !matchedContributorIds.has(match.contributor.id)) {
+            
+            let divergence: MatchResult['divergence'] | undefined = undefined;
+            if (match.contributor.normalizedName) {
+                const learnedAssociation = learnedAssociations.find(
+                    la => la.contributorNormalizedName === match.contributor.normalizedName
+                );
+        
+                if (learnedAssociation && learnedAssociation.churchId !== match.contributor.church.id) {
+                    const expectedChurch = churches.find(c => c.id === learnedAssociation.churchId);
+                    if (expectedChurch) {
+                        divergence = {
+                            type: 'CHURCH_MISMATCH',
+                            expectedChurch: expectedChurch,
+                            actualChurch: match.contributor.church,
+                        };
+                        Metrics.increment('divergences');
+                    }
+                }
+            }
+            
+            finalResults.push({
+                transaction: match.transaction,
+                contributor: match.contributor,
+                status: 'IDENTIFICADO',
+                church: match.contributor.church,
+                matchMethod: 'AUTOMATIC',
+                similarity: match.score,
+                contributorAmount: match.contributor.amount,
+                divergence,
+            });
+
+            matchedTransactionIds.add(match.transaction.id);
+            matchedContributorIds.add(match.contributor.id);
+        }
+    }
+
+    // Step 5: Add remaining unmatched transactions
     transactions.forEach(transaction => {
-        if (!processedTransactionIds.has(transaction.id)) {
-            allResults.push({
+        if (!matchedTransactionIds.has(transaction.id)) {
+            finalResults.push({
                 transaction,
                 contributor: null,
                 status: 'NÃO IDENTIFICADO',
                 church: PLACEHOLDER_CHURCH,
-                similarity: 0,
             });
         }
     });
 
-    const identifiedCount = allResults.filter(r => r.status === 'IDENTIFICADO').length;
-    Logger.info(`Matching complete`, {
-        totalResults: allResults.length,
-        identified: identifiedCount,
+    // Step 6: Add remaining unmatched contributors
+    allContributors.forEach(contributor => {
+        if (contributor.id && !matchedContributorIds.has(contributor.id)) {
+            finalResults.push({
+                transaction: {
+                    id: `pending-${contributor.id || `${contributor.normalizedName}-${Math.random()}`}`,
+                    date: contributor.date || 'N/A',
+                    description: `[Pendente da Lista] ${contributor.name}`,
+                    amount: 0, // Not a real bank transaction
+                    cleanedDescription: `[Pendente] ${contributor.cleanedName}`
+                },
+                contributor,
+                status: 'NÃO IDENTIFICADO',
+                church: contributor.church,
+                contributorAmount: contributor.amount,
+            });
+        }
     });
 
-    return allResults.sort((a, b) => {
-        const dateA = parseDate(a.transaction.date)?.getTime() || parseDate(a.contributor?.date || '')?.getTime() || 0;
-        const dateB = parseDate(b.transaction.date)?.getTime() || parseDate(b.contributor?.date || '')?.getTime() || 0;
-        return dateB - dateA; // Sort descending, most recent first
-    });
+    return finalResults;
 };
 
-export const processExpenses = (
-    transactions: Transaction[],
-): MatchResult[] => {
-    return transactions.map((transaction): MatchResult => ({
+// Fix: Add missing processExpenses function
+export const processExpenses = (expenseTransactions: Transaction[]): MatchResult[] => {
+    return expenseTransactions.map(transaction => ({
         transaction,
         contributor: null,
         status: 'NÃO IDENTIFICADO',
         church: PLACEHOLDER_CHURCH,
-        similarity: 0,
-    })).sort((a, b) => {
-        const dateA = parseDate(a.transaction.date)?.getTime() || 0;
-        const dateB = parseDate(b.transaction.date)?.getTime() || 0;
-        return dateB - dateA; // Sort descending, most recent first
-    });
-};
-
-export const countRawContributors = (content: string): number => {
-    const heuristics = [
-        { field: 'name' as keyof Contributor, checker: isProbablyName, isTextual: true },
-    ];
-    // This will find the name column, filter out headers, and count valid rows.
-    const contributors = intelligentCSVParser<Contributor>(content, heuristics, 'name');
-    return contributors.length;
+    }));
 };

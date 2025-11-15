@@ -1,4 +1,3 @@
-import './index.css';
 import React from 'react';
 
 // --- Contexts ---
@@ -19,6 +18,8 @@ import { ConfirmDeleteModal } from './components/modals/ConfirmDeleteModal';
 import { ManualMatchModal } from './components/modals/ManualMatchModal';
 import { SaveReportModal } from './components/modals/SaveReportModal';
 import { SearchFiltersModal } from './components/modals/SearchFiltersModal';
+import { DivergenceConfirmationModal } from './components/modals/DivergenceConfirmationModal';
+
 
 // --- Views (Lazy Loaded for performance) ---
 const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
@@ -26,9 +27,83 @@ const UploadView = React.lazy(() => import('./views/UploadView').then(m => ({ de
 const RegisterView = React.lazy(() => import('./views/RegisterView').then(m => ({ default: m.RegisterView })));
 const ReportsView = React.lazy(() => import('./views/ReportsView').then(m => ({ default: m.ReportsView })));
 const SettingsView = React.lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
-const SavedReportsView = React.lazy(() => import('./views/SavedReportsView').then(m => ({ default: m.SavedReportsView })));
 const SearchView = React.lazy(() => import('./views/SearchView').then(m => ({ default: m.SearchView })));
+const SavedReportsView = React.lazy(() => import('./views/SavedReportsView').then(m => ({ default: m.SavedReportsView })));
 import { AuthView } from './views/AuthView';
+
+
+const Background = () => {
+    // This is an inline SVG for the background. It creates a modern, technological feel
+    // with abstract grid lines and gradients that adapt to light and dark mode.
+    return (
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+            <style>{`
+                .bg-light-mode { display: block; }
+                .bg-dark-mode { display: none; }
+                html.dark .bg-light-mode { display: none; }
+                html.dark .bg-dark-mode { display: block; }
+            `}</style>
+            <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+                <defs>
+                    {/* Light Mode Definitions */}
+                    <radialGradient id="light-grad" cx="50%" cy="30%" r="80%" fx="50%" fy="30%">
+                        <stop offset="0%" stopColor="#dbeafe" /> {/* blue-100 */}
+                        <stop offset="100%" stopColor="#e2e8f0" /> {/* slate-200 */}
+                    </radialGradient>
+                    <linearGradient id="grid-lines-light" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="rgba(56, 189, 248, 0.15)" /> {/* sky-400 */}
+                        <stop offset="100%" stopColor="rgba(99, 102, 241, 0.15)" /> {/* indigo-400 */}
+                    </linearGradient>
+                    
+                    {/* Dark Mode Definitions */}
+                    <radialGradient id="dark-grad" cx="50%" cy="30%" r="80%" fx="50%" fy="30%">
+                        <stop offset="0%" stopColor="#172554" /> {/* blue-950 */}
+                        <stop offset="100%" stopColor="#020617" /> {/* slate-950 */}
+                    </radialGradient>
+                    <linearGradient id="grid-lines-dark" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="rgba(59, 130, 246, 0.2)" /> {/* blue-500 */}
+                        <stop offset="100%" stopColor="rgba(129, 140, 248, 0.2)" /> {/* indigo-400 */}
+                    </linearGradient>
+                    
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="1" result="coloredBlur" />
+                        <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+
+                {/* Light Mode SVG */}
+                <g className="bg-light-mode">
+                    <rect width="100%" height="100%" fill="url(#light-grad)" />
+                    <g opacity="0.7">
+                        {[...Array(25)].map((_, i) => (
+                            <line key={`lh-${i}`} x1={i * 4 + "%"} y1="0" x2={i * 4 + "%"} y2="100%" stroke="url(#grid-lines-light)" strokeWidth="0.5" />
+                        ))}
+                        {[...Array(25)].map((_, i) => (
+                            <line key={`lv-${i}`} x1="0" y1={i * 4 + "%"} x2="100%" y2={i * 4 + "%"} stroke="url(#grid-lines-light)" strokeWidth="0.5" />
+                        ))}
+                    </g>
+                </g>
+
+                {/* Dark Mode SVG */}
+                <g className="bg-dark-mode">
+                    <rect width="100%" height="100%" fill="url(#dark-grad)" />
+                    <g filter="url(#glow)" opacity="0.6">
+                        {[...Array(25)].map((_, i) => (
+                            <line key={`dh-${i}`} x1={i * 4 + "%"} y1="0" x2={i * 4 + "%"} y2="100%" stroke="url(#grid-lines-dark)" strokeWidth="1" />
+                        ))}
+                        {[...Array(25)].map((_, i) => (
+                            <line key={`dv-${i}`} x1="0" y1={i * 4 + "%"} x2="100%" y2={i * 4 + "%"} stroke="url(#grid-lines-dark)" strokeWidth="1" />
+                        ))}
+                    </g>
+                </g>
+            </svg>
+        </div>
+    );
+};
+
 
 // --- Main Application Component ---
 function MainApp() {
@@ -44,6 +119,7 @@ function MainApp() {
         manualMatchState,
         savingReportState,
         isSearchFiltersOpen,
+        divergenceConfirmation,
     } = React.useContext(AppContext);
 
     const renderContent = () => {
@@ -52,15 +128,16 @@ function MainApp() {
             case 'upload': return <UploadView />;
             case 'cadastro': return <RegisterView />;
             case 'reports': return <ReportsView />;
+            case 'search': return <SearchView />;
             case 'savedReports': return <SavedReportsView />;
             case 'settings': return <SettingsView />;
-            case 'search': return <SearchView />;
             default: return <div className="text-center p-12">View not implemented.</div>;
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-100 dark:bg-slate-900 font-sans">
+        <div className="min-h-screen font-sans relative isolate">
+             <Background />
              <style>{`
                 @keyframes toast-fade-in-out {
                   0% { opacity: 0; transform: translateY(-20px); }
@@ -102,11 +179,13 @@ function MainApp() {
             {manualMatchState && <ManualMatchModal />}
             {savingReportState && <SaveReportModal />}
             {isSearchFiltersOpen && <SearchFiltersModal />}
+            {divergenceConfirmation && <DivergenceConfirmationModal />}
         </div>
     );
 }
 
 // --- App Controller ---
+// This component checks the authentication state and renders either the login screen or the main app.
 const AppController: React.FC = () => {
     const { session, loading } = useAuth();
 
@@ -126,6 +205,7 @@ const AppController: React.FC = () => {
 }
 
 // --- Root Component ---
+// Wraps the entire application with necessary context providers.
 export default function App() {
     return (
         <I18nProvider>

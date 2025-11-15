@@ -1,152 +1,100 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useTranslation } from '../contexts/I18nContext';
+import { FileUploader } from '../components/FileUploader';
+import { SearchIcon, ArrowsRightLeftIcon } from '../components/Icons';
 import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm';
-import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
 export const UploadView: React.FC = () => {
-  const {
-    banks,
-    churches,
-    addBank,
-    addChurch,
-    handleStatementUpload,
-    handleContributorsUpload,
-    bankStatementFile,
-    contributorFiles,
-    showToast,
-  } = useContext(AppContext);
+    const { 
+        banks, 
+        churches, 
+        bankStatementFile, 
+        contributorFiles, 
+        handleStatementUpload, 
+        handleContributorsUpload,
+        removeBankStatementFile,
+        removeContributorFile,
+        isCompareDisabled,
+    } = useContext(AppContext);
+    
+    const { t } = useTranslation();
+    const [bankSearch, setBankSearch] = useState('');
+    const [churchSearch, setChurchSearch] = useState('');
 
-  const handleAddBank = () => {
-    const name = prompt('Digite o nome do banco:');
-    if (name && name.trim()) {
-      addBank({ id: crypto.randomUUID(), name: name.trim() });
-      showToast('Banco cadastrado com sucesso!', 'success');
-    }
-  };
+    const filteredBanks = useMemo(() => banks.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase())), [banks, bankSearch]);
+    const filteredChurches = useMemo(() => churches.filter(c => c.name.toLowerCase().includes(churchSearch.toLowerCase())), [churches, churchSearch]);
 
-  const handleAddChurch = () => {
-    const name = prompt('Digite o nome da igreja:');
-    if (name && name.trim()) {
-      addChurch({ id: crypto.randomUUID(), name: name.trim() });
-      showToast('Igreja cadastrada com sucesso!', 'success');
-    }
-  };
+    return (
+        <>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">{t('upload.title')}</h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">{t('upload.subtitle')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                {/* Bank Statement Upload Section */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">1. {t('upload.statementTitle')}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{t('upload.statementSubtitle')}</p>
+                    <div className="relative mb-2">
+                        <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                        <input type="text" placeholder={t('register.searchBank')} value={bankSearch} onChange={e => setBankSearch(e.target.value)} className="pl-10 p-2 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" />
+                    </div>
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                        {filteredBanks.map(bank => (
+                            <div key={bank.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md">
+                                <span className="font-medium text-slate-700 dark:text-slate-300 truncate pr-4">{bank.name}</span>
+                                <FileUploader
+                                    id={`bank-uploader-${bank.id}`}
+                                    title={t('upload.upload')}
+                                    onFileUpload={(content, name) => handleStatementUpload(content, name, bank.id)}
+                                    isUploaded={bankStatementFile?.bankId === bank.id && !!bankStatementFile.content}
+                                    uploadedFileName={bankStatementFile?.bankId === bank.id ? bankStatementFile.fileName : null}
+                                    disabled={!!bankStatementFile && bankStatementFile.bankId !== bank.id}
+                                    onDelete={bankStatementFile?.bankId === bank.id ? removeBankStatementFile : undefined}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
-  const handleFileUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    type: 'bank' | 'church',
-    id: string
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) {
-      showToast('Nenhum arquivo selecionado', 'error');
-      return;
-    }
-
-    if (type === 'bank') handleStatementUpload(file, id);
-    else handleContributorsUpload(file, id);
-  };
-
-  return (
-    <div className="p-6 space-y-10 max-w-5xl mx-auto">
-      {/* Bancos */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-            Bancos cadastrados
-          </h2>
-          <button
-            onClick={handleAddBank}
-            className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 transition"
-          >
-            + Adicionar Banco
-          </button>
-        </div>
-        {banks.length === 0 ? (
-          <p className="text-slate-500 text-sm">Nenhum banco cadastrado.</p>
-        ) : (
-          <ul className="space-y-3">
-            {banks.map((bank) => (
-              <li
-                key={bank.id}
-                className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700 rounded-lg"
-              >
-                <span className="text-slate-800 dark:text-slate-200">{bank.name}</span>
-                <label
-                  htmlFor={`bank-${bank.id}`}
-                  className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
-                >
-                  <ArrowUpTrayIcon className="w-5 h-5" />
-                  {bankStatementFile?.bankId === bank.id
-                    ? bankStatementFile.fileName
-                    : 'Carregar extrato'}
-                </label>
-                <input
-                  id={`bank-${bank.id}`}
-                  type="file"
-                  accept=".csv,.xls,.xlsx,.pdf"
-                  className="hidden"
-                  onChange={(e) => handleFileUpload(e, 'bank', bank.id)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Igrejas */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-            Igrejas cadastradas
-          </h2>
-          <button
-            onClick={handleAddChurch}
-            className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 transition"
-          >
-            + Adicionar Igreja
-          </button>
-        </div>
-        {churches.length === 0 ? (
-          <p className="text-slate-500 text-sm">Nenhuma igreja cadastrada.</p>
-        ) : (
-          <ul className="space-y-3">
-            {churches.map((church) => (
-              <li
-                key={church.id}
-                className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700 rounded-lg"
-              >
-                <span className="text-slate-800 dark:text-slate-200">{church.name}</span>
-                <label
-                  htmlFor={`church-${church.id}`}
-                  className="flex items-center gap-2 cursor-pointer text-blue-700 dark:text-blue-400 hover:underline"
-                >
-                  <ArrowUpTrayIcon className="w-5 h-5" />
-                  {contributorFiles.find((f) => f.churchId === church.id)?.fileName ||
-                    'Carregar arquivo'}
-                </label>
-                <input
-                  id={`church-${church.id}`}
-                  type="file"
-                  accept=".csv,.xls,.xlsx,.pdf"
-                  className="hidden"
-                  onChange={(e) => handleFileUpload(e, 'church', church.id)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Configurações de Comparação */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md">
-        <h2 className="text-lg font-semibold mb-4 text-slate-800 dark:text-slate-200">
-          Configurações da Comparação
-        </h2>
-        <ComparisonSettingsForm />
-      </div>
-    </div>
-  );
+                {/* Contributor Lists Upload Section */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <h3 className="font-semibold text-lg text-slate-800 dark:text-slate-200">2. {t('upload.contributorsTitle')}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{t('upload.contributorsSubtitle')}</p>
+                    <div className="relative mb-2">
+                        <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                        <input type="text" placeholder={t('register.searchChurch')} value={churchSearch} onChange={e => setChurchSearch(e.target.value)} className="pl-10 p-2 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" />
+                    </div>
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                        {filteredChurches.map(church => {
+                            const uploadedFile = contributorFiles.find(f => f.churchId === church.id);
+                            return (
+                                <div key={church.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300 truncate pr-4">{church.name}</span>
+                                    <FileUploader
+                                        id={`church-uploader-${church.id}`}
+                                        title={t('upload.upload')}
+                                        onFileUpload={(content, name) => handleContributorsUpload(content, name, church.id)}
+                                        isUploaded={!!uploadedFile}
+                                        uploadedFileName={uploadedFile?.fileName ?? null}
+                                        onDelete={uploadedFile ? () => removeContributorFile(church.id) : undefined}
+                                    />
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            </div>
+            
+            {!isCompareDisabled && (
+                <div className="mt-8 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                     <div className="flex items-center space-x-3 mb-6">
+                         <ArrowsRightLeftIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
+                         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">3. {t('settings.comparisonTitle')}</h3>
+                    </div>
+                    <ComparisonSettingsForm />
+                </div>
+            )}
+        </>
+    );
 };
-
-export default UploadView;

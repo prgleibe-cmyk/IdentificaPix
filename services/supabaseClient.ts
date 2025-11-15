@@ -1,19 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
-// Leitura das variáveis de ambiente
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_KEY?.trim();
+// The Supabase URL and public anon key are hardcoded here.
+// This is safe because the 'anon' key is designed to be public.
+// True data security is enforced by Row Level Security (RLS) policies in your Supabase project.
+const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
 
-// Validação
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    '❌ Erro: Variáveis do Supabase não definidas. ' +
-    'Verifique VITE_SUPABASE_URL e VITE_SUPABASE_KEY no Netlify.'
-  );
-}
-
-// Evita crash — cria cliente só se ambas estiverem válidas
-export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient<Database>(supabaseUrl, supabaseAnonKey)
-  : (null as any);
+// Create and export the Supabase client
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);

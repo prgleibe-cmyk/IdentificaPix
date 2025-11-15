@@ -1,7 +1,7 @@
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { SettingsTab, Language, LearnedAssociation } from '../types';
+import { SettingsTab, Language } from '../types';
 import { 
     BrainIcon, 
     SearchIcon, 
@@ -17,7 +17,7 @@ import {
 } from '../components/Icons';
 
 const TabButton: React.FC<{ label: string, isActive: boolean, onClick: () => void }> = ({ label, isActive, onClick }) => (
-    <button onClick={onClick} className={`px-4 py-2 text-sm font-medium rounded-md ${ isActive ? 'bg-blue-100 text-blue-700 dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700/50'}`}>
+    <button onClick={onClick} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${ isActive ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-white font-semibold' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50'}`}>
         {label}
     </button>
 );
@@ -26,7 +26,9 @@ const PreferencesTab: React.FC = () => {
     const { theme, toggleTheme, openDeleteConfirmation } = useContext(AppContext);
     const { t, language, setLanguage } = useTranslation();
 
-    const handleLanguageChange = (lang: Language) => setLanguage(lang);
+    const handleLanguageChange = (lang: Language) => {
+        setLanguage(lang);
+    };
 
     const dataManagementItems = [
         {
@@ -40,12 +42,6 @@ const PreferencesTab: React.FC = () => {
             icon: <ArrowsRightLeftIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />,
             title: t('settings.dataManagement.matchResults'),
             description: t('settings.dataManagement.matchResults.desc'),
-        },
-        {
-            type: 'learned-associations' as const,
-            icon: <BrainIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />,
-            title: t('settings.dataManagement.learnedAssociations'),
-            description: t('settings.dataManagement.learnedAssociations.desc'),
         },
     ];
 
@@ -61,7 +57,7 @@ const PreferencesTab: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.theme')}</label>
                         <div className="mt-2 flex items-center space-x-2">
-                            <button onClick={toggleTheme} className="flex items-center justify-center w-32 p-2 border rounded-md transition-colors dark:border-slate-600">
+                            <button onClick={toggleTheme} className="flex items-center justify-center w-32 p-2 border rounded-md transition-colors border-slate-300 dark:border-slate-600">
                                 {theme === 'light' ? 
                                     <><SunIcon className="w-5 h-5 mr-2 text-yellow-500" /> Claro</> : 
                                     <><MoonIcon className="w-5 h-5 mr-2 text-sky-400" /> Escuro</>
@@ -70,7 +66,7 @@ const PreferencesTab: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.language')}</label>
+                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('settings.language')}</label>
                         <div className="mt-2">
                             <select onChange={(e) => handleLanguageChange(e.target.value as Language)} value={language} className="block w-full max-w-xs rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm">
                                 <option value="pt">🇧🇷 Português</option>
@@ -82,7 +78,7 @@ const PreferencesTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Data Management Section */}
+             {/* Data Management Section */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center space-x-3 mb-4">
                     <CircleStackIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
@@ -108,14 +104,16 @@ const PreferencesTab: React.FC = () => {
                     ))}
                 </div>
 
-                {/* Danger Zone */}
+                 {/* Danger Zone for full reset */}
                 <div className="mt-8 pt-6 border-t border-red-500/30">
-                    <div className="p-4 border-l-4 border-red-400 bg-red-50 dark:bg-red-900/20 rounded-r-md">
+                     <div className="p-4 border-l-4 border-red-400 bg-red-50 dark:bg-red-900/20 rounded-r-md">
                         <div className="flex items-start space-x-3">
                             <ExclamationTriangleIcon className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
                             <div>
                                 <h4 className="font-semibold text-red-800 dark:text-red-300">{t('settings.dangerZone')}</h4>
-                                <p className="text-sm text-red-700 dark:text-red-400 mt-1">{t('settings.dangerZone.desc')}</p>
+                                <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                                    {t('settings.dangerZone.desc')}
+                                </p>
                             </div>
                         </div>
                         <div className="mt-4 text-right">
@@ -135,38 +133,28 @@ const PreferencesTab: React.FC = () => {
 
 const AutomationTab: React.FC = () => {
     const { 
-        learnedAssociations = [], 
-        churches = [], 
-        openDeleteConfirmation, 
-        customIgnoreKeywords = [], 
+        customIgnoreKeywords, 
         addIgnoreKeyword,
         removeIgnoreKeyword 
     } = useContext(AppContext);
-
     const { t } = useTranslation();
-    const [search, setSearch] = useState('');
     const [newKeyword, setNewKeyword] = useState('');
 
     const handleAddKeyword = (e: React.FormEvent) => {
         e.preventDefault();
-        if (newKeyword.trim()) {
-            addIgnoreKeyword(newKeyword);
-            setNewKeyword('');
-        }
+        addIgnoreKeyword(newKeyword);
+        setNewKeyword('');
     };
-
-    const filteredAssociations = useMemo(() => learnedAssociations.filter(a => 
-        a.normalizedDescription.toLowerCase().includes(search.toLowerCase()) ||
-        a.contributorName.toLowerCase().includes(search.toLowerCase())
-    ), [learnedAssociations, search]);
-
+    
     return (
         <div className="space-y-8">
-            {/* Custom Keywords */}
+            {/* Custom Keywords Section */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">{t('settings.keywords')}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t('settings.keywords.desc')}</p>
-
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                    {t('settings.keywords.desc')}
+                </p>
+                
                 <form onSubmit={handleAddKeyword} className="flex items-center gap-2 mb-4">
                     <input
                         type="text"
@@ -194,48 +182,16 @@ const AutomationTab: React.FC = () => {
                                 </button>
                             </div>
                         ))}
-                        {customIgnoreKeywords.length === 0 && (
+                         {customIgnoreKeywords.length === 0 && (
                             <p className="text-sm text-slate-500 dark:text-slate-400 p-4 text-center w-full">Nenhuma palavra-chave configurada.</p>
                         )}
                     </div>
                 </div>
             </div>
-
-            {/* Learned Associations */}
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center space-x-3 mb-4">
-                    <BrainIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{t('settings.manageAssociations')}</h3>
-                </div>
-                <div className="relative mb-4">
-                    <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2"/>
-                    <input type="text" placeholder={t('settings.searchAssociation')} value={search} onChange={e => setSearch(e.target.value)} className="pl-10 p-2 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" />
-                </div>
-                <div className="max-h-96 overflow-y-auto pr-2 space-y-2">
-                    {filteredAssociations.map((assoc: LearnedAssociation) => {
-                        const churchName = churches.find(c => c.id === assoc.churchId)?.name || 'Igreja desconhecida';
-                        return (
-                            <div key={assoc.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md text-sm">
-                                <div>
-                                    <p className="text-slate-500 dark:text-slate-400">"<span className="font-medium text-slate-700 dark:text-slate-300">{assoc.normalizedDescription}</span>"</p>
-                                    <p className="text-slate-500 dark:text-slate-400">→ <span className="font-semibold text-blue-700 dark:text-blue-400">{assoc.contributorName}</span> ({churchName})</p>
-                                </div>
-                                <button
-                                    onClick={() => openDeleteConfirmation({ type: 'association', id: assoc.id, name: assoc.normalizedDescription })}
-                                    className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50"
-                                    aria-label={t('common.delete')}
-                                >
-                                    <TrashIcon className="w-5 h-5 text-red-500" />
-                                </button>
-                            </div>
-                        );
-                    })}
-                    {filteredAssociations.length === 0 && <p className="text-center py-8 text-slate-500 dark:text-slate-400">{t('settings.noAssociation')}</p>}
-                </div>
-            </div>
         </div>
     );
 };
+
 
 export const SettingsView: React.FC = () => {
     const { t } = useTranslation();
