@@ -18,11 +18,13 @@ img, svg {
   height: auto;
 }
 
-/* Ajuste para Tailwind - evita erro bg-white */
+/* Remova bg-white do CSS e deixe como estilo padrão do body */
 body {
-  @apply bg-white text-slate-900;
+  background-color: #ffffff; /* inline style seguro, não causa erro */
+  color: #0f172a;
 }
 
 .dark body {
-  @apply bg-slate-900 text-slate-100;
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
