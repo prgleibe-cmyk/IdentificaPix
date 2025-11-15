@@ -18,12 +18,11 @@ img, svg {
   height: auto;
 }
 
+/* Ajuste para Tailwind - evita erro bg-white */
 body {
-  background-color: white;
-  color: #0f172a;
+  @apply bg-white text-slate-900;
 }
 
 .dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  @apply bg-slate-900 text-slate-100;
 }
