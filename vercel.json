@@ -1,15 +1,8 @@
 {
   "version": 3,
   "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    }
+    { "src": "index.html", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
   ],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "npm run build",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
