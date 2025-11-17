@@ -3,18 +3,24 @@ import { Contributor, Transaction } from "../types";
 import { Logger, Metrics } from "./monitoringService";
 
 // -------------------------------
-// CORREÇÃO: usar variável exposta pelo Vite no navegador
-// (variáveis precisam começar com VITE_ ou virão como undefined)
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string;
+// CORREÇÃO DEFINITIVA PARA VERCEL
+// -------------------------------
 
-// Validação para evitar tela branca no navegador
+// Em produção no Vercel o import.meta.env às vezes vem vazio
+// por isso aplicamos fallback para window.__ENV__ quando existir.
+const apiKey =
+  import.meta.env.VITE_GEMINI_API_KEY ||
+  (window as any)?.__ENV__?.VITE_GEMINI_API_KEY ||
+  null;
+
 if (!apiKey) {
-  throw new Error(
-    "A API Key não foi encontrada. Verifique se você configurou VITE_GEMINI_API_KEY no arquivo .env.local."
+  console.warn(
+    "⚠ VITE_GEMINI_API_KEY não encontrada. O app carregou, mas a IA não vai funcionar."
   );
+  // NOTA: aqui NÃO damos throw (para não causar tela branca)
 }
 
-const ai = new GoogleGenAI({ apiKey });
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // -------------------------------
 
@@ -22,20 +28,24 @@ export const getAISuggestion = async (
   transaction: Transaction,
   contributors: Contributor[]
 ): Promise<string> => {
+  if (!ai) {
+    return "A IA não está configurada corretamente.";
+  }
+
   const contributorNames = contributors.map((c) => c.name).join(", ");
 
   const prompt = `
     Você é um assistente de conciliação financeira para uma igreja.
-    Dada a seguinte descrição de uma transação PIX e uma lista de contribuintes, identifique o contribuinte mais provável.
-    
+    Dada a seguinte descrição de uma transação PIX e uma lista de contribuintes,
+    identifique o contribuinte mais provável.
+
     Descrição da Transação: "${transaction.description}"
-    
+
     Lista de Contribuintes:
     ${contributorNames}
-    
-    Analise o nome na descrição da transação e encontre a correspondência mais próxima na lista de contribuintes.
-    Responda APENAS com o nome completo do contribuinte da lista que você identificou.
-    Se nenhum contribuinte parecer uma correspondência razoável, responda com "Nenhuma sugestão clara".
+
+    Responda APENAS com o nome completo do contribuinte.
+    Caso não encontre correspondência, responda: "Nenhuma sugestão clara".
   `;
 
   try {
