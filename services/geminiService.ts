@@ -2,7 +2,10 @@ import { GoogleGenAI } from "@google/genai";
 import { Contributor, Transaction } from '../types';
 import { Logger, Metrics } from './monitoringService';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// CORREÇÃO: usar variável exposta pelo Vite no navegador
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string;
+
+const ai = new GoogleGenAI({ apiKey });
 
 export const getAISuggestion = async (
   transaction: Transaction,
