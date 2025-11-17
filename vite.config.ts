@@ -2,7 +2,7 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Arquivo totalmente compatível com TypeScript
+// Arquivo corretíssimo para Vite + TypeScript
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
@@ -13,9 +13,8 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     define: {
-      // As variáveis DEVEM vir como import.meta.env.VITE_*
-      'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
+      // garante acesso via import.meta.env
+      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
     },
     resolve: {
       alias: {
