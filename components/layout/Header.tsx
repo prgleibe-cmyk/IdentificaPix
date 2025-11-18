@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { useUI } from '../../contexts/UIContext';
+import { AppContext } from '../../contexts/AppContext';
 import { 
     LogoIcon, 
     GlobeAltIcon, 
@@ -18,13 +18,13 @@ import {
 import { Navigation } from './Navigation';
 
 export const Header: React.FC = () => {
-    const { theme, toggleTheme } = useUI();
+    const { theme, toggleTheme } = React.useContext(AppContext);
     const { t, setLanguage } = useTranslation();
     const { user, signOut } = useAuth();
     const [isLangMenuOpen, setLangMenuOpen] = useState(false);
 
     return (
-        <header className="bg-blue-700 dark:bg-blue-900 text-white sticky top-0 z-20 print:hidden shadow-md relative overflow-hidden">
+        <header className="bg-gradient-to-tr from-indigo-900 to-slate-950 text-white sticky top-0 z-20 print:hidden shadow-md relative overflow-hidden">
              {/* Background Icon Texture with smaller icons */}
             <div className="absolute inset-0 z-0 pointer-events-none">
                  <SearchIcon className="absolute -top-4 -left-8 w-14 h-14 transform -rotate-12 text-white/10" />

@@ -1,6 +1,5 @@
-import React, { createContext, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
-import { useUI } from './UIContext';
 import { usePersistentState } from '../hooks/usePersistentState';
 import {
     Transaction,
@@ -9,6 +8,8 @@ import {
     Bank,
     Church,
     ContributorFile,
+    ViewType,
+    Theme,
     ChurchFormData,
     DeletingItem,
     ComparisonType,
@@ -25,6 +26,11 @@ import { Logger, Metrics } from '../services/monitoringService';
 import { supabase } from '../services/supabaseClient';
 import { useTranslation } from './I18nContext';
 import { Json, TablesInsert } from '../types/supabase';
+
+// --- Feature Flag ---
+const FEATURE_FLAGS = {
+    useNewReconciliationPipeline: true,
+};
 
 const DEFAULT_IGNORE_KEYWORDS = [
     'DÍZIMOS',
@@ -58,21 +64,25 @@ const groupResultsByChurch = (results: MatchResult[]): GroupedReportData => {
     }, {} as GroupedReportData);
 };
 
-// Helper function to calculate date differences
+// Helper function to calculate date differences, isolated here to avoid circular dependencies
 const daysDifference = (date1: Date, date2: Date): number => {
     const timeDiff = Math.abs(date2.getTime() - date1.getTime());
     return Math.ceil(timeDiff / (1000 * 3600 * 24));
 };
 
 
+// --- Define the shape of the context state and actions ---
 interface AppContextType {
-    // Data State
+    // State
+    theme: Theme;
     banks: Bank[];
     churches: Church[];
     bankStatementFile: { bankId: string, content: string, fileName: string } | null;
     contributorFiles: { churchId: string; content: string; fileName: string }[];
-    matchResults: MatchResult[];
+    matchResults: MatchResult[]; // This will hold INCOME results for the dashboard
     reportPreviewData: { income: GroupedReportData; expenses: GroupedReportData } | null;
+    activeView: ViewType;
+    isLoading: boolean;
     loadingAiId: string | null;
     aiSuggestion: { id: string, name: string } | null;
     similarityLevel: number;
@@ -84,7 +94,9 @@ interface AppContextType {
     manualIdentificationTx: Transaction | null;
     manualMatchState: { record: MatchResult, suggestions: Transaction[] } | null;
     deletingItem: DeletingItem | null;
+    toast: { message: string; type: 'success' | 'error' } | null;
     
+    // NEW STATE for search and saved reports
     savedReports: SavedReport[];
     allHistoricalResults: MatchResult[];
     isSearchFiltersOpen: boolean;
@@ -105,9 +117,10 @@ interface AppContextType {
     };
     allContributorsWithChurch: (Contributor & { church: Church; uniqueId: string })[];
     isCompareDisabled: boolean;
-    hasActiveSession: boolean;
 
     // Actions
+    toggleTheme: () => void;
+    setActiveView: React.Dispatch<React.SetStateAction<ViewType>>;
     setBanks: React.Dispatch<React.SetStateAction<Bank[]>>;
     setChurches: React.Dispatch<React.SetStateAction<Church[]>>;
     setSimilarityLevel: React.Dispatch<React.SetStateAction<number>>;
@@ -152,8 +165,12 @@ interface AppContextType {
     closeDeleteConfirmation: () => void;
     confirmDeletion: () => void;
 
+    // Report Actions
     discardCurrentReport: () => void;
     
+    showToast: (message: string, type?: 'success' | 'error') => void;
+    
+    // NEW ACTIONS
     openSearchFilters: () => void;
     closeSearchFilters: () => void;
     setSearchFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
@@ -172,6 +189,7 @@ interface AppContextType {
     rejectDivergence: (divergentMatch: MatchResult) => void;
 }
 
+// Create the context
 export const AppContext = createContext<AppContextType>(null!);
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
@@ -184,35 +202,27 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
     contributorName: '',
 };
 
+// --- Provider Component ---
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
-    const { t } = useTranslation();
-    // Consume UI Context
-    const { showToast, setIsLoading, setActiveView, activeView } = useUI();
+    const { t, language } = useTranslation();
     
-    // --- Data State (Persisted for Stale-While-Revalidate) ---
-    // Light data: Loaded synchronously
-    const [banks, setBanks] = usePersistentState<Bank[]>('identificapix-banks', []);
-    const [churches, setChurches] = usePersistentState<Church[]>('identificapix-churches', []);
+    // --- State Management ---
+    const [theme, setTheme] = usePersistentState<Theme>('identificapix-theme', 'light');
+    const [banks, setBanks] = useState<Bank[]>([]);
+    const [churches, setChurches] = useState<Church[]>([]);
+    
+    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement', null);
+    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors', []);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results', []);
+    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview', null);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>('identificapix-similarity', 80);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>('identificapix-daytolerance', 2);
-    const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>('identificapix-ignore-keywords', DEFAULT_IGNORE_KEYWORDS);
-    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>('identificapix-search-filters', DEFAULT_SEARCH_FILTERS);
-    
-    // NEW: Lightweight flag to indicate if a session exists, loaded synchronously.
-    // This allows us to show a Skeleton UI while the heavy 'matchResults' are hydrating asynchronously.
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session', false, false);
-
-    // Heavy data: Loaded Asynchronously (isHeavy = true)
-    const [savedReports, setSavedReports] = usePersistentState<SavedReport[]>('identificapix-reports-meta-v2', [], true); // Updated key & made async
-    const [learnedAssociations, setLearnedAssociations] = usePersistentState<LearnedAssociation[]>('identificapix-associations', [], true); // Made async
-    
-    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement', null, true);
-    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors', [], true);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results', [], true);
-    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview', null, true);
-    
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
+    const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>('identificapix-ignore-keywords', DEFAULT_IGNORE_KEYWORDS);
+    
+    const [activeView, setActiveView] = useState<ViewType>('dashboard');
+    const [isLoading, setIsLoading] = useState<boolean>(true); // Start as true to load initial data
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
@@ -222,72 +232,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [divergenceConfirmation, setDivergenceConfirmation] = useState<MatchResult | null>(null);
 
+    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
+    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>('identificapix-search-filters', DEFAULT_SEARCH_FILTERS);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
+    const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
 
 
-    // --- Async State for heavy derived data ---
-    const [summary, setSummary] = useState<AppContextType['summary']>({
-        autoConfirmed: { count: 0, value: 0 },
-        manualConfirmed: { count: 0, value: 0 },
-        pending: { count: 0, value: 0 },
-        identifiedCount: 0,
-        unidentifiedCount: 0,
-        totalValue: 0,
-        valuePerChurch: [],
-    });
-
-    const [allContributorsWithChurch, setAllContributorsWithChurch] = useState<(Contributor & { church: Church; uniqueId: string })[]>([]);
+    // --- Effects ---
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+    }, [theme]);
+    
+    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    }, []);
 
     useEffect(() => {
         if (!user) return;
         const fetchData = async () => {
-            // Check for light data existence (sync) to decide on loading screen.
-            // Since savedReports is now async, it will be empty initially, 
-            // so we rely on banks/churches/hasActiveSession for the "cached" check.
-            const hasCachedData = banks.length > 0 || churches.length > 0 || hasActiveSession;
-            
-            if (!hasCachedData) {
-                setIsLoading(true);
-            }
-            
+            setIsLoading(true);
             const [churchesResult, banksResult, savedReportsResult, learnedAssociationsResult] = await Promise.all([
                 supabase.from('churches').select('*').order('name'),
                 supabase.from('banks').select('*').order('name'),
-                supabase.from('saved_reports').select('id, name, created_at, record_count, user_id').order('created_at', { ascending: false }),
+                supabase.from('saved_reports').select('*').order('created_at', { ascending: false }),
                 supabase.from('learned_associations').select('*'),
             ]);
     
             if (churchesResult.error) {
                 Logger.error('Error fetching churches', churchesResult.error);
-                if (!hasCachedData) showToast('Falha ao carregar os dados das igrejas.', 'error');
+                showToast('Falha ao carregar os dados das igrejas.', 'error');
             } else {
                 setChurches(churchesResult.data as any || []);
             }
     
             if (banksResult.error) {
                 Logger.error('Error fetching banks', banksResult.error);
-                if (!hasCachedData) showToast('Falha ao carregar os dados dos bancos.', 'error');
+                showToast('Falha ao carregar os dados dos bancos.', 'error');
             } else {
                 setBanks(banksResult.data as any || []);
             }
 
             if (savedReportsResult.error) {
                 Logger.error('Error fetching saved reports', savedReportsResult.error);
-                if (!hasCachedData) showToast('Falha ao carregar os relatórios salvos.', 'error');
+                showToast('Falha ao carregar os relatórios salvos.', 'error');
             } else {
                 const mappedReports = (savedReportsResult.data || []).map(report => {
+                    const isOldFormat = Array.isArray(report.data);
+                    let reportData;
+                    if (isOldFormat) {
+                        reportData = { results: report.data as MatchResult[], sourceFiles: [], bankStatementFile: null };
+                    } else {
+                        const data = report.data as { results: MatchResult[]; sourceFiles: SourceFile[]; bankStatementFile?: { bankId: string; content: string; fileName: string } | null };
+                        reportData = {
+                            results: data.results,
+                            sourceFiles: data.sourceFiles,
+                            bankStatementFile: data.bankStatementFile || null,
+                        };
+                    }
+    
                     return {
                         id: report.id,
                         name: report.name,
                         createdAt: report.created_at,
                         recordCount: report.record_count,
+                        data: reportData,
                         user_id: report.user_id,
                     };
                 });
                 setSavedReports(mappedReports as SavedReport[]);
+
+                // If there's no active report session, populate the dashboard with historical data.
+                if (matchResults.length === 0 && mappedReports.length > 0) {
+                    const historicalResults = mappedReports.flatMap(report => report.data.results);
+                    // The dashboard primarily shows income, so we filter for that.
+                    const historicalIncomeResults = historicalResults.filter(r => r.transaction.amount >= 0);
+                    setMatchResults(historicalIncomeResults);
+                }
             }
 
             if (learnedAssociationsResult.error) {
@@ -303,78 +328,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 setLearnedAssociations(associations);
             }
     
-            if (!hasCachedData) {
-                setIsLoading(false);
-            }
+            setIsLoading(false);
         };
     
         fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user]); 
+    }, [user, showToast]);
 
-    // --- Async Calculation Effects ---
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            const results = matchResults;
-            const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
-            const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
-            const pending = results.filter(r => r.status === 'NÃO IDENTIFICADO');
-    
-            const valuePerChurch = new Map<string, number>();
-            results.forEach(r => {
-                if (r.status === 'IDENTIFICADO' && r.church.name !== '---' && r.transaction.amount > 0) {
-                    const current = valuePerChurch.get(r.church.name) || 0;
-                    valuePerChurch.set(r.church.name, current + r.transaction.amount);
-                }
-            });
-    
-            setSummary({
-                autoConfirmed: {
-                    count: autoConfirmed.length,
-                    value: autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0),
-                },
-                manualConfirmed: {
-                    count: manualConfirmed.length,
-                    value: manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0),
-                },
-                pending: {
-                    count: pending.length,
-                    value: pending.reduce((sum, r) => sum + r.transaction.amount, 0),
-                },
-                identifiedCount: autoConfirmed.length + manualConfirmed.length,
-                unidentifiedCount: pending.length,
-                totalValue: results.reduce((sum, r) => sum + r.transaction.amount, 0),
-                valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
-            });
-        }, 10); 
-        return () => clearTimeout(timer);
+    // --- Memoized Derived State ---
+    const summary = useMemo(() => {
+        const results = matchResults;
+        const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
+        const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+        const pending = results.filter(r => r.status === 'NÃO IDENTIFICADO');
+
+        const valuePerChurch = new Map<string, number>();
+        results.forEach(r => {
+            if (r.status === 'IDENTIFICADO' && r.church.name !== '---' && r.transaction.amount > 0) {
+                const current = valuePerChurch.get(r.church.name) || 0;
+                valuePerChurch.set(r.church.name, current + r.transaction.amount);
+            }
+        });
+
+        return {
+            autoConfirmed: {
+                count: autoConfirmed.length,
+                value: autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0),
+            },
+            manualConfirmed: {
+                count: manualConfirmed.length,
+                value: manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0),
+            },
+            pending: {
+                count: pending.length,
+                value: pending.reduce((sum, r) => sum + r.transaction.amount, 0),
+            },
+            identifiedCount: autoConfirmed.length + manualConfirmed.length,
+            unidentifiedCount: pending.length,
+            totalValue: results.reduce((sum, r) => sum + r.transaction.amount, 0),
+            valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
+        };
     }, [matchResults]);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-             const calculated = contributorFiles.flatMap(file => {
-                const church = churches.find(c => c.id === file.churchId);
-                if (!church) return [];
-                const contributors = parseContributors(file.content, customIgnoreKeywords);
-                return contributors.map((contributor, index) => ({
-                    ...contributor,
-                    church,
-                    uniqueId: `${church.id}-${contributor.normalizedName}-${index}`
-                }));
-            });
-            setAllContributorsWithChurch(calculated);
-        }, 10);
-        return () => clearTimeout(timer);
+    const allContributorsWithChurch = useMemo<(Contributor & { church: Church; uniqueId: string })[]>(() => {
+        return contributorFiles.flatMap(file => {
+            const church = churches.find(c => c.id === file.churchId);
+            if (!church) return [];
+            const contributors = parseContributors(file.content, customIgnoreKeywords);
+            return contributors.map((contributor, index) => ({
+                ...contributor,
+                church,
+                uniqueId: `${church.id}-${contributor.normalizedName}-${index}`
+            }));
+        });
     }, [contributorFiles, churches, customIgnoreKeywords]);
-
+    
     const allHistoricalResults = useMemo(() => {
-        return savedReports
-            .filter(r => r.data && r.data.results)
-            .flatMap(report => report.data!.results);
+        return savedReports.flatMap(report => report.data.results);
     }, [savedReports]);
 
     const isCompareDisabled = useMemo(() => !bankStatementFile || contributorFiles.length === 0, [bankStatementFile, contributorFiles]);
 
+    // --- Memoized Actions & Callbacks ---
     
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.contributor?.normalizedName || !matchResult.church?.id || matchResult.church.id === 'unidentified') {
@@ -406,7 +420,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 return [...prev, newAssociation];
             });
         }
-    }, [user, customIgnoreKeywords, setLearnedAssociations]);
+    }, [user, customIgnoreKeywords]);
 
     const clearUploadedFiles = useCallback(() => {
         setBankStatementFile(null);
@@ -427,10 +441,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const clearMatchResults = useCallback(() => {
         setMatchResults([]);
         setReportPreviewData(null);
-        // Also clear session flag
-        setHasActiveSession(false); 
         showToast("Resultados da conciliação foram limpos.", 'success');
-    }, [setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
+    }, [setMatchResults, setReportPreviewData, showToast]);
 
     const resetApplicationData = useCallback(async () => {
         if (!user) return;
@@ -454,12 +466,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setContributorFiles([]);
         setMatchResults([]);
         setReportPreviewData(null);
-        setHasActiveSession(false); // Reset session flag
         setSimilarityLevel(80);
         setDayTolerance(2);
         setCustomIgnoreKeywords(DEFAULT_IGNORE_KEYWORDS);
         showToast("Todos os dados da aplicação foram redefinidos.", 'success');
-    }, [user, setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, setSavedReports, showToast, setChurches, setBanks, setLearnedAssociations]);
+    }, [user, setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, setSavedReports, showToast]);
+
+
+    const toggleTheme = useCallback(() => setTheme(prev => (prev === 'light' ? 'dark' : 'light')), [setTheme]);
 
     const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string) => {
         setBankStatementFile({ bankId, content, fileName });
@@ -477,7 +491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!bankStatementFile) return;
     
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 50)); // Allow UI to update
         Metrics.reset();
         const startTime = performance.now();
         Logger.info('Comparison process started on main thread', { comparisonType });
@@ -524,12 +538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
             setAllTransactions(transactions);
             setReportPreviewData(previewResults);
-            const newResults = comparisonType === 'expenses' ? [] : incomeResultsForDashboard;
-            setMatchResults(newResults);
-            
-            // IMPORTANT: Set flag to true immediately to indicate active data
-            setHasActiveSession(true);
-            
+            setMatchResults(comparisonType === 'expenses' ? [] : incomeResultsForDashboard);
             setActiveView('reports');
     
         } catch (error) {
@@ -545,7 +554,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [
         isCompareDisabled, bankStatementFile, contributorFiles, churches, similarityLevel, 
         dayTolerance, comparisonType, customIgnoreKeywords, showToast, learnedAssociations,
-        setAllTransactions, setReportPreviewData, setMatchResults, setHasActiveSession, setActiveView, setIsLoading
+        setAllTransactions, setReportPreviewData, setMatchResults, setActiveView, setIsLoading
     ]);
     
     const handleBackToSettings = useCallback(() => {
@@ -557,11 +566,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setReportPreviewData(null);
         setBankStatementFile(null);
         setContributorFiles([]);
-        setMatchResults([]); 
-        setHasActiveSession(false); // Clear session flag
+        setMatchResults([]); // Clear current results
         showToast("Sessão descartada. Você pode iniciar uma nova conciliação.", 'success');
         setActiveView('upload');
-    }, [setReportPreviewData, setBankStatementFile, setContributorFiles, setMatchResults, setHasActiveSession, showToast, setActiveView]);
+    }, [setReportPreviewData, setBankStatementFile, setContributorFiles, setMatchResults, showToast, setActiveView]);
 
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
         if (updatedRow.contributor) {
@@ -714,7 +722,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setBanks(prev => [...prev, insertedData as any]);
             showToast('Banco adicionado com sucesso!', 'success');
         }
-    }, [user, showToast, setBanks]);
+    }, [user, showToast]);
 
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
@@ -736,7 +744,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             showToast('Banco atualizado com sucesso!', 'success');
             closeEditBank();
         }
-    }, [showToast, closeEditBank, setBanks]);
+    }, [showToast, closeEditBank]);
     
     const addChurch = useCallback(async (data: ChurchFormData) => {
         if (!data.name.trim() || !user) return;
@@ -761,7 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setChurches(prev => [...prev, insertedData as any]);
             showToast('Igreja adicionada com sucesso!', 'success');
         }
-    }, [user, showToast, setChurches]);
+    }, [user, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
@@ -784,7 +792,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             showToast('Igreja atualizada com sucesso!', 'success');
             closeEditChurch();
         }
-    }, [showToast, closeEditChurch, setChurches]);
+    }, [showToast, closeEditChurch]);
     
     const openManualIdentify = useCallback((transactionId: string) => {
         const resultsSource = reportPreviewData?.income['unidentified'] || matchResults;
@@ -835,6 +843,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const openManualMatchModal = useCallback((recordToMatch: MatchResult) => {
         if (!recordToMatch.contributor) return;
 
+        // Get all transaction IDs that have already been identified
         const matchedTxIds = new Set(
             Object.values(reportPreviewData?.income || {})
                 .flat()
@@ -842,8 +851,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 .map(r => r.transaction.id)
         );
         
+        // The complete list of available transactions from the bank statement
         const availableTransactions = allTransactions.filter(tx => !matchedTxIds.has(tx.id) && tx.amount > 0);
         
+        // --- Scoring logic to sort, not filter ---
         const contributorDate = parseDate(recordToMatch.contributor.date || '');
         const contributorAmount = recordToMatch.contributor.amount;
 
@@ -868,6 +879,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return { tx, score: finalScore };
         });
 
+        // Sort all available transactions by score to show the best matches first
         const sortedSuggestions = scoredSuggestions
             .sort((a, b) => b.score - a.score)
             .map(s => s.tx);
@@ -1051,7 +1063,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 break;
         }
         closeDeleteConfirmation();
-    }, [deletingItem, bankStatementFile, setBankStatementFile, setContributorFiles, setReportPreviewData, setMatchResults, closeDeleteConfirmation, resetApplicationData, clearUploadedFiles, clearMatchResults, showToast, setSavedReports, setBanks, setChurches]);
+    }, [deletingItem, bankStatementFile, setBankStatementFile, setContributorFiles, setReportPreviewData, setMatchResults, closeDeleteConfirmation, resetApplicationData, clearUploadedFiles, clearMatchResults, showToast, setSavedReports]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
@@ -1093,7 +1105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 name: insertedReport.name,
                 createdAt: insertedReport.created_at,
                 recordCount: insertedReport.record_count,
-                data: insertedReport.data as unknown as { results: MatchResult[], sourceFiles: SourceFile[], bankStatementFile?: { bankId: string, content: string, fileName: string } | null },
+                data: insertedReport.data as { results: MatchResult[], sourceFiles: SourceFile[], bankStatementFile?: { bankId: string, content: string, fileName: string } | null },
                 user_id: insertedReport.user_id,
             };
             setSavedReports(prev => [newSavedReport, ...prev]);
@@ -1101,29 +1113,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         
         closeSaveReportModal();
-    }, [savingReportState, user, showToast, closeSaveReportModal, t, contributorFiles, bankStatementFile, setSavedReports]);
+    }, [savingReportState, user, showToast, closeSaveReportModal, t, contributorFiles, bankStatementFile]);
 
-    const viewSavedReport = useCallback(async (reportId: string) => {
-        let report = savedReports.find(r => r.id === reportId);
+    const viewSavedReport = useCallback((reportId: string) => {
+        const report = savedReports.find(r => r.id === reportId);
         if (!report) return;
-
-        // LAZY LOADING: If data is missing, fetch it on demand.
-        if (!report.data) {
-             setIsLoading(true);
-             const { data, error } = await supabase.from('saved_reports').select('data').eq('id', reportId).single();
-             
-             if (error || !data) {
-                 Logger.error('Error loading report data', error);
-                 showToast('Falha ao carregar o conteúdo do relatório.', 'error');
-                 setIsLoading(false);
-                 return;
-             }
-
-             report = { ...report, data: data.data as any };
-             setIsLoading(false);
-        }
-
-        if (!report.data) return; 
 
         const { results, sourceFiles, bankStatementFile } = report.data;
 
@@ -1139,12 +1133,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         setReportPreviewData({ income: incomeGrouped, expenses: expenseGrouped });
         setMatchResults(incomeResults);
-        
-        // IMPORTANT: Set flag to true to indicate we are in an active session
-        setHasActiveSession(true);
-        
         setActiveView('reports');
-    }, [savedReports, setReportPreviewData, setMatchResults, setHasActiveSession, setActiveView, setContributorFiles, setBankStatementFile, setIsLoading, showToast]);
+    }, [savedReports, setReportPreviewData, setMatchResults, setActiveView, setContributorFiles, setBankStatementFile]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         openSaveReportModal({
@@ -1201,13 +1191,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reportPreviewData, updateReportData, setMatchResults, closeDivergenceModal]);
     
     const value = useMemo(() => ({
-        banks, churches, bankStatementFile, contributorFiles, matchResults,
-        loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
-        manualIdentificationTx, deletingItem, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults, activeView,
+        isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
+        manualIdentificationTx, deletingItem, toast, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
         comparisonType, setComparisonType, customIgnoreKeywords,
         savedReports, allHistoricalResults, isSearchFiltersOpen, searchFilters, savingReportState,
-        divergenceConfirmation, learnedAssociations, hasActiveSession, // Expose flag
-        setBanks, setChurches, setSimilarityLevel, setDayTolerance, setMatchResults, setReportPreviewData,
+        divergenceConfirmation, learnedAssociations,
+        toggleTheme, setActiveView, setBanks, setChurches, setSimilarityLevel, setDayTolerance, setMatchResults, setReportPreviewData,
         addIgnoreKeyword, removeIgnoreKeyword,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
         handleCompare, handleAnalyze, updateReportData,
@@ -1216,18 +1206,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
         openManualIdentify, closeManualIdentify, confirmManualIdentification,
         openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
-        handleBackToSettings, manualMatchState,
+        showToast, handleBackToSettings, manualMatchState,
         discardCurrentReport,
         openSearchFilters, closeSearchFilters, setSearchFilters, clearSearchFilters,
         viewSavedReport, saveFilteredReport, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
     }), [
-        banks, churches, bankStatementFile, contributorFiles, matchResults,
-        loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
-        manualIdentificationTx, deletingItem, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
+        theme, banks, churches, bankStatementFile, contributorFiles, matchResults, activeView,
+        isLoading, loadingAiId, aiSuggestion, similarityLevel, dayTolerance, editingBank, editingChurch,
+        manualIdentificationTx, deletingItem, toast, summary, allContributorsWithChurch, isCompareDisabled, reportPreviewData,
         comparisonType, customIgnoreKeywords, savedReports, allHistoricalResults, isSearchFiltersOpen, searchFilters, savingReportState,
-        divergenceConfirmation, learnedAssociations, hasActiveSession,
-        setBanks, setChurches, setSimilarityLevel, setDayTolerance, setMatchResults, setReportPreviewData,
+        divergenceConfirmation, learnedAssociations,
+        toggleTheme, setActiveView, setBanks, setChurches, setSimilarityLevel, setDayTolerance, setMatchResults, setReportPreviewData,
         addIgnoreKeyword, removeIgnoreKeyword,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
         handleCompare, handleAnalyze, updateReportData,
@@ -1236,7 +1226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
         openManualIdentify, closeManualIdentify, confirmManualIdentification,
         openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
-        handleBackToSettings, manualMatchState,
+        showToast, handleBackToSettings, manualMatchState,
         discardCurrentReport,
         openSearchFilters, closeSearchFilters, setSearchFilters, clearSearchFilters,
         viewSavedReport, saveFilteredReport, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
