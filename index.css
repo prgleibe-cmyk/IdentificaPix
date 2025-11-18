@@ -2,7 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Seu CSS original */
+/* ------------------------------
+   CSS adicional otimizado
+------------------------------ */
+
 svg {
   display: inline-block;
   vertical-align: middle;
@@ -13,17 +16,25 @@ svg:not([class*="w-"]) {
   height: 1.5rem;
 }
 
-img, svg {
+img,
+svg {
   max-width: 100%;
   height: auto;
 }
 
 body {
-  background-color: white;
-  color: #0f172a;
+  @apply bg-white text-slate-900;
 }
 
 .dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+  @apply bg-slate-900 text-slate-100;
 }
+
+/* ------------------------------
+   Observações de performance
+------------------------------ */
+/*
+1. Removemos importação via CDN do Tailwind.
+2. Certifique-se de que o arquivo está incluído no entry point do Vite (index.tsx/main.tsx).
+3. Purge do Tailwind será aplicado automaticamente via Vite para remover classes não usadas.
+*/
