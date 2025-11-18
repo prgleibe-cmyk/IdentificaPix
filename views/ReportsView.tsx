@@ -1,5 +1,6 @@
 import React, { useContext, useMemo, useState, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { EmptyState } from '../components/EmptyState';
 import { EditableReportTable } from '../components/reports/EditableReportTable';
@@ -19,8 +20,7 @@ import {
 } from '../components/Icons';
 import { formatCurrency } from '../utils/formatters';
 import { Church, MatchResult, Language } from '../types';
-// Fix: Removed unused import `countRawContributors`
-import { parseContributors, parseDate, filterByUniversalQuery } from '../services/processingService';
+import { parseDate, filterByUniversalQuery } from '../services/processingService';
 
 // Declarations for globally loaded libraries
 declare const XLSX: any;
@@ -67,8 +67,7 @@ const ReportGroup: React.FC<{
 }> = ({ churchId, results, reportType }) => {
     const {
         churches,
-        contributorFiles,
-        customIgnoreKeywords,
+        allContributorsWithChurch,
         updateReportData,
         openDeleteConfirmation,
         openManualIdentify,
@@ -132,69 +131,62 @@ const ReportGroup: React.FC<{
     const isSimpleGroup = reportType === 'expenses' || churchId === 'unidentified';
 
     const summaryMetrics = useMemo(() => {
-        if (isSimpleGroup || !contributorFiles) return null;
+        if (isSimpleGroup) return null;
     
-        const file = contributorFiles.find(f => f.churchId === churchId);
-        if (!file) return null;
+        const churchContributors = allContributorsWithChurch.filter(c => c.church.id === churchId);
+        
+        const totalContributorsInList = churchContributors.length;
+        if (totalContributorsInList === 0) return { auto: { quantity: 0, value: 0, percentage: 0 }, manual: { quantity: 0, value: 0, percentage: 0 }, pending: { quantity: 0, value: 0, percentage: 0 }, total: { quantity: 0, value: 0, percentage: 0 } };
+
+        const totalAmountInList = churchContributors.reduce((sum, c) => sum + (c.amount || 0), 0);
+
+        // Corrected logic for auto vs manual confirmed
+        const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
+        const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+        
+        const autoConfirmedCount = autoConfirmed.length;
+        const manualConfirmedCount = manualConfirmed.length;
+        const totalConfirmedCount = autoConfirmedCount + manualConfirmedCount;
+        
+        const autoConfirmedValue = autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
+        const manualConfirmedValue = manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
+
+        const pendingCount = totalContributorsInList - totalConfirmedCount;
+        
+        const confirmedContributorIds = new Set(
+            results
+                .filter(r => r.status === 'IDENTIFICADO' && r.contributor?.id)
+                .map(r => r.contributor!.id)
+        );
+        
+        const pendingValue = churchContributors
+            .filter(c => c.id && !confirmedContributorIds.has(c.id))
+            .reduce((sum, c) => sum + (c.amount || 0), 0);
+
+        return {
+            auto: {
+                quantity: autoConfirmedCount,
+                value: autoConfirmedValue,
+                percentage: totalContributorsInList > 0 ? (autoConfirmedCount / totalContributorsInList) * 100 : 0,
+            },
+            manual: {
+                quantity: manualConfirmedCount,
+                value: manualConfirmedValue,
+                percentage: totalContributorsInList > 0 ? (manualConfirmedCount / totalContributorsInList) * 100 : 0,
+            },
+            pending: {
+                quantity: pendingCount,
+                value: pendingValue,
+                percentage: totalContributorsInList > 0 ? (pendingCount / totalContributorsInList) * 100 : 0,
+            },
+            total: {
+                quantity: totalContributorsInList,
+                value: totalAmountInList,
+                percentage: 100,
+            }
+        };
     
-        try {
-            const allContributors = parseContributors(file.content, customIgnoreKeywords);
-            const totalContributorsInList = allContributors.length;
-            if (totalContributorsInList === 0) return { auto: { quantity: 0, value: 0, percentage: 0 }, manual: { quantity: 0, value: 0, percentage: 0 }, pending: { quantity: 0, value: 0, percentage: 0 }, total: { quantity: 0, value: 0, percentage: 0 } };
-    
-            const totalAmountInList = allContributors.reduce((sum, c) => sum + (c.amount || 0), 0);
-    
-            // Corrected logic for auto vs manual confirmed
-            const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
-            const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
-            
-            const autoConfirmedCount = autoConfirmed.length;
-            const manualConfirmedCount = manualConfirmed.length;
-            const totalConfirmedCount = autoConfirmedCount + manualConfirmedCount;
-            
-            const autoConfirmedValue = autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
-            const manualConfirmedValue = manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
-    
-            const pendingCount = totalContributorsInList - totalConfirmedCount;
-            
-            const confirmedContributorIds = new Set(
-                results
-                    .filter(r => r.status === 'IDENTIFICADO' && r.contributor?.id)
-                    .map(r => r.contributor!.id)
-            );
-            
-            const pendingValue = allContributors
-                .filter(c => c.id && !confirmedContributorIds.has(c.id))
-                .reduce((sum, c) => sum + (c.amount || 0), 0);
-    
-            return {
-                auto: {
-                    quantity: autoConfirmedCount,
-                    value: autoConfirmedValue,
-                    percentage: totalContributorsInList > 0 ? (autoConfirmedCount / totalContributorsInList) * 100 : 0,
-                },
-                manual: {
-                    quantity: manualConfirmedCount,
-                    value: manualConfirmedValue,
-                    percentage: totalContributorsInList > 0 ? (manualConfirmedCount / totalContributorsInList) * 100 : 0,
-                },
-                pending: {
-                    quantity: pendingCount,
-                    value: pendingValue,
-                    percentage: totalContributorsInList > 0 ? (pendingCount / totalContributorsInList) * 100 : 0,
-                },
-                total: {
-                    quantity: totalContributorsInList,
-                    value: totalAmountInList,
-                    percentage: 100,
-                }
-            };
-    
-        } catch (error) {
-            console.error(`Could not calculate summary for church ${churchId}`, error);
-            return null;
-        }
-    }, [results, isSimpleGroup, contributorFiles, churchId, customIgnoreKeywords]);
+    }, [results, isSimpleGroup, allContributorsWithChurch, churchId]);
     
     // Simple summary logic for expenses and unidentified
     const simpleTotalRecords = results.length;
@@ -492,12 +484,12 @@ const MemoizedReportGroup = memo(ReportGroup);
 
 export const ReportsView: React.FC = () => {
     const { 
-        setActiveView, 
         reportPreviewData, 
         discardCurrentReport,
         churches,
         openSaveReportModal
     } = useContext(AppContext);
+    const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [showSessionBanner, setShowSessionBanner] = useState(true);
 

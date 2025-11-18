@@ -1,5 +1,6 @@
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { EmptyState } from '../components/EmptyState';
 import { DocumentDuplicateIcon, SearchIcon, TrashIcon } from '../components/Icons';
@@ -13,7 +14,8 @@ const formatDate = (isoString: string, language: Language) => {
 };
 
 export const SavedReportsView: React.FC = () => {
-    const { savedReports, viewSavedReport, openDeleteConfirmation, setActiveView } = useContext(AppContext);
+    const { savedReports, viewSavedReport, openDeleteConfirmation } = useContext(AppContext);
+    const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
 

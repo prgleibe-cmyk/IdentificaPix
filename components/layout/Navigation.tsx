@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { AppContext } from '../../contexts/AppContext';
+import React from 'react';
+import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { ViewType } from '../../types';
 import { HomeIcon, SearchIcon, UploadIcon, PlusCircleIcon, ChartBarIcon, Cog6ToothIcon, DocumentDuplicateIcon } from '../Icons';
@@ -21,10 +21,9 @@ const NavItem: React.FC<{ icon: React.ReactNode; label: string; isActive: boolea
 
 // Main Navigation component
 export const Navigation: React.FC = () => {
-    const { activeView, setActiveView } = useContext(AppContext);
+    const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
 
-    // --- Fix: Add 'search' and 'savedReports' to navigation items
     const navItems: { view: ViewType, labelKey: any, icon: React.ReactNode }[] = [
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-5 h-5"/> },
         { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> },

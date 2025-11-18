@@ -1,5 +1,6 @@
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
@@ -72,13 +73,50 @@ const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
     );
 };
 
-export const DashboardView: React.FC = () => {
-    const {
-        summary,
-        setActiveView,
-        matchResults,
-    } = useContext(AppContext);
+const DashboardSkeleton = () => (
+    <div className="animate-pulse space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 h-32">
+                    <div className="flex items-center space-x-3 mb-4">
+                        <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
+                    </div>
+                    <div className="flex justify-between items-end mt-4">
+                         <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-12"></div>
+                         <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-20"></div>
+                    </div>
+                </div>
+            ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 h-64">
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-40 mb-6"></div>
+                <div className="flex items-center justify-center h-40">
+                     <div className="w-32 h-32 rounded-full border-8 border-slate-200 dark:border-slate-700"></div>
+                </div>
+            </div>
+            <div className="lg:col-span-3 bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 h-64">
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-40 mb-6"></div>
+                <div className="space-y-4">
+                    {[1, 2, 3].map(i => (
+                        <div key={i}>
+                            <div className="flex justify-between mb-1">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24"></div>
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-16"></div>
+                            </div>
+                            <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    </div>
+);
 
+export const DashboardView: React.FC = () => {
+    const { summary, matchResults, hasActiveSession } = useContext(AppContext);
+    const { setActiveView } = useUI();
     const { t, language } = useTranslation();
 
     const identificationRate = useMemo(() => {
@@ -117,6 +155,12 @@ export const DashboardView: React.FC = () => {
     const progressOffset = circumference - (identificationRate / 100) * circumference;
 
     if (matchResults.length === 0) {
+        // New Logic: If we have a flagged active session, but no results yet, it means
+        // the heavy results are hydrating asynchronously. Show skeleton.
+        if (hasActiveSession) {
+            return <DashboardSkeleton />;
+        }
+
         return (
             <EmptyState
                 icon={<UploadIcon className="w-8 h-8 text-blue-700 dark:text-blue-400" />}

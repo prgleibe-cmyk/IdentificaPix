@@ -488,7 +488,7 @@ export const parseBankStatement = (content: string, customIgnoreKeywords: string
         .filter(t => t.amount !== 0 && !isNaN(t.amount)) // Filter out zero or invalid amounts
         .map((t, index) => ({ 
             ...t, 
-            id: `tx-${Date.now()}-${index}`,
+            id: `tx-${index}`, // Deterministic ID
             cleanedDescription: cleanTransactionDescriptionForDisplay(t.description, customIgnoreKeywords),
         }));
 };
@@ -581,7 +581,7 @@ export const parseContributors = (content: string, customIgnoreKeywords: string[
         .filter(c => c.name)
         .map((c, index) => ({
             ...c,
-            id: `contrib-${Date.now()}-${index}`,
+            id: `contrib-${index}`, // Deterministic ID
             cleanedName: cleanTransactionDescriptionForDisplay(c.name, finalKeywords),
             normalizedName: normalizeString(c.name, finalKeywords),
         }));
@@ -875,9 +875,39 @@ export const matchTransactions = (
     const availableTransactions = transactions.filter(t => !matchedTransactionIds.has(t.id));
     const availableContributors = allContributors.filter(c => c.id! && !matchedContributorIds.has(c.id!));
 
+    // OPTIMIZATION: Pre-calculate word sets for all available contributors
+    // This avoids repeating string normalization and splitting inside the nested loop (O(N*M)).
+    const contributorWordSets = availableContributors.map(c => {
+        const normalizedName = c.normalizedName || normalizeString(c.name, customIgnoreKeywords);
+        const words = new Set(normalizedName.split(' ').filter(w => w.length > 0));
+        return { id: c.id, contributor: c, words };
+    });
+
     for (const transaction of availableTransactions) {
-        for (const contributor of availableContributors) {
-            const nameScore = calculateNameSimilarity(transaction.description, contributor, customIgnoreKeywords);
+        // Pre-calculate transaction word set for the current transaction
+        const txNormalized = normalizeString(transaction.description, customIgnoreKeywords);
+        const txWords = new Set(txNormalized.split(' ').filter(w => w.length > 0));
+
+        if (txWords.size === 0) continue;
+
+        for (const { contributor, words: contributorWords } of contributorWordSets) {
+            
+            if (contributorWords.size === 0) continue;
+
+            // Optimized Dice Coefficient Calculation using pre-calculated sets
+            let intersectionSize = 0;
+            // Iterate over the smaller set for performance
+            if (txWords.size < contributorWords.size) {
+                for (const word of txWords) {
+                    if (contributorWords.has(word)) intersectionSize++;
+                }
+            } else {
+                for (const word of contributorWords) {
+                    if (txWords.has(word)) intersectionSize++;
+                }
+            }
+
+            const nameScore = (2 * intersectionSize) / (txWords.size + contributorWords.size) * 100;
             
             if (nameScore >= options.similarityThreshold) {
                 const txDate = parseDate(transaction.date);

@@ -1,5 +1,6 @@
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { SettingsTab, Language } from '../types';
 import { 
@@ -23,7 +24,8 @@ const TabButton: React.FC<{ label: string, isActive: boolean, onClick: () => voi
 );
 
 const PreferencesTab: React.FC = () => {
-    const { theme, toggleTheme, openDeleteConfirmation } = useContext(AppContext);
+    const { openDeleteConfirmation } = useContext(AppContext);
+    const { theme, toggleTheme } = useUI();
     const { t, language, setLanguage } = useTranslation();
 
     const handleLanguageChange = (lang: Language) => {
