@@ -1,5 +1,6 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { ResultsTable } from '../components/ResultsTable';
 import { EmptyState } from '../components/EmptyState';
@@ -14,12 +15,12 @@ export const SearchView: React.FC = () => {
         allHistoricalResults, 
         openManualIdentify, 
         loadingAiId, 
-        setActiveView,
         searchFilters,
         openSearchFilters,
         saveFilteredReport,
     } = useContext(AppContext);
     
+    const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [query, setQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
