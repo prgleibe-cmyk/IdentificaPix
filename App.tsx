@@ -4,6 +4,7 @@ import React from 'react';
 import { AppProvider, AppContext } from './contexts/AppContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { I18nProvider } from './contexts/I18nContext';
+import { UIProvider, useUI } from './contexts/UIContext';
 
 // --- Layout & Shared Components ---
 import { Header } from './components/layout/Header';
@@ -57,8 +58,8 @@ const Background = () => {
                     
                     {/* Dark Mode Definitions */}
                     <radialGradient id="dark-grad" cx="50%" cy="30%" r="80%" fx="50%" fy="30%">
-                        <stop offset="0%" stopColor="#172554" /> {/* blue-950 */}
-                        <stop offset="100%" stopColor="#020617" /> {/* slate-950 */}
+                        <stop offset="0%" stopColor="#1e3a8a" /> {/* blue-900 */}
+                        <stop offset="100%" stopColor="#0f172a" /> {/* slate-900 */}
                     </radialGradient>
                     <linearGradient id="grid-lines-dark" x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stopColor="rgba(59, 130, 246, 0.2)" /> {/* blue-500 */}
@@ -111,6 +112,9 @@ function MainApp() {
         activeView, 
         isLoading, 
         toast,
+    } = useUI();
+    
+    const {
         editingBank, 
         editingChurch, 
         manualIdentificationTx,
@@ -198,9 +202,11 @@ const AppController: React.FC = () => {
     }
 
     return (
-        <AppProvider>
-            <MainApp />
-        </AppProvider>
+        <UIProvider>
+            <AppProvider>
+                <MainApp />
+            </AppProvider>
+        </UIProvider>
     );
 }
 
