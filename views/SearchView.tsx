@@ -37,7 +37,8 @@ export const SearchView: React.FC = () => {
     }, [searchFilters]);
 
     const filteredResults = useMemo(() => {
-        let results = [...allHistoricalResults];
+        // Start by filtering out soft-deleted items
+        let results = allHistoricalResults.filter(r => !r.isDeleted);
 
         // 1. Apply advanced filters from the modal
         // Transaction Type
