@@ -127,7 +127,7 @@ export const DashboardView: React.FC = () => {
     const pieChartData = useMemo(() => {
         const methodCounts: Record<MatchMethod, number> = { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 };
         
-        matchResults.forEach(result => {
+        matchResults.filter(r => !r.isDeleted).forEach(result => {
             if (result.status === 'IDENTIFICADO') {
                 const method = result.matchMethod || 'AUTOMATIC';
                 if(method in methodCounts) {
