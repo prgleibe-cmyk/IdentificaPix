@@ -55,7 +55,7 @@ export interface SavedReport {
     name: string;
     createdAt: string;
     recordCount: number;
-    data: {
+    data?: {
         results: MatchResult[];
         sourceFiles: SourceFile[];
         bankStatementFile?: { bankId: string, content: string, fileName: string } | null;
@@ -80,6 +80,7 @@ export interface MatchResult {
     expectedChurch: Church;
     actualChurch: Church;
   };
+  isDeleted?: boolean;
 }
 
 // --- Application UI State Types ---
