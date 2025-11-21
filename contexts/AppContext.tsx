@@ -315,7 +315,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // --- Async Calculation Effects ---
     useEffect(() => {
         const timer = setTimeout(() => {
-            const results = matchResults;
+            // Ignore deleted results for dashboard summary
+            const results = matchResults.filter(r => !r.isDeleted);
+            
             const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
             const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
             const pending = results.filter(r => r.status === 'NÃO IDENTIFICADO');
@@ -838,7 +840,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const matchedTxIds = new Set(
             Object.values(reportPreviewData?.income || {})
                 .flat()
-                .filter(r => r.status === 'IDENTIFICADO' && !r.transaction.id.startsWith('pending-'))
+                .filter(r => r.status === 'IDENTIFICADO' && !r.transaction.id.startsWith('pending-') && !r.isDeleted)
                 .map(r => r.transaction.id)
         );
         
@@ -1008,27 +1010,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
                 break;
             case 'report-row':
+                // Soft delete logic: mark as deleted instead of removing
                 setReportPreviewData(prev => {
                     if (!prev) return null;
                     const newPreview = { income: { ...prev.income }, expenses: { ...prev.expenses } };
 
-                    // Search and remove from income
+                    // Search and mark as deleted in income
                     for (const churchId in newPreview.income) {
-                        newPreview.income[churchId] = newPreview.income[churchId].filter(
-                            r => r.transaction.id !== deletingItem.id
+                        newPreview.income[churchId] = newPreview.income[churchId].map(
+                            r => r.transaction.id === deletingItem.id ? { ...r, isDeleted: true } : r
                         );
                     }
 
-                    // Search and remove from expenses
+                    // Search and mark as deleted in expenses
                     for (const groupId in newPreview.expenses) {
-                        newPreview.expenses[groupId] = newPreview.expenses[groupId].filter(
-                            r => r.transaction.id !== deletingItem.id
+                        newPreview.expenses[groupId] = newPreview.expenses[groupId].map(
+                            r => r.transaction.id === deletingItem.id ? { ...r, isDeleted: true } : r
                         );
                     }
                     return newPreview;
                 });
-                setMatchResults(prev => prev.filter(r => r.transaction.id !== deletingItem.id));
-                showToast('Linha do relatório excluída com sucesso!', 'success');
+                // Also update matchResults for consistency
+                setMatchResults(prev => prev.map(r => r.transaction.id === deletingItem.id ? { ...r, isDeleted: true } : r));
+                showToast('Linha excluída do relatório.', 'success');
                 break;
             case 'uploaded-files':
                 clearUploadedFiles();
