@@ -24,9 +24,9 @@ export const Header: React.FC = () => {
     const [isLangMenuOpen, setLangMenuOpen] = useState(false);
 
     return (
-        <header className="bg-blue-700 dark:bg-blue-900 text-white sticky top-0 z-20 print:hidden shadow-md relative overflow-hidden">
-             {/* Background Icon Texture with smaller icons */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
+        <header className="bg-blue-700 dark:bg-blue-900 text-white sticky top-0 z-20 print:hidden shadow-md relative">
+             {/* Background Icon Texture with smaller icons - overflow hidden moved here */}
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                  <SearchIcon className="absolute -top-4 -left-8 w-14 h-14 transform -rotate-12 text-white/10" />
                  <ArrowsRightLeftIcon className="absolute -bottom-12 right-2 w-20 h-20 transform rotate-6 text-white/10" />
                  <DollarSignIcon className="absolute top-1/2 left-1/4 w-10 h-10 transform -translate-y-1/2 rotate-12 text-white/10" />
@@ -53,10 +53,10 @@ export const Header: React.FC = () => {
                                 <GlobeAltIcon className="w-6 h-6" />
                             </button>
                             {isLangMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-36 bg-slate-800/80 backdrop-blur-sm rounded-md shadow-lg z-10 border border-white/10" onMouseLeave={() => setLangMenuOpen(false)}>
-                                    <button type="button" onClick={() => { setLanguage('pt'); setLangMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer">🇧🇷 Português</button>
+                                <div className="absolute right-0 mt-2 w-36 bg-slate-800/95 backdrop-blur-md rounded-md shadow-xl z-50 border border-white/10" onMouseLeave={() => setLangMenuOpen(false)}>
+                                    <button type="button" onClick={() => { setLanguage('pt'); setLangMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer first:rounded-t-md">🇧🇷 Português</button>
                                     <button type="button" onClick={() => { setLanguage('en'); setLangMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer">🇺🇸 English</button>
-                                    <button type="button" onClick={() => { setLanguage('es'); setLangMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer">🇪🇸 Español</button>
+                                    <button type="button" onClick={() => { setLanguage('es'); setLangMenuOpen(false); }} className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-slate-200 hover:bg-white/10 cursor-pointer last:rounded-b-md">🇪🇸 Español</button>
                                 </div>
                             )}
                         </div>
