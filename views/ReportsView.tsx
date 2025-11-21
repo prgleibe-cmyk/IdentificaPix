@@ -80,11 +80,12 @@ const ReportGroup: React.FC<{
     const [isCollapsed, setIsCollapsed] = useState(true);
 
     const processedResults = useMemo(() => {
-        let filteredData = [...results];
+        // FILTER OUT DELETED ITEMS FROM THE TABLE VIEW
+        let filteredData = results.filter(r => !r.isDeleted);
 
         // --- Filtering ---
         if (searchQuery.trim()) {
-            filteredData = results.filter(r => filterByUniversalQuery(r, searchQuery));
+            filteredData = filteredData.filter(r => filterByUniversalQuery(r, searchQuery));
         }
 
         // --- Sorting ---
@@ -128,69 +129,95 @@ const ReportGroup: React.FC<{
     };
 
     const isUnidentifiedIncome = reportType === 'income' && churchId === 'unidentified';
-    const isSimpleGroup = reportType === 'expenses' || churchId === 'unidentified';
 
     const summaryMetrics = useMemo(() => {
-        if (isSimpleGroup) return null;
-    
-        const churchContributors = allContributorsWithChurch.filter(c => c.church.id === churchId);
+        // Metrics should calculate ALL items, including active and deleted,
+        // to show a complete picture of what happened.
         
-        const totalContributorsInList = churchContributors.length;
-        if (totalContributorsInList === 0) return { auto: { quantity: 0, value: 0, percentage: 0 }, manual: { quantity: 0, value: 0, percentage: 0 }, pending: { quantity: 0, value: 0, percentage: 0 }, total: { quantity: 0, value: 0, percentage: 0 } };
+        let totalQuantity = 0;
+        let totalValue = 0;
+        let pendingCount = 0;
+        let pendingValue = 0;
+        let deletedCount = 0;
+        let deletedValue = 0;
 
-        const totalAmountInList = churchContributors.reduce((sum, c) => sum + (c.amount || 0), 0);
+        // Count deleted items within this results group
+        const deletedItems = results.filter(r => r.isDeleted);
+        deletedCount = deletedItems.length;
+        deletedValue = deletedItems.reduce((sum, r) => sum + r.transaction.amount, 0);
 
-        // Corrected logic for auto vs manual confirmed
-        const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
-        const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
-        
-        const autoConfirmedCount = autoConfirmed.length;
-        const manualConfirmedCount = manualConfirmed.length;
-        const totalConfirmedCount = autoConfirmedCount + manualConfirmedCount;
-        
-        const autoConfirmedValue = autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
-        const manualConfirmedValue = manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
+        // Filter active items for other calculations
+        const activeResults = results.filter(r => !r.isDeleted);
 
-        const pendingCount = totalContributorsInList - totalConfirmedCount;
+        // Case A: Standard Church Report (Income) - Baseline is the expected contributors list
+        if (reportType === 'income' && churchId !== 'unidentified') {
+            const churchContributors = allContributorsWithChurch.filter(c => c.church.id === churchId);
+            // Total expected comes from the original contributor list
+            totalQuantity = churchContributors.length;
+            totalValue = churchContributors.reduce((sum, c) => sum + (c.amount || 0), 0);
+            
+            // Calculate confirmed from active results that match this church
+            const confirmedContributorIds = new Set(
+                activeResults
+                    .filter(r => r.status === 'IDENTIFICADO' && r.contributor?.id)
+                    .map(r => r.contributor!.id)
+            );
+            
+            // Pending are contributors NOT in the confirmed set
+            const pendingContributors = churchContributors.filter(c => c.id && !confirmedContributorIds.has(c.id));
+            pendingCount = pendingContributors.length;
+            pendingValue = pendingContributors.reduce((sum, c) => sum + (c.amount || 0), 0);
+        } 
+        // Case B: Unidentified or Expenses - Baseline is the transactions present in this group (Active + Deleted)
+        else {
+            totalQuantity = results.length; // Count both active and deleted
+            totalValue = results.reduce((sum, r) => sum + r.transaction.amount, 0);
+            
+            const pendingItems = activeResults.filter(r => r.status === 'NÃO IDENTIFICADO');
+            pendingCount = pendingItems.length;
+            pendingValue = pendingItems.reduce((sum, r) => sum + r.transaction.amount, 0);
+        }
+
+        if (totalQuantity === 0) return null;
+
+        const autoConfirmed = activeResults.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
+        const manualConfirmed = activeResults.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+
+        const autoQuantity = autoConfirmed.length;
+        const autoValue = autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
         
-        const confirmedContributorIds = new Set(
-            results
-                .filter(r => r.status === 'IDENTIFICADO' && r.contributor?.id)
-                .map(r => r.contributor!.id)
-        );
-        
-        const pendingValue = churchContributors
-            .filter(c => c.id && !confirmedContributorIds.has(c.id))
-            .reduce((sum, c) => sum + (c.amount || 0), 0);
+        const manualQuantity = manualConfirmed.length;
+        const manualValue = manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
 
         return {
             auto: {
-                quantity: autoConfirmedCount,
-                value: autoConfirmedValue,
-                percentage: totalContributorsInList > 0 ? (autoConfirmedCount / totalContributorsInList) * 100 : 0,
+                quantity: autoQuantity,
+                value: autoValue,
+                percentage: totalQuantity > 0 ? (autoQuantity / totalQuantity) * 100 : 0,
             },
             manual: {
-                quantity: manualConfirmedCount,
-                value: manualConfirmedValue,
-                percentage: totalContributorsInList > 0 ? (manualConfirmedCount / totalContributorsInList) * 100 : 0,
+                quantity: manualQuantity,
+                value: manualValue,
+                percentage: totalQuantity > 0 ? (manualQuantity / totalQuantity) * 100 : 0,
             },
             pending: {
                 quantity: pendingCount,
                 value: pendingValue,
-                percentage: totalContributorsInList > 0 ? (pendingCount / totalContributorsInList) * 100 : 0,
+                percentage: totalQuantity > 0 ? (pendingCount / totalQuantity) * 100 : 0,
+            },
+            deleted: {
+                quantity: deletedCount,
+                value: deletedValue,
+                percentage: totalQuantity > 0 ? (deletedCount / totalQuantity) * 100 : 0,
             },
             total: {
-                quantity: totalContributorsInList,
-                value: totalAmountInList,
+                quantity: totalQuantity,
+                value: totalValue,
                 percentage: 100,
             }
         };
+    }, [results, reportType, churchId, allContributorsWithChurch]);
     
-    }, [results, isSimpleGroup, allContributorsWithChurch, churchId]);
-    
-    // Simple summary logic for expenses and unidentified
-    const simpleTotalRecords = results.length;
-    const simpleTotalValue = results.reduce((sum, r) => sum + r.transaction.amount, 0);
 
     const getGroupName = (id: string): string => {
         if (id === 'unidentified') return t('reports.unidentifiedGroupTitle');
@@ -204,7 +231,11 @@ const ReportGroup: React.FC<{
         format: 'xlsx' | 'pdf',
         groupData?: { groupName: string; results: MatchResult[]; reportType: 'income' | 'expenses' }
     ) => {
-        const dataToExport = groupData ? [groupData] : [{ groupName, results: processedResults, reportType }];
+        // Filter deleted items before downloading
+        const activeResults = processedResults.filter(r => !r.isDeleted);
+        const dataToExport = groupData 
+            ? [{ ...groupData, results: activeResults }] 
+            : [{ groupName, results: activeResults, reportType }];
     
         if (format === 'xlsx') {
             const wb = XLSX.utils.book_new();
@@ -360,6 +391,17 @@ const ReportGroup: React.FC<{
                                                             <><SparklesIcon className="w-4 h-4 mr-2" />{t('table.actions.ai')}</>
                                                         )}
                                                     </button>
+                                                    <button 
+                                                        onClick={() => openDeleteConfirmation({ 
+                                                            type: 'report-row', 
+                                                            id: result.transaction.id, 
+                                                            name: `a linha "${result.transaction.cleanedDescription || result.transaction.description}"` 
+                                                        })}
+                                                        className="p-2 rounded-md text-red-600 hover:bg-red-100 dark:text-red-500 dark:hover:bg-slate-700 transition-colors"
+                                                        title={t('common.delete')}
+                                                    >
+                                                        <TrashIcon className="w-5 h-5 stroke-current" />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -372,10 +414,50 @@ const ReportGroup: React.FC<{
                         </div>
 
                         <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg">
-                            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-base">
-                                <div className="flex flex-col"><dt className="text-slate-500 dark:text-slate-400 font-medium">{t('reports.summary.total')}</dt><dd className="text-slate-900 dark:text-slate-100 font-semibold">{results.length}</dd></div>
-                                <div className="flex flex-col"><dt className="text-slate-500 dark:text-slate-400 font-medium">{t('reports.summary.totalValue')}</dt><dd className="text-slate-900 dark:text-slate-100 font-semibold">{formatCurrency(simpleTotalValue, language)}</dd></div>
-                            </dl>
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">{t('reports.summary.title')}</h4>
+                            {summaryMetrics && (
+                                <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-6 print-summary-grid">
+                                    <SummaryStat
+                                        title={t('reports.summary.autoConfirmed')}
+                                        quantity={summaryMetrics.auto.quantity}
+                                        value={summaryMetrics.auto.value}
+                                        percentage={summaryMetrics.auto.percentage}
+                                        language={language}
+                                        colorClass="text-green-500 dark:text-green-400"
+                                    />
+                                    <SummaryStat
+                                        title={t('reports.summary.manualConfirmed')}
+                                        quantity={summaryMetrics.manual.quantity}
+                                        value={summaryMetrics.manual.value}
+                                        percentage={summaryMetrics.manual.percentage}
+                                        language={language}
+                                        colorClass="text-blue-500 dark:text-blue-400"
+                                    />
+                                    <SummaryStat
+                                        title={t('reports.summary.unidentifiedPending')}
+                                        quantity={summaryMetrics.pending.quantity}
+                                        value={summaryMetrics.pending.value}
+                                        percentage={summaryMetrics.pending.percentage}
+                                        language={language}
+                                        colorClass="text-yellow-500 dark:text-yellow-400"
+                                    />
+                                    <SummaryStat
+                                        title={t('reports.summary.deleted')}
+                                        quantity={summaryMetrics.deleted.quantity}
+                                        value={summaryMetrics.deleted.value}
+                                        percentage={summaryMetrics.deleted.percentage}
+                                        language={language}
+                                        colorClass="text-red-500 dark:text-red-400"
+                                    />
+                                    <SummaryStat
+                                        title={t('reports.summary.total')}
+                                        quantity={summaryMetrics.total.quantity}
+                                        value={summaryMetrics.total.value}
+                                        percentage={summaryMetrics.total.percentage}
+                                        language={language}
+                                    />
+                                </dl>
+                            )}
                         </div>
                     </>
                     )}
@@ -394,7 +476,7 @@ const ReportGroup: React.FC<{
                         <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{groupName}</h3>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                         <button onClick={() => handleDownload('xlsx', { groupName, results, reportType })} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                         <button onClick={() => handleDownload('xlsx', { groupName, results: processedResults, reportType })} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                             <DocumentArrowDownIcon className="w-4 h-4"/> Baixar
                         </button>
                          <button onClick={() => (window as any).handleUniversalPrint(churchId)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
@@ -432,13 +514,8 @@ const ReportGroup: React.FC<{
                     
                     <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-lg">
                         <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">{t('reports.summary.title')}</h4>
-                        {isSimpleGroup ? (
-                             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-base">
-                                <div className="flex flex-col"><dt className="text-slate-500 dark:text-slate-400 font-medium">{t('reports.summary.total')}</dt><dd className="text-slate-900 dark:text-slate-100 font-semibold">{simpleTotalRecords}</dd></div>
-                                <div className="flex flex-col"><dt className="text-slate-500 dark:text-slate-400 font-medium">{t('reports.summary.totalValue')}</dt><dd className="text-slate-900 dark:text-slate-100 font-semibold">{formatCurrency(simpleTotalValue, language)}</dd></div>
-                            </dl>
-                        ) : summaryMetrics ? (
-                            <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-6 print-summary-grid">
+                        {summaryMetrics && (
+                            <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-6 print-summary-grid">
                                 <SummaryStat
                                     title={t('reports.summary.autoConfirmed')}
                                     quantity={summaryMetrics.auto.quantity}
@@ -464,6 +541,14 @@ const ReportGroup: React.FC<{
                                     colorClass="text-yellow-500 dark:text-yellow-400"
                                 />
                                 <SummaryStat
+                                    title={t('reports.summary.deleted')}
+                                    quantity={summaryMetrics.deleted.quantity}
+                                    value={summaryMetrics.deleted.value}
+                                    percentage={summaryMetrics.deleted.percentage}
+                                    language={language}
+                                    colorClass="text-red-500 dark:text-red-400"
+                                />
+                                <SummaryStat
                                     title={t('reports.summary.total')}
                                     quantity={summaryMetrics.total.quantity}
                                     value={summaryMetrics.total.value}
@@ -471,7 +556,7 @@ const ReportGroup: React.FC<{
                                     language={language}
                                 />
                             </dl>
-                        ) : null}
+                        )}
                     </div>
                 </>
                 )}
@@ -709,8 +794,8 @@ export const ReportsView: React.FC = () => {
     const incomeGroups = reportPreviewData?.income ? Object.entries(reportPreviewData.income) : [];
     const expenseGroups = reportPreviewData?.expenses ? Object.entries(reportPreviewData.expenses) : [];
 
-    const hasIncomeData = incomeGroups.some(([, results]) => (results as MatchResult[]).length > 0);
-    const hasExpenseData = expenseGroups.some(([, results]) => (results as MatchResult[]).length > 0);
+    const hasIncomeData = incomeGroups.some(([, results]) => (results as MatchResult[]).filter(r => !r.isDeleted).length > 0);
+    const hasExpenseData = expenseGroups.some(([, results]) => (results as MatchResult[]).filter(r => !r.isDeleted).length > 0);
     
     const sortGroups = (a: [string, MatchResult[]], b: [string, MatchResult[]]) => {
         if (a[0] === 'unidentified') return 1;
@@ -720,13 +805,15 @@ export const ReportsView: React.FC = () => {
 
     const handleSaveReport = () => {
         if (!reportPreviewData) return;
+        // When saving the report, we also exclude deleted items so they don't persist in saved history
         const allResults = [
             ...Object.values(reportPreviewData.income).flat(),
             ...Object.values(reportPreviewData.expenses).flat()
-        ];
+        ].filter((r: any) => !r.isDeleted);
+        
         openSaveReportModal({
             type: 'global',
-            results: allResults,
+            results: allResults as MatchResult[],
         });
     };
 
@@ -757,8 +844,9 @@ export const ReportsView: React.FC = () => {
     }
 
     const handleGlobalDownload = (format: 'xlsx' | 'pdf') => {
-        const incomeResults = (reportPreviewData?.income ? Object.values(reportPreviewData.income) : []).flat();
-        const expenseResults = (reportPreviewData?.expenses ? Object.values(reportPreviewData.expenses) : []).flat();
+        // Filter out deleted items for global download
+        const incomeResults = (reportPreviewData?.income ? Object.values(reportPreviewData.income) : []).flat().filter((r: any) => !r.isDeleted) as MatchResult[];
+        const expenseResults = (reportPreviewData?.expenses ? Object.values(reportPreviewData.expenses) : []).flat().filter((r: any) => !r.isDeleted) as MatchResult[];
         
         if (format === 'xlsx') {
             const wb = XLSX.utils.book_new();
@@ -859,7 +947,7 @@ export const ReportsView: React.FC = () => {
                     </div>
                 )}
                 {incomeGroups.sort(sortGroups).map(([churchId, results]) => (
-                    (results as MatchResult[]).length > 0 && <MemoizedReportGroup key={`income-${churchId}`} churchId={churchId} results={results as MatchResult[]} reportType="income" />
+                    (results as MatchResult[]).filter(r => !r.isDeleted).length > 0 && <MemoizedReportGroup key={`income-${churchId}`} churchId={churchId} results={results as MatchResult[]} reportType="income" />
                 ))}
 
                 {hasExpenseData && (
@@ -868,7 +956,7 @@ export const ReportsView: React.FC = () => {
                     </div>
                 )}
                 {expenseGroups.map(([churchId, results]) => (
-                    (results as MatchResult[]).length > 0 && <MemoizedReportGroup key={`expense-${churchId}`} churchId={churchId} results={results as MatchResult[]} reportType="expenses" />
+                    (results as MatchResult[]).filter(r => !r.isDeleted).length > 0 && <MemoizedReportGroup key={`expense-${churchId}`} churchId={churchId} results={results as MatchResult[]} reportType="expenses" />
                 ))}
             </div>
 
