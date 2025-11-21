@@ -102,6 +102,7 @@ interface AppContextType {
         unidentifiedCount: number;
         totalValue: number;
         valuePerChurch: [string, number][];
+        methodCounts?: Record<string, number>;
     };
     allContributorsWithChurch: (Contributor & { church: Church; uniqueId: string })[];
     isCompareDisabled: boolean;
@@ -184,6 +185,17 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
     contributorName: '',
 };
 
+const INITIAL_SUMMARY = {
+    autoConfirmed: { count: 0, value: 0 },
+    manualConfirmed: { count: 0, value: 0 },
+    pending: { count: 0, value: 0 },
+    identifiedCount: 0,
+    unidentifiedCount: 0,
+    totalValue: 0,
+    valuePerChurch: [],
+    methodCounts: { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 },
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
     const { t } = useTranslation();
@@ -204,8 +216,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session', false, false);
 
     // Heavy data: Loaded Asynchronously (isHeavy = true)
-    const [savedReports, setSavedReports] = usePersistentState<SavedReport[]>('identificapix-reports-meta-v2', [], true); // Updated key & made async
-    const [learnedAssociations, setLearnedAssociations] = usePersistentState<LearnedAssociation[]>('identificapix-associations', [], true); // Made async
+    const [savedReports, setSavedReports] = usePersistentState<SavedReport[]>('identificapix-reports-meta-v2', [], true); 
+    const [learnedAssociations, setLearnedAssociations] = usePersistentState<LearnedAssociation[]>('identificapix-associations', [], true); 
     
     const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement', null, true);
     const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors', [], true);
@@ -226,18 +238,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
+    
+    // Flag to track when initial fetch is actually complete
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
 
     // --- Async State for heavy derived data ---
-    const [summary, setSummary] = useState<AppContextType['summary']>({
-        autoConfirmed: { count: 0, value: 0 },
-        manualConfirmed: { count: 0, value: 0 },
-        pending: { count: 0, value: 0 },
-        identifiedCount: 0,
-        unidentifiedCount: 0,
-        totalValue: 0,
-        valuePerChurch: [],
-    });
+    // Persist summary state for instant dashboard loading
+    const [summary, setSummary] = usePersistentState<AppContextType['summary']>('identificapix-summary-v2', INITIAL_SUMMARY);
 
     const [allContributorsWithChurch, setAllContributorsWithChurch] = useState<(Contributor & { church: Church; uniqueId: string })[]>([]);
 
@@ -245,15 +253,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!user) return;
         const fetchData = async () => {
             // Check for light data existence (sync) to decide on loading screen.
-            // Since savedReports is now async, it will be empty initially, 
-            // so we rely on banks/churches/hasActiveSession for the "cached" check.
             const hasCachedData = banks.length > 0 || churches.length > 0 || hasActiveSession;
             
             if (!hasCachedData) {
                 setIsLoading(true);
             }
             
-            const [churchesResult, banksResult, savedReportsResult, learnedAssociationsResult] = await Promise.all([
+            // PHASE 1: Fast Fetch - Metadata Only
+            // Excluded 'data' column to ensure fast initial load.
+            const [churchesResult, banksResult, savedReportsMetaResult, learnedAssociationsResult] = await Promise.all([
                 supabase.from('churches').select('*').order('name'),
                 supabase.from('banks').select('*').order('name'),
                 supabase.from('saved_reports').select('id, name, created_at, record_count, user_id').order('created_at', { ascending: false }),
@@ -274,20 +282,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 setBanks(banksResult.data as any || []);
             }
 
-            if (savedReportsResult.error) {
-                Logger.error('Error fetching saved reports', savedReportsResult.error);
+            if (savedReportsMetaResult.error) {
+                Logger.error('Error fetching saved reports', savedReportsMetaResult.error);
                 if (!hasCachedData) showToast('Falha ao carregar os relatórios salvos.', 'error');
             } else {
-                const mappedReports = (savedReportsResult.data || []).map(report => {
-                    return {
+                // SMART MERGE: Preserve existing 'data' from local storage if available
+                // This prevents the dashboard from flashing empty if we already have the data cached
+                setSavedReports(prev => {
+                    const existingDataMap = new Map(prev.map(r => [r.id, r.data]));
+                    
+                    return (savedReportsMetaResult.data || []).map(report => ({
                         id: report.id,
                         name: report.name,
                         createdAt: report.created_at,
                         recordCount: report.record_count,
                         user_id: report.user_id,
-                    };
+                        // Use cached data if available, otherwise undefined until Phase 2
+                        data: existingDataMap.get(report.id) as any,
+                    }));
                 });
-                setSavedReports(mappedReports as SavedReport[]);
             }
 
             if (learnedAssociationsResult.error) {
@@ -306,6 +319,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (!hasCachedData) {
                 setIsLoading(false);
             }
+            
+            // Mark initial load as largely complete so we can trust empty states
+            setInitialLoadComplete(true);
+
+            // PHASE 2: Background Fetch - Heavy Data
+            // Fetch the heavy 'data' column silently to populate dashboard charts
+            if (savedReportsMetaResult.data && savedReportsMetaResult.data.length > 0) {
+                const { data: heavyData, error: heavyError } = await supabase
+                    .from('saved_reports')
+                    .select('id, data');
+                
+                if (!heavyError && heavyData) {
+                    setSavedReports(prev => prev.map(report => {
+                        const freshData = heavyData.find(d => d.id === report.id);
+                        // Only update if we actually got data, otherwise keep existing
+                        return freshData ? { ...report, data: freshData.data as any } : report;
+                    }));
+                } else if (heavyError) {
+                    Logger.error('Background fetch of report data failed', heavyError);
+                }
+            }
         };
     
         fetchData();
@@ -313,10 +347,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [user]); 
 
     // --- Async Calculation Effects ---
+    const allHistoricalResults = useMemo(() => {
+        return savedReports
+            .filter(r => r.data && r.data.results)
+            .flatMap(report => report.data!.results);
+    }, [savedReports]);
+
     useEffect(() => {
+        // DETERMINE SOURCE OF DASHBOARD DATA
+        // Priority 1: Active Session (matchResults)
+        // Priority 2: Aggregated History (allHistoricalResults)
+        let resultsToProcess: MatchResult[] = [];
+
+        if (matchResults.length > 0) {
+            resultsToProcess = matchResults;
+        } else if (allHistoricalResults.length > 0) {
+            resultsToProcess = allHistoricalResults;
+        } else {
+            // CRITICAL FIX: Do not wipe the summary if we are still loading data.
+            // We only reset to zero if we are SURE the initial fetch is done and there is genuinely no data.
+            if (initialLoadComplete && savedReports.length === 0 && !hasActiveSession) {
+                 setSummary(INITIAL_SUMMARY);
+            }
+            // If loading is not complete, do NOTHING (keep the persisted summary from localStorage)
+            return;
+        }
+
         const timer = setTimeout(() => {
             // Ignore deleted results for dashboard summary
-            const results = matchResults.filter(r => !r.isDeleted);
+            const results = resultsToProcess.filter(r => !r.isDeleted);
             
             const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
             const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
@@ -327,6 +386,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (r.status === 'IDENTIFICADO' && r.church.name !== '---' && r.transaction.amount > 0) {
                     const current = valuePerChurch.get(r.church.name) || 0;
                     valuePerChurch.set(r.church.name, current + r.transaction.amount);
+                }
+            });
+
+            // Calculate method counts
+            const methodCounts: Record<string, number> = { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 };
+            results.forEach(result => {
+                if (result.status === 'IDENTIFICADO') {
+                    const method = result.matchMethod || 'AUTOMATIC';
+                    if (method in methodCounts) methodCounts[method]++;
+                    else methodCounts['AUTOMATIC']++;
                 }
             });
     
@@ -347,10 +416,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 unidentifiedCount: pending.length,
                 totalValue: results.reduce((sum, r) => sum + r.transaction.amount, 0),
                 valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
+                methodCounts,
             });
         }, 10); 
         return () => clearTimeout(timer);
-    }, [matchResults]);
+    }, [matchResults, allHistoricalResults, savedReports.length, hasActiveSession, initialLoadComplete]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -368,12 +438,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }, 10);
         return () => clearTimeout(timer);
     }, [contributorFiles, churches, customIgnoreKeywords]);
-
-    const allHistoricalResults = useMemo(() => {
-        return savedReports
-            .filter(r => r.data && r.data.results)
-            .flatMap(report => report.data!.results);
-    }, [savedReports]);
 
     const isCompareDisabled = useMemo(() => !bankStatementFile || contributorFiles.length === 0, [bankStatementFile, contributorFiles]);
 
@@ -429,8 +493,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const clearMatchResults = useCallback(() => {
         setMatchResults([]);
         setReportPreviewData(null);
-        // Also clear session flag
         setHasActiveSession(false); 
+        // Removed explicit setSummary(INITIAL_SUMMARY) to allow useEffect to recalculate from history if available
         showToast("Resultados da conciliação foram limpos.", 'success');
     }, [setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
 
@@ -456,12 +520,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setContributorFiles([]);
         setMatchResults([]);
         setReportPreviewData(null);
-        setHasActiveSession(false); // Reset session flag
+        setHasActiveSession(false);
+        setSummary(INITIAL_SUMMARY); // Explicitly reset summary here because SavedReports are also gone
         setSimilarityLevel(80);
         setDayTolerance(2);
         setCustomIgnoreKeywords(DEFAULT_IGNORE_KEYWORDS);
         showToast("Todos os dados da aplicação foram redefinidos.", 'success');
-    }, [user, setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, setSavedReports, showToast, setChurches, setBanks, setLearnedAssociations]);
+    }, [user, setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, setSavedReports, showToast, setChurches, setBanks, setLearnedAssociations, setSummary]);
 
     const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string) => {
         setBankStatementFile({ bankId, content, fileName });
@@ -560,7 +625,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBankStatementFile(null);
         setContributorFiles([]);
         setMatchResults([]); 
-        setHasActiveSession(false); // Clear session flag
+        setHasActiveSession(false); 
+        // Removed explicit setSummary(INITIAL_SUMMARY) to allow history aggregation fallback
         showToast("Sessão descartada. Você pode iniciar uma nova conciliação.", 'success');
         setActiveView('upload');
     }, [setReportPreviewData, setBankStatementFile, setContributorFiles, setMatchResults, setHasActiveSession, showToast, setActiveView]);
