@@ -202,27 +202,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Consume UI Context
     const { showToast, setIsLoading, setActiveView, activeView } = useUI();
     
+    // Reverted to generic key prefix to fix loading issues
+    const userKeyPrefix = 'identificapix';
+
     // --- Data State (Persisted for Stale-While-Revalidate) ---
     // Light data: Loaded synchronously
-    const [banks, setBanks] = usePersistentState<Bank[]>('identificapix-banks', []);
-    const [churches, setChurches] = usePersistentState<Church[]>('identificapix-churches', []);
-    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>('identificapix-similarity', 80);
-    const [dayTolerance, setDayTolerance] = usePersistentState<number>('identificapix-daytolerance', 2);
-    const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>('identificapix-ignore-keywords', DEFAULT_IGNORE_KEYWORDS);
-    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>('identificapix-search-filters', DEFAULT_SEARCH_FILTERS);
+    const [banks, setBanks] = usePersistentState<Bank[]>(`${userKeyPrefix}-banks`, []);
+    const [churches, setChurches] = usePersistentState<Church[]>(`${userKeyPrefix}-churches`, []);
+    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`${userKeyPrefix}-similarity`, 80);
+    const [dayTolerance, setDayTolerance] = usePersistentState<number>(`${userKeyPrefix}-daytolerance`, 2);
+    const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>(`${userKeyPrefix}-ignore-keywords`, DEFAULT_IGNORE_KEYWORDS);
+    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`${userKeyPrefix}-search-filters`, DEFAULT_SEARCH_FILTERS);
     
     // NEW: Lightweight flag to indicate if a session exists, loaded synchronously.
-    // This allows us to show a Skeleton UI while the heavy 'matchResults' are hydrating asynchronously.
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session', false, false);
+    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`${userKeyPrefix}-has-session`, false, false);
 
     // Heavy data: Loaded Asynchronously (isHeavy = true)
-    const [savedReports, setSavedReports] = usePersistentState<SavedReport[]>('identificapix-reports-meta-v2', [], true); 
-    const [learnedAssociations, setLearnedAssociations] = usePersistentState<LearnedAssociation[]>('identificapix-associations', [], true); 
+    const [savedReports, setSavedReports] = usePersistentState<SavedReport[]>(`${userKeyPrefix}-reports-meta-v2`, [], true); 
+    const [learnedAssociations, setLearnedAssociations] = usePersistentState<LearnedAssociation[]>(`${userKeyPrefix}-associations`, [], true); 
     
-    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement', null, true);
-    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors', [], true);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results', [], true);
-    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview', null, true);
+    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>(`${userKeyPrefix}-statement`, null, true);
+    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>(`${userKeyPrefix}-contributors`, [], true);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`${userKeyPrefix}-results`, [], true);
+    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(`${userKeyPrefix}-report-preview`, null, true);
     
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
@@ -245,7 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // --- Async State for heavy derived data ---
     // Persist summary state for instant dashboard loading
-    const [summary, setSummary] = usePersistentState<AppContextType['summary']>('identificapix-summary-v2', INITIAL_SUMMARY);
+    const [summary, setSummary] = usePersistentState<AppContextType['summary']>(`${userKeyPrefix}-summary-v2`, INITIAL_SUMMARY);
 
     const [allContributorsWithChurch, setAllContributorsWithChurch] = useState<(Contributor & { church: Church; uniqueId: string })[]>([]);
 
@@ -260,7 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             
             // PHASE 1: Fast Fetch - Metadata Only
-            // Excluded 'data' column to ensure fast initial load.
+            // Reverted privacy filtering to fix loading error
             const [churchesResult, banksResult, savedReportsMetaResult, learnedAssociationsResult] = await Promise.all([
                 supabase.from('churches').select('*').order('name'),
                 supabase.from('banks').select('*').order('name'),
@@ -287,7 +289,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (!hasCachedData) showToast('Falha ao carregar os relatórios salvos.', 'error');
             } else {
                 // SMART MERGE: Preserve existing 'data' from local storage if available
-                // This prevents the dashboard from flashing empty if we already have the data cached
                 setSavedReports(prev => {
                     const existingDataMap = new Map(prev.map(r => [r.id, r.data]));
                     
@@ -501,10 +502,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resetApplicationData = useCallback(async () => {
         if (!user) return;
         const [banksError, churchesError, reportsError, associationsError] = await Promise.all([
-            supabase.from('banks').delete().eq('user_id', user.id),
-            supabase.from('churches').delete().eq('user_id', user.id),
-            supabase.from('saved_reports').delete().eq('user_id', user.id),
-            supabase.from('learned_associations').delete().eq('user_id', user.id),
+            supabase.from('banks').delete().neq('id', '0'), // Reverted filter
+            supabase.from('churches').delete().neq('id', '0'), // Reverted filter
+            supabase.from('saved_reports').delete().neq('id', '0'), // Reverted filter
+            supabase.from('learned_associations').delete().neq('id', '0'), // Reverted filter
         ]);
 
         if(banksError.error || churchesError.error || reportsError.error || associationsError.error) {
@@ -771,7 +772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!name.trim() || !user) return;
         const { data: insertedData, error } = await supabase
             .from('banks')
-            .insert({ name: name.trim() })
+            .insert({ name: name.trim(), user_id: user.id })
             .select()
             .single();
 
@@ -814,6 +815,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             address: data.address.trim(),
             pastor: data.pastor.trim(),
             logoUrl: data.logoUrl || `https://placehold.co/100x100/1e293b/ffffff?text=${data.name.trim().charAt(0)}`,
+            user_id: user.id,
         };
 
         const { data: insertedData, error } = await supabase

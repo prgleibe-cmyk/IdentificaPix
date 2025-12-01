@@ -554,31 +554,11 @@ export const parseContributors = (content: string, customIgnoreKeywords: string[
     const finalKeywords = [...new Set([...customIgnoreKeywords, ...autoDetectedKeywords])];
     
     // --- Post-parsing cleanup ---
-    // 1. Filter out contributors with zero, negative, or NaN amounts
-    let cleanedContributors = contributors.filter(c => c.amount === undefined || (!isNaN(c.amount) && c.amount > 0));
-
-    // 2. Count name occurrences for frequency filtering
-    const nameCounts = cleanedContributors.reduce((acc, contributor) => {
-        const normalizedName = normalizeString(contributor.name, finalKeywords);
-        if (normalizedName) {
-            acc[normalizedName] = (acc[normalizedName] || 0) + 1;
-        }
-        return acc;
-    }, {} as Record<string, number>);
-
-    // 3. Identify names that appear more than 10 times
-    const namesToRemove = new Set(Object.keys(nameCounts).filter(name => nameCounts[name] > 10));
-
-    // 4. Filter out the overly frequent names
-    if (namesToRemove.size > 0) {
-        cleanedContributors = cleanedContributors.filter(c => {
-            const normalizedName = normalizeString(c.name, finalKeywords);
-            return !namesToRemove.has(normalizedName);
-        });
-    }
-
-    return cleanedContributors
-        .filter(c => c.name)
+    // We removed the filtering of zero/negative amounts and frequent names
+    // to ensure all input rows from the user's file are processed and displayed.
+    
+    return contributors
+        .filter(c => c.name) // Basic sanity check: ensure name field is present
         .map((c, index) => ({
             ...c,
             id: `contrib-${index}`, // Deterministic ID
