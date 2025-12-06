@@ -1,29 +1,22 @@
 {
-  "name": "identificapix",
+  "name": "identificapix---final",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "engines": {
-    "node": "20.x"
-  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.29.1",
-    "@supabase/supabase-js": "^2.81.1",
-    "@tailwindcss/forms": "^0.5.10",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "@supabase/supabase-js": "^2.81.1",
+    "@google/genai": "^1.29.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "autoprefixer": "^10.4.22",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.15",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
