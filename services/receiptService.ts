@@ -2,8 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ReceiptAnalysisResult } from "../types";
 import { Logger } from "./monitoringService";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
-
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 /**
  * Converte um objeto File para uma string Base64 limpa (sem o prefixo data:image/...).

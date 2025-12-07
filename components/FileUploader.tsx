@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import { UploadIcon, CheckCircleIcon, XMarkIcon } from './Icons';
 import { Logger, Metrics } from '../services/monitoringService';
@@ -27,15 +28,20 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
       if (event.target) event.target.value = '';
       return;
     }
+    processFile(file);
+  };
 
+  const processFile = async (file: File) => {
     setIsParsing(true);
-    
     try {
         const fileNameLower = file.name.toLowerCase();
         const fileBuffer = await file.arrayBuffer();
         let csvContent = '';
 
         if (fileNameLower.endsWith('.pdf')) {
+            if (typeof pdfjsLib === 'undefined') {
+                throw new Error("Biblioteca PDF não inicializada. Verifique sua conexão com a internet.");
+            }
             pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
             const typedarray = new Uint8Array(fileBuffer);
             const pdf = await pdfjsLib.getDocument(typedarray).promise;
@@ -59,7 +65,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
                             const prevItem = lineItems[j - 1];
                             const currentItem = lineItems[j];
                             const gap = currentItem.x - (prevItem.x + prevItem.width);
-                            if (gap > 5) lineText += ',';
+                            // Increased gap threshold from 5 to 8 for banking PDFs which often have wide columns
+                            if (gap > 8) lineText += ',';
                             else if (gap > 0) lineText += ' ';
                             lineText += currentItem.str;
                         }
@@ -69,6 +76,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
                 });
             }
         } else if (fileNameLower.endsWith('.docx')) {
+            if (typeof mammoth === 'undefined') {
+                throw new Error("Biblioteca Word não inicializada.");
+            }
             const result = await mammoth.convertToHtml({ arrayBuffer: fileBuffer });
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = result.value;
@@ -88,11 +98,55 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
                 csvContent = textResult.value.replace(/\r\n?/g, '\n');
             }
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
+            if (typeof XLSX === 'undefined') {
+                throw new Error("Biblioteca Excel não inicializada.");
+            }
             const data = new Uint8Array(fileBuffer);
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            csvContent = XLSX.utils.sheet_to_csv(worksheet);
+            
+            const rangeRef = worksheet['!ref'];
+            if (rangeRef) {
+                const range = XLSX.utils.decode_range(rangeRef);
+                for (let R = range.s.r; R <= range.e.r; ++R) {
+                    const row: string[] = [];
+                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                        const cell = worksheet[cellAddress];
+                        
+                        let cellText = '';
+                        if (cell) {
+                            const isNumber = cell.t === 'n';
+                            const looksLikeDate = cell.w && /[\/\-:]/.test(cell.w);
+
+                            if (isNumber && !looksLikeDate && cell.v !== undefined) {
+                                try {
+                                    const val = Number(cell.v);
+                                    cellText = val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                } catch (e) {
+                                    cellText = cell.w || String(cell.v);
+                                }
+                            } 
+                            else if (cell.w !== undefined) {
+                                cellText = cell.w;
+                            } 
+                            else if (cell.v !== undefined) {
+                                cellText = String(cell.v);
+                            }
+                        }
+
+                        const cleanedCellStr = cellText.replace(/"/g, '""');
+                        if (/[;\n"]/.test(cellText)) {
+                            row.push(`"${cleanedCellStr}"`);
+                        } else {
+                            row.push(cellText);
+                        }
+                    }
+                    csvContent += row.join(';') + '\n';
+                }
+            }
+
         } else {
             csvContent = new TextDecoder().decode(fileBuffer);
         }
@@ -102,11 +156,11 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
     } catch (error: any) {
         Logger.error("Error parsing file", error, { fileName: file.name });
         Metrics.increment('parsingErrors');
+        // If onFileUpload handles errors by showing toast, this is fine. 
+        // We could also call a prop onError here if needed.
+        alert(`Erro ao processar arquivo: ${error.message}`);
     } finally {
         setIsParsing(false);
-        if (event.target) {
-            event.target.value = '';
-        }
     }
   };
 
@@ -118,16 +172,18 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
 
   if (isUploaded) {
     return (
-      <div className="flex-shrink-0 flex items-center justify-between space-x-2 text-xs font-medium text-green-800 bg-green-100 dark:bg-green-900/50 dark:text-green-300 rounded-md px-3 py-1.5 w-full sm:w-auto">
-        <div className="flex items-center space-x-2 min-w-0">
-            <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate" title={uploadedFileName || ''}>{uploadedFileName}</span>
+      <div className="flex-shrink-0 flex items-center justify-between space-x-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300 rounded-2xl px-5 py-3 w-full sm:w-auto shadow-sm animate-fade-in">
+        <div className="flex items-center space-x-3 min-w-0">
+            <div className="bg-emerald-100 dark:bg-emerald-900 rounded-full p-1.5 shadow-sm">
+                <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
+            </div>
+            <span className="truncate max-w-[150px] font-semibold tracking-tight" title={uploadedFileName || ''}>{uploadedFileName}</span>
         </div>
         {onDelete && (
             <button
                 type="button"
                 onClick={onDelete}
-                className="ml-2 -mr-1 p-0.5 rounded-full text-green-700 hover:text-green-900 hover:bg-green-200 dark:text-green-300 dark:hover:text-white dark:hover:bg-green-700/50 transition-colors"
+                className="p-1.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors focus:outline-none"
                 aria-label="Remover arquivo"
             >
                 <XMarkIcon className="w-4 h-4" />
@@ -142,7 +198,12 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
       type="button"
       onClick={handleClick}
       disabled={disabled || isParsing}
-      className="flex-shrink-0 inline-flex items-center space-x-2 px-3 py-1.5 text-xs font-medium text-white bg-blue-700 rounded-md hover:bg-blue-800 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+      className={`flex-shrink-0 group inline-flex items-center justify-center space-x-2.5 px-6 py-3 text-sm font-bold rounded-2xl shadow-sm transition-all duration-300 border
+        ${disabled 
+            ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-600' 
+            : 'text-white bg-gradient-to-r from-indigo-600 to-blue-600 border-transparent hover:shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5'
+        }
+      `}
     >
       <input
         type="file"
@@ -163,7 +224,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
         </>
        ) : (
         <>
-            <UploadIcon className="w-4 h-4" />
+            <UploadIcon className="w-5 h-5 opacity-90 group-hover:scale-110 transition-transform" />
             <span>{title}</span>
         </>
        )}
