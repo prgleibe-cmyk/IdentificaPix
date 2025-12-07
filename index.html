@@ -4,34 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IdentificaPix - Conciliação</title>
-    <!-- Adicionando Fonte Inter para visual Premium -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>IdentificaPix - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-            colors: {
-              primary: {
-                50: '#eef2ff',
-                100: '#e0e7ff',
-                500: '#6366f1',
-                600: '#4f46e5',
-                700: '#4338ca',
-                900: '#312e81',
+            keyframes: {
+              'gradient-xy': {
+                '0%, 100%': { 'background-position': '0% 50%' },
+                '50%': { 'background-position': '100% 50%' },
+              },
+              'fade-in': {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
               }
             },
-            boxShadow: {
-              'soft': '0 10px 40px -10px rgba(0,0,0,0.05)',
-              'card': '0 0 20px rgba(0,0,0,0.03)',
-              'glow': '0 0 20px rgba(99, 102, 241, 0.4)',
+            animation: {
+              'gradient-xy': 'gradient-xy 15s ease infinite',
+              'fade-in': 'fade-in 0.5s ease-out forwards',
             }
           }
         }
@@ -40,28 +32,6 @@
     <style>
       :root { color-scheme: light; }
       html.dark { color-scheme: dark; }
-      body {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      /* Scrollbar moderna e sutil */
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8;
-      }
-      html.dark ::-webkit-scrollbar-thumb {
-        background: #475569;
-      }
     </style>
   <script type="importmap">
 {
@@ -79,7 +49,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="text-slate-600 font-sans dark:text-slate-300 bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300">
+  <body class="text-slate-800 font-sans dark:text-slate-300 bg-slate-200 dark:bg-slate-900">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

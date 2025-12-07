@@ -1,4 +1,3 @@
-
 import { Transaction, Contributor, MatchResult, ContributorFile, Church, LearnedAssociation } from '../types';
 import { Logger, Metrics } from './monitoringService';
 
@@ -6,7 +5,7 @@ import { Logger, Metrics } from './monitoringService';
 
 export const PLACEHOLDER_CHURCH: Church = {
     id: 'unidentified',
-    name: '---', 
+    name: '---', // This name is for internal reference; the UI should use a translated string.
     address: '',
     logoUrl: '',
     pastor: '',
@@ -14,30 +13,39 @@ export const PLACEHOLDER_CHURCH: Church = {
 
 // --- Intelligent Search Filtering ---
 
+/**
+ * Filters a MatchResult record based on a universal query string.
+ * The query is split into terms, and all terms must match something in the record.
+ * A term can match a date, an exact value, or text in the name/description.
+ * @param record The MatchResult to check.
+ * @param query The user's search query.
+ * @returns True if the record matches the query, false otherwise.
+ */
 export const filterByUniversalQuery = (record: MatchResult, query: string): boolean => {
-    const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean); // keep simple split
+    const searchTerms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
     if (searchTerms.length === 0) {
         return true;
     }
 
     const { transaction, contributor } = record;
 
+    // All search terms must match something in the record
     return searchTerms.every(term => {
-        // Simple raw check against original string
-        if (transaction.originalAmount && transaction.originalAmount.toLowerCase().includes(term)) {
-            return true;
-        }
-        
-        // Also check parsed amount for convenience if user types number with dot/comma different from file
+        // Attempt to parse term as a number for value matching
         const numericValue = parseFloat(term.replace(',', '.'));
         const isNumericTerm = !isNaN(numericValue);
-        if (isNumericTerm && Math.abs(transaction.amount - numericValue) < 0.01) {
+
+        // 1. Check for exact value match
+        if (isNumericTerm && transaction.amount === numericValue) {
             return true;
         }
 
-        if (transaction.date.toLowerCase().includes(term)) {
+        // 2. Check for date match (partial or full)
+        if (transaction.date.includes(term)) {
             return true;
         }
+
+        // 3. Check for text match in description or name
         if ((contributor?.name || '').toLowerCase().includes(term) ||
             (contributor?.cleanedName || '').toLowerCase().includes(term) ||
             transaction.description.toLowerCase().includes(term)) {
@@ -48,24 +56,26 @@ export const filterByUniversalQuery = (record: MatchResult, query: string): bool
     });
 };
 
+/**
+ * A variation of the universal filter for raw Transaction objects.
+ * @param transaction The Transaction to check.
+ * @param query The user's search query.
+ * @returns True if the transaction matches the query, false otherwise.
+ */
 export const filterTransactionByUniversalQuery = (transaction: Transaction, query: string): boolean => {
-    const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const searchTerms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
     if (searchTerms.length === 0) {
         return true;
     }
     
     return searchTerms.every(term => {
-        if (transaction.originalAmount && transaction.originalAmount.toLowerCase().includes(term)) {
-            return true;
-        }
-        
         const numericValue = parseFloat(term.replace(',', '.'));
         const isNumericTerm = !isNaN(numericValue);
-        if (isNumericTerm && Math.abs(transaction.amount - numericValue) < 0.01) {
+
+        if (isNumericTerm && transaction.amount === numericValue) {
             return true;
         }
-
-        if (transaction.date.toLowerCase().includes(term)) {
+        if (transaction.date.includes(term)) {
             return true;
         }
         if (transaction.description.toLowerCase().includes(term)) {
@@ -77,139 +87,207 @@ export const filterTransactionByUniversalQuery = (transaction: Transaction, quer
 };
 
 
-// --- Parsing Helpers ---
-
-// NOTE: Exported for testing
-export const parseDate = (dateString: string): Date | null => {
-    if (!dateString || typeof dateString !== 'string') return null;
-    const trimmedDateString = dateString.trim();
-    // Simple attempts
-    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmedDateString)) {
-        const isoDate = new Date(trimmedDateString);
-        if (!isNaN(isoDate.getTime())) return new Date(Date.UTC(isoDate.getFullYear(), isoDate.getMonth(), isoDate.getDate()));
-    }
-    // Match parts: allow . / - as separators
-    const parts = trimmedDateString.match(/(\d+)/g);
-    if (!parts || parts.length < 3) return null;
-    
-    let day, month, year;
-    
-    // Check order YYYY-MM-DD vs DD-MM-YYYY
-    if (parts[0].length === 4) {
-        [year, month, day] = parts.map(p => parseInt(p, 10));
-    } else {
-        [day, month, year] = parts.map(p => parseInt(p, 10));
-        // Handle 2-digit years
-        if (String(year).length === 2) year += (year < 50 ? 2000 : 1900);
-    }
-    
-    // Basic validation
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-    if (month < 1 || month > 12) return null;
-    if (day < 1 || day > 31) return null;
-
-    const date = new Date(Date.UTC(year, month - 1, day));
-    return (!isNaN(date.getTime())) ? date : null;
-};
+// --- Intelligent Parsing Helpers ---
 
 const isDateString = (s: string): boolean => {
-    // Robust check: relies on the parser logic instead of rigid regex
-    return parseDate(s) !== null;
+    if (!s) return false;
+    // Matches dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, etc.
+    const dateRegex = /^(?:\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[./-]\d{1,2}[./-]\d{1,2})$/;
+    return dateRegex.test(s.trim());
 };
 
 const isAmountString = (s: string): boolean => {
-    if (!s || typeof s !== 'string') return false;
-    // Check for date format explicitly to avoid overlap
-    if (isDateString(s)) return false;
-    
-    // Must contain a digit
-    if (!/\d/.test(s)) return false;
-
-    // Try to parse it. If it results in a valid non-zero number, it's a potential amount.
-    // We allow letters/noise because OCR often leaves artifacts like "100,00 C" or "R$ 500".
-    const val = parseAmountString(s);
-    return !isNaN(val) && val !== 0;
+    if (!s) return false;
+    // Check for numbers, currency symbols, commas, periods.
+    // It's a potential amount if it contains at least one digit.
+    return /\d/.test(s) && /^[R$BRL\s.,0-9-]+$/.test(s.trim());
 };
 
+/**
+ * A highly robust heuristic to determine if a string from any file column is likely a person's name.
+ * This version is much stricter to prevent misidentification of description columns.
+ * It works by first rejecting any string with transactional keywords, then cleaning and
+ * validating the rest.
+ * @param s The string to check.
+ * @returns True if the string is probably a name.
+ */
 const isProbablyName = (s: string): boolean => {
     if (!s || typeof s !== 'string') return false;
-    
-    // STRICT RULE: If it's a date, it's not a name.
-    if (isDateString(s)) return false;
+    const workingString = s.trim();
 
-    // It's likely a name if it has length
-    return s.trim().length > 0;
+    // Early exit for obviously wrong data
+    if (workingString.length < 2 || workingString.length > 150) return false;
+    if (/[<>{}\[\]]/.test(workingString)) return false; // Reject HTML/code like structures
+    if (isDateString(workingString)) return false; // It's a date, not a name
+
+    const lowerWorkingString = workingString.toLowerCase();
+    
+    // A set of keywords that, if a string consists ONLY of them, it's not a name.
+    // This prevents columns like "Dízimos" or "Missões" from being flagged as name columns.
+    const nonNameKeywords = new Set([
+        'pix', 'ted', 'doc', 'cpf', 'cnpj', 'valor', 'data', 'extrato', 'conta', 'agencia', 'id',
+        'transf', 'recebimento', 'pagamento', 'deposito', 'dizimo', 'dizimos', 'oferta', 'ofertas',
+        'doacao', 'doacoes', 'taxa', 'juros', 'tarifa', 'imposto', 'missao', 'missoes', 'terreno',
+        'sede', 'contribuicao', 'sr', 'sra', 'dr', 'dra'
+    ]);
+
+    const potentialNameParts = lowerWorkingString
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // remove accents
+        .replace(/[^a-z\s]/g, '')        // remove non-alpha and numbers
+        .trim()
+        .split(' ')
+        .filter(w => w.length > 1);      // filter out single letters and empty strings
+
+    if (potentialNameParts.length === 0) {
+        return false;
+    }
+    
+    // If the string consists solely of one or more non-name keywords, it's not a name.
+    // e.g., "dizimo", "dizimos e ofertas"
+    const isOnlyKeywords = potentialNameParts.every(part => nonNameKeywords.has(part));
+    if (isOnlyKeywords) {
+        return false;
+    }
+
+    // Now we clean the rest of the noise to see if a name is left.
+    const cleanedForCheck = lowerWorkingString
+        // Remove number patterns that might look like IDs or codes
+        .replace(/\d{2,3}\.?\d{3}\.?\d{3}[/-]?\d{2,4}-?\d{2}/g, '')
+        // Remove any remaining numbers
+        .replace(/[0-9]/g, '')
+        // Remove symbols, keeping only letters and spaces
+        .replace(/[^a-z\sÀ-ÿ]/gi, '')
+        .trim();
+
+    // After cleaning, is there anything left that looks like a name?
+    if (cleanedForCheck.length < 2) return false;
+
+    // Add a check on the number of words. A name is unlikely to be a long sentence.
+    const wordCount = cleanedForCheck.split(' ').filter(w => w.length > 0).length;
+    if (wordCount > 7) {
+        return false;
+    }
+
+    // It must contain at least one word with two or more letters.
+    if (!/[a-zA-ZÀ-ÿ]{2,}/.test(cleanedForCheck)) return false;
+    
+    // Final sanity check: If the original string looked like a currency amount,
+    // and we removed most of it, it's probably not a name.
+    if (isAmountString(workingString) && cleanedForCheck.length < workingString.length / 2) {
+        return false;
+    }
+
+    return true;
 };
 
+
+/**
+ * Parses a string that represents a monetary value into a number.
+ * This robust version handles common international and Brazilian currency formats
+ * by detecting the likely decimal separator.
+ * @param s The string to parse.
+ * @returns The parsed number, or NaN if parsing fails.
+ */
 const parseAmountString = (s: string): number => {
-    if (!s) return 0;
-    const cleanS = s.trim();
-    
-    // Check for negative indicators BEFORE cleaning special chars
-    // Enhanced for suffixes like '100.00D' common in bank PDFs
-    let isNegative = /^[\(-]/.test(cleanS) || 
-                       /[\)-]$/.test(cleanS) ||
-                       /\b(D|Db|Dr|Débito|Debito)\b/i.test(cleanS) ||
-                       /[\d](D|d)$/.test(cleanS); // Ends in D (e.g. 30,00D)
-
-    // Check for explicit Credit indicator 'C' to ensure positive
-    const isCredit = /[\d](C|c)$/.test(cleanS) || /\b(C|Cr|Crédito|Credito)\b/i.test(cleanS);
-    if (isCredit) isNegative = false;
-
-    let cleaned = cleanS
-        .replace(/["'()]/g, '') // remove quotes and parens
-        .replace(/[a-zA-Z$]/g, '') // remove letters and currency symbols
-        .replace(/[R$BRL\s]/gi, ''); // remove specific currencies/spaces
-
-    // Remove any remaining non-numeric chars except . , -
-    cleaned = cleaned.replace(/[^\d.,-]/g, '');
-
-    // Handle trailing/leading minus from the cleaned numeric string
-    if (cleaned.endsWith('-')) cleaned = cleaned.slice(0, -1);
-    if (cleaned.startsWith('-')) cleaned = cleaned.slice(1);
+    if (!s) return NaN;
+    const cleaned = s
+        .replace(/[R$BRL\s]/gi, '')   // Remove currency symbols and whitespace
     
     const lastComma = cleaned.lastIndexOf(',');
     const lastDot = cleaned.lastIndexOf('.');
 
     let parsableString;
-    // Heuristic for separators
+    // If both exist, the last one is likely the decimal separator
     if (lastComma > -1 && lastDot > -1) {
         if (lastComma > lastDot) {
+            // Format is likely 1.234,56
             parsableString = cleaned.replace(/\./g, '').replace(',', '.');
         } else {
+            // Format is likely 1,234.56
             parsableString = cleaned.replace(/,/g, '');
         }
     }
+    // If only comma exists, it's the decimal
     else if (lastComma > -1) {
-        // Assume comma is decimal if it's the only one, or standard PT-BR
-        parsableString = cleaned.replace(/\./g, '').replace(',', '.');
+        parsableString = cleaned.replace(',', '.');
     }
+    // If only dot exists, or none, it's already in the right format
     else {
         parsableString = cleaned;
     }
 
     const value = parseFloat(parsableString);
-    if (isNaN(value)) return 0;
-
-    // Apply negative sign if detected
-    return isNegative ? -Math.abs(value) : Math.abs(value);
+    return isNaN(value) ? NaN : value;
 };
 
+/**
+ * Calculates basic statistics for an array of numbers.
+ * @param values An array of numbers.
+ * @returns An object containing the mean and standard deviation.
+ */
+const calculateStats = (values: number[]): { mean: number; stdDev: number } => {
+    const n = values.length;
+    if (n === 0) return { mean: 0, stdDev: 0 };
+
+    const sum = values.reduce((acc, val) => acc + val, 0);
+    const mean = sum / n;
+
+    const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / n;
+    const stdDev = Math.sqrt(variance);
+
+    return { mean, stdDev };
+};
+
+
+/**
+ * Automatically detects the most likely delimiter (comma, semicolon, or tab) in a text block.
+ * It favors the delimiter that appears most consistently across the first few lines.
+ * @param content The raw string content of the file.
+ * @returns The detected delimiter character.
+ */
 const detectDelimiter = (content: string): string => {
     const delimiters = [',', ';', '\t'];
-    const lines = content.split('\n').slice(0, 10);
+    const lines = content.trim().split('\n').slice(0, 10); // Sample first 10 lines
     if (lines.length === 0) return ',';
 
-    let bestDelimiter = ',';
-    let maxCount = 0;
+    const scores: Record<string, { count: number, consistency: number }> = {
+        ',': { count: 0, consistency: 0 },
+        ';': { count: 0, consistency: 0 },
+        '\t': { count: 0, consistency: 0 },
+    };
 
     for (const delimiter of delimiters) {
         let totalCount = 0;
+        const countsPerLine: number[] = [];
         for (const line of lines) {
-            totalCount += line.split(delimiter).length - 1;
+            // Use a simple split to count, which is faster than regex for this case.
+            const count = line.split(delimiter).length - 1;
+            if (count > 0) {
+                countsPerLine.push(count);
+                totalCount += count;
+            }
         }
-        if (totalCount > maxCount) {
-            maxCount = totalCount;
+        
+        if (countsPerLine.length === 0) continue;
+
+        scores[delimiter].count = totalCount;
+        
+        const mean = totalCount / countsPerLine.length;
+        const variance = countsPerLine.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / countsPerLine.length;
+        
+        // A lower variance means higher consistency.
+        scores[delimiter].consistency = 1 / (variance + 1);
+    }
+
+    let bestDelimiter = ',';
+    let maxScore = 0;
+
+    for (const delimiter of delimiters) {
+        // A good delimiter has a high count and high consistency.
+        const score = scores[delimiter].count * scores[delimiter].consistency;
+        if (score > maxScore) {
+            maxScore = score;
             bestDelimiter = delimiter;
         }
     }
@@ -217,63 +295,61 @@ const detectDelimiter = (content: string): string => {
     return bestDelimiter;
 };
 
-const splitCSVLine = (line: string, delimiter: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let insideQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"') {
-            if (insideQuotes && line[i + 1] === '"') {
-                current += '"';
-                i++;
-            } else {
-                insideQuotes = !insideQuotes;
-            }
-        } else if (char === delimiter && !insideQuotes) {
-            result.push(current);
-            current = '';
-        } else {
-            current += char;
-        }
-    }
-    result.push(current);
-    return result;
-};
 
+/**
+ * Parses CSV/text content without relying on header names. It analyzes the content
+ * of each column to determine its data type (date, amount, name) and automatically
+ * detects the delimiter. If multiple columns look like amounts, it intelligently
+ * chooses the one most likely to be transaction data.
+ * @param content The raw string content of the file.
+ * @param fieldHeuristics An array of rules to identify columns.
+ * @param requiredField The key field used to validate if a row is data vs. a header.
+ * @returns An array of parsed objects.
+ */
 const intelligentCSVParser = <T>(
     content: string,
     fieldHeuristics: { field: keyof T; checker: (s: string) => boolean; isTextual?: boolean }[],
     requiredField: keyof T
 ): T[] => {
     const delimiter = detectDelimiter(content);
-    // REMOVED: .trim() on content to avoid stripping leading/trailing whitespace of the file
-    let allRows = content
+    const allRows = content
+        .trim()
         .replace(/\r/g, '')
         .split('\n')
-        .map(line => splitCSVLine(line, delimiter));
+        .map(line => line.split(delimiter).map(cell => cell.trim()));
 
     if (allRows.length < 2) return [];
 
-    const rowLengths = allRows.map(r => r.length);
-    let numColumns = 0;
-    // Simple mode detection
-    const counts: Record<number, number> = {};
-    for (const l of rowLengths) counts[l] = (counts[l] || 0) + 1;
-    numColumns = parseInt(Object.keys(counts).reduce((a, b) => counts[parseInt(a)] > counts[parseInt(b)] ? a : b));
+    const numColumns = allRows[0]?.length || 0;
+    if (numColumns === 0) return [];
 
-    const sampleRows = allRows.slice(0, 50);
+    const sampleRows = allRows.slice(0, 30); // Use a larger sample for better accuracy
+
+    // --- Column Content Analysis for diversity ---
+    const columnAnalysis = Array(numColumns).fill(0).map((_, colIndex) => {
+        const values = sampleRows.map(row => row[colIndex]?.trim() || '').filter(Boolean);
+        if (values.length < 3) return { mostCommonRatio: 0 }; // Not enough data to analyze
+
+        const valueCounts = values.reduce((acc, val) => {
+            const lowerVal = val.toLowerCase();
+            acc[lowerVal] = (acc[lowerVal] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        
+        const mostCommonCount = Math.max(...Object.values(valueCounts));
+        return { mostCommonRatio: mostCommonCount / values.length };
+    });
 
     // --- Column Scoring Logic ---
-    const columnScores = Array(numColumns + 5).fill(0).map(() => {
+    const columnScores = Array(numColumns).fill(0).map(() => {
         const scores: Record<string, number> = {};
         fieldHeuristics.forEach(h => scores[h.field as string] = 0);
         return scores;
     });
 
     for (const row of sampleRows) {
-        for (let i = 0; i < row.length; i++) {
+        if (row.length !== numColumns) continue;
+        for (let i = 0; i < numColumns; i++) {
             const cell = row[i] || '';
             fieldHeuristics.forEach(heuristic => {
                 if (heuristic.checker(cell)) {
@@ -283,103 +359,78 @@ const intelligentCSVParser = <T>(
         }
     }
 
-    const candidateColumns: Record<string, { index: number; score: number }[]> = {};
-    const columnAverages: Record<number, number> = {}; // Cache for column averages
+    // --- Disqualify columns based on content analysis ---
+    fieldHeuristics.forEach(({ field }) => {
+        columnScores.forEach((scores, index) => {
+            // Only penalize if it was a candidate
+            if (scores[field as string] > 0) {
+                const analysis = columnAnalysis[index];
+                // If a 'name' column has >60% identical values, it's likely a description/type column.
+                if (field === 'name' && analysis.mostCommonRatio > 0.60) {
+                    scores[field as string] = 0;
+                }
+                // If an 'amount' column has >80% identical values, it's likely a fee, total, or irrelevant number column.
+                if (field === 'amount' && analysis.mostCommonRatio > 0.80) {
+                    scores[field as string] = 0;
+                }
+            }
+        });
+    });
 
-    fieldHeuristics.forEach(({ field, isTextual }) => {
+
+    // A column must have at least this many matching cells in the sample to be considered.
+    const confidenceThreshold = Math.max(2, Math.floor(sampleRows.length * 0.25));
+
+    // --- Find all valid candidate columns for each field ---
+    const candidateColumns: Record<string, { index: number; score: number }[]> = {};
+    fieldHeuristics.forEach(({ field }) => {
         candidateColumns[field as string] = [];
         columnScores.forEach((scores, index) => {
-            if (scores[field as string] > 0) {
+            if (scores[field as string] >= confidenceThreshold) {
                 candidateColumns[field as string].push({ index, score: scores[field as string] });
             }
         });
-
-        // SPECIAL LOGIC FOR AMOUNT:
-        if (field === 'amount') {
-            candidateColumns['amount'].sort((a, b) => {
-                const threshold = sampleRows.length * 0.3; 
-                
-                const aValid = a.score > threshold;
-                const bValid = b.score > threshold;
-
-                if (aValid && !bValid) return -1;
-                if (!aValid && bValid) return 1;
-
-                // Compare averages
-                if (columnAverages[a.index] === undefined) {
-                    let sum = 0, count = 0;
-                    for (const row of sampleRows) {
-                        if (row[a.index]) {
-                            const val = Math.abs(parseAmountString(row[a.index]));
-                            if (val > 0) { sum += val; count++; }
-                        }
-                    }
-                    columnAverages[a.index] = count > 0 ? sum / count : Infinity;
-                }
-                
-                if (columnAverages[b.index] === undefined) {
-                    let sum = 0, count = 0;
-                    for (const row of sampleRows) {
-                        if (row[b.index]) {
-                            const val = Math.abs(parseAmountString(row[b.index]));
-                            if (val > 0) { sum += val; count++; }
-                        }
-                    }
-                    columnAverages[b.index] = count > 0 ? sum / count : Infinity;
-                }
-
-                if (columnAverages[a.index] !== Infinity && columnAverages[b.index] !== Infinity) {
-                    return columnAverages[a.index] - columnAverages[b.index];
-                }
-
-                return b.score - a.score;
-            });
-        } 
-        else if (field === 'name' || isTextual) {
-            candidateColumns[field as string].sort((a, b) => {
-                const getColumnValues = (colIndex: number) => {
-                    return sampleRows
-                        .map(row => row[colIndex])
-                        .filter(val => val && val.trim().length > 0);
-                };
-
-                const valuesA = getColumnValues(a.index);
-                const valuesB = getColumnValues(b.index);
-
-                const uniqueA = new Set(valuesA).size;
-                const uniqueB = new Set(valuesB).size;
-
-                const isRepetitiveA = uniqueA <= 1 && valuesA.length > 5;
-                const isRepetitiveB = uniqueB <= 1 && valuesB.length > 5;
-
-                if (isRepetitiveA && !isRepetitiveB) return 1; 
-                if (!isRepetitiveA && isRepetitiveB) return -1; 
-
-                const ratioA = valuesA.length > 0 ? uniqueA / valuesA.length : 0;
-                const ratioB = valuesB.length > 0 ? uniqueB / valuesB.length : 0;
-                
-                if (Math.abs(ratioA - ratioB) > 0.1) {
-                    return ratioB - ratioA;
-                }
-
-                return b.score - a.score;
-            });
-        } else {
-            candidateColumns[field as string].sort((a, b) => b.score - a.score);
-        }
+        candidateColumns[field as string].sort((a, b) => b.score - a.score);
     });
 
-    // --- Resolve Mappings ---
+    // --- Special Heuristic for Amount Column ---
+    const amountCandidates = candidateColumns['amount'] || [];
+    if (amountCandidates.length > 1) {
+        const columnStats = amountCandidates.map(candidate => {
+            const values = allRows
+                .map(row => (row.length > candidate.index ? parseAmountString(row[candidate.index]) : NaN))
+                .filter(v => !isNaN(v) && v !== 0) // Only use valid, non-zero numbers for stats
+                .map(Math.abs); // Use absolute values
+
+            if (values.length < 2) {
+                 return { index: candidate.index, score: 0 };
+            }
+            
+            const { mean, stdDev } = calculateStats(values);
+            const score = stdDev / (mean + 1e-6); 
+
+            return { index: candidate.index, score };
+        });
+
+        const bestAmountCandidate = columnStats.sort((a, b) => b.score - a.score)[0];
+        
+        if (bestAmountCandidate) {
+            candidateColumns['amount'] = [{ index: bestAmountCandidate.index, score: Infinity }]; // Promote it
+        }
+    }
+
+    // --- Strict Column Mapping: Resolve Mappings, ignoring discarded columns ---
     const fieldMap: Partial<Record<keyof T, number>> = {};
     const usedIndices = new Set<number>();
     
-    // Prioritize Amount, then others
     const sortedFields = fieldHeuristics
         .map(h => h.field as string)
         .sort((a, b) => {
             if (a === 'amount') return -1;
             if (b === 'amount') return 1;
-            return 0;
+            const isAText = fieldHeuristics.find(h => h.field as string === a)?.isTextual;
+            const isBText = fieldHeuristics.find(h => h.field as string === b)?.isTextual;
+            return (isAText ? 1 : 0) - (isBText ? 1 : 0);
         });
 
     sortedFields.forEach(field => {
@@ -393,64 +444,34 @@ const intelligentCSVParser = <T>(
         }
     });
 
-    // --- Data Extraction with Fallback ---
+    // --- Data Extraction & Header Filtering ---
     const parsedData = allRows.map(row => {
         const entry = {} as T;
-        let hasData = false;
+        if (row.length !== numColumns) return null;
 
-        // First pass: Try to get data from the mapped columns
         for (const key in fieldMap) {
             const typedKey = key as keyof T;
             const colIndex = fieldMap[typedKey];
-            if (colIndex === undefined || colIndex >= row.length) continue;
+            if (colIndex === undefined) continue;
 
-            const value = row[colIndex];
-            if (value !== undefined && value.trim() !== '') hasData = true;
-
-            if (typedKey === 'amount') {
-                 (entry as any)['originalAmount'] = value;
-            }
+            const value = row[colIndex] || '';
             (entry as any)[typedKey] = (typedKey === 'amount') ? parseAmountString(value) : value;
         }
-
-        // --- FALLBACK STRATEGY ---
-        // If critical fields are missing or invalid (due to shifted columns), scan the entire row.
-        
-        // Check Date validity
-        // @ts-ignore
-        const hasValidDate = entry['date'] && isDateString(entry['date']);
-        if (!hasValidDate) {
-            const dateCandidate = row.find(cell => isDateString(cell));
-            if (dateCandidate) {
-                (entry as any)['date'] = dateCandidate;
-                hasData = true;
-            }
-        }
-
-        // Check Amount validity
-        // @ts-ignore
-        const currentAmount = entry['amount'];
-        const hasValidAmount = typeof currentAmount === 'number' && currentAmount !== 0;
-        
-        if (!hasValidAmount) {
-            // Look for a cell that is a valid amount string AND is not the date we just found
-            const amountCandidate = row.find(cell => {
-                // @ts-ignore
-                if (cell === entry['date']) return false;
-                return isAmountString(cell);
-            });
-
-            if (amountCandidate) {
-                (entry as any)['amount'] = parseAmountString(amountCandidate);
-                (entry as any)['originalAmount'] = amountCandidate;
-                hasData = true;
-            }
-        }
-
-        return hasData ? entry : null;
+        return entry;
     }).filter(entry => entry !== null) as T[];
 
-    return parsedData;
+    // Filter out rows that are likely headers
+    return parsedData.filter(entry => {
+        if (!entry || !entry[requiredField]) return false;
+        const value = entry[requiredField];
+        if (requiredField === 'amount') {
+            return !isNaN(value as number);
+        }
+        if (requiredField === 'name') {
+            return isProbablyName(value as string);
+        }
+        return true;
+    });
 };
 
 
@@ -458,172 +479,320 @@ export const parseBankStatement = (content: string, customIgnoreKeywords: string
     const heuristics = [
         { field: 'date' as keyof Transaction, checker: isDateString },
         { field: 'amount' as keyof Transaction, checker: isAmountString },
-        { field: 'description' as keyof Transaction, checker: (s: string) => s.length > 3 && !isDateString(s) && !isAmountString(s), isTextual: true },
+        { field: 'description' as keyof Transaction, checker: (s: string) => /[a-zA-Z]/.test(s) && s.length > 3, isTextual: true },
     ];
     
-    // 1. Get raw objects from the parser.
-    const rawTransactions = intelligentCSVParser<Transaction>(content, heuristics, 'amount');
+    const transactions = intelligentCSVParser<Transaction>(content, heuristics, 'amount');
 
-    // 2. Advanced Filtering & Merging Logic (Fix for PDF Statements like SICOOB)
-    // Banks like SICOOB often put the Description on multiple lines.
-    // Line 1: Date | Description Start | Amount
-    // Line 2: Empty | Description Continued | Empty
-    // We need to merge Line 2 into Line 1.
-
-    const validTransactions: Transaction[] = [];
-    let lastValidTransaction: Transaction | null = null;
-
-    rawTransactions.forEach(t => {
-        const hasValidDate = t.date && isDateString(t.date);
-        const hasValidAmount = t.amount !== 0; 
-        
-        // Is this a primary transaction row?
-        if (hasValidDate && hasValidAmount) {
-            // It's a new transaction
-            const newTx = {
-                ...t,
-                id: `tx-${validTransactions.length}`, // temp id
-                description: t.description || '---',
-                cleanedDescription: '' // Will set later
-            };
-            validTransactions.push(newTx);
-            lastValidTransaction = newTx;
-        } 
-        // Is this a continuation row? (No date, No amount, but has text)
-        else if (!hasValidDate && !hasValidAmount && t.description && lastValidTransaction) {
-            // Check if the description is just noise or part of the transaction
-            const noise = ['saldo', 'bloq', 'anterior'].some(w => t.description.toLowerCase().includes(w));
-            
-            if (!noise && t.description.trim().length > 1) {
-                // Append to previous transaction
-                lastValidTransaction.description += ` ${t.description.trim()}`;
-            }
-        }
-    });
-
-    // 3. Final Cleanup
-    return validTransactions.map((t, index) => ({ 
+    return transactions
+        .filter(t => t.amount !== 0 && !isNaN(t.amount)) // Filter out zero or invalid amounts
+        .map((t, index) => ({ 
             ...t, 
-            id: `tx-${index}`,
-            cleanedDescription: cleanTransactionDescriptionForDisplay(t.description || '---', customIgnoreKeywords),
+            id: `tx-${index}`, // Deterministic ID
+            cleanedDescription: cleanTransactionDescriptionForDisplay(t.description, customIgnoreKeywords),
         }));
 };
+
+/**
+ * Analyzes a list of raw contributor entries to dynamically identify recurring non-name keywords.
+ * It looks for frequently occurring first words that are not common Portuguese names.
+ * @param contributors Raw contributor data from the parser.
+ * @returns An array of detected keywords to be ignored.
+ */
+const detectDynamicKeywords = (contributors: Contributor[]): string[] => {
+    const frequencyThreshold = 5; // A word must appear more than 5 times to be considered a keyword.
+    const minKeywordLength = 3; // Keywords must be longer than 3 characters.
+
+    // A small, non-exhaustive list to prevent common first names from being flagged.
+    const commonFirstNames = new Set([
+        'jose', 'joao', 'antonio', 'francisco', 'carlos', 'paulo', 'pedro', 'lucas', 'luiz', 'marcos',
+        'maria', 'ana', 'francisca', 'antonia', 'adriana', 'juliana', 'marcia', 'fernanda', 'patricia', 'aline'
+    ]);
+
+    const wordCounts: Record<string, number> = {};
+
+    for (const contributor of contributors) {
+        if (!contributor.name || typeof contributor.name !== 'string') continue;
+
+        const name = contributor.name.trim().toLowerCase();
+        const firstWordMatch = name.match(/^[a-zà-ÿ]+/); // Get the first word
+        
+        if (firstWordMatch) {
+            const word = firstWordMatch[0]
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, ""); // Normalize for counting
+            
+            if (word.length > minKeywordLength && !commonFirstNames.has(word)) {
+                wordCounts[word] = (wordCounts[word] || 0) + 1;
+            }
+        }
+    }
+    
+    // Filter for words that exceed the frequency threshold.
+    const detectedKeywords = Object.keys(wordCounts).filter(word => wordCounts[word] > frequencyThreshold);
+
+    if (detectedKeywords.length > 0) {
+        Logger.info('Dynamically detected keywords to ignore', { keywords: detectedKeywords });
+    }
+
+    return detectedKeywords;
+};
+
 
 export const parseContributors = (content: string, customIgnoreKeywords: string[] = []): Contributor[] => {
     const heuristics = [
         { field: 'name' as keyof Contributor, checker: isProbablyName, isTextual: true },
         { field: 'date' as keyof Contributor, checker: isDateString },
         { field: 'amount' as keyof Contributor, checker: isAmountString },
-        { field: 'cpf' as keyof Contributor, checker: (s: string) => /^\d{3}/.test(s) } // Relaxed CPF check
+        { field: 'cpf' as keyof Contributor, checker: (s: string) => /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(s.trim()) }
     ];
 
     const contributors = intelligentCSVParser<Contributor>(content, heuristics, 'name');
 
-    // Filter strict rules: Row MUST have a valid Date AND a valid Amount
-    const validContributors = contributors.filter(c => {
-        const hasValidDate = c.date && isDateString(c.date);
-        const hasValidAmount = c.amount !== 0;
-        
-        return hasValidDate && hasValidAmount;
-    });
-
-    return validContributors
+    // --- Dynamic Keyword Detection ---
+    const autoDetectedKeywords = detectDynamicKeywords(contributors);
+    const finalKeywords = [...new Set([...customIgnoreKeywords, ...autoDetectedKeywords])];
+    
+    // --- Post-parsing cleanup ---
+    // We removed the filtering of zero/negative amounts and frequent names
+    // to ensure all input rows from the user's file are processed and displayed.
+    
+    return contributors
+        .filter(c => c.name) // Basic sanity check: ensure name field is present
         .map((c, index) => ({
             ...c,
-            id: `contrib-${index}`,
-            name: c.name || '---', // Ensure name is present for display
-            cleanedName: cleanTransactionDescriptionForDisplay(c.name || '---', customIgnoreKeywords), 
-            normalizedName: normalizeString(c.name || '', customIgnoreKeywords),
+            id: `contrib-${index}`, // Deterministic ID
+            cleanedName: cleanTransactionDescriptionForDisplay(c.name, finalKeywords),
+            normalizedName: normalizeString(c.name, finalKeywords),
         }));
 };
 
 
 // --- Matching Logic ---
 
-// Helper to remove standalone numeric codes but preserve formatted numbers like 100,00 or 12/12/2024
-const removeNumericCodes = (text: string): string => {
-    const regex = /(\d+(?:[.,\/-]\d+)+)|\b\d+\b/g;
-    return text.replace(regex, (match, formatted) => {
-        return formatted ? match : '';
-    });
+/**
+ * Converts a string to Title Case, respecting common Portuguese conjunctions.
+ * @param str The string to convert.
+ * @returns The Title Cased string.
+ */
+const toTitleCase = (str: string): string => {
+    if (!str) return '';
+    const exceptions = new Set(['de', 'da', 'do', 'dos', 'das', 'e', 'a', 'o', 'em', 'para', 'com', 'por']);
+    return str
+        .toLowerCase()
+        .split(' ')
+        .map((word, index) => {
+            if (word.length === 0) return '';
+            // Always capitalize the first word
+            if (index > 0 && exceptions.has(word)) {
+                return word;
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+        })
+        .join(' ');
 };
 
+/**
+ * Normalizes a string for robust matching. It converts to lowercase, removes accents,
+ * stop words, and a comprehensive list of standard and custom keywords, including
+ * multi-word phrases. The matching is insensitive to case, accents, and special characters.
+ * @param str The string to normalize.
+ * @param customKeywords A list of user-defined keywords to ignore.
+ * @param keepStopWords If true, words like 'de', 'da', 'do' are not removed.
+ * @returns A cleaned, lowercase string suitable for comparison.
+ */
 export const normalizeString = (str: string, customKeywords: string[] = [], keepStopWords: boolean = false): string => {
     if (!str) return '';
-    
-    // Step 1: Basic normalization (lowercase, remove accents)
-    let normalized = str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // Step 2: Remove keywords. We must normalize keywords too to match.
-    if (customKeywords && customKeywords.length > 0) {
-        const sortedKeywords = [...customKeywords].sort((a, b) => b.length - a.length);
-        for (const keyword of sortedKeywords) {
-             const normKeyword = keyword.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-             if (!normKeyword.trim()) continue;
-             
-             // Escape regex
-             const escaped = normKeyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-             const regex = new RegExp(escaped, 'g');
-             normalized = normalized.replace(regex, '');
-        }
+    const fullyNormalize = (s: string): string => {
+        if (!s) return '';
+        return s
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // Remove accents
+            .replace(/[^a-z\s]/g, '')      // Remove all non-alpha characters (keeps only letters and spaces)
+            .trim()
+            .replace(/\s+/g, ' ');         // Collapse multiple spaces into one
+    };
+
+    const normalizedCustom = (customKeywords || []).map(k => fullyNormalize(k)).filter(Boolean);
+    const allKeywords = [...new Set(normalizedCustom)];
+    const sortedKeywords = allKeywords.sort((a, b) => b.length - a.length);
+
+    let processedStr = str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    // Remove isolated numbers, dates, and alphanumeric codes first.
+    processedStr = processedStr.replace(/\b[\d\/\.-]+\b/g, '');
+    // Removes short alphanumeric codes like ID123, OP4567.
+    processedStr = processedStr.replace(/\b(?=[a-z]*\d)(?=\d*[a-z])[a-z\d]+\b/g, '');
+    
+    // Remove all non-alpha characters (keeps only letters and spaces)
+    processedStr = processedStr.replace(/[^a-z\s]/g, '').trim();
+
+    sortedKeywords.forEach(keyword => {
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escapedKeyword}s?\\b`, 'gi');
+        processedStr = processedStr.replace(regex, '');
+    });
+    
+    if (!keepStopWords) {
+        const stopWords = /\b(de|da|do|dos|das|e|a|o|em|para|com|por)\b/gi;
+        processedStr = processedStr.replace(stopWords, '');
     }
 
-    // Step 3: Remove numeric codes (e.g. 84010355115) but keep values (100,00)
-    normalized = removeNumericCodes(normalized);
-
-    // Step 4: Final cleanup
-    return normalized
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+    return processedStr.trim().replace(/\s+/g, ' ');
 };
 
+
+/**
+ * Aggressively cleans a raw string from any file to isolate a likely name for display.
+ * It removes common transactional keywords, numbers, symbols, and applies Title Case.
+ * This function now uses the more powerful `normalizeString` to ensure consistency.
+ * @param description The raw string from the bank statement or contributor file.
+ * @param customKeywords An optional list of additional keywords to remove.
+ * @returns A cleaner, Title Cased string, likely containing just the name.
+ */
 export const cleanTransactionDescriptionForDisplay = (description: string, customKeywords: string[] = []): string => {
     if (!description) return '';
-    let cleaned = description;
-
-    if (customKeywords && customKeywords.length > 0) {
-        // Sort by length to avoid partial replacements of longer keywords
-        const sortedKeywords = [...customKeywords].sort((a, b) => b.length - a.length);
-        
-        for (const keyword of sortedKeywords) {
-            if (!keyword || !keyword.trim()) continue;
-            // Escape regex special characters
-            const escapedKeyword = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            // Regex for case-insensitive replacement (global)
-            const regex = new RegExp(escapedKeyword, 'gi');
-            cleaned = cleaned.replace(regex, '');
-        }
-    }
-    
-    // Step: Remove standalone numeric codes (e.g. 84010355115) while preserving values (100,00)
-    cleaned = removeNumericCodes(cleaned);
-
-    // Remove extra spaces that might have been left behind
-    return cleaned.replace(/\s+/g, ' ').trim();
+    // Use the robust normalization logic, but keep stop words for better readability.
+    const normalized = normalizeString(description, customKeywords, true);
+    // Convert the cleaned, normalized string to Title Case for display.
+    return toTitleCase(normalized);
 };
 
+
+/**
+ * Calculates the similarity between a transaction description and a contributor's name
+ * using the Sørensen-Dice coefficient, which provides a balanced score based on shared words.
+ * This method considers the full name and is less biased by just the first name.
+ * @param description The raw transaction description.
+ * @param contributor The contributor's object.
+ * @param customKeywords Optional keywords to ignore during normalization.
+ * @returns A similarity score from 0 to 100.
+ */
 export const calculateNameSimilarity = (description: string, contributor: Contributor, customKeywords: string[] = []): number => {
     const normalizedDesc = normalizeString(description, customKeywords);
     const normalizedContributorName = contributor.normalizedName || normalizeString(contributor.name, customKeywords);
 
-    if (!normalizedDesc || !normalizedContributorName) return 0;
+    if (!normalizedDesc || !normalizedContributorName) {
+        return 0;
+    }
 
     const descWords = new Set(normalizedDesc.split(' ').filter(Boolean));
     const contributorWords = new Set(normalizedContributorName.split(' ').filter(Boolean));
 
-    if (descWords.size === 0 || contributorWords.size === 0) return 0;
+    if (descWords.size === 0 || contributorWords.size === 0) {
+        return 0;
+    }
 
+    // Find the intersection of words
     const intersection = new Set([...descWords].filter(word => contributorWords.has(word)));
+
+    // Calculate Sørensen–Dice coefficient
+    // This gives a score from 0 to 1 based on shared words.
+    // Formula: 2 * |A ∩ B| / (|A| + |B|)
     const diceCoefficient = (2 * intersection.size) / (descWords.size + contributorWords.size);
 
     return diceCoefficient * 100;
+};
+
+
+/**
+ * Robustly parses various common date string formats into a valid, timezone-agnostic Date object.
+ * @param dateString The string to parse (e.g., "DD/MM/YYYY", "YYYY-MM-DD").
+ * @returns A Date object or null if parsing fails.
+ */
+// NOTE: Exported for testing
+export const parseDate = (dateString: string): Date | null => {
+    if (!dateString) return null;
+    
+    const trimmedDateString = dateString.trim();
+
+    // Attempt to handle ISO-like formats (YYYY-MM-DD), which new Date() handles reliably.
+    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(trimmedDateString)) {
+        const isoDate = new Date(trimmedDateString);
+        if (!isNaN(isoDate.getTime())) {
+            // Adjust for potential timezone shift by re-creating in UTC
+            return new Date(Date.UTC(isoDate.getFullYear(), isoDate.getMonth(), isoDate.getDate()));
+        }
+    }
+
+    // Handle DD/MM/YYYY or DD-MM-YYYY formats.
+    const parts = trimmedDateString.match(/(\d+)/g);
+    if (!parts || parts.length < 3) return null;
+
+    let day, month, year;
+
+    // YYYY-MM-DD
+    if (parts[0].length === 4) {
+        [year, month, day] = parts.map(p => parseInt(p, 10));
+    } 
+    // DD/MM/YYYY
+    else {
+        [day, month, year] = parts.map(p => parseInt(p, 10));
+        if (String(year).length === 2) {
+             // Heuristic for 2-digit years: '24' -> 2024, '99' -> 1999
+            year += (year < 50 ? 2000 : 1900);
+        }
+    }
+    
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+
+    // Reject dates with unreasonable years.
+    const currentYear = new Date().getFullYear();
+    if (year > currentYear + 1 || year < 1970) {
+        return null;
+    }
+    
+    // Month is 0-indexed in JS Date constructor. Use UTC to prevent timezone issues.
+    const date = new Date(Date.UTC(year, month - 1, day));
+
+    // Final validation to catch invalid dates like 31/02/2024, which JS would otherwise auto-correct.
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+        return null;
+    }
+    
+    return date;
 };
 
 const daysDifference = (date1: Date, date2: Date): number => {
     const timeDiff = Math.abs(date2.getTime() - date1.getTime());
     return Math.ceil(timeDiff / (1000 * 3600 * 24));
 }
+
+const calculateAmountSimilarity = (txAmount: number, contributorAmount?: number): number => {
+    // If no contributor amount is listed, we can't compare. Return a neutral score.
+    if (contributorAmount === undefined || contributorAmount <= 0) {
+        return 50; 
+    }
+    const difference = Math.abs(txAmount - contributorAmount);
+    if (difference === 0) return 100;
+    // The score decreases as the percentage difference grows.
+    // A 50% difference results in a score of 0.
+    const percentageDifference = difference / txAmount;
+    return Math.max(0, 100 * (1 - percentageDifference * 2));
+};
+
+const calculateDateSimilarity = (txDate: Date, contributorDate: Date | null, dayTolerance: number): number => {
+    // If no contributor date is listed, return a neutral score.
+    if (!contributorDate) {
+        return 50;
+    }
+    // Handle the case where tolerance is zero for exact day matching.
+    if (dayTolerance === 0) {
+        return daysDifference(txDate, contributorDate) === 0 ? 100 : 0;
+    }
+    const diff = daysDifference(txDate, contributorDate);
+    if (diff > dayTolerance) {
+        return 0;
+    }
+    // Linear falloff from 100 to 0 over the tolerance period.
+    return 100 * (1 - (diff / dayTolerance));
+};
+
 
 export const matchTransactions = (
     transactions: Transaction[],
@@ -636,10 +805,11 @@ export const matchTransactions = (
     churches: Church[],
     customIgnoreKeywords: string[] = []
 ): MatchResult[] => {
+    // Flatten all contributors and give them a unique ID if they don't have one.
     const allContributors = contributorFiles.flatMap(file =>
         file.contributors.map((c, index) => ({ 
             ...c, 
-            id: c.id || `contrib-${file.church.id}-${index}`,
+            id: c.id || `contrib-${file.church.id}-${index}`, // Ensure unique ID
             church: file.church 
         }))
     );
@@ -650,7 +820,7 @@ export const matchTransactions = (
     const matchedTransactionIds = new Set<string>();
     const matchedContributorIds = new Set<string>();
 
-    // Learned Associations
+    // Step 1: Handle Learned Associations first (highest priority)
     transactions.forEach(transaction => {
         const normalizedDesc = normalizeString(transaction.description, customIgnoreKeywords);
         const learnedMatch = learnedMap.get(normalizedDesc);
@@ -675,6 +845,7 @@ export const matchTransactions = (
         }
     });
 
+    // Step 2: Create all possible high-scoring pairs from remaining items
     const potentialMatches: {
         transaction: Transaction;
         contributor: Contributor & { church: Church };
@@ -684,23 +855,28 @@ export const matchTransactions = (
     const availableTransactions = transactions.filter(t => !matchedTransactionIds.has(t.id));
     const availableContributors = allContributors.filter(c => c.id! && !matchedContributorIds.has(c.id!));
 
+    // OPTIMIZATION: Pre-calculate word sets for all available contributors
+    // This avoids repeating string normalization and splitting inside the nested loop (O(N*M)).
     const contributorWordSets = availableContributors.map(c => {
         const normalizedName = c.normalizedName || normalizeString(c.name, customIgnoreKeywords);
         const words = new Set(normalizedName.split(' ').filter(w => w.length > 0));
         return { id: c.id, contributor: c, words };
     });
 
-    // Automatic Matching
     for (const transaction of availableTransactions) {
+        // Pre-calculate transaction word set for the current transaction
         const txNormalized = normalizeString(transaction.description, customIgnoreKeywords);
         const txWords = new Set(txNormalized.split(' ').filter(w => w.length > 0));
 
         if (txWords.size === 0) continue;
 
         for (const { contributor, words: contributorWords } of contributorWordSets) {
+            
             if (contributorWords.size === 0) continue;
 
+            // Optimized Dice Coefficient Calculation using pre-calculated sets
             let intersectionSize = 0;
+            // Iterate over the smaller set for performance
             if (txWords.size < contributorWords.size) {
                 for (const word of txWords) {
                     if (contributorWords.has(word)) intersectionSize++;
@@ -730,8 +906,10 @@ export const matchTransactions = (
         }
     }
 
+    // Step 3: Sort pairs by score, descending
     potentialMatches.sort((a, b) => b.score - a.score);
 
+    // Step 4: Greedily assign best matches
     for (const match of potentialMatches) {
         if (match.contributor.id && !matchedTransactionIds.has(match.transaction.id) && !matchedContributorIds.has(match.contributor.id)) {
             
@@ -770,7 +948,7 @@ export const matchTransactions = (
         }
     }
 
-    // Pending Transactions
+    // Step 5: Add remaining unmatched transactions
     transactions.forEach(transaction => {
         if (!matchedTransactionIds.has(transaction.id)) {
             finalResults.push({
@@ -782,17 +960,16 @@ export const matchTransactions = (
         }
     });
 
-    // Pending Contributors
+    // Step 6: Add remaining unmatched contributors
     allContributors.forEach(contributor => {
         if (contributor.id && !matchedContributorIds.has(contributor.id)) {
             finalResults.push({
                 transaction: {
                     id: `pending-${contributor.id || `${contributor.normalizedName}-${Math.random()}`}`,
                     date: contributor.date || 'N/A',
-                    description: `[Pendente] ${contributor.name}`,
-                    amount: 0,
-                    cleanedDescription: `[Pendente] ${contributor.cleanedName || contributor.name}`, 
-                    originalAmount: contributor.originalAmount // Preserve original amount
+                    description: `[Pendente da Lista] ${contributor.name}`,
+                    amount: 0, // Not a real bank transaction
+                    cleanedDescription: `[Pendente] ${contributor.cleanedName}`
                 },
                 contributor,
                 status: 'NÃO IDENTIFICADO',
@@ -805,6 +982,7 @@ export const matchTransactions = (
     return finalResults;
 };
 
+// Fix: Add missing processExpenses function
 export const processExpenses = (expenseTransactions: Transaction[]): MatchResult[] => {
     return expenseTransactions.map(transaction => ({
         transaction,

@@ -31,27 +31,27 @@ export const ConfirmDeleteModal: React.FC = () => {
     const message = getMessage();
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700">
-                <div className="p-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{t('modal.confirmDelete.title')}</h3>
-                        <button type="button" onClick={closeDeleteConfirmation} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                            <XMarkIcon className="w-5 h-5" />
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md">
+                <div className="p-6">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700">
+                        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{t('modal.confirmDelete.title')}</h3>
+                        <button type="button" onClick={closeDeleteConfirmation} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <XMarkIcon className="w-6 h-6" />
                         </button>
                     </div>
-                    <div className="flex items-start space-x-5">
-                        <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800">
-                            <ExclamationTriangleIcon className="h-7 w-7 text-red-600 dark:text-red-400" aria-hidden="true" />
+                    <div className="mt-4 flex items-start space-x-4">
+                        <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/50 sm:mx-0 sm:h-10 sm:w-10">
+                            <ExclamationTriangleIcon className="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
                         </div>
-                        <div className="text-sm font-medium text-slate-600 dark:text-slate-300 pt-1">
-                           <p className="leading-relaxed">{message}</p>
+                        <div className="text-sm text-slate-600 dark:text-slate-300">
+                           <p>{message}</p>
                         </div>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-2xl border-t border-slate-100 dark:border-slate-700/50">
-                    <button type="button" onClick={closeDeleteConfirmation} className="px-5 py-2.5 text-sm font-bold rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all">{t('common.cancel')}</button>
-                    <button type="button" onClick={confirmDeletion} className="px-6 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-500/30 hover:-translate-y-0.5 transition-all">{t('common.delete')}</button>
+                <div className="bg-slate-50 dark:bg-slate-900 px-6 py-3 flex justify-end space-x-2">
+                    <button type="button" onClick={closeDeleteConfirmation} className="px-4 py-2 text-sm font-medium rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">{t('common.cancel')}</button>
+                    <button type="button" onClick={confirmDeletion} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md">{t('common.delete')}</button>
                 </div>
             </div>
         </div>

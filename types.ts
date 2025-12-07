@@ -1,8 +1,3 @@
-
-
-
-
-
 // --- Core Data Structures ---
 
 export interface Contributor {
@@ -13,7 +8,6 @@ export interface Contributor {
   cpf?: string;
   date?: string;
   amount?: number;
-  originalAmount?: string; // Raw amount string from file
 }
 
 export interface Bank {
@@ -35,7 +29,6 @@ export interface Transaction {
   cleanedDescription?: string;
   amount: number;
   id: string;
-  originalAmount?: string; // Raw amount string from file
 }
 
 export interface ContributorFile {
@@ -87,11 +80,12 @@ export interface MatchResult {
     expectedChurch: Church;
     actualChurch: Church;
   };
+  isDeleted?: boolean;
 }
 
 // --- Application UI State Types ---
 
-export type ViewType = 'dashboard' | 'upload' | 'reports' | 'settings' | 'cadastro' | 'search' | 'savedReports' | 'admin';
+export type ViewType = 'dashboard' | 'upload' | 'reports' | 'settings' | 'cadastro' | 'search' | 'savedReports';
 
 export type Theme = 'light' | 'dark';
 
@@ -133,41 +127,8 @@ export interface SearchFilters {
     filterBy: 'none' | 'church' | 'contributor';
     churchIds: string[];
     contributorName: string;
-    reportId: string | null; // New field for filtering by specific saved report
 }
 
 
 // --- New Type for Grouped Reports ---
 export type GroupedReportData = Record<string, MatchResult[]>;
-
-// --- Subscription Types ---
-export interface SubscriptionStatus {
-    plan: 'trial' | 'active' | 'expired' | 'lifetime';
-    daysRemaining: number;
-    totalDays: number;
-    isExpired: boolean;
-    isBlocked: boolean; // New: Blocked status
-    isLifetime: boolean; // New: Explicit lifetime flag
-    trialEndsAt?: string | null;
-    subscriptionEndsAt?: string | null;
-}
-
-export interface Payment {
-    id: string;
-    userId: string;
-    amount: number;
-    status: 'pending' | 'approved' | 'rejected';
-    date: string;
-    receiptUrl?: string | null;
-    notes?: string | null;
-}
-
-// --- Receipt Analysis ---
-export interface ReceiptAnalysisResult {
-    isValid: boolean;
-    amount?: number;
-    date?: string;
-    recipient?: string;
-    sender?: string;
-    reason?: string;
-}

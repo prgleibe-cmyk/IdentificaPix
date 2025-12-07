@@ -44,59 +44,56 @@ export const EditChurchModal: React.FC = () => {
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
-                <form onSubmit={handleSubmit} className="flex flex-col h-full">
-                    <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{t('modal.editChurch')}</h3>
-                            <button type="button" onClick={closeEditChurch} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                                <XMarkIcon className="w-5 h-5" />
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md">
+                <form onSubmit={handleSubmit}>
+                    <div className="p-6 max-h-[80vh] overflow-y-auto">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{t('modal.editChurch')}</h3>
+                            <button type="button" onClick={closeEditChurch} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
-                        <div className="space-y-5">
+                        <div className="mt-4 space-y-4">
                             {/* Form Fields */}
                             <div>
-                                <label htmlFor="name" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{t('register.churchName')}</label>
-                                <input type="text" id="name" value={formData.name} onChange={handleChange} className="block w-full rounded-xl border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 transition-all" required />
+                                <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.churchName')}</label>
+                                <input type="text" id="name" value={formData.name} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" required />
                             </div>
                             <div>
-                                <label htmlFor="address" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{t('register.address')}</label>
-                                <input type="text" id="address" value={formData.address} onChange={handleChange} className="block w-full rounded-xl border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 transition-all" />
+                                <label htmlFor="address" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.address')}</label>
+                                <input type="text" id="address" value={formData.address} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" />
                             </div>
                             <div>
-                                <label htmlFor="pastor" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{t('register.pastor')}</label>
-                                <input type="text" id="pastor" value={formData.pastor} onChange={handleChange} className="block w-full rounded-xl border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 transition-all" />
+                                <label htmlFor="pastor" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.pastor')}</label>
+                                <input type="text" id="pastor" value={formData.pastor} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-600 sm:text-sm placeholder:text-slate-400" />
                             </div>
                              <div>
-                                <label htmlFor="edit-church-logo-upload" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{t('register.logo')}</label>
-                                <div className="mt-1 flex items-center space-x-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 border-dashed">
+                                <label htmlFor="edit-church-logo-upload" className="block text-sm font-medium text-slate-700 dark:text-slate-300">{t('register.logo')}</label>
+                                <div className="mt-1 flex items-center space-x-4">
                                     <img 
                                         src={formData.logoUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=?'} 
-                                        alt="Pré-visualização" 
-                                        className="w-16 h-16 rounded-xl object-cover bg-white shadow-sm" 
+                                        alt="Pré-visualização do logo" 
+                                        className="w-16 h-16 rounded-md object-cover bg-slate-200" 
                                     />
-                                    <label className="cursor-pointer bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
-                                        <span>Alterar Logo</span>
-                                        <input 
-                                            type="file" 
-                                            id="edit-church-logo-upload" 
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    handleLogoUpload(e.target.files[0]);
-                                                }
-                                            }}
-                                            className="hidden"
-                                        />
-                                    </label>
+                                    <input 
+                                        type="file" 
+                                        id="edit-church-logo-upload" 
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                handleLogoUpload(e.target.files[0]);
+                                            }
+                                        }}
+                                        className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-blue-300 dark:hover:file:bg-slate-600"
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-2xl border-t border-slate-100 dark:border-slate-700/50 mt-auto">
-                        <button type="button" onClick={closeEditChurch} className="px-5 py-2.5 text-sm font-bold rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all">{t('common.cancel')}</button>
-                        <button type="submit" className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 transition-all">{t('common.save')}</button>
+                    <div className="bg-slate-50 dark:bg-slate-900 px-6 py-3 flex justify-end space-x-2">
+                        <button type="button" onClick={closeEditChurch} className="px-4 py-2 text-sm font-medium rounded-md border border-blue-700 text-blue-700 hover:bg-blue-700 hover:text-white dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-500 dark:hover:text-white transition-colors">{t('common.cancel')}</button>
+                        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-md">{t('common.save')}</button>
                     </div>
                 </form>
             </div>
