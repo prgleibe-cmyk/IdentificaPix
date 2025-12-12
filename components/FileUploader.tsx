@@ -1,12 +1,11 @@
-
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { UploadIcon, CheckCircleIcon, XMarkIcon } from './Icons';
 import { Logger, Metrics } from '../services/monitoringService';
 
-declare const pdfjsLib: any;
-declare const mammoth: any;
-declare const XLSX: any;
-
+// Importações dinâmicas
+let pdfjsLib: any = null;
+let mammoth: any = null;
+let XLSX: any = null;
 
 interface FileUploaderProps {
   title: string;
@@ -22,6 +21,60 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isParsing, setIsParsing] = useState(false);
 
+  // Carregamento Lazy das bibliotecas com verificação robusta
+  const ensureLibsLoaded = async () => {
+    try {
+        if (!pdfjsLib) {
+            try {
+                // Tenta importar a lib instalada
+                const pdfModule = await import('pdfjs-dist');
+                const lib = pdfModule.default || pdfModule;
+                
+                // Configura o worker. 
+                // Tenta usar o arquivo local node_modules se disponível no build, ou fallback CDN
+                if (!lib.GlobalWorkerOptions.workerSrc) {
+                    const version = lib.version || '3.11.174';
+                    
+                    // Correção: Se a versão for 5.x (carregada via esm.sh), usa o worker do esm.sh
+                    if (String(version).startsWith('5.')) {
+                        lib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+                    } else {
+                        // Fallback para versões anteriores (ex: 3.11.174 do index.html)
+                        lib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
+                    }
+                }
+                pdfjsLib = lib;
+            } catch (e) {
+                console.warn("Falha ao carregar PDF.js via import, tentando fallback", e);
+            }
+        }
+
+        if (!mammoth) {
+            try {
+                const mod = await import('mammoth');
+                mammoth = mod.default || mod;
+            } catch (e) {
+                console.warn("Falha ao carregar Mammoth", e);
+            }
+        }
+
+        if (!XLSX) {
+            try {
+                const mod = await import('xlsx');
+                XLSX = mod.default || mod;
+            } catch (e) {
+                console.warn("Falha ao carregar XLSX", e);
+            }
+        }
+    } catch (e) {
+        console.error("Erro crítico ao carregar bibliotecas de arquivo", e);
+    }
+  };
+
+  useEffect(() => {
+    ensureLibsLoaded();
+  }, []);
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -34,121 +87,66 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
   const processFile = async (file: File) => {
     setIsParsing(true);
     try {
+        await ensureLibsLoaded();
+
         const fileNameLower = file.name.toLowerCase();
         const fileBuffer = await file.arrayBuffer();
         let csvContent = '';
 
         if (fileNameLower.endsWith('.pdf')) {
-            if (typeof pdfjsLib === 'undefined') {
-                throw new Error("Biblioteca PDF não inicializada. Verifique sua conexão com a internet.");
+            if (!pdfjsLib) {
+                 throw new Error("Biblioteca PDF não carregada. Por favor, recarregue a página e tente novamente.");
             }
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+            
             const typedarray = new Uint8Array(fileBuffer);
-            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            const loadingTask = pdfjsLib.getDocument(typedarray);
+            const pdf = await loadingTask.promise;
+            
+            let fullText = '';
+            
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                const lines = new Map();
+                
+                const lines: { y: number; text: string }[] = [];
+                
                 textContent.items.forEach((item: any) => {
                     const y = Math.round(item.transform[5]);
-                    const x = Math.round(item.transform[4]);
-                    if (!lines.has(y)) lines.set(y, []);
-                    lines.get(y).push({ x: x, str: item.str, width: item.width });
-                });
-                const sortedY = Array.from(lines.keys()).sort((a, b) => b - a);
-                sortedY.forEach(y => {
-                    const lineItems = lines.get(y);
-                    lineItems.sort((a: any, b: any) => a.x - b.x);
-                    if (lineItems.length > 0) {
-                        let lineText = lineItems[0].str;
-                        for (let j = 1; j < lineItems.length; j++) {
-                            const prevItem = lineItems[j - 1];
-                            const currentItem = lineItems[j];
-                            const gap = currentItem.x - (prevItem.x + prevItem.width);
-                            // Increased gap threshold from 5 to 8 for banking PDFs which often have wide columns
-                            if (gap > 8) lineText += ',';
-                            else if (gap > 0) lineText += ' ';
-                            lineText += currentItem.str;
-                        }
-                        const cleanedLine = lineText.trim().replace(/\s*,\s*/g, ',');
-                        if (cleanedLine) csvContent += cleanedLine + '\n';
+                    const text = item.str;
+                    
+                    const existingLine = lines.find(l => Math.abs(l.y - y) < 5);
+                    if (existingLine) {
+                        existingLine.text += ' ' + text;
+                    } else {
+                        lines.push({ y, text });
                     }
                 });
+
+                lines.sort((a, b) => b.y - a.y);
+                const pageText = lines.map(l => l.text).join('\n');
+                fullText += pageText + '\n';
             }
+            csvContent = fullText;
+
         } else if (fileNameLower.endsWith('.docx')) {
-            if (typeof mammoth === 'undefined') {
-                throw new Error("Biblioteca Word não inicializada.");
-            }
-            const result = await mammoth.convertToHtml({ arrayBuffer: fileBuffer });
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = result.value;
-            const tables = tempDiv.querySelectorAll('table');
-            if (tables.length > 0) {
-                tables.forEach(table => {
-                    const rows = table.querySelectorAll('tr');
-                    rows.forEach(row => {
-                        const cells = Array.from(row.querySelectorAll('th, td'));
-                        if (cells.every(cell => (cell.textContent || '').trim() === '')) return;
-                        const rowText = cells.map(cell => '"' + (cell.textContent || '').replace(/"/g, '""').trim() + '"').join(',');
-                        csvContent += rowText + '\n';
-                    });
-                });
-            } else {
-                const textResult = await mammoth.extractRawText({ arrayBuffer: fileBuffer });
-                csvContent = textResult.value.replace(/\r\n?/g, '\n');
-            }
+            if (!mammoth) throw new Error("Biblioteca Word não carregada.");
+            const textResult = await mammoth.extractRawText({ arrayBuffer: fileBuffer });
+            csvContent = textResult.value.replace(/\r\n?/g, '\n');
+
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
-            if (typeof XLSX === 'undefined') {
-                throw new Error("Biblioteca Excel não inicializada.");
-            }
+            if (!XLSX) throw new Error("Biblioteca Excel não carregada.");
             const data = new Uint8Array(fileBuffer);
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            
-            const rangeRef = worksheet['!ref'];
-            if (rangeRef) {
-                const range = XLSX.utils.decode_range(rangeRef);
-                for (let R = range.s.r; R <= range.e.r; ++R) {
-                    const row: string[] = [];
-                    for (let C = range.s.c; C <= range.e.c; ++C) {
-                        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                        const cell = worksheet[cellAddress];
-                        
-                        let cellText = '';
-                        if (cell) {
-                            const isNumber = cell.t === 'n';
-                            const looksLikeDate = cell.w && /[\/\-:]/.test(cell.w);
-
-                            if (isNumber && !looksLikeDate && cell.v !== undefined) {
-                                try {
-                                    const val = Number(cell.v);
-                                    cellText = val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                } catch (e) {
-                                    cellText = cell.w || String(cell.v);
-                                }
-                            } 
-                            else if (cell.w !== undefined) {
-                                cellText = cell.w;
-                            } 
-                            else if (cell.v !== undefined) {
-                                cellText = String(cell.v);
-                            }
-                        }
-
-                        const cleanedCellStr = cellText.replace(/"/g, '""');
-                        if (/[;\n"]/.test(cellText)) {
-                            row.push(`"${cleanedCellStr}"`);
-                        } else {
-                            row.push(cellText);
-                        }
-                    }
-                    csvContent += row.join(';') + '\n';
-                }
-            }
+            csvContent = XLSX.utils.sheet_to_csv(worksheet);
 
         } else {
-            csvContent = new TextDecoder().decode(fileBuffer);
+            csvContent = new TextDecoder('utf-8').decode(fileBuffer);
+        }
+
+        if (!csvContent.trim()) {
+            throw new Error("O arquivo parece estar vazio ou ilegível.");
         }
 
         onFileUpload(csvContent, file.name);
@@ -156,11 +154,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
     } catch (error: any) {
         Logger.error("Error parsing file", error, { fileName: file.name });
         Metrics.increment('parsingErrors');
-        // If onFileUpload handles errors by showing toast, this is fine. 
-        // We could also call a prop onError here if needed.
-        alert(`Erro ao processar arquivo: ${error.message}`);
+        alert(`Erro ao processar arquivo: ${error.message || 'Formato desconhecido'}`);
     } finally {
         setIsParsing(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -172,21 +169,21 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
 
   if (isUploaded) {
     return (
-      <div className="flex-shrink-0 flex items-center justify-between space-x-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300 rounded-2xl px-5 py-3 w-full sm:w-auto shadow-sm animate-fade-in">
-        <div className="flex items-center space-x-3 min-w-0">
-            <div className="bg-emerald-100 dark:bg-emerald-900 rounded-full p-1.5 shadow-sm">
-                <CheckCircleIcon className="w-4 h-4 flex-shrink-0" />
+      <div className="flex-shrink-0 flex items-center justify-between space-x-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300 rounded-xl px-3 py-2 w-full sm:w-auto shadow-sm animate-fade-in">
+        <div className="flex items-center space-x-2 min-w-0">
+            <div className="bg-emerald-100 dark:bg-emerald-900 rounded-full p-1 shadow-sm">
+                <CheckCircleIcon className="w-3 h-3 flex-shrink-0" />
             </div>
-            <span className="truncate max-w-[150px] font-semibold tracking-tight" title={uploadedFileName || ''}>{uploadedFileName}</span>
+            <span className="truncate max-w-[120px] font-bold tracking-tight" title={uploadedFileName || ''}>{uploadedFileName}</span>
         </div>
         {onDelete && (
             <button
                 type="button"
                 onClick={onDelete}
-                className="p-1.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors focus:outline-none"
+                className="p-1 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors focus:outline-none"
                 aria-label="Remover arquivo"
             >
-                <XMarkIcon className="w-4 h-4" />
+                <XMarkIcon className="w-3 h-3" />
             </button>
         )}
       </div>
@@ -198,7 +195,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
       type="button"
       onClick={handleClick}
       disabled={disabled || isParsing}
-      className={`flex-shrink-0 group inline-flex items-center justify-center space-x-2.5 px-6 py-3 text-sm font-bold rounded-2xl shadow-sm transition-all duration-300 border
+      className={`flex-shrink-0 group inline-flex items-center justify-center space-x-2 px-5 py-2.5 text-xs font-bold rounded-xl shadow-sm transition-all duration-300 border uppercase tracking-wide
         ${disabled 
             ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-600' 
             : 'text-white bg-gradient-to-r from-indigo-600 to-blue-600 border-transparent hover:shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5'
@@ -212,19 +209,19 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
         className="hidden"
         onChange={handleFileChange}
         disabled={disabled || isParsing}
-        accept=".csv, .txt, .xlsx, .xls, .pdf, .docx"
+        accept=".csv,.txt,.xlsx,.xls,.pdf,.docx"
       />
        {isParsing ? (
          <>
-            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Processando...</span>
+            <span>Lendo...</span>
         </>
        ) : (
         <>
-            <UploadIcon className="w-5 h-5 opacity-90 group-hover:scale-110 transition-transform" />
+            <UploadIcon className="w-4 h-4 opacity-90 group-hover:scale-110 transition-transform" />
             <span>{title}</span>
         </>
        )}

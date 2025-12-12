@@ -1,16 +1,26 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { XMarkIcon, DocumentArrowDownIcon, WrenchScrewdriverIcon, TrashIcon, PlusCircleIcon, UploadIcon, SparklesIcon, EyeIcon, ClipboardDocumentIcon } from '../Icons';
-import { parseDate } from '../../services/processingService';
 import { useUI } from '../../contexts/UIContext';
 
-declare const pdfjsLib: any;
-declare const mammoth: any;
-declare const XLSX: any;
+// Referências locais para bibliotecas
+let pdfjsLib: any = null;
+let mammoth: any = null;
+let XLSX: any = null;
 
-// Initialize AI (Assuming API_KEY is available in env)
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// Recuperação robusta da API Key
+const getApiKey = () => {
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) {
+    // @ts-ignore
+    return import.meta.env.VITE_GEMINI_API_KEY;
+  }
+  try {
+    return process.env.API_KEY || '';
+  } catch (e) {
+    return '';
+  }
+};
 
 interface FilePreprocessorModalProps {
     onClose: () => void;
@@ -20,7 +30,7 @@ interface CleanRow {
     id: string;
     date: string;
     description: string;
-    amount: string; // Keep as string for editing
+    amount: string; 
 }
 
 export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ onClose }) => {
@@ -30,46 +40,105 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
     const [file, setFile] = useState<File | null>(null);
     const [fileType, setFileType] = useState<'pdf' | 'excel' | 'docx' | 'text' | null>(null);
     
-    // Left Panel State
+    // Estado do Painel Esquerdo
     const pdfContainerRef = useRef<HTMLDivElement>(null);
     const [rawExcelData, setRawExcelData] = useState<string[][]>([]);
     const [rawHtmlData, setRawHtmlData] = useState<string>('');
-    const [fullRawText, setFullRawText] = useState<string>(''); // For AI and Raw View
-    const [viewMode, setViewMode] = useState<'visual' | 'text'>('visual'); // Toggle view
+    const [fullRawText, setFullRawText] = useState<string>(''); 
+    const [viewMode, setViewMode] = useState<'visual' | 'text'>('visual');
     
-    // Right Panel State
+    // Estado do Painel Direito
     const [cleanRows, setCleanRows] = useState<CleanRow[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isAiWorking, setIsAiWorking] = useState(false);
 
+    // Carregador Robusto de Bibliotecas
+    const ensureLibsLoaded = async () => {
+        try {
+            // 1. PDF.js - Tenta Global Primeiro (Mais estável se index.html tiver CDN)
+            if ((window as any).pdfjsLib) {
+                pdfjsLib = (window as any).pdfjsLib;
+            } 
+            
+            // Se não achou global, tenta import dinâmico
+            if (!pdfjsLib) {
+                try {
+                    const pdfModule = await import('pdfjs-dist');
+                    pdfjsLib = pdfModule.default || pdfModule;
+                } catch (e) {
+                    console.warn("PDF.js import failed", e);
+                }
+            }
+
+            // Configuração do Worker (Crítico para PDF)
+            if (pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                const version = pdfjsLib.version || '3.11.174';
+                // Correção: PDF.js v5+ via esm.sh precisa do worker do esm.sh
+                if (String(version).startsWith('5.')) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+                } else {
+                    // Fallback para versões anteriores (CDNJS)
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
+                }
+            }
+
+            // 2. Mammoth
+            if ((window as any).mammoth) {
+                mammoth = (window as any).mammoth;
+            } else if (!mammoth) {
+                try {
+                    const mod = await import('mammoth');
+                    mammoth = mod.default || mod;
+                } catch (e) { console.warn("Mammoth import failed", e); }
+            }
+
+            // 3. XLSX
+            if ((window as any).XLSX) {
+                XLSX = (window as any).XLSX;
+            } else if (!XLSX) {
+                try {
+                    const mod = await import('xlsx');
+                    XLSX = mod.default || mod;
+                } catch (e) { console.warn("XLSX import failed", e); }
+            }
+        } catch (e) {
+            console.error("Critical error loading libraries", e);
+        }
+    };
+
+    useEffect(() => {
+        ensureLibsLoaded();
+    }, []);
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (!selectedFile) return;
+        
+        // Reset inputs
         setFile(selectedFile);
-        processFile(selectedFile);
-        e.target.value = '';
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        
+        await processFile(selectedFile);
     };
 
     const triggerFileUpload = () => {
         fileInputRef.current?.click();
     };
 
-    // Helper to extract clean rows from raw text lines (Heuristic)
     const extractCleanRows = (lines: string[]): CleanRow[] => {
         const extracted: CleanRow[] = [];
         
         lines.forEach((line) => {
             if (!line.trim()) return;
 
-            // 1. Try to find Date
+            // Tenta encontrar Data
             const dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
             
-            // 2. Try to find Amount (numbers with potential decimal/thousands)
+            // Tenta encontrar Valor
             const amountMatches = line.match(/-?\d{1,3}(?:\.\d{3})*(?:,\d{2})?|-?\d+(?:\.\d{2})?/g);
             
             if (dateMatch || amountMatches) {
                 const date = dateMatch ? dateMatch[0] : '';
-                
                 let amount = '';
                 if (amountMatches && amountMatches.length > 0) {
                     amount = amountMatches[amountMatches.length - 1]; 
@@ -106,24 +175,24 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         }
 
         try {
+            await ensureLibsLoaded();
+
             const fileNameLower = file.name.toLowerCase();
             const fileBuffer = await file.arrayBuffer();
 
             if (fileNameLower.endsWith('.pdf')) {
                 setFileType('pdf');
-                if (typeof pdfjsLib === 'undefined') {
-                    throw new Error("Biblioteca PDF não carregada.");
-                }
-                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+                if (!pdfjsLib) throw new Error("Biblioteca PDF não carregada. Verifique sua conexão.");
                 
-                const pdf = await pdfjsLib.getDocument(new Uint8Array(fileBuffer)).promise;
+                const loadingTask = pdfjsLib.getDocument(new Uint8Array(fileBuffer));
+                const pdf = await loadingTask.promise;
                 const totalPages = pdf.numPages;
                 const allTextLines: string[] = [];
 
                 for (let i = 1; i <= totalPages; i++) {
                     const page = await pdf.getPage(i);
                     
-                    // Visual
+                    // Render Visual
                     const viewport = page.getViewport({ scale: 1.5 });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -138,7 +207,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
 
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-                    // Text Extraction
+                    // Extração de Texto
                     const textContent = await page.getTextContent();
                     const items = textContent.items.map((item: any) => ({
                         str: item.str,
@@ -146,6 +215,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                         y: item.transform[5]
                     }));
                     
+                    // Agrupa por linha (Coordenada Y)
                     const linesMap = new Map<number, string[]>();
                     items.forEach((item: any) => {
                         const y = Math.round(item.y);
@@ -168,7 +238,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
 
             } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
                 setFileType('excel');
-                if (typeof XLSX === 'undefined') throw new Error("Biblioteca Excel não carregada.");
+                if (!XLSX) throw new Error("Biblioteca Excel não carregada.");
                 
                 const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -183,7 +253,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
 
             } else if (fileNameLower.endsWith('.docx')) {
                 setFileType('docx');
-                if (typeof mammoth === 'undefined') throw new Error("Biblioteca Word não carregada.");
+                if (!mammoth) throw new Error("Biblioteca Word não carregada.");
                 
                 const result = await mammoth.convertToHtml({ arrayBuffer: fileBuffer });
                 setRawHtmlData(result.value);
@@ -202,7 +272,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
 
         } catch (error: any) {
             console.error(error);
-            showToast(`Erro: ${error.message}`, 'error');
+            showToast(`Erro: ${error.message || 'Falha ao ler arquivo'}`, 'error');
         } finally {
             setIsProcessing(false);
         }
@@ -227,56 +297,42 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         }, ...prev]);
     };
 
-    // --- AI AUTO-COMPLETE LOGIC ---
+    // --- Lógica de IA ---
     const handleAIAutoComplete = async () => {
-        // 1. Validate: Need at least one valid row as example
-        const examples = cleanRows.filter(r => r.date.trim() && r.amount.trim() && r.description.trim());
-        
-        if (examples.length === 0) {
-            showToast("Preencha corretamente pelo menos 1 linha para servir de exemplo para a IA.", "error");
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            showToast("Chave da API não configurada.", "error");
             return;
         }
 
         if (!fullRawText) {
-            showToast("Texto original não encontrado.", "error");
+            showToast("Nenhum texto para analisar.", "error");
             return;
         }
 
         setIsAiWorking(true);
 
         try {
-            // 2. Prepare Prompt
-            // Truncate raw text to avoid token limits if file is massive (approx 20k chars is safe for Flash)
+            const aiClient = new GoogleGenAI({ apiKey });
+
+            const examples = cleanRows.filter(r => r.date.trim() && r.amount.trim() && r.description.trim());
             const truncatedRawText = fullRawText.substring(0, 30000); 
             
             const prompt = `
-                Você é um assistente de extração de dados financeiros.
+                Extraia transações financeiras do texto abaixo.
+                ${examples.length > 0 
+                    ? `Siga este padrão de exemplo: ${JSON.stringify(examples.slice(0, 3))}` 
+                    : 'Busque padrões de Data, Descrição e Valor.'}
                 
-                CONTEXTO:
-                O usuário forneceu um arquivo (texto bruto abaixo) e um ou mais exemplos de como ele quer que os dados sejam extraídos.
-                
-                DADOS BRUTOS (Início do arquivo):
+                TEXTO:
                 """
                 ${truncatedRawText}
                 """
                 
-                EXEMPLOS (Linhas já validadas pelo usuário - USE ESTE PADRÃO):
-                ${JSON.stringify(examples.slice(0, 5))}
-                
-                TAREFA:
-                Analise os "DADOS BRUTOS" e extraia TODAS as transações financeiras que seguem o padrão dos "EXEMPLOS".
-                Se o texto bruto contiver lixo, cabeçalhos ou rodapés, ignore-os. Extraia apenas as transações.
-                
-                REGRAS DE FORMATAÇÃO:
-                - date: Formato DD/MM/AAAA ou AAAA-MM-DD (mantenha como está no original se possível, mas consistente).
-                - description: A descrição da transação limpa.
-                - amount: O valor numérico (ex: "100.00" ou "1.200,50").
-                
-                Retorne APENAS um JSON array.
+                Retorne JSON array com: { date: "DD/MM/AAAA", description: "Texto", amount: "0.00" }
             `;
 
-            // 3. Call Gemini
-            const response = await ai.models.generateContent({
+            const response = await aiClient.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: prompt,
                 config: {
@@ -295,12 +351,8 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                 }
             });
 
-            // 4. Process Response
-            const resultText = response.text;
-            if (resultText) {
-                const extractedRows: any[] = JSON.parse(resultText);
-                
-                // Add IDs
+            if (response.text) {
+                const extractedRows: any[] = JSON.parse(response.text);
                 const newRows: CleanRow[] = extractedRows.map(r => ({
                     id: Math.random().toString(36).substr(2, 9),
                     date: r.date || '',
@@ -308,20 +360,13 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                     amount: r.amount || ''
                 }));
 
-                // Merge: Keep user's examples, replace the rest or just append unique ones?
-                // Strategy: Replace all auto-generated ones, keep manual ones? 
-                // Simpler: Just replace list with the High Quality extraction, but maybe warn user?
-                // Better: Append new findings that aren't exact duplicates of examples?
-                
-                // For simplicity and "Magic" feel: Replace the list with the AI's full extraction, 
-                // assuming the AI did a better job on the WHOLE file based on the pattern.
                 setCleanRows(newRows);
-                showToast(`IA extraiu ${newRows.length} linhas com sucesso!`, 'success');
+                showToast(`${newRows.length} linhas extraídas!`, 'success');
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            showToast("Erro ao processar com IA. Tente adicionar mais exemplos.", 'error');
+            showToast("Erro na análise de IA.", 'error');
         } finally {
             setIsAiWorking(false);
         }
@@ -338,7 +383,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `formatado_${file?.name || 'arquivo'}.csv`);
+        link.setAttribute('download', `formatado_${file?.name || 'dados'}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -365,7 +410,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                         <div>
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white leading-tight">Laboratório de Arquivos</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {file ? '1. Ajuste uma linha. 2. Clique em "Completar com IA".' : 'Carregue um arquivo para começar.'}
+                                {file ? 'Edite os dados extraídos ou use a IA para limpar.' : 'Carregue arquivos difíceis (PDF, Imagens) para extrair dados.'}
                             </p>
                         </div>
                     </div>
@@ -375,7 +420,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                             onClick={triggerFileUpload}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl cursor-pointer transition-colors text-sm font-bold border border-slate-200 dark:border-slate-600"
                         >
-                            <span>Carregar</span>
+                            <span>Carregar Arquivo</span>
                         </button>
                         
                         {cleanRows.length > 0 && (
@@ -384,7 +429,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-lg hover:-translate-y-0.5 transition-all"
                             >
                                 <DocumentArrowDownIcon className="w-4 h-4" />
-                                <span className="hidden sm:inline">Baixar CSV</span>
+                                <span className="hidden sm:inline">Baixar CSV Limpo</span>
                             </button>
                         )}
 
@@ -401,10 +446,9 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                     <div className="w-full md:w-1/2 flex flex-col bg-slate-100 dark:bg-slate-900/50 relative">
                         <div className="px-4 py-3 bg-slate-200/50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
                             <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
-                                1. Arquivo Original {file ? `(${file.name})` : ''}
+                                1. Visualização Original {file ? `(${file.name})` : ''}
                             </span>
                             
-                            {/* View Mode Toggle */}
                             {file && (
                                 <div className="flex bg-slate-300 dark:bg-slate-700 rounded-lg p-0.5">
                                     <button 
@@ -419,7 +463,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                         className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${viewMode === 'text' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'}`}
                                     >
                                         <ClipboardDocumentIcon className="w-3 h-3 inline mr-1" />
-                                        Texto Puro
+                                        Texto
                                     </button>
                                 </div>
                             )}
@@ -435,17 +479,19 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                         <UploadIcon className="w-8 h-8 text-indigo-500" />
                                     </div>
                                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Clique para carregar</p>
-                                    <p className="text-xs text-slate-400">PDF, Excel, Docx</p>
+                                    <p className="text-xs text-slate-400">PDF, Excel, Word</p>
                                 </div>
                             ) : (
                                 <>
                                     {isProcessing && (
                                         <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 flex items-center justify-center z-10">
-                                            <span className="text-sm font-bold text-indigo-600 animate-pulse">Processando arquivo...</span>
+                                            <div className="flex flex-col items-center">
+                                                <svg className="animate-spin h-8 w-8 text-indigo-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                <span className="text-sm font-bold text-indigo-600 animate-pulse">Lendo arquivo...</span>
+                                            </div>
                                         </div>
                                     )}
 
-                                    {/* Raw Text Mode */}
                                     <div className={`${viewMode === 'text' ? 'block' : 'hidden'} h-full`}>
                                         <textarea 
                                             className="w-full h-full p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-xs text-slate-600 dark:text-slate-300 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -455,12 +501,9 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                         />
                                     </div>
 
-                                    {/* Visual Mode Containers */}
                                     <div className={`${viewMode === 'visual' ? 'block' : 'hidden'}`}>
-                                        {/* PDF Container */}
                                         <div ref={pdfContainerRef} className={`${fileType === 'pdf' ? 'block' : 'hidden'} w-full flex flex-col items-center`}></div>
                                         
-                                        {/* Excel Container */}
                                         {fileType === 'excel' && (
                                             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                                                 <table className="w-full text-xs text-left">
@@ -477,13 +520,9 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                                         ))}
                                                     </tbody>
                                                 </table>
-                                                <div className="p-2 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-700/30">
-                                                    Exibindo primeiras 100 linhas
-                                                </div>
                                             </div>
                                         )}
 
-                                        {/* Word/Text Container */}
                                         {(fileType === 'docx' || fileType === 'text') && (
                                             <div 
                                                 className="bg-white dark:bg-slate-800 p-8 shadow-sm rounded-lg min-h-full prose prose-sm dark:prose-invert max-w-none select-text"
@@ -500,12 +539,12 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                     <div className="w-full md:w-1/2 flex flex-col bg-white dark:bg-slate-800 relative">
                         <div className="px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
                             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
-                                2. Dados Limpos (Editável)
+                                2. Dados Extraídos
                             </span>
                             <div className="flex gap-2">
                                 <button 
                                     onClick={handleAIAutoComplete} 
-                                    disabled={cleanRows.length === 0 || isAiWorking}
+                                    disabled={!fullRawText || isAiWorking}
                                     className="text-xs flex items-center gap-1.5 text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-bold shadow-md hover:shadow-indigo-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {isAiWorking ? (
@@ -513,11 +552,11 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                     ) : (
                                         <SparklesIcon className="w-3.5 h-3.5" />
                                     )}
-                                    Completar com IA
+                                    Extrair com IA
                                 </button>
                                 <button onClick={handleAddRow} className="text-xs flex items-center gap-1 text-slate-500 hover:text-indigo-600 font-bold px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                                     <PlusCircleIcon className="w-4 h-4" />
-                                    Add Linha
+                                    Add
                                 </button>
                             </div>
                         </div>
@@ -532,7 +571,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                             <SparklesIcon className="absolute inset-0 m-auto w-5 h-5 text-indigo-600 animate-pulse" />
                                         </div>
                                         <p className="font-bold text-slate-800 dark:text-white text-sm">IA Analisando Padrões...</p>
-                                        <p className="text-xs text-slate-500 mt-1">Lendo seu exemplo e aplicando ao arquivo.</p>
                                     </div>
                                 </div>
                             )}
@@ -592,13 +630,8 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                             <td colSpan={4} className="p-10 text-center text-slate-400 text-sm">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <WrenchScrewdriverIcon className="w-8 h-8 opacity-30" />
-                                                    <p>Nenhum dado identificado automaticamente.</p>
-                                                    <p className="text-xs opacity-70">
-                                                        1. Adicione uma linha manualmente.<br/>
-                                                        2. Copie dados do painel esquerdo (use a aba "Texto Puro").<br/>
-                                                        3. Clique em "Completar com IA".
-                                                    </p>
-                                                    <button onClick={handleAddRow} className="mt-2 text-indigo-600 font-bold hover:underline">Adicionar Linha Exemplo</button>
+                                                    <p>Nenhum dado identificado.</p>
+                                                    <button onClick={handleAddRow} className="mt-2 text-indigo-600 font-bold hover:underline">Adicionar Linha</button>
                                                 </div>
                                             </td>
                                         </tr>

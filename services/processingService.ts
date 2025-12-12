@@ -1,5 +1,5 @@
 
-import { Transaction, Contributor, MatchResult, ContributorFile, Church, LearnedAssociation } from '../types';
+import { Transaction, Contributor, MatchResult, ContributorFile, Church, LearnedAssociation, GroupedReportData } from '../types';
 import { Logger, Metrics } from './monitoringService';
 
 // --- Centralized Constants ---
@@ -473,6 +473,9 @@ export const parseBankStatement = (content: string, customIgnoreKeywords: string
     const validTransactions: Transaction[] = [];
     let lastValidTransaction: Transaction | null = null;
 
+    // OPTIMIZATION: Compile regex once
+    const ignoreRegex = createIgnoreRegex(customIgnoreKeywords);
+
     rawTransactions.forEach(t => {
         const hasValidDate = t.date && isDateString(t.date);
         const hasValidAmount = t.amount !== 0; 
@@ -505,7 +508,7 @@ export const parseBankStatement = (content: string, customIgnoreKeywords: string
     return validTransactions.map((t, index) => ({ 
             ...t, 
             id: `tx-${index}`,
-            cleanedDescription: cleanTransactionDescriptionForDisplay(t.description || '---', customIgnoreKeywords),
+            cleanedDescription: cleanTransactionDescriptionForDisplay(t.description || '---', ignoreRegex),
         }));
 };
 
@@ -527,13 +530,16 @@ export const parseContributors = (content: string, customIgnoreKeywords: string[
         return hasValidDate && hasValidAmount;
     });
 
+    // OPTIMIZATION: Compile regex once
+    const ignoreRegex = createIgnoreRegex(customIgnoreKeywords);
+
     return validContributors
         .map((c, index) => ({
             ...c,
             id: `contrib-${index}`,
             name: c.name || '---', // Ensure name is present for display
-            cleanedName: cleanTransactionDescriptionForDisplay(c.name || '---', customIgnoreKeywords), 
-            normalizedName: normalizeString(c.name || '', customIgnoreKeywords),
+            cleanedName: cleanTransactionDescriptionForDisplay(c.name || '---', ignoreRegex), 
+            normalizedName: normalizeString(c.name || '', ignoreRegex),
         }));
 };
 
@@ -548,23 +554,41 @@ const removeNumericCodes = (text: string): string => {
     });
 };
 
-export const normalizeString = (str: string, customKeywords: string[] = [], keepStopWords: boolean = false): string => {
+/**
+ * Creates a single optimized Regex for all keywords.
+ * This avoids recompiling regexes inside loops.
+ */
+const createIgnoreRegex = (keywords: string[]): RegExp | null => {
+    if (!keywords || keywords.length === 0) return null;
+    const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
+    const pattern = sortedKeywords
+        .filter(k => k.trim().length > 0)
+        .map(k => k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+    
+    return pattern ? new RegExp(pattern, 'gi') : null;
+}
+
+/**
+ * Optimized normalization function that accepts a pre-compiled Regex.
+ * @param str The string to normalize
+ * @param ignoreRegexOrKeywords Either the compiled Regex or the array of keywords (legacy support)
+ */
+export const normalizeString = (str: string, ignoreRegexOrKeywords: RegExp | string[] | null = null, keepStopWords: boolean = false): string => {
     if (!str) return '';
     
     // Step 1: Basic normalization (lowercase, remove accents)
     let normalized = str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    // Step 2: Remove keywords. We must normalize keywords too to match.
-    if (customKeywords && customKeywords.length > 0) {
-        const sortedKeywords = [...customKeywords].sort((a, b) => b.length - a.length);
-        for (const keyword of sortedKeywords) {
-             const normKeyword = keyword.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-             if (!normKeyword.trim()) continue;
-             
-             // Escape regex
-             const escaped = normKeyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-             const regex = new RegExp(escaped, 'g');
-             normalized = normalized.replace(regex, '');
+    // Step 2: Remove keywords.
+    if (ignoreRegexOrKeywords) {
+        if (ignoreRegexOrKeywords instanceof RegExp) {
+             // Fast Path: Use compiled Regex
+             normalized = normalized.replace(ignoreRegexOrKeywords, '');
+        } else if (Array.isArray(ignoreRegexOrKeywords) && ignoreRegexOrKeywords.length > 0) {
+             // Slow Path (Legacy): Create regex on the fly (Avoid this in loops!)
+             const regex = createIgnoreRegex(ignoreRegexOrKeywords);
+             if (regex) normalized = normalized.replace(regex, '');
         }
     }
 
@@ -578,21 +602,16 @@ export const normalizeString = (str: string, customKeywords: string[] = [], keep
         .trim();
 };
 
-export const cleanTransactionDescriptionForDisplay = (description: string, customKeywords: string[] = []): string => {
+export const cleanTransactionDescriptionForDisplay = (description: string, ignoreRegexOrKeywords: RegExp | string[] | null = null): string => {
     if (!description) return '';
     let cleaned = description;
 
-    if (customKeywords && customKeywords.length > 0) {
-        // Sort by length to avoid partial replacements of longer keywords
-        const sortedKeywords = [...customKeywords].sort((a, b) => b.length - a.length);
-        
-        for (const keyword of sortedKeywords) {
-            if (!keyword || !keyword.trim()) continue;
-            // Escape regex special characters
-            const escapedKeyword = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            // Regex for case-insensitive replacement (global)
-            const regex = new RegExp(escapedKeyword, 'gi');
-            cleaned = cleaned.replace(regex, '');
+    if (ignoreRegexOrKeywords) {
+        if (ignoreRegexOrKeywords instanceof RegExp) {
+             cleaned = cleaned.replace(ignoreRegexOrKeywords, '');
+        } else if (Array.isArray(ignoreRegexOrKeywords) && ignoreRegexOrKeywords.length > 0) {
+             const regex = createIgnoreRegex(ignoreRegexOrKeywords);
+             if (regex) cleaned = cleaned.replace(regex, '');
         }
     }
     
@@ -603,9 +622,9 @@ export const cleanTransactionDescriptionForDisplay = (description: string, custo
     return cleaned.replace(/\s+/g, ' ').trim();
 };
 
-export const calculateNameSimilarity = (description: string, contributor: Contributor, customKeywords: string[] = []): number => {
-    const normalizedDesc = normalizeString(description, customKeywords);
-    const normalizedContributorName = contributor.normalizedName || normalizeString(contributor.name, customKeywords);
+export const calculateNameSimilarity = (description: string, contributor: Contributor, ignoreRegexOrKeywords: RegExp | string[] | null = null): number => {
+    const normalizedDesc = normalizeString(description, ignoreRegexOrKeywords);
+    const normalizedContributorName = contributor.normalizedName || normalizeString(contributor.name, ignoreRegexOrKeywords);
 
     if (!normalizedDesc || !normalizedContributorName) return 0;
 
@@ -636,6 +655,9 @@ export const matchTransactions = (
     churches: Church[],
     customIgnoreKeywords: string[] = []
 ): MatchResult[] => {
+    // PERFORMANCE: Pre-compile regex ONCE before the loop
+    const ignoreRegex = createIgnoreRegex(customIgnoreKeywords);
+
     const allContributors = contributorFiles.flatMap(file =>
         file.contributors.map((c, index) => ({ 
             ...c, 
@@ -652,7 +674,7 @@ export const matchTransactions = (
 
     // Learned Associations
     transactions.forEach(transaction => {
-        const normalizedDesc = normalizeString(transaction.description, customIgnoreKeywords);
+        const normalizedDesc = normalizeString(transaction.description, ignoreRegex);
         const learnedMatch = learnedMap.get(normalizedDesc);
         if (learnedMatch) {
             const contributor = allContributors.find(c => 
@@ -685,14 +707,14 @@ export const matchTransactions = (
     const availableContributors = allContributors.filter(c => c.id! && !matchedContributorIds.has(c.id!));
 
     const contributorWordSets = availableContributors.map(c => {
-        const normalizedName = c.normalizedName || normalizeString(c.name, customIgnoreKeywords);
+        const normalizedName = c.normalizedName || normalizeString(c.name, ignoreRegex);
         const words = new Set(normalizedName.split(' ').filter(w => w.length > 0));
         return { id: c.id, contributor: c, words };
     });
 
     // Automatic Matching
     for (const transaction of availableTransactions) {
-        const txNormalized = normalizeString(transaction.description, customIgnoreKeywords);
+        const txNormalized = normalizeString(transaction.description, ignoreRegex);
         const txWords = new Set(txNormalized.split(' ').filter(w => w.length > 0));
 
         if (txWords.size === 0) continue;
@@ -812,4 +834,16 @@ export const processExpenses = (expenseTransactions: Transaction[]): MatchResult
         status: 'NÃO IDENTIFICADO',
         church: PLACEHOLDER_CHURCH,
     }));
+};
+
+export const groupResultsByChurch = (results: MatchResult[]): GroupedReportData => {
+    const grouped: GroupedReportData = {};
+    for (const result of results) {
+        const key = result.church?.id || 'unidentified';
+        if (!grouped[key]) {
+            grouped[key] = [];
+        }
+        grouped[key].push(result);
+    }
+    return grouped;
 };

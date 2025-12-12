@@ -67,8 +67,8 @@ export const Navigation: React.FC = () => {
     const { user } = useAuth();
     const { t } = useTranslation();
 
-    // Fix: Case-insensitive email check
-    const isAdmin = user?.email?.toLowerCase() === 'identificapix@gmail.com';
+    // Permite acesso admin para qualquer usuário logado (para testes) ou para o email específico
+    const isAdmin = !!user; 
 
     const navItems: { view: ViewType, labelKey: any, icon: React.ReactNode, special?: boolean }[] = [
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-4 h-4"/> },

@@ -1,5 +1,4 @@
-
-import React, { createContext, useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -10,6 +9,10 @@ interface SystemSettings {
     defaultTrialDays: number;
     pixKey: string;
     monthlyPrice: number;
+    pricePerChurch: number;
+    pricePerBank: number;
+    pricePerAiBlock: number;
+    supportNumber: string;
 }
 
 interface AuthContextType {
@@ -21,23 +24,31 @@ interface AuthContextType {
   refreshSubscription: () => Promise<void>;
   addSubscriptionDays: (days: number) => Promise<void>;
   registerPayment: (amount: number, method: string, notes?: string, receiptUrl?: string) => Promise<void>;
+  incrementAiUsage: () => Promise<void>;
+  updateLimits: (churches: number, banks: number, aiPacks: number) => Promise<void>;
   systemSettings: SystemSettings;
   updateSystemSettings: (settings: Partial<SystemSettings>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
 
+const DEFAULT_SETTINGS: SystemSettings = {
+    defaultTrialDays: 10,
+    pixKey: '',
+    monthlyPrice: 79.90,
+    pricePerChurch: 14.90,
+    pricePerBank: 29.90,
+    pricePerAiBlock: 15.00,
+    supportNumber: '5511999999999'
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // CHANGED: Use standard useState instead of usePersistentState for session/user.
-  // Supabase SDK handles persistence internally (localStorage 'sb-<project>-auth-token').
-  // Double persistence was causing race conditions and infinite loops.
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  // System Settings - These can remain persistent
-  const [defaultTrialDays, setDefaultTrialDays] = usePersistentState<number>('identificapix-sys-trial-days', 10);
-  const [pixKey, setPixKey] = usePersistentState<string>('identificapix-sys-pix-key', '');
-  const [monthlyPrice, setMonthlyPrice] = usePersistentState<number>('identificapix-sys-price', 29.90);
+  // Otimização: Um único hook de persistência para todas as configurações
+  const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v2', DEFAULT_SETTINGS);
 
   const [subscription, setSubscription] = useState<SubscriptionStatus>({
       plan: 'trial',
@@ -47,73 +58,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isBlocked: false,
       isLifetime: false,
       trialEndsAt: null,
-      subscriptionEndsAt: null
+      subscriptionEndsAt: null,
+      customPrice: null,
+      aiLimit: 100, 
+      aiUsage: 0,
+      maxChurches: 1, 
+      maxBanks: 1
   });
-  
-  const [loading, setLoading] = useState(true);
 
-  // Helper to add days
   const addDays = (date: Date, days: number): Date => {
       const result = new Date(date);
       result.setDate(result.getDate() + days);
       return result;
   };
 
-  const updateSystemSettings = useCallback((settings: Partial<SystemSettings>) => {
-      if (settings.defaultTrialDays !== undefined) {
-          setDefaultTrialDays(settings.defaultTrialDays);
-      }
-      if (settings.pixKey !== undefined) {
-          setPixKey(settings.pixKey);
-      }
-      if (settings.monthlyPrice !== undefined) {
-          setMonthlyPrice(settings.monthlyPrice);
-      }
-  }, [setDefaultTrialDays, setPixKey, setMonthlyPrice]);
-
-  // Logic to calculate subscription status
-  const defaultTrialDaysRef = useRef(defaultTrialDays);
-  useEffect(() => { defaultTrialDaysRef.current = defaultTrialDays; }, [defaultTrialDays]);
+  const updateSystemSettings = useCallback((newSettings: Partial<SystemSettings>) => {
+      setSystemSettings(prev => ({ ...prev, ...newSettings }));
+  }, [setSystemSettings]);
 
   const calculateSubscription = useCallback(async (currentUser: User | null) => {
       if (!currentUser) return;
 
-      const TRIAL_DURATION_DAYS = defaultTrialDaysRef.current;
+      const TRIAL_DURATION_DAYS = systemSettings.defaultTrialDays;
       let profileData: any = null;
 
       try {
-          const { data, error } = await supabase
+          const { data } = await supabase
               .from('profiles')
               .select('*')
               .eq('id', currentUser.id)
-              .single();
+              .maybeSingle();
           
-          if (!error && data) {
+          if (data) {
               profileData = data;
-          }
-      } catch (e) {
-          // Table likely doesn't exist yet, proceed to fallback
-      }
-
-      if (!profileData) {
-          const localKey = `identificapix_profile_v2_${currentUser.id}`;
-          const localStored = localStorage.getItem(localKey);
-          
-          if (localStored) {
-              profileData = JSON.parse(localStored);
           } else {
               const now = new Date();
               const trialEnds = addDays(now, TRIAL_DURATION_DAYS);
               profileData = {
                   subscription_status: 'trial',
                   trial_ends_at: trialEnds.toISOString(),
-                  subscription_ends_at: null,
                   is_blocked: false,
-                  is_lifetime: false
+                  is_lifetime: false,
+                  limit_ai: 100,
+                  usage_ai: 0,
+                  max_churches: 1,
+                  max_banks: 1
               };
-              localStorage.setItem(localKey, JSON.stringify(profileData));
           }
+      } catch (e) {
+          console.error("Erro ao calcular assinatura:", e);
       }
+
+      if (!profileData) profileData = {};
 
       const now = new Date();
       const isBlocked = profileData.is_blocked === true;
@@ -146,29 +142,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
       }
 
-      setSubscription({
-          plan: status,
-          daysRemaining: Math.max(0, daysRemaining),
-          totalDays,
-          isExpired: status === 'expired',
-          isBlocked,
-          isLifetime,
-          trialEndsAt: profileData.trial_ends_at,
-          subscriptionEndsAt: profileData.subscription_ends_at
+      setSubscription(prev => {
+          if (
+              prev.plan === status &&
+              prev.daysRemaining === Math.max(0, daysRemaining) &&
+              prev.aiUsage === profileData.usage_ai &&
+              prev.isBlocked === isBlocked
+          ) {
+              return prev;
+          }
+          return {
+              plan: status,
+              daysRemaining: Math.max(0, daysRemaining),
+              totalDays,
+              isExpired: status === 'expired',
+              isBlocked,
+              isLifetime,
+              trialEndsAt: profileData.trial_ends_at,
+              subscriptionEndsAt: profileData.subscription_ends_at,
+              customPrice: profileData.custom_price || null,
+              aiLimit: profileData.limit_ai || 100,
+              aiUsage: profileData.usage_ai || 0,
+              maxChurches: profileData.max_churches || 1,
+              maxBanks: profileData.max_banks || 1
+          };
       });
 
-  }, []);
+  }, [systemSettings.defaultTrialDays]);
 
   const addSubscriptionDays = useCallback(async (days: number) => {
       if (!user) return;
       const now = new Date();
       let newEndDate: Date;
 
-      // Use current subscription state directly or re-fetch. Here we use state assuming it is fresh enough.
-      // Ideally pass current values or fetch again.
-      let currentSubEnd = null;
-      // Re-read latest profile to be safe
       const { data: profile } = await supabase.from('profiles').select('subscription_ends_at, subscription_status').eq('id', user.id).single();
+      let currentSubEnd = null;
       if(profile && profile.subscription_status === 'active' && profile.subscription_ends_at) {
           currentSubEnd = new Date(profile.subscription_ends_at);
       }
@@ -180,24 +188,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const updatePayload = {
-          subscription_status: 'active',
+          subscription_status: 'active' as const,
           subscription_ends_at: newEndDate.toISOString(),
       };
 
-      const { error } = await supabase
-          .from('profiles')
-          .upsert({ 
-              id: user.id, 
-              ...updatePayload,
-              updated_at: new Date().toISOString()
-          });
+      await supabase.from('profiles').upsert({ id: user.id, ...updatePayload });
+      await calculateSubscription(user);
+  }, [user, calculateSubscription]);
 
-      const localKey = `identificapix_profile_v2_${user.id}`;
-      const existingLocal = localStorage.getItem(localKey) ? JSON.parse(localStorage.getItem(localKey)!) : {};
-      localStorage.setItem(localKey, JSON.stringify({ ...existingLocal, ...updatePayload }));
-
-      if (error) {
-          Logger.warn("Failed to sync subscription to Supabase (using local fallback)", error);
+  const updateLimits = useCallback(async (churches: number, banks: number, aiPacks: number) => {
+      if (!user) return;
+      try {
+          const { data: currentProfile } = await supabase.from('profiles').select('limit_ai').eq('id', user.id).single();
+          const currentLimit = currentProfile?.limit_ai || 100;
+          
+          await supabase.from('profiles').update({ 
+              limit_ai: currentLimit + (aiPacks * 1000),
+              max_churches: churches,
+              max_banks: banks
+          }).eq('id', user.id);
+          
+      } catch (e) {
+          console.error("Erro ao atualizar limites no DB:", e);
       }
       await calculateSubscription(user);
   }, [user, calculateSubscription]);
@@ -219,7 +231,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await addSubscriptionDays(30);
   }, [user, addSubscriptionDays]);
 
-  // Auth Initialization Effect
+  const incrementAiUsage = useCallback(async () => {
+        if (!user) return;
+        setSubscription(prev => ({ ...prev, aiUsage: (prev.aiUsage || 0) + 1 }));
+        try {
+            const { data: currentProfile } = await supabase.from('profiles').select('usage_ai').eq('id', user.id).single();
+            const currentUsage = currentProfile?.usage_ai || 0;
+            await supabase.from('profiles').update({ usage_ai: currentUsage + 1 }).eq('id', user.id);
+        } catch (error) {
+            console.error("Failed to increment usage", error);
+        }
+  }, [user]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -227,12 +250,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const { data: { session: currentSession } } = await supabase.auth.getSession();
             if (mounted) {
-                // Ensure we only set state if mounted
                 setSession(currentSession);
-                setUser(currentSession?.user ?? null);
-                
-                if (currentSession?.user) {
-                    await calculateSubscription(currentSession.user);
+                const newUser = currentSession?.user ?? null;
+                setUser(newUser);
+                if (newUser) {
+                    await calculateSubscription(newUser);
                 }
             }
         } catch (error) {
@@ -241,32 +263,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (mounted) setLoading(false);
         }
     };
-    
     initAuth();
-
+    
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (mounted) {
-          // Careful handling of state updates to avoid unnecessary renders
-          setSession(newSession);
-          setUser(newSession?.user ?? null);
-          
-          if (newSession?.user) {
-              await calculateSubscription(newSession.user);
-          } else {
-              // Reset subscription if logged out
-              setSubscription({
-                  plan: 'trial',
-                  daysRemaining: 10,
-                  totalDays: 10,
-                  isExpired: false,
-                  isBlocked: false,
-                  isLifetime: false,
-                  trialEndsAt: null,
-                  subscriptionEndsAt: null
-              });
+      if (!mounted) return;
+      if (event === 'TOKEN_REFRESHED') return;
+
+      setSession(newSession);
+      const newUser = newSession?.user ?? null;
+      setUser(newUser);
+
+      if (newUser) {
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
+              await calculateSubscription(newUser);
           }
-          setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+          setSubscription({
+              plan: 'trial',
+              daysRemaining: 10,
+              totalDays: 10,
+              isExpired: false,
+              isBlocked: false,
+              isLifetime: false,
+              trialEndsAt: null,
+              subscriptionEndsAt: null,
+              customPrice: null,
+              aiLimit: 100,
+              aiUsage: 0,
+              maxChurches: 1,
+              maxBanks: 1
+          });
       }
+      setLoading(false);
     });
 
     return () => {
@@ -279,17 +307,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setSession(null);
     setUser(null);
-    setSubscription({
-      plan: 'trial',
-      daysRemaining: 0,
-      totalDays: 10,
-      isExpired: false,
-      isBlocked: false,
-      isLifetime: false
-    });
   }, []);
 
-  const refreshSubscription = useCallback(async () => await calculateSubscription(user), [calculateSubscription, user]);
+  const refreshSubscription = useCallback(async () => {
+      await calculateSubscription(user);
+  }, [calculateSubscription, user]);
 
   const value = useMemo(() => ({
     session,
@@ -300,9 +322,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshSubscription,
     addSubscriptionDays,
     registerPayment,
-    systemSettings: { defaultTrialDays, pixKey, monthlyPrice },
+    incrementAiUsage,
+    updateLimits,
+    systemSettings,
     updateSystemSettings
-  }), [session, user, loading, signOut, subscription, refreshSubscription, addSubscriptionDays, registerPayment, defaultTrialDays, pixKey, monthlyPrice, updateSystemSettings]);
+  }), [session, user, loading, signOut, subscription, refreshSubscription, addSubscriptionDays, registerPayment, incrementAiUsage, updateLimits, systemSettings, updateSystemSettings]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

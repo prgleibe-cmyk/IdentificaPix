@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { ReactNode, memo } from 'react';
 
 // --- Contexts ---
 import { AppProvider, AppContext } from './contexts/AppContext';
@@ -11,7 +10,7 @@ import { UIProvider, useUI } from './contexts/UIContext';
 import { Header } from './components/layout/Header';
 import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
-import { LockClosedIcon, ExclamationTriangleIcon } from './components/Icons';
+import { LockClosedIcon, ExclamationTriangleIcon, WhatsAppIcon } from './components/Icons';
 
 // --- Modals ---
 import { EditBankModal } from './components/modals/EditBankModal';
@@ -24,26 +23,32 @@ import { SearchFiltersModal } from './components/modals/SearchFiltersModal';
 import { DivergenceConfirmationModal } from './components/modals/DivergenceConfirmationModal';
 import { PaymentModal } from './components/modals/PaymentModal';
 
-
-// --- Views (Lazy Loaded for performance) ---
-const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
-const UploadView = React.lazy(() => import('./views/UploadView').then(m => ({ default: m.UploadView })));
-const RegisterView = React.lazy(() => import('./views/RegisterView').then(m => ({ default: m.RegisterView })));
-const ReportsView = React.lazy(() => import('./views/ReportsView').then(m => ({ default: m.ReportsView })));
-const SettingsView = React.lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
-const SearchView = React.lazy(() => import('./views/SearchView').then(m => ({ default: m.SearchView })));
-const SavedReportsView = React.lazy(() => import('./views/SavedReportsView').then(m => ({ default: m.SavedReportsView })));
-const AdminView = React.lazy(() => import('./views/AdminView').then(m => ({ default: m.AdminView })));
+// --- Views (Static Imports for Stability) ---
 import { AuthView } from './views/AuthView';
+import { DashboardView } from './views/DashboardView';
+import { UploadView } from './views/UploadView';
+import { RegisterView } from './views/RegisterView';
+import { ReportsView } from './views/ReportsView';
+import { SettingsView } from './views/SettingsView';
+import { SearchView } from './views/SearchView';
+import { SavedReportsView } from './views/SavedReportsView';
+import { AdminView } from './views/AdminView';
 
 // --- Error Boundary ---
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false };
-  }
+interface ErrorBoundaryProps {
+  children?: ReactNode;
+}
 
-  static getDerivedStateFromError(error: any) {
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = {
+    hasError: false
+  };
+
+  static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true };
   }
 
@@ -65,7 +70,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       );
     }
 
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
@@ -90,50 +95,86 @@ const BlockedView = () => (
     </div>
 );
 
-// --- Main Application Component ---
-function MainApp() {
-    const { 
-        activeView, 
-        isLoading, 
-        toast,
-    } = useUI();
-    
+// --- Modals Render Helper (Memoized) ---
+const ModalsRenderer = memo(() => {
+    const context = React.useContext(AppContext);
+    if (!context) return null;
+
     const {
         editingBank, 
         editingChurch, 
-        manualIdentificationTx,
-        deletingItem,
-        aiSuggestion,
-        manualMatchState,
-        savingReportState,
-        isSearchFiltersOpen,
-        divergenceConfirmation,
-        isPaymentModalOpen,
-    } = React.useContext(AppContext);
+        manualIdentificationTx, 
+        deletingItem, 
+        manualMatchState, 
+        savingReportState, 
+        isSearchFiltersOpen, 
+        divergenceConfirmation, 
+        isPaymentModalOpen, 
+    } = context;
 
-    const renderContent = () => {
-        switch (activeView) {
-            case 'dashboard': return <DashboardView />;
-            case 'upload': return <UploadView />;
-            case 'cadastro': return <RegisterView />;
-            case 'reports': return <ReportsView />;
-            case 'search': return <SearchView />;
-            case 'savedReports': return <SavedReportsView />;
-            case 'settings': return <SettingsView />;
-            case 'admin': return <AdminView />;
-            default: return <div className="text-center p-12 text-slate-500">View not implemented.</div>;
-        }
-    };
+    // Return null if no modals are active to keep DOM clean
+    if (!editingBank && !editingChurch && !manualIdentificationTx && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen) {
+        return null;
+    }
 
     return (
-        <div className="min-h-screen font-sans flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
+        <>
+            {editingBank && <EditBankModal />}
+            {editingChurch && <EditChurchModal />}
+            {manualIdentificationTx && <ManualIdModal />}
+            {deletingItem && <ConfirmDeleteModal />}
+            {manualMatchState && <ManualMatchModal />}
+            {savingReportState && <SaveReportModal />}
+            {isSearchFiltersOpen && <SearchFiltersModal />}
+            {divergenceConfirmation && <DivergenceConfirmationModal />}
+            {isPaymentModalOpen && <PaymentModal />}
+        </>
+    );
+});
+
+// --- View Router (Memoized) ---
+const ViewRouter = memo(() => {
+    const { activeView } = useUI();
+    
+    switch (activeView) {
+        case 'dashboard': return <DashboardView />;
+        case 'upload': return <UploadView />;
+        case 'cadastro': return <RegisterView />;
+        case 'reports': return <ReportsView />;
+        case 'search': return <SearchView />;
+        case 'savedReports': return <SavedReportsView />;
+        case 'settings': return <SettingsView />;
+        case 'admin': return <AdminView />;
+        default: return <DashboardView />;
+    }
+});
+
+// --- Main Application Layout ---
+// Separated to be wrapped by Context Providers
+const MainAppContent = () => {
+    const { isLoading, toast } = useUI();
+    const { systemSettings } = useAuth();
+    const context = React.useContext(AppContext);
+    
+    if (!context) return <LoadingSpinner />;
+
+    const { aiSuggestion, initialDataLoaded } = context;
+    const waNumber = systemSettings.supportNumber.replace(/\D/g, '') || '5511999999999';
+
+    if (!initialDataLoaded) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+                <LoadingSpinner />
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-screen w-screen flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative overflow-hidden selection:bg-indigo-500 selection:text-white">
             
-            {/* Premium Background System - Light Tonality with Dispersed Elements */}
+            {/* Premium Background System */}
             <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
-                {/* Noise Texture for consistency */}
                 <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-                
-                {/* Lighter Gradient Blobs for the 'Dispersed Elements' look */}
                 <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-100/50 dark:bg-indigo-900/20 blur-[120px] animate-pulse-slow"></div>
                 <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-indigo-100/50 dark:bg-blue-900/20 blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
                 <div className="absolute top-[30%] right-[20%] w-[30vw] h-[30vw] rounded-full bg-purple-100/40 dark:bg-violet-900/10 blur-[100px] animate-pulse-slow" style={{ animationDelay: '4s' }}></div>
@@ -141,7 +182,7 @@ function MainApp() {
 
             <Header />
 
-            <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-4 relative z-10 h-full flex flex-col">
+            <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-4 relative z-10 flex flex-col min-h-0 overflow-hidden">
                 {aiSuggestion && (
                     <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-indigo-100 dark:border-indigo-800 shadow-xl shadow-indigo-500/10 rounded-2xl px-6 py-4 mb-4 flex items-start gap-4 animate-fade-in-down ring-1 ring-white/50 dark:ring-white/5 flex-shrink-0">
                         <div className="flex-shrink-0 mt-0.5 p-2.5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-xl text-white shadow-md">
@@ -156,50 +197,59 @@ function MainApp() {
                     </div>
                 )}
                 
-                <React.Suspense fallback={<LoadingSpinner />}>
-                    {isLoading ? <LoadingSpinner /> : renderContent()}
-                </React.Suspense>
+                {isLoading ? <LoadingSpinner /> : <ViewRouter />}
             </main>
 
             {toast && <Toast message={toast.message} type={toast.type} />}
-            {editingBank && <EditBankModal />}
-            {editingChurch && <EditChurchModal />}
-            {manualIdentificationTx && <ManualIdModal />}
-            {deletingItem && <ConfirmDeleteModal />}
-            {manualMatchState && <ManualMatchModal />}
-            {savingReportState && <SaveReportModal />}
-            {isSearchFiltersOpen && <SearchFiltersModal />}
-            {divergenceConfirmation && <DivergenceConfirmationModal />}
-            {isPaymentModalOpen && <PaymentModal />}
+            
+            <ModalsRenderer />
+
+            {/* WhatsApp Support Button */}
+            <a 
+                href={`https://wa.me/${waNumber}`}
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-3 rounded-full shadow-lg transition-all duration-300 hover:scale-110 flex items-center justify-center group"
+                title="Falar no WhatsApp"
+            >
+                <WhatsAppIcon className="w-6 h-6" />
+                <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-in-out whitespace-nowrap text-sm font-bold ml-0 group-hover:ml-2">
+                    Suporte
+                </span>
+            </a>
         </div>
     );
-}
+};
 
 // --- App Controller ---
+// Wraps the main content with providers. Handles Auth state.
 const AppController: React.FC = () => {
     const { session, loading, subscription } = useAuth();
 
     if (loading) {
-        return <LoadingSpinner />;
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+                <LoadingSpinner />
+            </div>
+        );
     }
 
     if (!session) {
         return <AuthView />;
     }
 
-    // Security Check: Block access if user is marked as blocked
     if (subscription.isBlocked) {
         return <BlockedView />;
     }
 
     return (
-        <UIProvider>
-            <AppProvider>
-                <ErrorBoundary>
-                    <MainApp />
-                </ErrorBoundary>
-            </AppProvider>
-        </UIProvider>
+        <ErrorBoundary>
+            <UIProvider>
+                <AppProvider>
+                    <MainAppContent />
+                </AppProvider>
+            </UIProvider>
+        </ErrorBoundary>
     );
 }
 

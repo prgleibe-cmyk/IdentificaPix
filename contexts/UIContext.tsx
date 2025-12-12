@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useCallback, useEffect } from 'react';
+
+import React, { createContext, useState, useContext, useCallback, useEffect, useMemo } from 'react';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { Theme, ViewType } from '../types';
 
@@ -32,7 +33,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         setTimeout(() => setToast(null), 3000);
     }, []);
 
-    const value = {
+    const value = useMemo(() => ({
         theme,
         toggleTheme,
         activeView,
@@ -41,7 +42,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         setIsLoading,
         toast,
         showToast
-    };
+    }), [theme, toggleTheme, activeView, isLoading, toast, showToast]);
 
     return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 };

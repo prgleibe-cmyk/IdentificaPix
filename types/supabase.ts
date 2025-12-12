@@ -165,6 +165,9 @@ export type Database = {
           is_blocked: boolean
           is_lifetime: boolean
           created_at: string
+          custom_price: number | null
+          limit_ai: number | null
+          usage_ai: number
         }
         Insert: {
           id: string
@@ -176,6 +179,9 @@ export type Database = {
           is_blocked?: boolean
           is_lifetime?: boolean
           created_at?: string
+          custom_price?: number | null
+          limit_ai?: number | null
+          usage_ai?: number
         }
         Update: {
           id?: string
@@ -187,6 +193,9 @@ export type Database = {
           is_blocked?: boolean
           is_lifetime?: boolean
           created_at?: string
+          custom_price?: number | null
+          limit_ai?: number | null
+          usage_ai?: number
         }
         Relationships: [
           {
