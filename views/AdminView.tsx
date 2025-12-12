@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -440,21 +441,31 @@ export const AdminView: React.FC = () => {
     const [userToDelete, setUserToDelete] = useState<any | null>(null);
     const [receiptToView, setReceiptToView] = useState<string | null>(null);
 
-    // Single Load Function - Passive Mode (No auto-retry loops)
+    // Single Load Function with Safety Timeout
     const loadData = async () => {
         setIsLoading(true);
         setError(null);
         
         const startTime = performance.now();
+        let isMounted = true;
+
+        // Timeout race condition to prevent infinite spinning
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Tempo limite de conexão excedido.')), 10000)
+        );
         
         try {
-            // Parallel Fetch
-            const [reportsResponse, churchesResponse, paymentsResponse, profilesResponse] = await Promise.all([
+            // Parallel Fetch with Timeout
+            const dataPromise = Promise.all([
                 supabase.from('saved_reports').select('id', { count: 'exact', head: true }),
                 supabase.from('churches').select('id', { count: 'exact', head: true }),
                 supabase.from('payments').select('*').order('created_at', { ascending: false }).limit(50),
                 supabase.from('profiles').select('*').order('created_at', { ascending: false })
             ]);
+
+            const [reportsResponse, churchesResponse, paymentsResponse, profilesResponse] : any = await Promise.race([dataPromise, timeoutPromise]);
+
+            if (!isMounted) return;
 
             const endTime = performance.now();
             const latency = (endTime - startTime).toFixed(0) + 'ms';
@@ -482,8 +493,10 @@ export const AdminView: React.FC = () => {
             console.error("Exceção ao carregar dados:", err);
             setError(err.message || "Erro desconhecido ao carregar dados.");
         } finally {
-            setIsLoading(false);
+            if (isMounted) setIsLoading(false);
         }
+
+        return () => { isMounted = false; };
     };
 
     // Load once on mount
@@ -686,6 +699,25 @@ export const AdminView: React.FC = () => {
                     </svg>
                     <span className="text-slate-500 font-medium">Carregando painel administrativo...</span>
                 </div>
+            </div>
+        );
+    }
+
+    // Se houve erro no carregamento, mostra estado de erro com botão de retry
+    if (error && profiles.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <ExclamationTriangleIcon className="w-12 h-12 text-amber-500" />
+                <div className="text-center">
+                    <h3 className="text-lg font-bold text-slate-700 dark:text-white">Falha ao conectar</h3>
+                    <p className="text-slate-500 text-sm max-w-md mt-1">{error}</p>
+                </div>
+                <button 
+                    onClick={loadData}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg"
+                >
+                    Tentar Novamente
+                </button>
             </div>
         );
     }

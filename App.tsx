@@ -1,3 +1,4 @@
+
 import React, { ReactNode, memo } from 'react';
 
 // --- Contexts ---
@@ -95,8 +96,8 @@ const BlockedView = () => (
     </div>
 );
 
-// --- Modals Render Helper (Memoized) ---
-const ModalsRenderer = memo(() => {
+// --- Modals Render Helper ---
+const ModalsRenderer = () => {
     const context = React.useContext(AppContext);
     if (!context) return null;
 
@@ -130,10 +131,11 @@ const ModalsRenderer = memo(() => {
             {isPaymentModalOpen && <PaymentModal />}
         </>
     );
-});
+};
 
-// --- View Router (Memoized) ---
-const ViewRouter = memo(() => {
+// --- View Router (NOT MEMOIZED) ---
+// This ensures that when activeView changes in context, this component re-renders immediately.
+const ViewRouter = () => {
     const { activeView } = useUI();
     
     switch (activeView) {
@@ -147,7 +149,7 @@ const ViewRouter = memo(() => {
         case 'admin': return <AdminView />;
         default: return <DashboardView />;
     }
-});
+};
 
 // --- Main Application Layout ---
 // Separated to be wrapped by Context Providers
