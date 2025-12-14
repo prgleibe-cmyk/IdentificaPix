@@ -1,5 +1,5 @@
 
-import React, { ReactNode, memo } from 'react';
+import React, { ReactNode } from 'react';
 
 // --- Contexts ---
 import { AppProvider, AppContext } from './contexts/AppContext';
@@ -8,10 +8,11 @@ import { I18nProvider } from './contexts/I18nContext';
 import { UIProvider, useUI } from './contexts/UIContext';
 
 // --- Layout & Shared Components ---
-import { Header } from './components/layout/Header';
+import { Sidebar } from './components/layout/Sidebar';
+// Header removed as per request
 import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
-import { LockClosedIcon, ExclamationTriangleIcon, WhatsAppIcon } from './components/Icons';
+import { ExclamationTriangleIcon } from './components/Icons';
 
 // --- Modals ---
 import { EditBankModal } from './components/modals/EditBankModal';
@@ -24,7 +25,7 @@ import { SearchFiltersModal } from './components/modals/SearchFiltersModal';
 import { DivergenceConfirmationModal } from './components/modals/DivergenceConfirmationModal';
 import { PaymentModal } from './components/modals/PaymentModal';
 
-// --- Views (Static Imports for Stability) ---
+// --- Views ---
 import { AuthView } from './views/AuthView';
 import { DashboardView } from './views/DashboardView';
 import { UploadView } from './views/UploadView';
@@ -34,6 +35,7 @@ import { SettingsView } from './views/SettingsView';
 import { SearchView } from './views/SearchView';
 import { SavedReportsView } from './views/SavedReportsView';
 import { AdminView } from './views/AdminView';
+import { SmartAnalysisView } from './views/SmartAnalysisView';
 
 // --- Error Boundary ---
 interface ErrorBoundaryProps {
@@ -60,12 +62,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-            <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md">
-                <ExclamationTriangleIcon className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-slate-800 mb-2">Algo deu errado</h2>
-                <p className="text-slate-500 mb-6">Ocorreu um erro inesperado na aplicação. Tente recarregar a página.</p>
-                <button onClick={() => window.location.reload()} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700">Recarregar</button>
+        <div className="min-h-screen flex items-center justify-center bg-brand-bg p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-card text-center max-w-md border border-red-100">
+                <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                    <ExclamationTriangleIcon className="w-6 h-6 text-red-500" />
+                </div>
+                <h2 className="text-xl font-display font-bold text-brand-graphite mb-2">Algo deu errado</h2>
+                <p className="text-slate-500 mb-6">Ocorreu um erro inesperado. Tente recarregar a página.</p>
+                <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-brand-blue text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20">Recarregar</button>
             </div>
         </div>
       );
@@ -74,27 +78,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return (this as any).props.children;
   }
 }
-
-// --- Blocked View Component ---
-const BlockedView = () => (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-4">
-        <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8 text-center border border-red-100 dark:border-red-900/30">
-            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                <LockClosedIcon className="w-10 h-10 text-red-600 dark:text-red-400" />
-            </div>
-            <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-2">Acesso Suspenso</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-                Sua conta foi temporariamente bloqueada pela administração. Entre em contato com o suporte para regularizar sua situação.
-            </p>
-            <button 
-                onClick={() => window.location.href = 'mailto:suporte@identificapix.com'}
-                className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-2xl transition-all hover:scale-[1.02]"
-            >
-                Contatar Suporte
-            </button>
-        </div>
-    </div>
-);
 
 // --- Modals Render Helper ---
 const ModalsRenderer = () => {
@@ -109,11 +92,10 @@ const ModalsRenderer = () => {
         manualMatchState, 
         savingReportState, 
         isSearchFiltersOpen, 
-        divergenceConfirmation, 
-        isPaymentModalOpen, 
+        divergenceConfirmation,
+        isPaymentModalOpen
     } = context;
 
-    // Return null if no modals are active to keep DOM clean
     if (!editingBank && !editingChurch && !manualIdentificationTx && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen) {
         return null;
     }
@@ -133,10 +115,13 @@ const ModalsRenderer = () => {
     );
 };
 
-// --- View Router (NOT MEMOIZED) ---
-// This ensures that when activeView changes in context, this component re-renders immediately.
+// --- View Router ---
 const ViewRouter = () => {
     const { activeView } = useUI();
+    const { user } = useAuth();
+
+    // Robust check: Lowercase comparison to ensure access matches regardless of casing
+    const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
     
     switch (activeView) {
         case 'dashboard': return <DashboardView />;
@@ -146,91 +131,68 @@ const ViewRouter = () => {
         case 'search': return <SearchView />;
         case 'savedReports': return <SavedReportsView />;
         case 'settings': return <SettingsView />;
-        case 'admin': return <AdminView />;
+        case 'smart_analysis': return <SmartAnalysisView />;
+        case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
         default: return <DashboardView />;
     }
 };
 
 // --- Main Application Layout ---
-// Separated to be wrapped by Context Providers
 const MainAppContent = () => {
     const { isLoading, toast } = useUI();
-    const { systemSettings } = useAuth();
     const context = React.useContext(AppContext);
     
     if (!context) return <LoadingSpinner />;
 
-    const { aiSuggestion, initialDataLoaded } = context;
-    const waNumber = systemSettings.supportNumber.replace(/\D/g, '') || '5511999999999';
+    const { initialDataLoaded } = context;
 
     if (!initialDataLoaded) {
         return (
-            <div className="h-screen w-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+            <div className="h-screen w-screen flex items-center justify-center bg-brand-deep">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="h-screen w-screen flex flex-col bg-slate-50 dark:bg-[#0f172a] transition-colors duration-300 relative overflow-hidden selection:bg-indigo-500 selection:text-white">
-            
-            {/* Premium Background System */}
-            <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
-                <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
-                <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-100/50 dark:bg-indigo-900/20 blur-[120px] animate-pulse-slow"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-indigo-100/50 dark:bg-blue-900/20 blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
-                <div className="absolute top-[30%] right-[20%] w-[30vw] h-[30vw] rounded-full bg-purple-100/40 dark:bg-violet-900/10 blur-[100px] animate-pulse-slow" style={{ animationDelay: '4s' }}></div>
-            </div>
+        <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0B1120] font-sans overflow-hidden">
+            {/* Sidebar is fixed height, main content scrolls */}
+            <Sidebar />
 
-            <Header />
-
-            <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-4 relative z-10 flex flex-col min-h-0 overflow-hidden">
-                {aiSuggestion && (
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-indigo-100 dark:border-indigo-800 shadow-xl shadow-indigo-500/10 rounded-2xl px-6 py-4 mb-4 flex items-start gap-4 animate-fade-in-down ring-1 ring-white/50 dark:ring-white/5 flex-shrink-0">
-                        <div className="flex-shrink-0 mt-0.5 p-2.5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-xl text-white shadow-md">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-1">Sugestão Inteligente</p>
-                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                Transação #{aiSuggestion.id.split('-').pop()}: <span className="font-bold text-slate-900 dark:text-white">{aiSuggestion.name}</span>
-                            </p>
-                        </div>
-                    </div>
-                )}
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+                {/* Header Removed for cleaner look */}
                 
-                {isLoading ? <LoadingSpinner /> : <ViewRouter />}
+                <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth z-10 custom-scrollbar relative">
+                    {/* Header Gradient Decoration - Subtle ambient light */}
+                    <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-brand-blue/5 to-transparent pointer-events-none z-0"></div>
+                    
+                    <div className="max-w-[1600px] mx-auto h-full flex flex-col relative z-10">
+                        {isLoading ? (
+                            <div className="flex-1 flex items-center justify-center">
+                                <LoadingSpinner />
+                            </div>
+                        ) : (
+                            <div className="animate-fade-in h-full">
+                                <ViewRouter />
+                            </div>
+                        )}
+                    </div>
+                </div>
             </main>
 
             {toast && <Toast message={toast.message} type={toast.type} />}
-            
             <ModalsRenderer />
-
-            {/* WhatsApp Support Button */}
-            <a 
-                href={`https://wa.me/${waNumber}`}
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-3 rounded-full shadow-lg transition-all duration-300 hover:scale-110 flex items-center justify-center group"
-                title="Falar no WhatsApp"
-            >
-                <WhatsAppIcon className="w-6 h-6" />
-                <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-in-out whitespace-nowrap text-sm font-bold ml-0 group-hover:ml-2">
-                    Suporte
-                </span>
-            </a>
         </div>
     );
 };
 
 // --- App Controller ---
-// Wraps the main content with providers. Handles Auth state.
 const AppController: React.FC = () => {
-    const { session, loading, subscription } = useAuth();
+    const { session, loading } = useAuth();
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+            <div className="min-h-screen flex items-center justify-center bg-[#051024]">
                 <LoadingSpinner />
             </div>
         );
@@ -238,10 +200,6 @@ const AppController: React.FC = () => {
 
     if (!session) {
         return <AuthView />;
-    }
-
-    if (subscription.isBlocked) {
-        return <BlockedView />;
     }
 
     return (
@@ -255,7 +213,6 @@ const AppController: React.FC = () => {
     );
 }
 
-// --- Root Component ---
 export default function App() {
     return (
         <I18nProvider>

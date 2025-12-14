@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 
 // Arquivo corretíssimo para Vite + TypeScript
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
+  const env = loadEnv(mode, '.', '');
 
   return {
     server: {
@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve('.'),
       },
     },
   };

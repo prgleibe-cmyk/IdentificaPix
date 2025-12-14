@@ -14,71 +14,147 @@ export const PLACEHOLDER_CHURCH: Church = {
 
 // --- Intelligent Search Filtering ---
 
-export const filterByUniversalQuery = (record: MatchResult, query: string): boolean => {
-    const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean); // keep simple split
-    if (searchTerms.length === 0) {
-        return true;
+/**
+ * Helper para extrair possíveis valores numéricos de uma string de busca.
+ * Tenta interpretar formatos BR (1.000,00) e US (1,000.00).
+ */
+export const getPotentialAmounts = (term: string): number[] => {
+    const potentials: number[] = [];
+    
+    // Remove espaços e símbolos de moeda, mantendo números, pontos, vírgulas e sinal negativo
+    const cleanTerm = term.replace(/[^\d.,-]/g, '');
+    if (!cleanTerm) return [];
+
+    // Se o usuário digitou exatamente um formato brasileiro completo (ex: 1.200,50)
+    if (/^-?\d{1,3}(\.\d{3})*,\d{2}$/.test(cleanTerm)) {
+        const val = parseFloat(cleanTerm.replace(/\./g, '').replace(',', '.'));
+        if (!isNaN(val)) potentials.push(val);
+    }
+    
+    // Se o usuário digitou formato US ou simples (ex: 1200.50)
+    if (/^-?\d+(\.\d+)?$/.test(cleanTerm)) {
+        const val = parseFloat(cleanTerm);
+        if (!isNaN(val)) potentials.push(val);
     }
 
-    const { transaction, contributor } = record;
+    // Tentativa genérica BR (substitui vírgula por ponto, remove outros pontos)
+    // Ex: 100,2 -> 100.2
+    const brGeneric = cleanTerm.replace(/\./g, '').replace(',', '.');
+    const valBR = parseFloat(brGeneric);
+    if (!isNaN(valBR)) potentials.push(valBR);
+
+    // Tentativa genérica US (remove vírgulas)
+    // Ex: 1,000.20 -> 1000.20
+    const usGeneric = cleanTerm.replace(/,/g, '');
+    const valUS = parseFloat(usGeneric);
+    if (!isNaN(valUS)) potentials.push(valUS);
+
+    return [...new Set(potentials)]; // Remove duplicatas
+};
+
+/**
+ * Função de busca universal "Gold Standard".
+ * Deve ser usada por todos os componentes de busca para garantir consistência.
+ */
+export const filterByUniversalQuery = (record: MatchResult, query: string): boolean => {
+    if (!query) return true;
+    
+    // Divide a query em termos para busca "AND"
+    const searchTerms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
 
     return searchTerms.every(term => {
-        // Simple raw check against original string
-        if (transaction.originalAmount && transaction.originalAmount.toLowerCase().includes(term)) {
-            return true;
-        }
-        
-        // Also check parsed amount for convenience if user types number with dot/comma different from file
-        const numericValue = parseFloat(term.replace(',', '.'));
-        const isNumericTerm = !isNaN(numericValue);
-        if (isNumericTerm && Math.abs(transaction.amount - numericValue) < 0.01) {
-            return true;
+        const normalizedTerm = normalizeString(term);
+        let matchFound = false;
+
+        // --- 1. BUSCA TEXTUAL (Nome, Descrição, Igreja) ---
+        const txDesc = normalizeString(record.transaction.description);
+        const txClean = normalizeString(record.transaction.cleanedDescription || '');
+        const contribName = record.contributor ? normalizeString(record.contributor.name) : '';
+        const contribClean = record.contributor?.cleanedName ? normalizeString(record.contributor.cleanedName) : '';
+        const churchName = normalizeString(record.church?.name || '');
+
+        if (
+            txDesc.includes(normalizedTerm) || 
+            txClean.includes(normalizedTerm) || 
+            contribName.includes(normalizedTerm) ||
+            contribClean.includes(normalizedTerm) ||
+            churchName.includes(normalizedTerm)
+        ) {
+            matchFound = true;
         }
 
-        if (transaction.date.toLowerCase().includes(term)) {
-            return true;
+        // --- 2. BUSCA DE DATA (Lógica Refinada) ---
+        if (!matchFound) {
+            const dateStrings = [
+                record.transaction.date, 
+                record.contributor?.date
+            ].filter(Boolean) as string[];
+
+            // Se o termo tem separadores (/ ou -), busca como substring exata
+            if (term.includes('/') || term.includes('-')) {
+                if (dateStrings.some(d => d.includes(term))) {
+                    matchFound = true;
+                }
+            } else {
+                // Se é apenas números (ex: "15"), verifica se existe nas partes da data
+                // Isso evita que "10" encontre "2010" pelo ano, focando mais em dia/mês
+                // Mas a lógica simples de includes também é válida se o usuário quer buscar ano.
+                if (dateStrings.some(d => d.includes(term) || d.replace(/[^0-9]/g, '').includes(term))) {
+                    matchFound = true;
+                }
+            }
         }
-        if ((contributor?.name || '').toLowerCase().includes(term) ||
-            (contributor?.cleanedName || '').toLowerCase().includes(term) ||
-            transaction.description.toLowerCase().includes(term)) {
-            return true;
+
+        // --- 3. BUSCA DE VALOR (Lógica Refinada) ---
+        // Só tenta se o termo tiver algum número
+        if (!matchFound && /\d/.test(term)) {
+            // A. Busca Numérica (Float)
+            const potentials = getPotentialAmounts(term);
+            const txAmount = Math.abs(record.transaction.amount);
+            const contribAmount = record.contributorAmount 
+                ? Math.abs(record.contributorAmount) 
+                : (record.contributor?.amount ? Math.abs(record.contributor.amount) : 0);
+
+            // Verifica margem de erro pequena
+            const isNumericMatch = potentials.some(val => 
+                Math.abs(txAmount - val) < 0.01 || 
+                (contribAmount > 0 && Math.abs(contribAmount - val) < 0.01)
+            );
+
+            // B. Busca na String Original Formatada (ex: buscar "1.200" em "1.200,50")
+            const amountStrings = [
+                record.transaction.originalAmount,
+                record.contributor?.originalAmount,
+                record.transaction.amount.toString(),
+                record.transaction.amount.toFixed(2),
+                record.transaction.amount.toFixed(2).replace('.', ',') // Formato PT-BR simples
+            ].filter(Boolean) as string[];
+
+            const isStringMatch = amountStrings.some(s => s.includes(term));
+
+            if (isNumericMatch || isStringMatch) {
+                matchFound = true;
+            }
         }
-        
-        return false;
+
+        return matchFound;
     });
 };
 
 export const filterTransactionByUniversalQuery = (transaction: Transaction, query: string): boolean => {
-    const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    if (searchTerms.length === 0) {
-        return true;
-    }
-    
-    return searchTerms.every(term => {
-        if (transaction.originalAmount && transaction.originalAmount.toLowerCase().includes(term)) {
-            return true;
-        }
-        
-        const numericValue = parseFloat(term.replace(',', '.'));
-        const isNumericTerm = !isNaN(numericValue);
-        if (isNumericTerm && Math.abs(transaction.amount - numericValue) < 0.01) {
-            return true;
-        }
-
-        if (transaction.date.toLowerCase().includes(term)) {
-            return true;
-        }
-        if (transaction.description.toLowerCase().includes(term)) {
-            return true;
-        }
-        
-        return false;
-    });
+    // Wrapper simples para usar a mesma lógica quando temos apenas a transação
+    // Criamos um MatchResult "fake" para reutilizar a função robusta
+    const fakeRecord: MatchResult = {
+        transaction,
+        contributor: null,
+        status: 'NÃO IDENTIFICADO',
+        church: PLACEHOLDER_CHURCH
+    };
+    return filterByUniversalQuery(fakeRecord, query);
 };
 
 
 // --- Parsing Helpers ---
-
 // NOTE: Exported for testing
 export const parseDate = (dateString: string): Date | null => {
     if (!dateString || typeof dateString !== 'string') return null;
@@ -838,7 +914,10 @@ export const processExpenses = (expenseTransactions: Transaction[]): MatchResult
 
 export const groupResultsByChurch = (results: MatchResult[]): GroupedReportData => {
     const grouped: GroupedReportData = {};
+    if (!Array.isArray(results)) return grouped;
+
     for (const result of results) {
+        if (!result) continue;
         const key = result.church?.id || 'unidentified';
         if (!grouped[key]) {
             grouped[key] = [];

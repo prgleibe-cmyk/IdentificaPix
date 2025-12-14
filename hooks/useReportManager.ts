@@ -41,6 +41,50 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
         else showToast('Relatório renomeado.', 'success');
     }, [user, showToast]);
 
+    const updateSavedReportTransaction = useCallback(async (transactionId: string, updatedRow: MatchResult) => {
+        if (!user) return;
+
+        // Find the report containing the transaction
+        const reportIndex = savedReports.findIndex(r => r.data?.results.some(res => res.transaction.id === transactionId));
+        
+        if (reportIndex === -1) return;
+
+        const report = savedReports[reportIndex];
+        if (!report.data) return;
+
+        // Create updated results array
+        const updatedResults = report.data.results.map(res => 
+            res.transaction.id === transactionId ? updatedRow : res
+        );
+
+        // Update Local State
+        const updatedReport = {
+            ...report,
+            data: {
+                ...report.data,
+                results: updatedResults
+            }
+        };
+
+        setSavedReports(prev => {
+            const newReports = [...prev];
+            newReports[reportIndex] = updatedReport;
+            return newReports;
+        });
+
+        // Update Supabase
+        const { error } = await supabase
+            .from('saved_reports')
+            .update({ data: updatedReport.data })
+            .eq('id', report.id);
+
+        if (error) {
+            showToast('Erro ao atualizar relatório salvo.', 'error');
+        } else {
+            showToast('Relatório salvo atualizado.', 'success');
+        }
+    }, [user, savedReports, setSavedReports, showToast]);
+
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
             type: 'search',
@@ -98,11 +142,11 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
-        updateSavedReportName, saveFilteredReport,
+        updateSavedReportName, updateSavedReportTransaction, saveFilteredReport,
         allHistoricalResults
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
-        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport
+        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, updateSavedReportTransaction, saveFilteredReport
     ]);
 };

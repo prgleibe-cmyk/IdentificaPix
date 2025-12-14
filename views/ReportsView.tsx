@@ -3,8 +3,8 @@ import React, { useContext, useMemo, useState, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { EmptyState } from '../components/EmptyState';
 import { EditableReportTable } from '../components/reports/EditableReportTable';
+import { SavedReportsView } from './SavedReportsView';
 import { 
     DocumentDuplicateIcon, 
     PrinterIcon, 
@@ -17,15 +17,20 @@ import {
     ChevronDownIcon,
     ChevronRightIcon,
     FloppyDiskIcon,
-    ChartBarIcon
+    ChartBarIcon,
+    UploadIcon,
+    ArrowLeftOnRectangleIcon,
+    AdjustmentsHorizontalIcon,
+    BuildingOfficeIcon,
+    ExclamationTriangleIcon,
+    ArrowPathIcon
 } from '../components/Icons';
 import { formatCurrency } from '../utils/formatters';
 import { MatchResult, Language } from '../types';
-import { parseDate, filterByUniversalQuery } from '../services/processingService';
-
-// Declarations for globally loaded libraries
-declare const XLSX: any;
-declare const jspdf: { jsPDF: any };
+import { parseDate, filterByUniversalQuery, normalizeString } from '../services/processingService';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -46,38 +51,38 @@ const SummaryStat: React.FC<SummaryStatProps> = ({ title, quantity, value, perce
     
     const themeClasses = {
         slate: {
-            container: 'bg-slate-50 dark:bg-slate-700/30 border-slate-200 dark:border-slate-600',
+            container: 'bg-slate-50 dark:bg-slate-700/30 border-slate-100 dark:border-slate-700',
             title: 'text-slate-500 dark:text-slate-400',
-            value: 'text-slate-800 dark:text-white',
+            value: 'text-brand-graphite dark:text-white',
             badge: 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600',
             subValue: 'text-slate-600 dark:text-slate-300'
         },
         indigo: {
-            container: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800',
+            container: 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-800/30',
             title: 'text-indigo-600 dark:text-indigo-300',
-            value: 'text-indigo-900 dark:text-white',
-            badge: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
+            value: 'text-brand-graphite dark:text-white',
+            badge: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700',
             subValue: 'text-indigo-700 dark:text-indigo-200'
         },
         emerald: {
-            container: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800',
+            container: 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/30',
             title: 'text-emerald-600 dark:text-emerald-300',
-            value: 'text-emerald-900 dark:text-white',
-            badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
+            value: 'text-brand-graphite dark:text-white',
+            badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
             subValue: 'text-emerald-700 dark:text-emerald-200'
         },
         blue: {
-            container: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
+            container: 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/30',
             title: 'text-blue-600 dark:text-blue-300',
-            value: 'text-blue-900 dark:text-white',
-            badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+            value: 'text-brand-graphite dark:text-white',
+            badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-700',
             subValue: 'text-blue-700 dark:text-blue-200'
         },
         amber: {
-            container: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+            container: 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800/30',
             title: 'text-amber-600 dark:text-amber-300',
-            value: 'text-amber-900 dark:text-white',
-            badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700',
+            value: 'text-brand-graphite dark:text-white',
+            badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 border-amber-200 dark:border-amber-700',
             subValue: 'text-amber-700 dark:text-amber-200'
         }
     };
@@ -85,16 +90,16 @@ const SummaryStat: React.FC<SummaryStatProps> = ({ title, quantity, value, perce
     const styles = themeClasses[theme];
 
     return (
-        <div className={`${styles.container} rounded-xl border p-5 flex flex-col transition-all hover:shadow-sm`}>
-            <dt className={`truncate text-xs font-bold uppercase ${styles.title} mb-3 tracking-wider`}>{title}</dt>
-            <dd className="flex items-baseline justify-between mb-2">
-                <span className={`text-3xl font-black ${styles.value} tracking-tight`}>{quantity}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${styles.badge}`}>
-                    {percentage.toFixed(1)}%
+        <div className={`${styles.container} rounded-xl border p-3 flex flex-col transition-all hover:shadow-sm`}>
+            <div className="flex justify-between items-start mb-1">
+                <dt className={`truncate text-[9px] font-bold uppercase ${styles.title} tracking-wider`}>{title}</dt>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${styles.badge}`}>
+                    {percentage.toFixed(0)}%
                 </span>
-            </dd>
-            <dd className="mt-auto">
-                <span className={`text-sm font-bold font-mono ${styles.subValue}`}>{formatCurrency(value, language)}</span>
+            </div>
+            <dd className="flex items-baseline gap-2 mt-auto">
+                <span className={`text-lg font-black ${styles.value} tracking-tight leading-none`}>{quantity}</span>
+                <span className={`text-[10px] font-bold font-mono ${styles.subValue}`}>{formatCurrency(value, language)}</span>
             </dd>
         </div>
     );
@@ -114,24 +119,84 @@ const ReportGroup: React.FC<{
         churches,
         updateReportData,
         openDeleteConfirmation,
-        openManualIdentify,
-        handleAnalyze,
-        loadingAiId,
+        searchFilters, // Global filters
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'transaction.date', direction: 'desc' });
     const [isCollapsed, setIsCollapsed] = useState(true);
 
-    const processedResults = useMemo(() => {
-        let filteredData = [...results];
+    // Fallback if results is null/undefined
+    const safeResults = useMemo(() => Array.isArray(results) ? results : [], [results]);
 
-        // --- Filtering ---
-        if (searchQuery.trim()) {
-            filteredData = results.filter(r => filterByUniversalQuery(r, searchQuery));
+    const processedResults = useMemo(() => {
+        let filteredData = [...safeResults];
+
+        // --- 1. Apply Global Search Filters (from Context) ---
+        
+        // Date Range
+        if (searchFilters.dateRange.start || searchFilters.dateRange.end) {
+            const startDate = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
+            const endDate = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null; // Include full day
+            
+            filteredData = filteredData.filter(r => {
+                const txDate = parseDate(r.transaction.date)?.getTime();
+                if (!txDate) return false;
+                if (startDate && txDate < startDate) return false;
+                if (endDate && txDate >= endDate) return false;
+                return true;
+            });
         }
 
-        // --- Sorting ---
+        // Value Filter
+        const { operator, value1, value2 } = searchFilters.valueFilter;
+        if (operator !== 'any' && value1 !== null) {
+            filteredData = filteredData.filter(r => {
+                const amount = Math.abs(r.transaction.amount);
+                switch (operator) {
+                    case 'exact': return amount === value1;
+                    case 'gt': return amount > value1;
+                    case 'lt': return amount < value1;
+                    case 'between': return value2 !== null && amount >= value1 && amount <= value2;
+                    default: return true;
+                }
+            });
+        }
+
+        // Reconciliation Status
+        if (searchFilters.reconciliationStatus !== 'all') {
+            switch (searchFilters.reconciliationStatus) {
+                case 'confirmed_any':
+                    filteredData = filteredData.filter(r => r.status === 'IDENTIFICADO');
+                    break;
+                case 'unconfirmed':
+                    filteredData = filteredData.filter(r => r.status === 'NÃO IDENTIFICADO');
+                    break;
+                case 'confirmed_auto':
+                    filteredData = filteredData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
+                    break;
+                case 'confirmed_manual':
+                    filteredData = filteredData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+                    break;
+            }
+        }
+
+        // Filter By Church (Specific Global Filter)
+        if (searchFilters.filterBy === 'church' && searchFilters.churchIds.length > 0) {
+            filteredData = filteredData.filter(r => searchFilters.churchIds.includes(r.church.id));
+        }
+
+        // Filter By Contributor Name (Global)
+        if (searchFilters.filterBy === 'contributor' && searchFilters.contributorName.trim()) {
+             filteredData = filteredData.filter(r => filterByUniversalQuery(r, searchFilters.contributorName));
+        }
+
+        // --- 2. Apply Local Text Search (Search Bar inside group) ---
+        if (searchQuery.trim()) {
+            filteredData = filteredData.filter(r => filterByUniversalQuery(r, searchQuery));
+        }
+
+        // --- 3. Sorting ---
         if (sortConfig !== null) {
             filteredData.sort((a, b) => {
                 const aValue = getNestedValue(a, sortConfig.key);
@@ -161,7 +226,7 @@ const ReportGroup: React.FC<{
         }
 
         return filteredData;
-    }, [results, searchQuery, sortConfig]);
+    }, [safeResults, searchQuery, sortConfig, searchFilters]);
 
     const handleSort = (key: string) => {
         let direction: SortDirection = 'asc';
@@ -177,23 +242,17 @@ const ReportGroup: React.FC<{
     const summaryMetrics = useMemo(() => {
         if (isSimpleGroup) return null;
     
-        // Calculate metrics based on the ACTUAL rows in the table (results),
-        // not the source file. This ensures deletions update the summary.
-
-        const autoConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
-        const manualConfirmed = results.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
-        const pendingRows = results.filter(r => r.status === 'NÃO IDENTIFICADO');
+        const autoConfirmed = processedResults.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
+        const manualConfirmed = processedResults.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+        const pendingRows = processedResults.filter(r => r.status === 'NÃO IDENTIFICADO');
         
         const autoConfirmedCount = autoConfirmed.length;
         const manualConfirmedCount = manualConfirmed.length;
         const pendingCount = pendingRows.length;
-        const totalCount = results.length;
+        const totalCount = processedResults.length;
         
         const autoConfirmedValue = autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
         const manualConfirmedValue = manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0);
-        
-        // For pending rows (which are usually contributors not yet matched), the transaction.amount is 0.
-        // We must use contributorAmount to get the value of the missing contribution.
         const pendingValue = pendingRows.reduce((sum, r) => sum + (r.contributorAmount || 0), 0);
 
         const totalValue = autoConfirmedValue + manualConfirmedValue + pendingValue;
@@ -221,11 +280,16 @@ const ReportGroup: React.FC<{
             }
         };
     
-    }, [results, isSimpleGroup]);
+    }, [processedResults, isSimpleGroup]);
     
-    // Simple summary logic for expenses and unidentified
-    const simpleTotalRecords = results.length;
-    const simpleTotalValue = results.reduce((sum, r) => sum + r.transaction.amount, 0);
+    const simpleTotalValue = processedResults.reduce((sum, r) => sum + r.transaction.amount, 0);
+
+    // Calculate completion for the visual progress bar (header)
+    const completionPercentage = useMemo(() => {
+        if (processedResults.length === 0) return 0;
+        const identified = processedResults.filter(r => r.status === 'IDENTIFICADO').length;
+        return (identified / processedResults.length) * 100;
+    }, [processedResults]);
 
     const getGroupName = (id: string): string => {
         if (id === 'unidentified') return t('reports.unidentifiedGroupTitle');
@@ -235,24 +299,160 @@ const ReportGroup: React.FC<{
 
     const groupName = getGroupName(churchId);
 
-    // Helper for robust name display in exports
     const getExportName = (item: MatchResult) => {
         const contributorName = item.contributor?.cleanedName || item.contributor?.name;
         const txDesc = item.transaction.cleanedDescription || item.transaction.description;
-        // Logic: if contributor name exists, is valid and is not placeholder, use it. Else fallback to transaction description.
         const hasValidContributorName = contributorName && contributorName.trim().length > 0 && contributorName !== '---';
         return hasValidContributorName ? contributorName : (txDesc || '---');
     };
 
-    // Helper for robust value display in exports (matches EditableReportTable logic)
     const getExportValue = (item: MatchResult, type: 'income' | 'expenses') => {
         if (type === 'income') {
+            const amount = item.contributorAmount ?? item.transaction.amount;
+            if (amount !== 0) return formatCurrency(amount, language);
             if (item.contributor?.originalAmount) return item.contributor.originalAmount;
             if (item.transaction.originalAmount) return item.transaction.originalAmount;
-            return ((item.contributorAmount != null) ? formatCurrency(item.contributorAmount, language) : formatCurrency(item.transaction.amount, language));
+            return formatCurrency(0, language);
         } else {
-            return item.transaction.originalAmount || formatCurrency(item.transaction.amount, language);
+            const amount = item.transaction.amount;
+            if (amount !== 0) return formatCurrency(amount, language);
+            return item.transaction.originalAmount || formatCurrency(0, language);
         }
+    };
+
+    const handlePrintGroup = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const date = new Date().toLocaleDateString();
+        
+        // Find church specific data for logo
+        const currentChurch = churches.find(c => c.id === churchId);
+        const churchLogo = currentChurch?.logoUrl;
+        
+        let tableHeader = '';
+        let tableRows = '';
+
+        if (reportType === 'income') {
+            if (isUnidentifiedIncome) {
+                tableHeader = `<tr><th>Data</th><th>Descrição/Nome</th><th style="text-align:right">Valor</th></tr>`;
+                tableRows = processedResults.map(r => `
+                    <tr>
+                        <td>${r.transaction.date}</td>
+                        <td>${r.transaction.cleanedDescription || r.transaction.description}</td>
+                        <td style="text-align:right">${getExportValue(r, 'income')}</td>
+                    </tr>
+                `).join('');
+            } else {
+                tableHeader = `<tr><th>Data</th><th>Contribuinte</th><th>Método</th><th style="text-align:right">Valor</th></tr>`;
+                tableRows = processedResults.map(r => `
+                    <tr>
+                        <td>${r.transaction.date}</td>
+                        <td>${getExportName(r)}</td>
+                        <td>${r.matchMethod || 'AUTOMATIC'}</td>
+                        <td style="text-align:right">${getExportValue(r, 'income')}</td>
+                    </tr>
+                `).join('');
+            }
+        } else {
+            tableHeader = `<tr><th>Data</th><th>Descrição</th><th>Centro de Custo</th><th style="text-align:right">Valor</th></tr>`;
+            tableRows = processedResults.map(r => `
+                <tr>
+                    <td>${r.transaction.date}</td>
+                    <td>${r.transaction.cleanedDescription || r.transaction.description}</td>
+                    <td>${r.church.name !== '---' ? r.church.name : '-'}</td>
+                    <td style="text-align:right">${getExportValue(r, 'expenses')}</td>
+                </tr>
+            `).join('');
+        }
+
+        const logoHtml = churchLogo 
+            ? `<img src="${churchLogo}" class="church-logo" alt="Logo" />` 
+            : '';
+
+        let summaryHtml = '';
+        if (summaryMetrics) {
+            summaryHtml = `
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <strong>Total</strong>
+                        <span>${summaryMetrics.total.quantity}</span>
+                        <small>${formatCurrency(summaryMetrics.total.value, language)}</small>
+                    </div>
+                    <div class="summary-item success">
+                        <strong>Automático</strong>
+                        <span>${summaryMetrics.auto.quantity}</span>
+                        <small>${formatCurrency(summaryMetrics.auto.value, language)}</small>
+                    </div>
+                    <div class="summary-item info">
+                        <strong>Manual</strong>
+                        <span>${summaryMetrics.manual.quantity}</span>
+                        <small>${formatCurrency(summaryMetrics.manual.value, language)}</small>
+                    </div>
+                    <div class="summary-item warning">
+                        <strong>Pendente</strong>
+                        <span>${summaryMetrics.pending.quantity}</span>
+                        <small>${formatCurrency(summaryMetrics.pending.value, language)}</small>
+                    </div>
+                </div>
+            `;
+        } else {
+            summaryHtml = `
+                <div class="summary simple">
+                    <div class="summary-item">
+                        <strong>Registros</strong>
+                        <span>${processedResults.length}</span>
+                    </div>
+                    <div class="summary-item">
+                        <strong>Valor Total</strong>
+                        <span>${formatCurrency(simpleTotalValue, language)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Relatório - ${groupName}</title>
+                    <style>
+                        body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 40px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+                        th { background-color: #f1f5f9; font-weight: 700; text-transform: uppercase; color: #475569; padding: 8px; text-align: left; }
+                        td { border-bottom: 1px solid #e2e8f0; padding: 8px; color: #334155; }
+                        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+                        .summary-item { border: 1px solid #e2e8f0; padding: 10px; border-radius: 8px; text-align: center; }
+                        .summary-item strong { display: block; font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+                        .summary-item span { display: block; font-size: 16px; font-weight: 800; color: #0f172a; }
+                        .summary-item small { display: block; font-size: 11px; color: #64748b; font-family: monospace; margin-top: 2px; }
+                        .header-container { display: flex; align-items: center; margin-bottom: 30px; gap: 20px; }
+                        .church-logo { width: 60px; height: 60px; object-fit: contain; border-radius: 8px; }
+                        .header-text h1 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; }
+                        .header-text .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header-container">
+                        ${logoHtml}
+                        <div class="header-text">
+                            <h1>${groupName}</h1>
+                            <div class="meta">Relatório de Conciliação • Gerado em ${date}</div>
+                        </div>
+                    </div>
+                    
+                    ${summaryHtml}
+
+                    <table>
+                        <thead>${tableHeader}</thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                    <script>
+                        window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     const handleDownload = (
@@ -270,7 +470,7 @@ const ReportGroup: React.FC<{
                             return {
                                 [t('table.date')]: item.transaction.date,
                                 [t('table.name')]: item.transaction.cleanedDescription || item.transaction.description,
-                                ['Valor']: item.transaction.originalAmount || formatCurrency(item.transaction.amount, language),
+                                ['Valor']: getExportValue(item, 'income'),
                             };
                         }
                         return {
@@ -295,7 +495,6 @@ const ReportGroup: React.FC<{
             });
             XLSX.writeFile(wb, `${groupName}.xlsx`);
         } else { // PDF
-            const { jsPDF } = jspdf;
             const doc = new jsPDF();
             let yPos = 15;
 
@@ -311,7 +510,7 @@ const ReportGroup: React.FC<{
                         body = group.results.map(item => [
                             item.transaction.date,
                             item.transaction.cleanedDescription || item.transaction.description,
-                            item.transaction.originalAmount || formatCurrency(item.transaction.amount, language),
+                            getExportValue(item, 'income'),
                         ]);
                     } else {
                         head = [[t('table.date'), t('table.contributor'), t('table.amount'), t('table.status')]];
@@ -338,287 +537,308 @@ const ReportGroup: React.FC<{
         }
     };
 
-    if (isUnidentifiedIncome) {
-        return (
-             <div className="report-group-wrapper" data-group-id={churchId}>
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <button onClick={() => setIsCollapsed(!isCollapsed)} className="w-full px-5 py-4 flex items-center justify-between bg-amber-50/50 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
-                        <div className="flex items-center space-x-3">
-                            {isCollapsed ? <ChevronRightIcon className="w-5 h-5 text-amber-500" /> : <ChevronDownIcon className="w-5 h-5 text-amber-500" />}
-                            <span className="font-bold text-lg text-slate-800 dark:text-white">{groupName}</span>
-                            <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full dark:bg-amber-900/50 dark:text-amber-400">{results.length}</span>
-                        </div>
-                        <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => handleDownload('xlsx', { groupName, results: processedResults, reportType })} className="p-2 rounded-lg text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-900/50 transition-colors shadow-sm" title="Baixar Excel">
-                                <DocumentArrowDownIcon className="w-5 h-5"/>
-                            </button>
-                            <button onClick={() => (window as any).handleUniversalPrint(churchId)} className="p-2 rounded-lg text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-900/50 transition-colors shadow-sm" title="Imprimir">
-                                <PrinterIcon className="w-5 h-5"/>
-                            </button>
-                            <button onClick={() => openDeleteConfirmation({ type: 'report-group', id: churchId, name: `relatório de ${groupName}`, meta: { reportType }})} className="p-2 rounded-lg text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800 dark:hover:bg-rose-900/50 transition-colors shadow-sm" title="Excluir Grupo">
-                                <TrashIcon className="w-5 h-5"/>
-                            </button>
-                        </div>
-                    </button>
-                    
-                    {!isCollapsed && (
-                    <div className="border-t border-slate-100 dark:border-slate-700">
-                        <div className="p-4 bg-white dark:bg-slate-800 print-hidden border-b border-slate-100 dark:border-slate-700">
-                            <label htmlFor="unidentified-search" className="sr-only">{t('common.search')}</label>
-                            <div className="relative max-w-md">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <SearchIcon className="h-5 w-5 text-slate-400" />
-                                </div>
-                                <input
-                                    type="text"
-                                    id="unidentified-search"
-                                    className="block w-full pl-10 pr-10 py-2.5 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 rounded-lg leading-5 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 sm:text-sm transition-all"
-                                    placeholder="Buscar por nome, valor ou data..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                                {searchQuery && (
-                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                                        <button onClick={() => setSearchQuery('')} className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none">
-                                            <XMarkIcon className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+    // Only render if there are results after filtering
+    if (processedResults.length === 0 && (searchQuery || searchFilters.filterBy !== 'none' || searchFilters.dateRange.start || searchFilters.valueFilter.operator !== 'any')) {
+        return null;
+    }
 
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left text-slate-600 dark:text-slate-300">
-                                <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-700/50">
-                                    <tr>
-                                        <th scope="col" className="px-6 py-3 font-semibold tracking-wider border-b border-slate-100 dark:border-slate-700">{t('table.date')}</th>
-                                        <th scope="col" className="px-6 py-3 font-semibold tracking-wider border-b border-slate-100 dark:border-slate-700">{t('table.name')}</th>
-                                        <th scope="col" className="px-6 py-3 font-semibold tracking-wider border-b border-slate-100 dark:border-slate-700 text-right">Valor</th>
-                                        <th scope="col" className="px-6 py-3 font-semibold tracking-wider border-b border-slate-100 dark:border-slate-700 text-center">{t('table.actions')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                    {processedResults.map(result => (
-                                        <tr key={result.transaction.id} className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{result.transaction.date}</td>
-                                            <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200 max-w-sm truncate">{result.transaction.cleanedDescription || result.transaction.description}</td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{result.transaction.originalAmount || formatCurrency(result.transaction.amount, language)}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <div className="flex items-center justify-center space-x-2">
-                                                    <button onClick={() => openManualIdentify(result.transaction.id)} disabled={!!loadingAiId} className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900/50 transition-colors">
-                                                        <UserPlusIcon className="w-3 h-3 mr-1.5" />
-                                                        {t('table.actions.manual')}
-                                                    </button>
-                                                    <button onClick={() => handleAnalyze(result.transaction.id)} disabled={!!loadingAiId} className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 dark:hover:bg-indigo-900/50 transition-colors">
-                                                        {loadingAiId === result.transaction.id ? (
-                                                            <><svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>{t('table.actions.analyzing')}</>
-                                                        ) : (
-                                                            <><SparklesIcon className="w-3 h-3 mr-1.5" />{t('table.actions.ai')}</>
-                                                        )}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {processedResults.length === 0 && (
-                                <p className="text-center text-slate-500 dark:text-slate-400 py-12">{t('common.noResults')}</p>
-                            )}
-                        </div>
-
-                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center rounded-b-xl">
-                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('reports.summary.total')}: <span className="text-slate-900 dark:text-white font-bold">{results.length}</span></span>
-                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('reports.summary.totalValue')}: <span className="text-slate-900 dark:text-white font-bold text-lg">{formatCurrency(simpleTotalValue, language)}</span></span>
-                        </div>
-                    </div>
-                    )}
+    const cardBg = isUnidentifiedIncome 
+        ? 'bg-amber-50/20 border-l-4 border-l-amber-400 dark:border-l-amber-500 border-y border-r border-slate-100 dark:border-slate-700'
+        : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700';
+    
+    // Dynamic styles for the header button content
+    const headerContent = (
+        <div className="flex flex-1 items-center justify-between w-full">
+            {/* Left: Identity */}
+            <div className="flex items-center gap-4 min-w-0">
+                <div className={`
+                    w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-sm border
+                    ${isUnidentifiedIncome 
+                        ? 'bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' 
+                        : 'bg-white text-slate-600 border-slate-100 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600'
+                    }
+                `}>
+                    {isUnidentifiedIncome ? <ExclamationTriangleIcon className="w-5 h-5"/> : <BuildingOfficeIcon className="w-5 h-5"/>}
+                </div>
+                <div className="flex flex-col min-w-0 text-left">
+                    <h4 className={`text-sm font-bold truncate max-w-[200px] md:max-w-md ${isUnidentifiedIncome ? 'text-amber-800 dark:text-amber-400' : 'text-slate-800 dark:text-white'}`}>
+                        {groupName}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                        {isUnidentifiedIncome ? 'Requer atenção imediata' : 'Registros processados'}
+                    </span>
                 </div>
             </div>
-        );
-    }
-    
-    // Normal report group layout (Expenses and Identified Income)
+
+            {/* Middle: Progress Bar (Desktop only) */}
+            <div className="hidden md:flex flex-col flex-1 px-8 max-w-xs">
+                <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase mb-1">
+                    <span>{completionPercentage.toFixed(0)}% Identificado</span>
+                    <span>{processedResults.length} Total</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div 
+                        className={`h-full rounded-full transition-all duration-500 ${isUnidentifiedIncome ? 'bg-amber-400' : 'bg-brand-blue'}`} 
+                        style={{ width: `${completionPercentage}%` }}
+                    ></div>
+                </div>
+            </div>
+
+            {/* Right: Totals & Actions */}
+            <div className="flex items-center gap-6">
+                <div className="text-right">
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</span>
+                    <span className={`text-sm font-mono font-black ${isUnidentifiedIncome ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
+                        {formatCurrency(simpleTotalValue, language)}
+                    </span>
+                </div>
+                
+                {/* Expand Icon */}
+                <div className={`
+                    p-1.5 rounded-full transition-all duration-300
+                    ${isCollapsed ? 'bg-transparent text-slate-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 transform rotate-180'}
+                `}>
+                    <ChevronDownIcon className="w-4 h-4" />
+                </div>
+            </div>
+        </div>
+    );
+
     return (
-        <div className="report-group-wrapper" data-group-id={churchId}>
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <button onClick={() => setIsCollapsed(!isCollapsed)} className="w-full px-5 py-4 flex items-center justify-between bg-slate-50/50 dark:bg-slate-700/20 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                    <div className="flex items-center space-x-3">
-                        {isCollapsed ? <ChevronRightIcon className="w-5 h-5 text-slate-400" /> : <ChevronDownIcon className="w-5 h-5 text-slate-400" />}
-                        <span className="font-bold text-lg text-slate-800 dark:text-white">{groupName}</span>
-                        <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full dark:bg-indigo-900/50 dark:text-indigo-400">{results.length}</span>
-                    </div>
-                    <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => handleDownload('xlsx', { groupName, results: processedResults, reportType })} className="p-2 rounded-lg text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-900/50 transition-colors shadow-sm" title="Baixar Excel">
-                            <DocumentArrowDownIcon className="w-5 h-5"/>
-                        </button>
-                        <button onClick={() => (window as any).handleUniversalPrint(churchId)} className="p-2 rounded-lg text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-900/50 transition-colors shadow-sm" title="Imprimir">
-                            <PrinterIcon className="w-5 h-5"/>
-                        </button>
-                        <button onClick={() => openDeleteConfirmation({ type: 'report-group', id: churchId, name: `relatório de ${groupName}`, meta: { reportType }})} className="p-2 rounded-lg text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800 dark:hover:bg-rose-900/50 transition-colors shadow-sm" title="Excluir Grupo">
-                            <TrashIcon className="w-5 h-5"/>
-                        </button>
-                    </div>
+        <div className={`rounded-[1.5rem] overflow-hidden transition-all duration-300 ${cardBg} mb-3 shadow-sm hover:shadow-md group`} data-group-id={churchId}>
+            <div className="relative">
+                <button 
+                    onClick={() => setIsCollapsed(!isCollapsed)} 
+                    className="w-full px-5 py-4 flex items-center hover:bg-slate-50/50 dark:hover:bg-slate-700/10 transition-colors focus:outline-none"
+                >
+                    {headerContent}
                 </button>
 
-                {!isCollapsed && (
-                    <div className="border-t border-slate-100 dark:border-slate-700">
-                        
-                        <div className="p-4 bg-white dark:bg-slate-800 print-hidden border-b border-slate-100 dark:border-slate-700 flex justify-end">
-                            <div className="relative w-full max-w-xs">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <SearchIcon className="h-4 w-4 text-slate-400" />
-                                </div>
-                                <input
-                                    type="text"
-                                    className="block w-full pl-9 pr-8 py-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                                    placeholder={t('common.search')}
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                                {searchQuery && (
-                                    <div className="absolute inset-y-0 right-0 pr-2 flex items-center">
-                                        <button onClick={() => setSearchQuery('')} className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none">
-                                            <XMarkIcon className="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                {/* Floating Quick Actions (Hover Only) */}
+                <div className="absolute top-1/2 -translate-y-1/2 right-16 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm p-1 rounded-full border border-slate-100 dark:border-slate-700 shadow-lg">
+                    <button onClick={(e) => { e.stopPropagation(); handleDownload('xlsx', { groupName, results: processedResults, reportType }); }} className="p-2 rounded-full text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors" title="Baixar Excel">
+                        <DocumentArrowDownIcon className="w-4 h-4"/>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); (window as any).handleUniversalPrint ? (window as any).handleUniversalPrint(churchId) : handlePrintGroup(); }} className="p-2 rounded-full text-brand-blue hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title="Imprimir">
+                        <PrinterIcon className="w-4 h-4"/>
+                    </button>
+                    <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                    <button onClick={(e) => { e.stopPropagation(); openDeleteConfirmation({ type: 'report-group', id: churchId, name: `relatório de ${groupName}`, meta: { reportType }}); }} className="p-2 rounded-full text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors" title="Excluir Grupo">
+                        <TrashIcon className="w-4 h-4"/>
+                    </button>
+                </div>
+            </div>
 
-                        <EditableReportTable
-                            data={processedResults}
-                            onRowChange={(updatedRow) => updateReportData(updatedRow, reportType)}
-                            reportType={reportType}
-                            sortConfig={sortConfig}
-                            onSort={handleSort}
-                        />
-
-                        {summaryMetrics && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 bg-slate-50/50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 rounded-b-xl">
+            {!isCollapsed && (
+                <div className="animate-fade-in border-t border-slate-100 dark:border-slate-700/50">
+                    {/* MOVED: Summary Metrics to Top */}
+                    {summaryMetrics && (
+                        <div className="bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-700/50 p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <SummaryStat title="Total" quantity={summaryMetrics.total.quantity} value={summaryMetrics.total.value} percentage={100} language={language} theme="indigo" />
                                 <SummaryStat title={t('reports.summary.autoConfirmed')} quantity={summaryMetrics.auto.quantity} value={summaryMetrics.auto.value} percentage={summaryMetrics.auto.percentage} language={language} theme="emerald" />
                                 <SummaryStat title={t('reports.summary.manualConfirmed')} quantity={summaryMetrics.manual.quantity} value={summaryMetrics.manual.value} percentage={summaryMetrics.manual.percentage} language={language} theme="blue" />
                                 <SummaryStat title={t('reports.summary.unidentifiedPending')} quantity={summaryMetrics.pending.quantity} value={summaryMetrics.pending.value} percentage={summaryMetrics.pending.percentage} language={language} theme="amber" />
                             </div>
-                        )}
+                        </div>
+                    )}
+
+                    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/30 flex justify-end">
+                        <div className="relative w-full max-w-[200px]">
+                            <SearchIcon className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                className="block w-full pl-9 pr-7 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[11px] font-medium focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all placeholder:text-slate-400"
+                                placeholder={t('common.search')}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                    <XMarkIcon className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
                     </div>
-                )}
-            </div>
+
+                    <EditableReportTable
+                        data={processedResults}
+                        onRowChange={(updatedRow) => updateReportData(updatedRow, reportType)}
+                        reportType={reportType}
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                    />
+                    
+                    {!summaryMetrics && (
+                        <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total: <span className="text-slate-900 dark:text-white">{processedResults.length}</span></span>
+                            <span className="font-bold text-slate-900 dark:text-white font-mono">{formatCurrency(simpleTotalValue, language)}</span>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
 
 export const ReportsView: React.FC = () => {
-    const { reportPreviewData } = useContext(AppContext);
-    const { setActiveView } = useUI();
+    const { 
+        reportPreviewData, 
+        openSaveReportModal, 
+        discardCurrentReport, 
+        openSearchFilters, 
+        searchFilters,
+        openRecompareModal // New action
+    } = useContext(AppContext);
+    
     const { t } = useTranslation();
+    const { setActiveView } = useUI();
 
-    const hasData = reportPreviewData && (Object.keys(reportPreviewData.income).length > 0 || Object.keys(reportPreviewData.expenses).length > 0);
+    const [activeTab, setActiveTab] = useState<'income' | 'expenses'>('income');
 
-    if (!hasData) {
-         return (
-            <div className="mt-8">
-                <EmptyState
-                    icon={<ChartBarIcon className="w-12 h-12 text-slate-400" />}
-                    title={t('reports.noData')}
-                    message={t('empty.reports.message')}
-                    action={{
-                        text: t('upload.title'),
-                        onClick: () => setActiveView('upload'),
-                    }}
-                />
-            </div>
-        );
+    // 1. Always call hooks, handle missing data safely with fallbacks
+    // If no report data, we default to empty structures, but we DO NOT return early yet.
+    const incomeGroups = reportPreviewData ? Object.keys(reportPreviewData.income) : [];
+    const expenseGroups = reportPreviewData ? Object.keys(reportPreviewData.expenses) : [];
+    const hasIncome = incomeGroups.length > 0;
+    const hasExpenses = expenseGroups.length > 0;
+
+    const handleSaveGlobalReport = () => {
+        if (!reportPreviewData) return;
+        const { income, expenses } = reportPreviewData;
+        const resultsToSave = [...Object.values(income).flat(), ...Object.values(expenses).flat()];
+        
+        openSaveReportModal({
+            type: 'global',
+            results: resultsToSave,
+            groupName: 'Geral'
+        });
+    };
+
+    // 2. Call effects safely
+    React.useEffect(() => {
+        if (!reportPreviewData) return; // Guard inside effect
+        if (!hasIncome && hasExpenses && activeTab === 'income') setActiveTab('expenses');
+        if (hasIncome && !hasExpenses && activeTab === 'expenses') setActiveTab('income');
+    }, [hasIncome, hasExpenses, activeTab, reportPreviewData]);
+
+    const activeFilterCount = useMemo(() => {
+        let count = 0;
+        if (searchFilters.dateRange.start || searchFilters.dateRange.end) count++;
+        if (searchFilters.valueFilter.operator !== 'any') count++;
+        if (searchFilters.filterBy === 'church' && searchFilters.churchIds.length > 0) count++;
+        if (searchFilters.filterBy === 'contributor' && searchFilters.contributorName.trim()) count++;
+        if (searchFilters.transactionType !== 'all') count++;
+        if (searchFilters.reconciliationStatus !== 'all') count++;
+        return count;
+    }, [searchFilters]);
+
+    // 3. Conditional rendering comes LAST, ensuring hooks order is preserved
+    if (!reportPreviewData) {
+        return <SavedReportsView />;
     }
-
-    const { income, expenses } = reportPreviewData!;
-    
-    // Separate identified churches from 'unidentified' group
-    const incomeGroups = Object.keys(income);
-    const identifiedIncomeGroups = incomeGroups.filter(id => id !== 'unidentified');
-    const hasUnidentified = incomeGroups.includes('unidentified');
-    
-    const expenseGroups = Object.keys(expenses);
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-4 pb-2">
-            {/* Main Header with Actions */}
-            <div className="flex-shrink-0 flex items-center justify-between gap-3 py-2">
+            {/* Header */}
+            <div className="flex-shrink-0 flex flex-col xl:flex-row xl:items-end justify-between gap-3 px-1">
                 <div>
-                    <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 dark:from-white dark:to-indigo-200 tracking-tight">{t('reports.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t('reports.subtitle')}</p>
+                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-1 max-w-xl">{t('reports.subtitle')}</p>
                 </div>
-                <button 
-                    onClick={() => setActiveView('savedReports')} 
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:-translate-y-0.5 border border-transparent"
-                >
-                    <DocumentDuplicateIcon className="w-4 h-4 text-white" />
-                    <span>{t('savedReports.title')}</span>
-                </button>
+                
+                <div className="flex flex-wrap items-center gap-2">
+                    <button 
+                        onClick={() => setActiveView('savedReports')}
+                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-brand-blue dark:hover:text-blue-400 hover:border-brand-blue/30 shadow-sm"
+                    >
+                        <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+                        <span>{t('nav.savedReports')}</span>
+                    </button>
+
+                    <button 
+                        onClick={openRecompareModal}
+                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 shadow-sm"
+                        title="Reajustar parâmetros e processar novamente"
+                    >
+                        <ArrowPathIcon className="w-3.5 h-3.5" />
+                        <span>Refazer</span>
+                    </button>
+
+                    <button 
+                        onClick={openSearchFilters}
+                        className="relative flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-brand-blue dark:hover:text-blue-400 hover:border-brand-blue/30 shadow-sm"
+                    >
+                        <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
+                        <span>{t('search.filters')}</span>
+                        {activeFilterCount > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm border-2 border-white dark:border-slate-800">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+
+                    <button 
+                        onClick={discardCurrentReport}
+                        className="px-4 py-1.5 text-[10px] font-bold text-slate-500 hover:text-red-500 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all uppercase tracking-wide border border-transparent hover:border-red-100"
+                    >
+                        {t('common.close')}
+                    </button>
+                    <button 
+                        onClick={handleSaveGlobalReport}
+                        className="flex items-center gap-1.5 px-5 py-1.5 text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] rounded-full shadow-md shadow-blue-500/20 hover:-translate-y-0.5 active:translate-y-0 transition-all uppercase tracking-wide text-[10px] font-bold"
+                    >
+                        <FloppyDiskIcon className="w-3.5 h-3.5" />
+                        <span>{t('reports.saveReport')}</span>
+                    </button>
+                </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
-                <div className="space-y-8 pb-10">
-                    
-                    {/* 1. Identified Income Section (Churches) */}
-                    {identifiedIncomeGroups.length > 0 && (
-                        <div className="animate-fade-in-up">
-                            <div className="flex items-center gap-3 mb-4 px-1">
-                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400">
-                                    <DocumentArrowDownIcon className="w-5 h-5" />
-                                </div>
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">{t('reports.incomeReportTitle')}</h3>
-                            </div>
-                            <div className="space-y-6">
-                                {identifiedIncomeGroups.map(churchId => (
-                                    <ReportGroup 
-                                        key={`income-${churchId}`} 
-                                        churchId={churchId} 
-                                        results={income[churchId]} 
-                                        reportType="income" 
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 2. Unidentified Income Section */}
-                    {hasUnidentified && (
-                        <div className="animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
-                            <div className="space-y-6">
-                                <ReportGroup 
-                                    key="income-unidentified"
-                                    churchId="unidentified" 
-                                    results={income['unidentified']} 
-                                    reportType="income" 
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 3. Expenses Section */}
-                    {expenseGroups.length > 0 && (
-                        <div className="animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-                            <div className="flex items-center gap-3 mb-4 mt-8 px-1">
-                                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg text-red-600 dark:text-red-400">
-                                    <DocumentDuplicateIcon className="w-5 h-5" />
-                                </div>
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">{t('reports.expenseReportTitle')}</h3>
-                            </div>
-                            <div className="space-y-6">
-                                {expenseGroups.map(groupId => (
-                                    <ReportGroup 
-                                        key={`expense-${groupId}`} 
-                                        churchId={groupId} 
-                                        results={expenses[groupId]} 
-                                        reportType="expenses" 
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
+            {/* Tabs & Content */}
+            {(hasIncome && hasExpenses) && (
+                <div className="flex-shrink-0 flex bg-white dark:bg-slate-800 p-0.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm w-fit mx-auto md:mx-0">
+                    <button
+                        onClick={() => setActiveTab('income')}
+                        className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all ${activeTab === 'income' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                    >
+                        <DocumentArrowDownIcon className="w-3.5 h-3.5" />
+                        <span>{t('upload.income')}</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('expenses')}
+                        className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all ${activeTab === 'expenses' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                    >
+                        <UploadIcon className="w-3.5 h-3.5" />
+                        <span>{t('upload.expenses')}</span>
+                    </button>
                 </div>
+            )}
+
+            {/* Report Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-3 pb-4">
+                {activeTab === 'income' && incomeGroups.length > 0 && (
+                    <>
+                        {reportPreviewData && reportPreviewData.income['unidentified'] && reportPreviewData.income['unidentified'].length > 0 && (
+                            <ReportGroup key="unidentified" churchId="unidentified" results={reportPreviewData.income['unidentified']} reportType="income" />
+                        )}
+                        {incomeGroups.filter(id => id !== 'unidentified').map(churchId => (
+                            <ReportGroup key={churchId} churchId={churchId} results={(reportPreviewData?.income[churchId]) || []} reportType="income" />
+                        ))}
+                    </>
+                )}
+
+                {activeTab === 'expenses' && expenseGroups.length > 0 && (
+                    expenseGroups.map(groupId => (
+                        <ReportGroup key={groupId} churchId={groupId} results={(reportPreviewData?.expenses[groupId]) || []} reportType="expenses" />
+                    ))
+                )}
+                
+                {/* Empty state message when filters hide everything */}
+                {activeTab === 'income' && incomeGroups.length === 0 && (
+                        <div className="text-center py-10 text-slate-400 text-xs italic">
+                            Nenhum resultado encontrado com os filtros atuais.
+                        </div>
+                )}
             </div>
         </div>
     );

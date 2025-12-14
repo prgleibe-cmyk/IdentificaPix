@@ -1,20 +1,22 @@
 
-import React, { createContext, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
-import { usePersistentState } from '../hooks/usePersistentState';
 import { useReferenceData } from '../hooks/useReferenceData';
 import { useReconciliation } from '../hooks/useReconciliation';
 import { useReportManager } from '../hooks/useReportManager';
+import { usePersistentState } from '../hooks/usePersistentState';
 import {
     Transaction, Contributor, MatchResult, Bank, Church, ChurchFormData,
     DeletingItem, ComparisonType, GroupedReportData, SearchFilters, SavedReport,
     SavingReportState, LearnedAssociation, MatchMethod
 } from '../types';
-import { processExpenses, groupResultsByChurch, parseContributors } from '../services/processingService';
-import { Logger, Metrics } from '../services/monitoringService';
+import { groupResultsByChurch, PLACEHOLDER_CHURCH } from '../services/processingService';
+import { Logger } from '../services/monitoringService';
 import { supabase } from '../services/supabaseClient';
 import { useTranslation } from './I18nContext';
+import { LoadingSpinner } from '../components/shared/LoadingSpinner';
+import { RecompareModal } from '../components/modals/RecompareModal';
 
 interface AppContextType {
     // Data State (from useReferenceData)
@@ -83,6 +85,12 @@ interface AppContextType {
     confirmDivergence: (divergentMatch: MatchResult) => void;
     rejectDivergence: (divergentMatch: MatchResult) => void;
     learnAssociation: (matchResult: MatchResult) => Promise<void>;
+    findMatchResult: (transactionId: string) => MatchResult | undefined;
+    
+    // Recompare Modal
+    isRecompareModalOpen: boolean;
+    openRecompareModal: () => void;
+    closeRecompareModal: () => void;
 
     // Reports & Search (from useReportManager)
     savedReports: SavedReport[];
@@ -150,10 +158,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
 
     // --- 3. Dashboard Summary Calculation (Heavy, Derived) ---
     // Kept here as it aggregates data from multiple sources
-    const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v3', {
+    // UPDATED KEY TO '_v5' TO FORCE RESET AND FIX LOOPS caused by corrupt data
+    const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v5', {
         autoConfirmed: { count: 0, value: 0 },
         manualConfirmed: { count: 0, value: 0 },
         pending: { count: 0, value: 0 },
@@ -183,14 +193,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (churchesResult.data) referenceData.setChurches(churchesResult.data as any || []);
                 if (banksResult.data) referenceData.setBanks(banksResult.data as any || []);
                 if (savedReportsResult.data) {
-                    const mappedReports = (savedReportsResult.data || []).map(report => ({
-                        id: report.id,
-                        name: report.name,
-                        createdAt: report.created_at,
-                        recordCount: report.record_count,
-                        user_id: report.user_id,
-                        data: report.data as unknown as SavedReport['data'], 
-                    }));
+                    const mappedReports = (savedReportsResult.data || []).map(report => {
+                        // Ensure data is parsed if it comes as string (double encoded)
+                        let parsedData = report.data;
+                        if (typeof report.data === 'string') {
+                            try {
+                                parsedData = JSON.parse(report.data);
+                            } catch (e) {
+                                console.error("Failed to parse saved report data", e);
+                                parsedData = { results: [] };
+                            }
+                        }
+                        
+                        return {
+                            id: report.id,
+                            name: report.name,
+                            createdAt: report.created_at,
+                            recordCount: report.record_count,
+                            user_id: report.user_id,
+                            data: parsedData as unknown as SavedReport['data'], 
+                        };
+                    });
                     reportManager.setSavedReports(mappedReports);
                 }
                 referenceData.setLearnedAssociations([]);
@@ -206,17 +229,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]); 
 
-    // Summary Calculation Effect
+    // Summary Calculation Effect - OPTIMIZED TO PREVENT LOOPS
+    // We use JSON.stringify on the IDs to detect meaningful changes, rather than object references.
+    const resultsHash = JSON.stringify(reconciliation.matchResults.map(r => r.transaction.id + r.status + (r.contributor?.id || '')));
+    const reportsHash = reportManager.savedReports.length;
+
     useEffect(() => {
         const timer = setTimeout(() => {
+            // Safety check: if data isn't loaded or arrays are empty, don't re-calculate
+            if (!initialDataLoaded && reconciliation.matchResults.length === 0) return;
+
             let resultsToProcess = reconciliation.matchResults;
             let isHistorical = false;
-
-            const isMemoryEmpty = reconciliation.matchResults.length === 0 && reportManager.savedReports.length === 0;
-            // Use summary from state which is stable due to usePersistentState logic
-            const hasCachedSummary = summary.totalValue > 0 || summary.identifiedCount > 0;
-            
-            if (!initialDataLoaded && isMemoryEmpty && hasCachedSummary) return;
 
             if (resultsToProcess.length === 0 && reportManager.savedReports.length > 0) {
                 resultsToProcess = reportManager.savedReports.flatMap(report => report.data?.results || []);
@@ -232,7 +256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             resultsToProcess.forEach(r => {
                 if (r.status === 'IDENTIFICADO') {
-                    if (r.church.name !== '---' && r.transaction.amount > 0) {
+                    if (r.church && r.church.name !== '---' && r.transaction.amount > 0) {
                         const current = valuePerChurch.get(r.church.name) || 0;
                         valuePerChurch.set(r.church.name, current + r.transaction.amount);
                     }
@@ -243,13 +267,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             });
             
-            // Only update if stats actually changed to prevent render loops
-            // This is a naive check, but helps with basic loops. 
-            // In a real loop, matchResults is stable, so this effect shouldn't fire repeatedly.
-            // If matchResults is new every time, useReconciliation fix handles it.
+            const newTotalValue = resultsToProcess.reduce((sum, r) => sum + r.transaction.amount, 0);
+            
             setSummary(prev => {
-                const totalValue = resultsToProcess.reduce((sum, r) => sum + r.transaction.amount, 0);
-                if (prev.totalValue === totalValue && prev.identifiedCount === (autoConfirmed.length + manualConfirmed.length)) {
+                // Strict equality check to prevent React Loop
+                if (prev.totalValue === newTotalValue && 
+                    prev.identifiedCount === (autoConfirmed.length + manualConfirmed.length) &&
+                    prev.isHistorical === isHistorical) {
                     return prev;
                 }
                 
@@ -259,15 +283,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     pending: { count: pending.length, value: pending.reduce((sum, r) => sum + r.transaction.amount, 0) },
                     identifiedCount: autoConfirmed.length + manualConfirmed.length,
                     unidentifiedCount: pending.length,
-                    totalValue,
+                    totalValue: newTotalValue,
                     valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
                     isHistorical,
                     methodBreakdown
                 };
             });
-        }, 100);
+        }, 300);
         return () => clearTimeout(timer);
-    }, [reconciliation.matchResults, reportManager.savedReports, initialDataLoaded]); // summary removed from deps to avoid self-loop
+    }, [resultsHash, reportsHash, initialDataLoaded]);
 
     // --- 5. Handlers ---
 
@@ -299,7 +323,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const confirmDeletion = useCallback(async () => {
         if (!deletingItem) return;
         
-        // Deletions Logic Switch
         if (deletingItem.type === 'report-row') {
              reconciliation.setReportPreviewData(prev => {
                  if (!prev) return null;
@@ -359,35 +382,155 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const viewSavedReport = useCallback((reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
-        if (report && report.data) {
-            const results = report.data.results;
-            const incomeResults = results.filter(r => r.transaction.amount > 0);
-            const expenseResults = results.filter(r => r.transaction.amount < 0);
-            
-            const previewData = {
-                income: groupResultsByChurch(incomeResults),
-                expenses: expenseResults.length > 0 ? { 'all_expenses_group': processExpenses(expenseResults.map(r => r.transaction)) } : {} 
-            };
-            if (expenseResults.length > 0) previewData.expenses = { 'all_expenses_group': expenseResults };
-
-            reconciliation.setMatchResults(results);
-            reconciliation.setReportPreviewData(previewData);
-            setActiveView('reports'); 
+        
+        // Validation
+        if (!report) {
+            showToast("Relatório não encontrado.", 'error');
+            return;
         }
-    }, [reportManager.savedReports, reconciliation, setActiveView]);
+        
+        // Robust check for data integrity
+        if (!report.data || !Array.isArray(report.data.results)) {
+             console.error("Saved report data corrupted:", report);
+             showToast("Este relatório não contém dados válidos ou está corrompido.", 'error');
+             return;
+        }
+
+        try {
+            const rawResults = report.data.results;
+            
+            // Filter out any potential malformed records that could crash the app
+            // And inject default values for missing objects (like church)
+            const validResults = rawResults
+                .filter(r => r && r.transaction && typeof r.transaction === 'object')
+                .map(r => ({
+                    ...r,
+                    // Ensure church exists to prevent render crashes accessing church.name
+                    church: r.church || { ...PLACEHOLDER_CHURCH, name: 'Igreja Desconhecida (Histórico)' },
+                    status: r.status || 'NÃO IDENTIFICADO',
+                    transaction: {
+                        ...r.transaction,
+                        amount: Number(r.transaction.amount) || 0
+                    },
+                    // Ensure contributor exists if identified
+                    contributor: r.contributor || null
+                }));
+
+            const incomeResults = validResults.filter(r => (r.transaction.amount || 0) > 0);
+            const expenseResults = validResults.filter(r => (r.transaction.amount || 0) < 0);
+            
+            const previewData: { income: GroupedReportData; expenses: GroupedReportData } = {
+                income: groupResultsByChurch(incomeResults),
+                expenses: {}
+            };
+
+            if (expenseResults.length > 0) {
+                previewData.expenses = { 'all_expenses_group': expenseResults };
+            }
+
+            // Important: Set results AND preview data
+            reconciliation.setMatchResults(validResults);
+            reconciliation.setReportPreviewData(previewData);
+            reconciliation.setHasActiveSession(true);
+
+            // HYDRATE FILES FOR RE-COMPARISON (NEW FEATURE)
+            if (report.data.bankStatementFile) {
+                reconciliation.setBankStatementFile(report.data.bankStatementFile);
+            }
+            if (report.data.sourceFiles && Array.isArray(report.data.sourceFiles)) {
+                // Ensure type safety when mapping
+                const sourceFilesHydrated = report.data.sourceFiles.map((sf: any) => ({
+                    churchId: sf.churchId,
+                    content: sf.content,
+                    fileName: sf.fileName
+                }));
+                reconciliation.setContributorFiles(sourceFilesHydrated);
+            }
+
+            // Redirect immediately
+            setActiveView('reports'); 
+        } catch (error) {
+            console.error("Erro ao abrir relatório:", error);
+            showToast("Erro crítico ao processar os dados do relatório.", 'error');
+        }
+    }, [reportManager.savedReports, reconciliation, setActiveView, showToast]);
 
     const openPaymentModal = useCallback(() => setIsPaymentModalOpen(true), []);
     const closePaymentModal = useCallback(() => setIsPaymentModalOpen(false), []);
 
+    // Recompare Modal Controls
+    const openRecompareModal = useCallback(() => setIsRecompareModalOpen(true), []);
+    const closeRecompareModal = useCallback(() => setIsRecompareModalOpen(false), []);
+
+    // --- Unified Manual Identification Logic ---
+    // Helper to find transaction anywhere
+    const findMatchResult = useCallback((transactionId: string): MatchResult | undefined => {
+        // 1. Try Current Session
+        const current = reconciliation.matchResults.find(r => r.transaction.id === transactionId);
+        if (current) return current;
+
+        // 2. Try Saved Reports
+        return reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId);
+    }, [reconciliation.matchResults, reportManager.allHistoricalResults]);
+
+    // Override openManualIdentify to search globally
+    const openManualIdentify = useCallback((transactionId: string) => {
+        const result = findMatchResult(transactionId);
+        if (result) {
+            reconciliation.setManualIdentificationTx(result.transaction);
+        }
+    }, [findMatchResult, reconciliation]);
+
+    // Override confirmManualIdentification to update the correct source
+    const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
+        const church = referenceData.churches.find(c => c.id === churchId);
+        const result = findMatchResult(transactionId);
+        
+        if (church && result) {
+            const newContributor: Contributor = {
+                id: `manual-${transactionId}`,
+                name: result.transaction.cleanedDescription || result.transaction.description, 
+                cleanedName: result.transaction.cleanedDescription,
+                amount: result.transaction.amount,
+                originalAmount: result.transaction.originalAmount,
+                date: result.transaction.date
+            };
+
+            const updatedRow: MatchResult = {
+                ...result,
+                status: 'IDENTIFICADO',
+                church,
+                contributor: newContributor,
+                matchMethod: 'MANUAL',
+                similarity: 100,
+                contributorAmount: result.transaction.amount
+            };
+            
+            // Check where it belongs and update accordingly
+            const isInCurrent = reconciliation.matchResults.some(r => r.transaction.id === transactionId);
+            
+            if (isInCurrent) {
+                reconciliation.updateReportData(updatedRow, 'income');
+            } else {
+                reportManager.updateSavedReportTransaction(transactionId, updatedRow);
+            }
+
+            reconciliation.closeManualIdentify();
+            showToast('Identificação manual realizada.', 'success');
+        }
+    }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
+
+
     // --- 6. Provider Value ---
-    // CRITICAL FIX: Memoize the value object to prevent infinite re-renders.
-    // referenceData, reconciliation, and reportManager are now stable objects from their hooks.
     const value = useMemo(() => ({
         // Reference Data
         ...referenceData,
         // Reconciliation
         ...reconciliation,
         isCompareDisabled: !reconciliation.bankStatementFile,
+        openManualIdentify, // Override with global version
+        confirmManualIdentification, // Override with global version
+        findMatchResult, // Helper
         // Reports
         ...reportManager,
         viewSavedReport,
@@ -396,14 +539,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // UI Globals
         deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
         initialDataLoaded, summary,
-        isPaymentModalOpen, openPaymentModal, closePaymentModal
+        isPaymentModalOpen, openPaymentModal, closePaymentModal,
+        isRecompareModalOpen, openRecompareModal, closeRecompareModal
     }), [
         referenceData, reconciliation, reportManager, 
         viewSavedReport, handleBackToSettings, 
         deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
         initialDataLoaded, summary, 
-        isPaymentModalOpen, openPaymentModal, closePaymentModal
+        isPaymentModalOpen, openPaymentModal, closePaymentModal,
+        isRecompareModalOpen, openRecompareModal, closeRecompareModal,
+        openManualIdentify, confirmManualIdentification, findMatchResult
     ]);
 
-    return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+    return (
+        <AppContext.Provider value={value}>
+            {children}
+            <RecompareModal />
+        </AppContext.Provider>
+    );
 };

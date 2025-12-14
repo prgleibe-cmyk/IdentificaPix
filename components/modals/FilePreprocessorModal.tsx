@@ -1,4 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import { XMarkIcon, DocumentArrowDownIcon, WrenchScrewdriverIcon, TrashIcon, PlusCircleIcon, UploadIcon, SparklesIcon, EyeIcon, ClipboardDocumentIcon } from '../Icons';
 import { useUI } from '../../contexts/UIContext';
@@ -55,12 +57,10 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
     // Carregador Robusto de Bibliotecas
     const ensureLibsLoaded = async () => {
         try {
-            // 1. PDF.js - Tenta Global Primeiro (Mais estável se index.html tiver CDN)
+            // 1. PDF.js
             if ((window as any).pdfjsLib) {
                 pdfjsLib = (window as any).pdfjsLib;
             } 
-            
-            // Se não achou global, tenta import dinâmico
             if (!pdfjsLib) {
                 try {
                     const pdfModule = await import('pdfjs-dist');
@@ -69,15 +69,11 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                     console.warn("PDF.js import failed", e);
                 }
             }
-
-            // Configuração do Worker (Crítico para PDF)
             if (pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
                 const version = pdfjsLib.version || '3.11.174';
-                // Correção: PDF.js v5+ via esm.sh precisa do worker do esm.sh
                 if (String(version).startsWith('5.')) {
                     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
                 } else {
-                    // Fallback para versões anteriores (CDNJS)
                     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
                 }
             }
@@ -114,7 +110,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         const selectedFile = e.target.files?.[0];
         if (!selectedFile) return;
         
-        // Reset inputs
         setFile(selectedFile);
         if (fileInputRef.current) fileInputRef.current.value = '';
         
@@ -130,11 +125,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         
         lines.forEach((line) => {
             if (!line.trim()) return;
-
-            // Tenta encontrar Data
             const dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
-            
-            // Tenta encontrar Valor
             const amountMatches = line.match(/-?\d{1,3}(?:\.\d{3})*(?:,\d{2})?|-?\d+(?:\.\d{2})?/g);
             
             if (dateMatch || amountMatches) {
@@ -191,8 +182,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
 
                 for (let i = 1; i <= totalPages; i++) {
                     const page = await pdf.getPage(i);
-                    
-                    // Render Visual
                     const viewport = page.getViewport({ scale: 1.5 });
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -207,7 +196,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
 
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-                    // Extração de Texto
                     const textContent = await page.getTextContent();
                     const items = textContent.items.map((item: any) => ({
                         str: item.str,
@@ -215,7 +203,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                         y: item.transform[5]
                     }));
                     
-                    // Agrupa por linha (Coordenada Y)
                     const linesMap = new Map<number, string[]>();
                     items.forEach((item: any) => {
                         const y = Math.round(item.y);
@@ -297,7 +284,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         }, ...prev]);
     };
 
-    // --- Lógica de IA ---
     const handleAIAutoComplete = async () => {
         const apiKey = getApiKey();
         if (!apiKey) {
@@ -389,9 +375,12 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         document.body.removeChild(link);
     };
 
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-[95vw] h-[85vh] flex flex-col border border-slate-200 dark:border-slate-700 overflow-hidden relative">
+    // Use createPortal to render the modal at the document body level
+    // This ignores parent overflow and stacking contexts (fixing sidebar z-index issues)
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+            {/* Modal Container ajustado para 95% de largura e 85% de altura (tamanho de workspace) */}
+            <div className="glass-modal rounded-2xl w-full max-w-[95vw] lg:max-w-[90vw] xl:max-w-7xl h-[85vh] flex flex-col overflow-hidden relative shadow-2xl border border-white/10">
                 
                 <input 
                     type="file" 
@@ -402,7 +391,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                 />
 
                 {/* Top Toolbar */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 shrink-0 gap-4 backdrop-blur-md">
                     <div className="flex items-center gap-4">
                         <div className="p-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-lg text-white shadow-lg shadow-violet-500/20">
                             <WrenchScrewdriverIcon className="w-6 h-6" />
@@ -443,8 +432,8 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                 <div className="flex-1 min-h-0 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700">
                     
                     {/* LEFT PANEL: Original Viewer */}
-                    <div className="w-full md:w-1/2 flex flex-col bg-slate-100 dark:bg-slate-900/50 relative">
-                        <div className="px-4 py-3 bg-slate-200/50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
+                    <div className="w-full md:w-1/2 flex flex-col bg-slate-100/50 dark:bg-slate-900/50 relative">
+                        <div className="px-4 py-3 bg-slate-200/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0 backdrop-blur-sm">
                             <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
                                 1. Visualização Original {file ? `(${file.name})` : ''}
                             </span>
@@ -536,8 +525,8 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                     </div>
 
                     {/* RIGHT PANEL: Clean Data Editor */}
-                    <div className="w-full md:w-1/2 flex flex-col bg-white dark:bg-slate-800 relative">
-                        <div className="px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
+                    <div className="w-full md:w-1/2 flex flex-col bg-white/80 dark:bg-slate-800/80 relative backdrop-blur-md">
+                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm">
                             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
                                 2. Dados Extraídos
                             </span>
@@ -576,18 +565,18 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                             )}
 
                             <table className="w-full text-sm text-left border-collapse">
-                                <thead className="bg-slate-50 dark:bg-slate-700/30 text-xs uppercase font-bold text-slate-500 dark:text-slate-400 sticky top-0 z-10 shadow-sm">
+                                <thead className="bg-brand-bg/40 dark:bg-slate-700/30 text-xs uppercase font-bold text-slate-400 dark:text-slate-500 sticky top-0 z-10 shadow-sm backdrop-blur-md">
                                     <tr>
-                                        <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700 w-32">Data</th>
-                                        <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700">Descrição / Nome</th>
-                                        <th className="p-3 border-b border-r border-slate-200 dark:border-slate-700 w-32 text-right">Valor</th>
-                                        <th className="p-3 border-b border-slate-200 dark:border-slate-700 w-10"></th>
+                                        <th className="p-4 border-b border-r border-slate-100 dark:border-slate-700 w-32">Data</th>
+                                        <th className="p-4 border-b border-r border-slate-100 dark:border-slate-700">Descrição / Nome</th>
+                                        <th className="p-4 border-b border-r border-slate-100 dark:border-slate-700 w-32 text-right">Valor</th>
+                                        <th className="p-4 border-b border-slate-100 dark:border-slate-700 w-10"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                                     {cleanRows.map((row) => (
-                                        <tr key={row.id} className="group hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors">
-                                            <td className="p-1 border-r border-slate-100 dark:border-slate-700/50">
+                                        <tr key={row.id} className="group hover:bg-brand-blue/5 dark:hover:bg-indigo-900/10 transition-colors">
+                                            <td className="p-2 border-r border-slate-50 dark:border-slate-700/50">
                                                 <input 
                                                     type="text" 
                                                     value={row.date} 
@@ -596,7 +585,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                                     placeholder="DD/MM/AAAA"
                                                 />
                                             </td>
-                                            <td className="p-1 border-r border-slate-100 dark:border-slate-700/50">
+                                            <td className="p-2 border-r border-slate-50 dark:border-slate-700/50">
                                                 <input 
                                                     type="text" 
                                                     value={row.description} 
@@ -605,7 +594,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                                     placeholder="Descrição"
                                                 />
                                             </td>
-                                            <td className="p-1 border-r border-slate-100 dark:border-slate-700/50">
+                                            <td className="p-2 border-r border-slate-50 dark:border-slate-700/50">
                                                 <input 
                                                     type="text" 
                                                     value={row.amount} 
@@ -614,7 +603,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                                                     placeholder="0,00"
                                                 />
                                             </td>
-                                            <td className="p-1 text-center">
+                                            <td className="p-2 text-center">
                                                 <button 
                                                     onClick={() => handleDeleteRow(row.id)}
                                                     className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
@@ -642,6 +631,7 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

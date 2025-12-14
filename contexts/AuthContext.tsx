@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
@@ -9,9 +10,10 @@ interface SystemSettings {
     defaultTrialDays: number;
     pixKey: string;
     monthlyPrice: number;
-    pricePerChurch: number;
-    pricePerBank: number;
+    pricePerExtra: number; 
     pricePerAiBlock: number;
+    baseAiLimit: number; // New: Base AI limit for new trials/plans
+    baseSlots: number;   // New: Base Slots for new trials/plans
     supportNumber: string;
 }
 
@@ -25,7 +27,7 @@ interface AuthContextType {
   addSubscriptionDays: (days: number) => Promise<void>;
   registerPayment: (amount: number, method: string, notes?: string, receiptUrl?: string) => Promise<void>;
   incrementAiUsage: () => Promise<void>;
-  updateLimits: (churches: number, banks: number, aiPacks: number) => Promise<void>;
+  updateLimits: (slots: number, aiPacks: number) => Promise<void>;
   systemSettings: SystemSettings;
   updateSystemSettings: (settings: Partial<SystemSettings>) => void;
 }
@@ -36,9 +38,10 @@ const DEFAULT_SETTINGS: SystemSettings = {
     defaultTrialDays: 10,
     pixKey: '',
     monthlyPrice: 79.90,
-    pricePerChurch: 14.90,
-    pricePerBank: 29.90,
+    pricePerExtra: 19.90, 
     pricePerAiBlock: 15.00,
+    baseAiLimit: 100,
+    baseSlots: 2,
     supportNumber: '5511999999999'
 };
 
@@ -47,8 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Otimização: Um único hook de persistência para todas as configurações
-  const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v2', DEFAULT_SETTINGS);
+  // Settings Version bumped to v5 to force new defaults
+  const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v5', DEFAULT_SETTINGS);
 
   const [subscription, setSubscription] = useState<SubscriptionStatus>({
       plan: 'trial',
@@ -80,6 +83,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!currentUser) return;
 
       const TRIAL_DURATION_DAYS = systemSettings.defaultTrialDays;
+      const BASE_AI = systemSettings.baseAiLimit;
+      const BASE_SLOTS = systemSettings.baseSlots;
+
       let profileData: any = null;
 
       try {
@@ -99,10 +105,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   trial_ends_at: trialEnds.toISOString(),
                   is_blocked: false,
                   is_lifetime: false,
-                  limit_ai: 100,
+                  limit_ai: BASE_AI,
                   usage_ai: 0,
-                  max_churches: 1,
-                  max_banks: 1
+                  max_churches: BASE_SLOTS,
+                  max_banks: BASE_SLOTS
               };
           }
       } catch (e) {
@@ -147,7 +153,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               prev.plan === status &&
               prev.daysRemaining === Math.max(0, daysRemaining) &&
               prev.aiUsage === profileData.usage_ai &&
-              prev.isBlocked === isBlocked
+              prev.isBlocked === isBlocked &&
+              prev.aiLimit === profileData.limit_ai &&
+              prev.maxChurches === profileData.max_churches
           ) {
               return prev;
           }
@@ -161,14 +169,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               trialEndsAt: profileData.trial_ends_at,
               subscriptionEndsAt: profileData.subscription_ends_at,
               customPrice: profileData.custom_price || null,
-              aiLimit: profileData.limit_ai || 100,
+              aiLimit: profileData.limit_ai || BASE_AI,
               aiUsage: profileData.usage_ai || 0,
-              maxChurches: profileData.max_churches || 1,
-              maxBanks: profileData.max_banks || 1
+              maxChurches: profileData.max_churches || BASE_SLOTS,
+              maxBanks: profileData.max_banks || BASE_SLOTS
           };
       });
 
-  }, [systemSettings.defaultTrialDays]);
+  }, [systemSettings.defaultTrialDays, systemSettings.baseAiLimit, systemSettings.baseSlots]);
 
   const addSubscriptionDays = useCallback(async (days: number) => {
       if (!user) return;
@@ -196,23 +204,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await calculateSubscription(user);
   }, [user, calculateSubscription]);
 
-  const updateLimits = useCallback(async (churches: number, banks: number, aiPacks: number) => {
+  const updateLimits = useCallback(async (slots: number, aiPacks: number) => {
       if (!user) return;
       try {
           const { data: currentProfile } = await supabase.from('profiles').select('limit_ai').eq('id', user.id).single();
-          const currentLimit = currentProfile?.limit_ai || 100;
+          const currentLimit = currentProfile?.limit_ai || systemSettings.baseAiLimit;
           
           await supabase.from('profiles').update({ 
               limit_ai: currentLimit + (aiPacks * 1000),
-              max_churches: churches,
-              max_banks: banks
+              max_churches: slots,
+              max_banks: slots
           }).eq('id', user.id);
           
       } catch (e) {
           console.error("Erro ao atualizar limites no DB:", e);
       }
       await calculateSubscription(user);
-  }, [user, calculateSubscription]);
+  }, [user, calculateSubscription, systemSettings.baseAiLimit]);
 
   const registerPayment = useCallback(async (amount: number, method: string, notes?: string, receiptUrl?: string) => {
       if (!user) return;
@@ -304,9 +312,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [calculateSubscription]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
+    try {
+        await supabase.auth.signOut();
+    } catch (error) {
+        console.error("Error signing out:", error);
+    } finally {
+        setSession(null);
+        setUser(null);
+        setSubscription({
+              plan: 'trial',
+              daysRemaining: 10,
+              totalDays: 10,
+              isExpired: false,
+              isBlocked: false,
+              isLifetime: false,
+              trialEndsAt: null,
+              subscriptionEndsAt: null,
+              customPrice: null,
+              aiLimit: 100,
+              aiUsage: 0,
+              maxChurches: 1,
+              maxBanks: 1
+          });
+    }
   }, []);
 
   const refreshSubscription = useCallback(async () => {

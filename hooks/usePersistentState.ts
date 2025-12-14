@@ -8,14 +8,22 @@ import { get, set } from 'idb-keyval';
  * Dados pesados (extratos, listas) -> IndexedDB (Assíncrono, não trava a tela)
  */
 export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
+    // Inicializa com o valor padrão
     const [state, setState] = useState<T>(initialValue);
     const [isHydrated, setIsHydrated] = useState(false);
-    const isFirstRender = useRef(true);
+    
+    // Refs para evitar re-renders desnecessários e loops de dependência
+    const isMounted = useRef(false);
+    const stateRef = useRef(state);
 
-    // 1. Hidratação (Leitura Inicial e Mudança de Chave)
+    // Mantém o ref atualizado com o valor mais recente
     useEffect(() => {
-        let isActive = true;
-        // Resetar status de hidratação ao mudar a chave para evitar salvar dados antigos na nova chave
+        stateRef.current = state;
+    }, [state]);
+
+    // 1. Hidratação (Carregar dados) - Executa ao montar ou mudar a chave
+    useEffect(() => {
+        isMounted.current = true;
         setIsHydrated(false);
 
         const hydrate = async () => {
@@ -23,57 +31,57 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                 let value: T | undefined;
 
                 if (isHeavy) {
-                    // Leitura Assíncrona do IndexedDB (Não bloqueia UI)
+                    // Leitura Assíncrona do IndexedDB
                     value = await get(key);
                 } else {
-                    // Leitura Síncrona do LocalStorage (Instantânea para UI)
+                    // Leitura Síncrona do LocalStorage
                     const item = window.localStorage.getItem(key);
                     if (item) {
                         value = JSON.parse(item);
                     }
                 }
 
-                if (isActive) {
-                    if (value !== undefined) {
-                        setState(value);
-                    } else {
-                        // SE A CHAVE MUDOU E NÃO TEM DADOS, RESETA PARA O INICIAL.
-                        // Isso é crucial para o multi-usuário funcionar corretamente.
-                        // Se User A sai e User B entra, 'key' muda. Se User B não tem dados,
-                        // ele deve começar com 'initialValue', e não herdar o estado do User A.
-                        setState(initialValue);
+                if (isMounted.current) {
+                    if (value !== undefined && value !== null) {
+                        // FIX CRÍTICO PARA LOOP:
+                        // Compara o valor atual (via functional update) com o novo valor.
+                        // Se o conteúdo JSON for idêntico, retorna o estado anterior (mesma referência).
+                        // Isso impede que o React renderize novamente.
+                        setState(prev => {
+                            try {
+                                if (JSON.stringify(prev) === JSON.stringify(value)) {
+                                    return prev;
+                                }
+                            } catch (e) {
+                                // Se falhar ao comparar (circular ref), atualiza assim mesmo
+                            }
+                            stateRef.current = value as T;
+                            return value as T;
+                        });
                     }
+                    setIsHydrated(true);
                 }
             } catch (error) {
                 console.warn(`Erro ao carregar estado para ${key}:`, error);
-                if (isActive) setState(initialValue);
-            } finally {
-                if (isActive) setIsHydrated(true);
+                if (isMounted.current) setIsHydrated(true);
             }
         };
 
         hydrate();
 
-        return () => { isActive = false; };
-    }, [key, isHeavy]); // initialValue intencionalmente omitido para evitar loops se for objeto literal
+        return () => { isMounted.current = false; };
+    }, [key, isHeavy]);
 
-    // 2. Persistência (Escrita)
+    // 2. Persistência (Salvar dados)
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return;
-        }
-
-        // Não salvar se ainda não leu do disco ou se a chave acabou de mudar (evita sobrescrever com estado errado)
+        // Só salva se já estiver hidratado para evitar sobrescrever dados com o valor inicial
         if (!isHydrated) return;
 
         const save = async () => {
             try {
                 if (isHeavy) {
-                    // Escrita Assíncrona no IndexedDB
                     await set(key, state);
                 } else {
-                    // Escrita Síncrona no LocalStorage
                     window.localStorage.setItem(key, JSON.stringify(state));
                 }
             } catch (error) {
@@ -81,8 +89,8 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
             }
         };
 
-        // Debounce para evitar escritas excessivas (aguarda 500ms após última mudança)
-        const timeoutId = setTimeout(save, 500);
+        // Debounce aumentado para 1s para reduzir pressão no disco local durante edições rápidas
+        const timeoutId = setTimeout(save, 1000);
         return () => clearTimeout(timeoutId);
 
     }, [key, state, isHeavy, isHydrated]);

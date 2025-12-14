@@ -3,28 +3,30 @@ import { Logger } from './monitoringService';
 
 export interface PaymentResponse {
     id: string;
-    status: 'PENDING' | 'RECEIVED' | 'OVERDUE';
-    pixCopiaECola: string;
-    qrCodeImage: string; // Base64 or URL
+    status: 'PENDING' | 'RECEIVED' | 'OVERDUE' | 'CONFIRMED';
+    pixCopiaECola?: string;
+    qrCodeImage?: string; 
+    barcode?: string;
+    bankSlipUrl?: string;
     value: number;
+    method: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
 }
 
 // PRODUCTION ADAPTER INTERFACE
-// This service simulates the interaction with a payment gateway (e.g., Asaas, Stripe, MercadoPago).
-// In a production environment, these calls should be routed to a secure backend (Supabase Edge Functions)
-// to handle API keys securely.
+// This service simulates the interaction with Asaas.
+// In a production environment, these calls should be routed to a secure backend (Supabase Edge Functions).
 
 export const paymentService = {
     /**
-     * Creates a Pix payment order.
-     * In Production: Call backend function 'create-pix-charge'.
+     * Creates a payment order via Asaas (Simulated).
      */
-    createPixPayment: async (
+    createPayment: async (
         amount: number, 
         customerName: string, 
-        description: string
+        description: string,
+        method: 'PIX' | 'CREDIT_CARD' | 'BOLETO'
     ): Promise<PaymentResponse> => {
-        Logger.info('Initiating Payment Gateway Transaction...', { amount, customerName });
+        Logger.info(`Initiating Asaas Payment [${method}]...`, { amount, customerName });
 
         // Simulate Network Latency
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -32,25 +34,35 @@ export const paymentService = {
         // Generate a transaction ID
         const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         
-        // Generate a valid visual QR Code for demonstration.
-        // In production, `pixCopiaECola` and `qrCodeImage` come from the bank API.
-        const mockPixString = `00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426614174000520400005303986540${amount.toFixed(2).replace('.', '')}5802BR5913IdentificaPix6008SaoPaulo62070503***6304ABCD`;
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockPixString)}`;
-        
-        return {
+        let response: PaymentResponse = {
             id: transactionId,
             status: 'PENDING',
-            pixCopiaECola: mockPixString,
-            qrCodeImage: qrCodeUrl,
-            value: amount
+            value: amount,
+            method
         };
+
+        if (method === 'PIX') {
+            const mockPixString = `00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426614174000520400005303986540${amount.toFixed(2).replace('.', '')}5802BR5913IdentificaPix6008SaoPaulo62070503***6304ABCD`;
+            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockPixString)}`;
+            response.pixCopiaECola = mockPixString;
+            response.qrCodeImage = qrCodeUrl;
+        } 
+        else if (method === 'BOLETO') {
+            response.barcode = `34191.79001 01043.510047 91020.150008 8 845200000${amount.toString().replace('.', '')}`;
+            response.bankSlipUrl = "#"; // Would be a real PDF URL
+        }
+        else if (method === 'CREDIT_CARD') {
+            // Cards are usually approved instantly or rejected
+            response.status = 'CONFIRMED';
+        }
+        
+        return response;
     },
 
     /**
      * Checks the status of a payment.
-     * In Production: Poll backend or use Webhooks.
      */
-    checkPaymentStatus: async (paymentId: string): Promise<'PENDING' | 'RECEIVED' | 'OVERDUE'> => {
+    checkPaymentStatus: async (paymentId: string): Promise<'PENDING' | 'RECEIVED' | 'OVERDUE' | 'CONFIRMED'> => {
         // Mock Logic: Auto-approve after 10 seconds for user experience testing
         const timestamp = parseInt(paymentId.split('_')[1]);
         const elapsed = Date.now() - timestamp;

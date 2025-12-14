@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -32,7 +33,7 @@ export const ConfirmDeleteModal: React.FC = () => {
 
     return (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700">
                 <div className="p-8">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{t('modal.confirmDelete.title')}</h3>
@@ -49,9 +50,9 @@ export const ConfirmDeleteModal: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-2xl border-t border-slate-100 dark:border-slate-700/50">
-                    <button type="button" onClick={closeDeleteConfirmation} className="px-5 py-2.5 text-sm font-bold rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all">{t('common.cancel')}</button>
-                    <button type="button" onClick={confirmDeletion} className="px-6 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-500/30 hover:-translate-y-0.5 transition-all">{t('common.delete')}</button>
+                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-3xl border-t border-slate-100 dark:border-slate-700/50">
+                    <button type="button" onClick={closeDeleteConfirmation} className="px-5 py-2.5 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
+                    <button type="button" onClick={confirmDeletion} className="px-6 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-full shadow-lg shadow-red-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide">{t('common.delete')}</button>
                 </div>
             </div>
         </div>

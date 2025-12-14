@@ -3,6 +3,7 @@ import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
 import {
@@ -10,9 +11,10 @@ import {
     UploadIcon,
     CheckCircleIcon,
     ChartPieIcon,
+    TrophyIcon,
+    SparklesIcon
 } from '../components/Icons';
 import { formatCurrency } from '../utils/formatters';
-import { MatchMethod } from '../types';
 
 interface DonutChartProps {
     data: { name: string; value: number; color: string }[];
@@ -20,17 +22,21 @@ interface DonutChartProps {
 
 const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
     const total = data.reduce((acc, item) => acc + item.value, 0);
-    if (total === 0) return <div className="text-center text-slate-400 py-12">Nenhum dado para o gráfico.</div>;
+    if (total === 0) return <div className="text-center text-slate-400 py-12 font-medium text-xs">Aguardando dados...</div>;
 
-    const radius = 60; // Slightly larger
-    const strokeWidth = 8; // Thinner stroke for elegance
+    const radius = 60; 
+    const strokeWidth = 10;
     const circumference = 2 * Math.PI * radius;
     let accumulatedOffset = 0;
 
     return (
-        <div className="flex flex-col items-center h-full justify-center py-4">
-            <div className="relative w-48 h-48 drop-shadow-md flex-shrink-0">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
+        <div className="flex flex-col items-center h-full justify-between py-2">
+            {/* Chart Circle - Reduced Size for better fit */}
+            <div className="relative w-32 h-32 flex-shrink-0 group mt-2">
+                {/* Glow Effect behind chart */}
+                <div className="absolute inset-0 bg-brand-blue/5 rounded-full blur-2xl transform scale-90"></div>
+                
+                <svg className="w-full h-full transform -rotate-90 relative z-10" viewBox="0 0 160 160">
                      <circle
                         cx="80"
                         cy="80"
@@ -44,7 +50,7 @@ const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
                         const percentage = item.value / total;
                         const dashArray = percentage * circumference;
                         const offset = accumulatedOffset;
-                        accumulatedOffset += dashArray; // No gap calculation in offset to stack correctly
+                        accumulatedOffset += dashArray; 
                         
                         return (
                             <circle
@@ -58,28 +64,31 @@ const DonutChart: React.FC<DonutChartProps> = ({ data }) => {
                                 strokeDasharray={`${dashArray} ${circumference - dashArray}`} 
                                 strokeDashoffset={-offset}
                                 strokeLinecap="round"
-                                className="transition-all duration-500 hover:stroke-[10] hover:opacity-80 cursor-pointer"
+                                className="transition-all duration-500 hover:stroke-[12] hover:opacity-90 cursor-pointer drop-shadow-sm origin-center hover:scale-[1.02]"
                             />
                         );
                     })}
                 </svg>
-                 <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-                    <span className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter font-mono">{total}</span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Registros</span>
+                 <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none z-20">
+                    <span className="text-2xl font-black text-brand-graphite dark:text-white tracking-tighter tabular-nums transition-transform duration-500 group-hover:scale-110">{total}</span>
+                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Registros</span>
                 </div>
             </div>
             
-            <div className="mt-8 w-full px-4">
-                <div className="grid grid-cols-2 gap-3">
+            {/* Legend Pills - Optimized Spacing */}
+            <div className="w-full px-4 mb-2 overflow-y-auto custom-scrollbar max-h-[140px]">
+                <div className="grid grid-cols-1 gap-1.5">
                     {data.map((item, index) => (
-                        <div key={index} className="flex items-center p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700/50">
-                            <span className="w-2.5 h-2.5 rounded-full mr-2.5 flex-shrink-0 shadow-sm" style={{ backgroundColor: item.color }}></span>
-                            <div className="flex flex-col min-w-0">
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase truncate">{item.name}</span>
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-mono">
-                                    {((item.value / total) * 100).toFixed(1)}%
+                        <div key={index} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700/50 hover:border-slate-200 dark:hover:border-slate-600 transition-all group/item">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></span>
+                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate tracking-wide group-hover/item:text-slate-800 dark:group-hover/item:text-slate-200 transition-colors">
+                                    {item.name}
                                 </span>
                             </div>
+                            <span className="text-[10px] font-black text-slate-700 dark:text-white tabular-nums bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-700 shadow-sm">
+                                {((item.value / total) * 100).toFixed(1)}%
+                            </span>
                         </div>
                     ))}
                 </div>
@@ -92,18 +101,19 @@ const DashboardSkeleton = () => (
     <div className="animate-pulse space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[1, 2, 3].map(i => (
-                <div key={i} className="bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 h-40 shadow-sm"></div>
+                <div key={i} className="bg-white dark:bg-slate-800 rounded-[2rem] p-8 h-48 border border-slate-100 dark:border-slate-700"></div>
             ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[500px]">
-            <div className="bg-white/50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm"></div>
-            <div className="lg:col-span-2 bg-white/50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm"></div>
+            <div className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700"></div>
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700"></div>
         </div>
     </div>
 );
 
 export const DashboardView: React.FC = () => {
     const { summary, matchResults, hasActiveSession, savedReports } = useContext(AppContext);
+    const { user } = useAuth();
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
 
@@ -112,14 +122,13 @@ export const DashboardView: React.FC = () => {
         return total > 0 ? (summary.identifiedCount / total) * 100 : 0;
     }, [summary]);
     
-    // Use the persistent summary breakdown for instant rendering
     const pieChartData = useMemo(() => {
         const breakdown = summary.methodBreakdown || { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 };
         return [
-            { name: t('dashboard.matchMethod.automatic'), value: breakdown.AUTOMATIC, color: '#6366f1' }, // Indigo 500
-            { name: t('dashboard.matchMethod.manual'), value: breakdown.MANUAL, color: '#3b82f6' }, // Blue 500
-            { name: t('dashboard.matchMethod.learned'), value: breakdown.LEARNED, color: '#a855f7' }, // Purple 500
-            { name: t('dashboard.matchMethod.ai'), value: breakdown.AI, color: '#10b981' }, // Emerald 500
+            { name: t('dashboard.matchMethod.automatic'), value: breakdown.AUTOMATIC, color: '#3B82F6' }, // Blue 500
+            { name: t('dashboard.matchMethod.manual'), value: breakdown.MANUAL, color: '#6366F1' },    // Indigo 500
+            { name: t('dashboard.matchMethod.learned'), value: breakdown.LEARNED, color: '#8B5CF6' },   // Violet 500
+            { name: t('dashboard.matchMethod.ai'), value: breakdown.AI, color: '#14B8A6' },           // Teal 500
         ].filter(d => d.value > 0);
     }, [summary.methodBreakdown, t]);
 
@@ -132,26 +141,40 @@ export const DashboardView: React.FC = () => {
     const circumference = 2 * Math.PI * radius;
     const progressOffset = circumference - (identificationRate / 100) * circumference;
 
-    // Data check now includes the persisted summary values to allow instant render
     const hasData = matchResults.length > 0 || savedReports.length > 0 || summary.totalValue > 0 || summary.identifiedCount > 0;
 
-    // Use skeleton ONLY if we have an active session BUT no data (initial hydration/fetch failed or in progress with cleared cache)
+    const getGreeting = () => {
+        const hours = new Date().getHours();
+        if (hours < 12) return 'Bom dia';
+        if (hours < 18) return 'Boa tarde';
+        return 'Boa noite';
+    };
+
     if (hasActiveSession && !hasData) {
         return <DashboardSkeleton />;
     }
 
     if (!hasData) {
         return (
-            <div className="mt-8">
-                <EmptyState
-                    icon={<UploadIcon className="w-12 h-12 text-indigo-500 dark:text-indigo-400" />}
-                    title={t('empty.dashboard.title')}
-                    message={t('empty.dashboard.message')}
-                    action={{
-                        text: t('empty.dashboard.action'),
-                        onClick: () => setActiveView('upload'),
-                    }}
-                />
+            <div className="flex-1 flex flex-col h-full animate-fade-in-up pb-6">
+                <div className="flex-shrink-0 mb-8 px-1">
+                    <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
+                        {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-violet-500">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>.
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">Seu painel de controle financeiro inteligente.</p>
+                </div>
+
+                <div className="flex-1 flex items-center justify-center">
+                    <EmptyState
+                        icon={<UploadIcon />}
+                        title={t('empty.dashboard.title')}
+                        message={t('empty.dashboard.message')}
+                        action={{
+                            text: t('empty.dashboard.action'),
+                            onClick: () => setActiveView('upload'),
+                        }}
+                    />
+                </div>
             </div>
         );
     }
@@ -159,55 +182,73 @@ export const DashboardView: React.FC = () => {
     return (
         <div className="flex flex-col h-full gap-6 animate-fade-in pb-4 overflow-y-auto custom-scrollbar">
             
-            {/* Header Info if Historical */}
-            {summary.isHistorical && (
-                <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 bg-white dark:bg-slate-800 rounded-xl border border-indigo-100 dark:border-indigo-900 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <span className="flex h-3 w-3 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                        </span>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                            Modo Histórico: <span className="font-normal text-slate-500 dark:text-slate-400">Exibindo dados agregados.</span>
-                        </p>
-                    </div>
-                    <span className="text-xs text-slate-400 font-mono bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md">{new Date().toLocaleDateString()}</span>
+            {/* Header Section */}
+            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
+                        Dashboard
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1.5 font-medium flex items-center gap-2">
+                        Visão geral da conciliação e métricas financeiras.
+                    </p>
                 </div>
-            )}
+                {summary.isHistorical && (
+                    <span className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm animate-fade-in-down">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                        Modo Histórico
+                    </span>
+                )}
+            </div>
 
-            {/* KPI Cards */}
-            <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* KPI Cards Section */}
+            <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-4 xl:gap-6">
+                {/* 1. Identified (Left) */}
                 <SummaryCard
                     title={t('dashboard.identifiedContributions')}
                     count={summary.identifiedCount}
                     value={summary.autoConfirmed.value + summary.manualConfirmed.value}
-                    icon={<CheckCircleIcon className="w-5 h-5 text-white" />}
+                    icon={<CheckCircleIcon />}
                     language={language}
-                    accentColor="from-emerald-500 to-teal-500" 
+                    accentColor="emerald"
+                    delay={0}
                 />
                 
-                {/* Center KPI - Efficiency */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-600 opacity-80"></div>
+                {/* 2. Efficiency (Center - Hero Card) */}
+                <div 
+                    className="relative overflow-hidden bg-gradient-to-br from-white to-blue-50/50 dark:from-slate-800 dark:to-slate-900 rounded-[2rem] shadow-card border border-blue-100/50 dark:border-slate-700 p-6 xl:p-8 hover:shadow-premium hover:-translate-y-1 transition-all duration-500 group animate-fade-in-up fill-mode-backwards"
+                    style={{ animationDelay: '100ms' }}
+                >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue/5 rounded-full blur-[50px] pointer-events-none"></div>
+                    
                     <div className="flex justify-between items-start h-full relative z-10">
                         <div className="flex flex-col justify-between h-full">
                             <div>
-                                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">{t('dashboard.identificationRatio')}</p>
-                                <span className="text-4xl font-black text-slate-800 dark:text-white font-mono tracking-tight">{identificationRate.toFixed(1)}%</span>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 text-brand-blue rounded-lg">
+                                        <SparklesIcon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t('dashboard.identificationRatio')}</p>
+                                </div>
+                                <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-brand-graphite to-slate-600 dark:from-white dark:to-slate-300 tabular-nums tracking-tighter">
+                                    {identificationRate.toFixed(1)}%
+                                </span>
                             </div>
                             <div className="mt-4">
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-700 text-brand-blue border border-blue-100 dark:border-slate-600 shadow-sm uppercase tracking-wide">
                                     Taxa de Eficiência
                                 </span>
                             </div>
                         </div>
                         
                         {/* Circular Progress */}
-                        <div className="relative w-20 h-20 transform group-hover:scale-105 transition-transform duration-300">
-                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
+                        <div className="relative w-24 h-24 transform group-hover:scale-105 group-hover:rotate-6 transition-all duration-700 ease-out">
+                            <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 80 80">
                                 <circle className="text-slate-100 dark:text-slate-700/50" strokeWidth="6" stroke="currentColor" fill="transparent" r={radius} cx="40" cy="40" />
                                 <circle 
-                                    className="text-blue-600 dark:text-blue-500 transition-all duration-1000 ease-out"
+                                    className="text-brand-blue transition-all duration-1000 ease-out"
                                     strokeWidth="6"
                                     strokeDasharray={circumference}
                                     strokeDashoffset={progressOffset}
@@ -219,32 +260,37 @@ export const DashboardView: React.FC = () => {
                                     cy="40"
                                 />
                             </svg>
-                            <div className="absolute inset-0 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                <ChartPieIcon className="w-7 h-7" />
+                            <div className="absolute inset-0 flex items-center justify-center text-brand-blue dark:text-blue-400">
+                                <ChartPieIcon className="w-8 h-8 stroke-[1.5]" />
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {/* 3. Pending (Right) */}
                 <SummaryCard
                     title={t('dashboard.pending')}
                     count={summary.unidentifiedCount}
                     value={summary.pending.value}
-                    icon={<XCircleIcon className="w-5 h-5 text-white" />}
+                    icon={<XCircleIcon />}
                     language={language}
-                    accentColor="from-amber-500 to-orange-500"
+                    accentColor="amber"
+                    delay={200}
                 />
             </div>
 
             {/* Charts & Lists Section */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 xl:gap-6">
                 
                 {/* Donut Chart - Analysis */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
-                     <div className="px-6 py-5 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center">
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wide">{t('dashboard.matchMethodBreakdown')}</h3>
-                        <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-400">
-                            <ChartPieIcon className="w-4 h-4" />
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
+                    style={{ animationDelay: '300ms' }}
+                >
+                     <div className="px-5 py-4 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center shrink-0">
+                        <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t('dashboard.matchMethodBreakdown')}</h3>
+                        <div className="p-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-slate-400 border border-slate-100 dark:border-slate-700">
+                            <ChartPieIcon className="w-3.5 h-3.5" />
                         </div>
                      </div>
                      <div className="flex-1 min-h-0 relative">
@@ -252,39 +298,54 @@ export const DashboardView: React.FC = () => {
                      </div>
                 </div>
 
-                {/* Church Leaderboard - Enhanced */}
-                <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
-                     <div className="px-6 py-5 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wide flex items-center gap-2">
+                {/* Church Leaderboard - Enhanced Premium Look */}
+                <div 
+                    className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
+                    style={{ animationDelay: '400ms' }}
+                >
+                     <div className="px-5 py-4 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm z-10 shrink-0">
+                        <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             {t('dashboard.identifiedValuesByChurch')}
                         </h3>
-                        <span className="text-[10px] font-bold tracking-wide text-slate-500 bg-white dark:bg-slate-700 px-3 py-1 rounded-lg shadow-sm border border-slate-100 dark:border-slate-600">TOP ENTIDADES</span>
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-full shadow-md shadow-violet-500/20">
+                            <TrophyIcon className="w-3 h-3" />
+                            <span className="text-[9px] font-bold uppercase tracking-wide">Top Entidades</span>
+                        </div>
                      </div>
                      
                      {summary.valuePerChurch.length > 0 ? (
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2">
                             {summary.valuePerChurch.map(([name, value], index) => {
                                 const widthPercentage = maxValuePerChurch > 0 ? (value / maxValuePerChurch) * 100 : 0;
+                                
+                                // Medal Styles
+                                let rankStyle = "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600";
+                                if (index === 0) rankStyle = "bg-gradient-to-br from-yellow-300 to-amber-400 text-amber-900 border-amber-300 shadow-amber-200/50";
+                                if (index === 1) rankStyle = "bg-gradient-to-br from-slate-200 to-slate-300 text-slate-700 border-slate-300 shadow-slate-200/50";
+                                if (index === 2) rankStyle = "bg-gradient-to-br from-orange-200 to-orange-300 text-orange-800 border-orange-300 shadow-orange-200/50";
+
                                 return (
-                                    <div key={name} className="relative group">
-                                        <div className="flex justify-between items-end mb-2">
+                                    <div key={name} className="relative group px-4 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-all duration-300 border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50 hover:shadow-sm">
+                                        <div className="flex justify-between items-center mb-2 relative z-10">
                                             <div className="flex items-center gap-3">
-                                                <div className={`flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-bold border shadow-sm ${index < 3 ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white border-transparent' : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'}`}>
+                                                <div className={`flex items-center justify-center w-6 h-6 rounded-lg text-[9px] font-bold border shadow-sm shrink-0 ${rankStyle}`}>
                                                     {index + 1}
                                                 </div>
-                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px] sm:max-w-xs">{name}</span>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[180px] sm:max-w-xs">{name}</span>
                                             </div>
-                                            <span className="text-sm font-bold text-slate-800 dark:text-white font-mono bg-slate-50 dark:bg-slate-700/50 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-600">{formatCurrency(value, language)}</span>
+                                            <span className="text-[11px] font-bold text-brand-graphite dark:text-white font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                {formatCurrency(value, language)}
+                                            </span>
                                         </div>
                                         
-                                        <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
+                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
                                             <div 
                                                 className="h-full rounded-full transition-all duration-1000 ease-out relative group-hover:brightness-110"
                                                 style={{ 
                                                     width: `${widthPercentage}%`,
-                                                    background: index === 0 ? 'linear-gradient(90deg, #6366f1 0%, #a855f7 100%)' : // Indigo to Purple
-                                                                index === 1 ? 'linear-gradient(90deg, #3b82f6 0%, #6366f1 100%)' : // Blue to Indigo
-                                                                'linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%)' // Slate
+                                                    background: index < 3 
+                                                        ? 'linear-gradient(90deg, #6366F1 0%, #A855F7 100%)' // Violet Gradient for top 3
+                                                        : 'linear-gradient(90deg, #94a3b8 0%, #cbd5e1 100%)' // Slate for others
                                                 }} 
                                             >
                                             </div>
@@ -294,8 +355,8 @@ export const DashboardView: React.FC = () => {
                             })}
                         </div>
                      ) : (
-                        <div className="flex flex-col items-center justify-center flex-1 text-slate-400 italic">
-                            <p>{t('dashboard.noValues')}</p>
+                        <div className="flex flex-col items-center justify-center flex-1 text-slate-400 italic bg-slate-50/30 dark:bg-slate-900/30 m-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                            <p className="text-xs font-medium">{t('dashboard.noValues')}</p>
                         </div>
                      )}
                 </div>

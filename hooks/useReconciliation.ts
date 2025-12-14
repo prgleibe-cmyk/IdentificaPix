@@ -34,13 +34,14 @@ export const useReconciliation = ({
     const { subscription, incrementAiUsage } = useAuth();
 
     // --- File State ---
-    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement', null, true);
-    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors', [], true);
+    // UPDATED KEYS TO _v5 to prevent loading corrupted legacy data
+    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement-v5', null, true);
+    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors-v5', [], true);
     
     // --- Results State ---
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results', [], true);
-    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview', null, true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session', false, false);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results-v5', [], true);
+    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v5', null, true);
+    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v5', false, false);
 
     // --- UI Logic State ---
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
@@ -98,17 +99,35 @@ export const useReconciliation = ({
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
         setReportPreviewData(prev => {
             if (!prev) return null;
+            
+            // 1. Create a shallow copy of the root object
             const newPreview = { ...prev };
+            
+            // 2. Create a shallow copy of the specific target group container (income or expenses)
+            // This is CRITICAL: If we don't copy this object, React won't see that the 'income' object reference changed,
+            // and won't re-render the components that depend on `reportPreviewData.income`.
+            if (reportType === 'income') {
+                newPreview.income = { ...prev.income };
+            } else {
+                newPreview.expenses = { ...prev.expenses };
+            }
+
             const groupKey = reportType === 'income' ? (updatedRow.church.id || 'unidentified') : 'all_expenses_group';
             const targetGroup = reportType === 'income' ? newPreview.income : newPreview.expenses;
             
+            // 3. Remove the transaction from ALL existing groups in this bucket
+            // This ensures it disappears from "unidentified" or any previous group it belonged to.
             Object.keys(targetGroup).forEach(key => {
                 targetGroup[key] = targetGroup[key].filter(r => r.transaction.id !== updatedRow.transaction.id);
             });
 
-            if (!targetGroup[groupKey]) targetGroup[groupKey] = [];
+            // 4. Add the transaction to the NEW correct group
+            if (!targetGroup[groupKey]) {
+                targetGroup[groupKey] = [];
+            }
             targetGroup[groupKey].push(updatedRow);
             
+            // 5. Update the master matchResults list to keep it in sync
             setMatchResults(prevResults => {
                 return prevResults.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
             });
@@ -280,25 +299,14 @@ export const useReconciliation = ({
 
     // Manual Match Modal Logic
     const openManualMatchModal = useCallback((record: MatchResult) => {
-        // daysDifference helper
-        const daysDiff = (d1: Date, d2: Date) => Math.ceil(Math.abs(d2.getTime() - d1.getTime()) / (1000 * 3600 * 24));
-
+        // CHANGED: We now pass ALL unidentified transactions to the modal.
+        // The modal will handle filtering (showing smart suggestions by default, or searching everything).
         const pendingTransactions = matchResults
             .filter(r => r.status === 'NÃO IDENTIFICADO' && !r.transaction.id.startsWith('pending-'))
             .map(r => r.transaction);
 
-        const suggestions = pendingTransactions.filter(tx => {
-            if (Math.abs(tx.amount - (record.contributor?.amount || 0)) > 0.05) return false;
-            const txDate = parseDate(tx.date);
-            const recDate = record.contributor?.date ? parseDate(record.contributor.date) : null;
-            if (txDate && recDate) {
-                return daysDiff(txDate, recDate) <= (dayTolerance + 2); 
-            }
-            return true;
-        });
-
-        setManualMatchState({ record, suggestions });
-    }, [matchResults, dayTolerance]);
+        setManualMatchState({ record, suggestions: pendingTransactions });
+    }, [matchResults]);
     
     const closeManualMatchModal = useCallback(() => setManualMatchState(null), []);
     const confirmManualAssociation = useCallback((selectedTx: Transaction) => {
@@ -320,12 +328,18 @@ export const useReconciliation = ({
             // Complex logic to remove the "pending" row and update the "real" row
             setReportPreviewData(prev => {
                 if (!prev) return null;
+                
+                // DEEP COPY to ensure re-render
                 const newPreview = { ...prev };
+                newPreview.income = { ...prev.income };
                 const incomeGroup = newPreview.income;
+
                 if (incomeGroup[record.church.id]) incomeGroup[record.church.id] = incomeGroup[record.church.id].filter(r => r.transaction.id !== record.transaction.id);
                 if (incomeGroup['unidentified']) incomeGroup['unidentified'] = incomeGroup['unidentified'].filter(r => r.transaction.id !== selectedTx.id);
+                
                 if (!incomeGroup[record.church.id]) incomeGroup[record.church.id] = [];
                 incomeGroup[record.church.id].push(updatedRow);
+                
                 return newPreview;
             });
 
@@ -400,7 +414,7 @@ export const useReconciliation = ({
         handleCompare, handleAnalyze,
         updateReportData, discardCurrentReport,
 
-        manualIdentificationTx, openManualIdentify, closeManualIdentify, confirmManualIdentification,
+        manualIdentificationTx, setManualIdentificationTx, openManualIdentify, closeManualIdentify, confirmManualIdentification,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence
     }), [
@@ -413,6 +427,6 @@ export const useReconciliation = ({
         handleCompare, handleAnalyze, updateReportData, discardCurrentReport,
         openManualIdentify, closeManualIdentify, confirmManualIdentification,
         openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
-        openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence
+        openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence, setManualIdentificationTx
     ]);
 };

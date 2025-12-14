@@ -17,46 +17,45 @@ interface NavItemProps {
 
 const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, isSpecial = false }) => {
     
-    // Admin button styling
+    // Admin button styling - Sóbrio e diferenciado
     if (isSpecial) {
         return (
             <button
                 onClick={onClick}
                 className={`
-                    relative flex-shrink-0 flex items-center justify-center px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-bold rounded-xl 
-                    transition-all duration-300 outline-none select-none whitespace-nowrap
+                    relative flex-shrink-0 flex items-center justify-center px-5 py-2.5 text-xs font-bold rounded-full 
+                    transition-all duration-200 outline-none select-none whitespace-nowrap mx-1
                     ${isActive
-                        ? 'bg-amber-400 text-amber-900 shadow-md shadow-amber-500/30 scale-105'
-                        : 'text-amber-200 hover:bg-amber-500/20 hover:text-amber-100'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'text-amber-500 hover:bg-amber-500/10 hover:text-amber-400'
                     }
                 `}
             >
-                <span className={`relative z-10 ${isActive ? 'scale-110' : ''}`}>
-                    {icon}
+                <span className="relative z-10 flex items-center gap-2">
+                    {React.cloneElement(icon as React.ReactElement<any>, { className: "w-4 h-4 stroke-[2]" })}
+                    <span>{label}</span>
                 </span>
-                <span className="relative z-10 tracking-wide ml-1.5">{label}</span>
             </button>
         );
     }
 
-    // Standard styling for dark/vibrant header background
-    // Optimized for density: tighter padding, smaller gap, text always visible
+    // Standard styling with SaaS Premium look FOR DARK HEADER
     return (
         <button
             onClick={onClick}
             className={`
-                relative flex-shrink-0 flex items-center justify-center px-2.5 py-1.5 lg:px-3.5 lg:py-2 text-xs font-bold rounded-xl 
-                transition-all duration-300 outline-none select-none whitespace-nowrap group
+                relative flex-shrink-0 flex items-center justify-center px-4 py-2.5 text-xs font-bold rounded-full 
+                transition-all duration-200 outline-none select-none whitespace-nowrap mx-0.5
                 ${isActive
-                    ? 'bg-white text-indigo-700 shadow-md shadow-black/10 scale-105'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white hover:shadow-sm'
+                    ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/30 transform scale-[1.02] border border-brand-blue/50'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
                 }
             `}
         >
-            <span className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
-                {icon}
+            <span className="relative z-10 flex items-center gap-2">
+                {React.cloneElement(icon as React.ReactElement<any>, { className: isActive ? "w-4 h-4 stroke-[2]" : "w-4 h-4 stroke-[1.5]" })}
+                <span className="tracking-wide">{label}</span>
             </span>
-            <span className="relative z-10 tracking-wide ml-1.5">{label}</span>
         </button>
     );
 };
@@ -67,15 +66,14 @@ export const Navigation: React.FC = () => {
     const { user } = useAuth();
     const { t } = useTranslation();
 
-    // Permite acesso admin para qualquer usuário logado (para testes) ou para o email específico
-    const isAdmin = !!user; 
+    // Robust check: Lowercase comparison to avoid mismatch
+    const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com'; 
 
     const navItems: { view: ViewType, labelKey: any, icon: React.ReactNode, special?: boolean }[] = [
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-4 h-4"/> },
         { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-4 h-4"/> },
         { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> },
         { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-4 h-4"/> },
-        { view: 'search', labelKey: 'nav.search', icon: <SearchIcon className="w-4 h-4"/> },
         { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> },
     ];
 
@@ -88,13 +86,14 @@ export const Navigation: React.FC = () => {
         });
     }
 
+    // Container ajustado para fundo escuro com bordas super arredondadas
     return (
-        <nav className="flex items-center space-x-1 lg:space-x-1.5 px-1">
+        <nav className="flex items-center p-1.5 bg-black/20 rounded-full border border-white/5 backdrop-blur-sm">
             {navItems.map(item => (
                 <NavItem 
                     key={item.view}
                     icon={item.icon}
-                    label={item.view === 'admin' ? 'Painel Admin' : t(item.labelKey)}
+                    label={item.view === 'admin' ? 'Admin' : t(item.labelKey)}
                     isActive={activeView === item.view}
                     onClick={() => setActiveView(item.view)}
                     isSpecial={item.special}

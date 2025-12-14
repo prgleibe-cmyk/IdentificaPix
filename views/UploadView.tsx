@@ -1,11 +1,11 @@
 
-import React, { useContext, useState, useMemo } from 'react';
+import React, { useContext, useState } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { FileUploader } from '../components/FileUploader';
-import { SearchIcon, WrenchScrewdriverIcon } from '../components/Icons';
-import { ComparisonSettingsForm } from '../components/shared/ComparisonSettingsForm';
+import { WrenchScrewdriverIcon, BoltIcon } from '../components/Icons';
 import { FilePreprocessorModal } from '../components/modals/FilePreprocessorModal';
+import { InitialComparisonModal } from '../components/modals/InitialComparisonModal';
 
 export const UploadView: React.FC = () => {
     const { 
@@ -17,60 +17,62 @@ export const UploadView: React.FC = () => {
         handleContributorsUpload,
         removeBankStatementFile,
         removeContributorFile,
-        isCompareDisabled,
     } = useContext(AppContext);
     
     const { t } = useTranslation();
-    const [bankSearch, setBankSearch] = useState('');
-    const [churchSearch, setChurchSearch] = useState('');
     const [isPreprocessorOpen, setIsPreprocessorOpen] = useState(false);
+    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
-    const filteredBanks = useMemo(() => banks.filter(b => b.name.toLowerCase().includes(bankSearch.toLowerCase())), [banks, bankSearch]);
-    const filteredChurches = useMemo(() => churches.filter(c => c.name.toLowerCase().includes(churchSearch.toLowerCase())), [churches, churchSearch]);
+    // O botão só aparece se houver pelo menos o extrato bancário (essencial para conciliação)
+    const showProcessButton = !!bankStatementFile;
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-4 pb-2">
+        <div className="flex flex-col h-full animate-fade-in gap-2 pb-1 relative">
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between gap-3">
+            <div className="flex-shrink-0 flex items-center justify-between gap-3 px-1">
                 <div>
-                    <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 dark:from-white dark:to-indigo-200 tracking-tight">{t('upload.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{t('upload.subtitle')}</p>
+                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight">{t('upload.title')}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-[10px]">{t('upload.subtitle')}</p>
                 </div>
                 <button 
                     onClick={() => setIsPreprocessorOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:-translate-y-0.5 border border-transparent"
-                    title="Abrir Laboratório de Arquivos para corrigir PDFs ou formatar dados antes de carregar."
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-white rounded-full text-[10px] font-bold uppercase tracking-wide transition-all shadow-md hover:shadow-violet-500/30 hover:-translate-y-0.5 active:translate-y-0 transform active:scale-[0.98] bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 border border-white/10"
+                    title="Abrir Laboratório de Arquivos"
                 >
-                    <WrenchScrewdriverIcon className="w-4 h-4 text-white" />
-                    Preparar Arquivo
+                    <WrenchScrewdriverIcon className="w-3 h-3 text-white" />
+                    <span className="hidden sm:inline">Lab Arquivos</span>
+                    <span className="sm:hidden">Lab</span>
                 </button>
             </div>
             
             {/* Main Content Area - Elastic Height with Internal Scroll */}
-            <div className="flex-1 min-h-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
+            <div className="flex-1 min-h-0 pb-16"> {/* Added padding-bottom for the floating button space */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full">
                     
                     {/* Bank Statement Upload Section */}
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl shadow-xl shadow-indigo-100/50 dark:shadow-none border border-white/50 dark:border-slate-700 flex flex-col overflow-hidden relative group transition-all h-full">
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-blue-100/50 dark:bg-blue-900/10 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none group-hover:bg-blue-200/50 dark:group-hover:bg-blue-900/20 transition-colors"></div>
-                        
-                        <div className="flex-shrink-0 mb-4 relative z-10">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-gradient-to-br from-blue-600 to-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/30">1</span>
-                                <h3 className="font-bold text-base text-slate-800 dark:text-white tracking-tight">{t('upload.statementTitle')}</h3>
+                    <div 
+                        className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden relative group transition-all duration-500 hover:shadow-soft animate-fade-in-up fill-mode-backwards"
+                        style={{ animationDelay: '0ms' }}
+                    >
+                        <div className="flex-shrink-0 mb-3 relative z-10 flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold text-[10px] border border-blue-100 dark:border-blue-800">1</span>
+                                    <h3 className="font-bold text-sm text-slate-800 dark:text-white tracking-tight">{t('upload.statementTitle')}</h3>
+                                </div>
+                                <p className="text-[9px] text-slate-500 dark:text-slate-400 pl-7 leading-none">{t('upload.statementSubtitle')}</p>
                             </div>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 pl-8 leading-relaxed line-clamp-1">{t('upload.statementSubtitle')}</p>
                         </div>
                         
-                        <div className="flex-shrink-0 relative mb-4 z-10">
-                            <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
-                            <input type="text" placeholder={t('register.searchBank')} value={bankSearch} onChange={e => setBankSearch(e.target.value)} className="pl-9 p-2.5 block w-full rounded-xl border-slate-200 dark:border-slate-600 bg-white/50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-200 text-xs focus:border-blue-500 focus:ring-blue-500 transition-all shadow-inner backdrop-blur-sm" />
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar z-10 space-y-2.5 min-h-0">
-                            {filteredBanks.map(bank => (
-                                <div key={bank.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-300 gap-2 group/item backdrop-blur-sm">
-                                    <span className="font-bold text-slate-700 dark:text-slate-200 text-sm truncate group-hover/item:text-blue-600 dark:group-hover/item:text-blue-400 transition-colors pl-1">{bank.name}</span>
+                        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar z-10 space-y-1.5 min-h-0">
+                            {banks.map(bank => (
+                                <div key={bank.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 bg-white dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700/50 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 gap-2 group/item hover:shadow-sm">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-6 h-6 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">
+                                            {bank.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="font-bold text-slate-700 dark:text-slate-200 text-xs truncate group-hover/item:text-blue-600 dark:group-hover/item:text-blue-400 transition-colors">{bank.name}</span>
+                                    </div>
                                     <FileUploader
                                         id={`bank-uploader-${bank.id}`}
                                         title={t('upload.upload')}
@@ -78,65 +80,96 @@ export const UploadView: React.FC = () => {
                                         isUploaded={bankStatementFile?.bankId === bank.id && !!bankStatementFile.content}
                                         uploadedFileName={bankStatementFile?.bankId === bank.id ? bankStatementFile.fileName : null}
                                         disabled={!!bankStatementFile && bankStatementFile.bankId !== bank.id}
-                                        onDelete={bankStatementFile?.bankId === bank.id ? removeBankStatementFile : undefined}
+                                        onDelete={removeBankStatementFile}
                                     />
                                 </div>
                             ))}
-                        </div>
-                    </div>
-
-                    {/* Contributor Lists Upload Section */}
-                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-5 rounded-3xl shadow-xl shadow-indigo-100/50 dark:shadow-none border border-white/50 dark:border-slate-700 flex flex-col overflow-hidden relative group transition-all h-full">
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-100/50 dark:bg-indigo-900/10 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none group-hover:bg-indigo-200/50 dark:group-hover:bg-indigo-900/20 transition-colors"></div>
-
-                        <div className="flex-shrink-0 mb-4 relative z-10">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/30">2</span>
-                                <h3 className="font-bold text-base text-slate-800 dark:text-white tracking-tight">
-                                    {t('upload.contributorsTitle')}
-                                    <span className="text-[10px] font-normal text-slate-400 ml-2">(Opcional)</span>
-                                </h3>
-                            </div>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 pl-8 leading-relaxed line-clamp-1">{t('upload.contributorsSubtitle')}</p>
-                        </div>
-
-                        <div className="flex-shrink-0 relative mb-4 z-10">
-                            <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
-                            <input type="text" placeholder={t('register.searchChurch')} value={churchSearch} onChange={e => setChurchSearch(e.target.value)} className="pl-9 p-2.5 block w-full rounded-xl border-slate-200 dark:border-slate-600 bg-white/50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-200 text-xs focus:border-indigo-500 focus:ring-indigo-500 transition-all shadow-inner backdrop-blur-sm" />
+                            {banks.length === 0 && (
+                                <div className="text-center py-8 text-slate-400 dark:text-slate-500 italic text-[10px]">
+                                    Nenhum banco encontrado.
+                                </div>
+                            )}
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar z-10 space-y-2.5 min-h-0">
-                            {filteredChurches.map(church => {
-                                const uploadedFile = contributorFiles.find(f => f.churchId === church.id);
+                        {/* Decorative Background Elements */}
+                        <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                    </div>
+
+                    {/* Contributor Files Upload Section */}
+                    <div 
+                        className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden relative group transition-all duration-500 hover:shadow-soft animate-fade-in-up fill-mode-backwards"
+                        style={{ animationDelay: '100ms' }}
+                    >
+                        <div className="flex-shrink-0 mb-3 relative z-10 flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-100 dark:border-indigo-800">2</span>
+                                    <h3 className="font-bold text-sm text-slate-800 dark:text-white tracking-tight">{t('upload.contributorsTitle')}</h3>
+                                </div>
+                                <p className="text-[9px] text-slate-500 dark:text-slate-400 pl-7 leading-none">{t('upload.contributorsSubtitle')}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar z-10 space-y-1.5 min-h-0">
+                            {churches.map(church => {
+                                const file = contributorFiles.find(f => f.churchId === church.id);
                                 return (
-                                    <div key={church.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 gap-2 group/item backdrop-blur-sm">
-                                        <span className="font-bold text-slate-700 dark:text-slate-200 text-sm truncate group-hover/item:text-indigo-600 dark:group-hover/item:text-indigo-400 transition-colors pl-1">{church.name}</span>
+                                    <div key={church.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 bg-white dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700/50 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all duration-300 gap-2 group/item hover:shadow-sm">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            {church.logoUrl ? (
+                                                <img src={church.logoUrl} alt="Logo" className="w-6 h-6 rounded-lg object-cover border border-slate-200 dark:border-slate-700 bg-white shrink-0" />
+                                            ) : (
+                                                <div className="w-6 h-6 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 shrink-0">
+                                                    {church.name.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <span className="font-bold text-slate-700 dark:text-slate-200 text-xs truncate group-hover/item:text-indigo-600 dark:group-hover/item:text-indigo-400 transition-colors">{church.name}</span>
+                                        </div>
                                         <FileUploader
                                             id={`church-uploader-${church.id}`}
                                             title={t('upload.upload')}
                                             onFileUpload={(content, name) => handleContributorsUpload(content, name, church.id)}
-                                            isUploaded={!!uploadedFile}
-                                            uploadedFileName={uploadedFile?.fileName ?? null}
-                                            onDelete={uploadedFile ? () => removeContributorFile(church.id) : undefined}
+                                            isUploaded={!!file}
+                                            uploadedFileName={file?.fileName || null}
+                                            onDelete={() => removeContributorFile(church.id)}
                                         />
                                     </div>
-                                )
+                                );
                             })}
+                             {churches.length === 0 && (
+                                <div className="text-center py-8 text-slate-400 dark:text-slate-500 italic text-[10px]">
+                                    Nenhuma igreja encontrada.
+                                </div>
+                            )}
                         </div>
+                        
+                        {/* Decorative Background Elements */}
+                        <div className="absolute -bottom-10 -right-10 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
                     </div>
                 </div>
             </div>
-            
-            {/* Comparison Settings Footer - Fixed at bottom */}
-            {!isCompareDisabled && (
-                <div className="flex-shrink-0 bg-gradient-to-r from-white/95 to-slate-50/95 dark:from-slate-800/95 dark:to-slate-900/95 backdrop-blur-2xl px-5 py-3 rounded-2xl shadow-xl border border-indigo-100 dark:border-indigo-900/50 relative overflow-hidden z-30 animate-fade-in-up ring-1 ring-indigo-500/5">
-                    {/* Decorative subtle glow */}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 opacity-20"></div>
-                    <ComparisonSettingsForm />
+
+            {/* Floating Action Button for Configuration - STANDARD DEEP BLUE STYLE */}
+            {showProcessButton && (
+                <div className="absolute bottom-4 right-6 z-30 animate-fade-in-up">
+                    <button
+                        onClick={() => setIsConfigModalOpen(true)}
+                        className="flex items-center gap-2 px-8 py-3 bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] text-white rounded-full font-bold text-xs uppercase tracking-widest shadow-2xl shadow-blue-900/30 hover:shadow-blue-900/50 transition-all transform hover:-translate-y-1 active:translate-y-0 active:scale-95 border border-white/10"
+                    >
+                        <BoltIcon className="w-4 h-4" />
+                        <span>Configurar & Processar</span>
+                    </button>
                 </div>
             )}
 
-            {isPreprocessorOpen && <FilePreprocessorModal onClose={() => setIsPreprocessorOpen(false)} />}
+            {/* Modals */}
+            {isPreprocessorOpen && (
+                <FilePreprocessorModal onClose={() => setIsPreprocessorOpen(false)} />
+            )}
+            
+            {isConfigModalOpen && (
+                <InitialComparisonModal onClose={() => setIsConfigModalOpen(false)} />
+            )}
         </div>
     );
 };

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -6,7 +7,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IdentificaPix - Sistema de Conciliação</title>
     
-    <!-- Tailwind CSS via CDN (Mantido para estilização rápida) -->
+    <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -15,26 +21,47 @@
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
+              display: ['"Plus Jakarta Sans"', 'sans-serif'],
+            },
+            colors: {
+              brand: {
+                deep: '#051024',       // Azul quase preto (Mais profundo que o anterior)
+                blue: '#0052CC',       // Azul vibrante (Primary - Updated from image)
+                teal: '#4FE6D0',       // Verde água (Accent)
+                bg: '#F8FAFC',         // Fundo muito leve
+                surface: '#FFFFFF',    // Superfícies
+                graphite: '#1E293B',   // Texto principal
+              }
+            },
+            boxShadow: {
+              'soft': '0 2px 10px rgba(0, 0, 0, 0.03)',
+              'card': '0 0 0 1px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.05)',
+              'glow': '0 0 20px rgba(0, 82, 204, 0.4)',
+              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+              'premium': '0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0,0,0,0.05)',
+            },
+            backgroundImage: {
+              'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E\")",
+              'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
             },
             animation: {
-              'fade-in': 'fadeIn 0.5s ease-out',
-              'fade-in-down': 'fadeInDown 0.5s ease-out',
-              'fade-in-up': 'fadeInUp 0.5s ease-out',
+              'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'slide-in': 'slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
               'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'bounce-slow': 'bounce 3s infinite',
             },
             keyframes: {
               fadeIn: {
                 '0%': { opacity: '0' },
                 '100%': { opacity: '1' },
               },
-              fadeInDown: {
-                '0%': { opacity: '0', transform: 'translateY(-10px)' },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(15px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
               },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
+              slideIn: {
+                '0%': { transform: 'translateX(-20px)', opacity: '0' },
+                '100%': { transform: 'translateX(0)', opacity: '1' },
               }
             }
           }
@@ -45,23 +72,27 @@
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "react/": "https://esm.sh/react@^19.2.3/",
+    "path": "https://esm.sh/path@^0.12.7",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1",
     "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
     "pdfjs-dist": "https://esm.sh/pdfjs-dist@^5.4.449",
     "mammoth": "https://esm.sh/mammoth@^1.11.0",
     "xlsx": "https://esm.sh/xlsx@^0.18.5",
+    "jspdf": "https://esm.sh/jspdf@^2.5.1",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@^3.8.2",
     "idb-keyval": "https://esm.sh/idb-keyval@^6.2.2",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1",
-    "path": "https://esm.sh/path@^0.12.7",
-    "vite": "https://esm.sh/vite@^7.2.7",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="text-slate-800 font-sans dark:text-slate-300 bg-slate-200 dark:bg-slate-900 transition-colors duration-300">
+  <body class="text-brand-graphite font-sans antialiased bg-brand-bg selection:bg-brand-blue selection:text-white overflow-hidden">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

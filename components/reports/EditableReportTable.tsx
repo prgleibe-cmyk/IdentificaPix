@@ -5,7 +5,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
-import { PencilIcon, FloppyDiskIcon, XCircleIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon, ExclamationTriangleIcon, ChevronLeftIcon, ChevronRightIcon } from '../Icons';
+import { PencilIcon, FloppyDiskIcon, XCircleIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon, ExclamationTriangleIcon, ChevronLeftIcon, ChevronRightIcon, BuildingOfficeIcon, UserIcon, BanknotesIcon } from '../Icons';
 import { PLACEHOLDER_CHURCH } from '../../services/processingService';
 
 type SortDirection = 'asc' | 'desc';
@@ -37,10 +37,10 @@ const SortableHeader: React.FC<{
     const direction = sortConfig?.direction;
 
     return (
-        <th scope="col" className={`px-6 py-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider ${className}`}>
-            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+        <th scope="col" className={`px-4 py-2.5 text-left text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest ${className}`}>
+            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-brand-blue dark:hover:text-blue-400 transition-colors focus:outline-none">
                 <span>{title}</span>
-                <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover:opacity-50'}`}>
+                <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-brand-blue' : 'opacity-0 group-hover:opacity-50'}`}>
                     {isSorted ? (
                         direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
                     ) : (
@@ -52,7 +52,20 @@ const SortableHeader: React.FC<{
     );
 });
 
-// Memoized Row Component to prevent full table re-render on single cell edit
+const SourceBadge: React.FC<{ type: 'list' | 'bank'; className?: string }> = ({ type, className = '' }) => {
+    const isList = type === 'list';
+    return (
+        <span className={`inline-flex items-center justify-center min-w-[45px] px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border select-none flex-shrink-0 ${
+            isList 
+            ? 'bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' 
+            : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+        } ${className}`}>
+            {isList ? 'Lista' : 'Extrato'}
+        </span>
+    );
+};
+
+// Memoized Row Component
 const ReportRow = memo(({ 
     result, 
     reportType, 
@@ -86,50 +99,68 @@ const ReportRow = memo(({
 }) => {
     const currentRow = isEditing && draftRow ? draftRow : result;
     
+    // Data Preparation
+    const isIdentified = currentRow.status === 'IDENTIFICADO';
+    
+    // 1. Dates
     const transactionDate = currentRow.transaction.date;
     const contributorDate = currentRow.contributor?.date;
-    const showBothDates = contributorDate && !currentRow.transaction.id.startsWith('pending-');
-    const displayDate = contributorDate || transactionDate;
+    // Highlight if identified AND dates are textually different
+    const datesDiffer = isIdentified && contributorDate && transactionDate !== contributorDate;
 
+    // 2. Names
     const contributorName = currentRow.contributor?.cleanedName || currentRow.contributor?.name;
     const transactionDesc = currentRow.transaction.cleanedDescription || currentRow.transaction.description;
-    const hasValidContributorName = contributorName && contributorName.trim().length > 0 && contributorName !== '---';
-    const displayContributor = hasValidContributorName ? contributorName : (transactionDesc || '---');
 
-    const inputClass = "w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm";
-    const selectClass = "w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm";
+    // 3. Amounts
+    const txAmount = Math.abs(currentRow.transaction.amount);
+    const contribAmount = currentRow.contributor ? Math.abs(currentRow.contributor.amount || 0) : 0;
+    // Highlight if identified AND amounts differ by more than 1 cent
+    const amountsDiffer = isIdentified && currentRow.contributor && Math.abs(txAmount - contribAmount) > 0.01;
 
-    const getSimilarityBadgeClasses = (similarity: number | null | undefined): string => {
+    // High Density Input Styles
+    const inputClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm h-7";
+    const selectClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm cursor-pointer h-7";
+
+    const getSimilarityColor = (similarity: number | null | undefined) => {
         const value = similarity ?? 0;
-        if (value >= 80) return 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
-        if (value >= 60) return 'bg-yellow-50 text-yellow-700 border border-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800';
-        return 'bg-red-50 text-red-700 border border-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800';
+        if (value >= 90) return 'text-emerald-500';
+        if (value >= 70) return 'text-blue-500';
+        if (value >= 50) return 'text-yellow-500';
+        return 'text-red-500';
     };
 
     const StatusBadge = () => {
         if (currentRow.status === 'NÃO IDENTIFICADO') {
             return (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 uppercase tracking-wide whitespace-nowrap">
                     Pendente
                 </span>
             );
         }
         const isManual = currentRow.matchMethod === 'MANUAL';
+        const isAI = currentRow.matchMethod === 'AI';
+        const isLearned = currentRow.matchMethod === 'LEARNED';
+        
+        let bgClass = 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400';
+        let label = 'Auto';
+
+        if (isManual) {
+            bgClass = 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400';
+            label = 'Manual';
+        } else if (isAI) {
+            bgClass = 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-400';
+            label = 'IA';
+        } else if (isLearned) {
+            bgClass = 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400';
+            label = 'Aprendido';
+        }
+
         return (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${isManual ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'}`}>
-                {isManual ? 'Manual' : 'Identificado'}
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide whitespace-nowrap ${bgClass}`}>
+                {label}
             </span>
         );
-    };
-
-    const getDisplayValue = (type: 'income' | 'expenses') => {
-        if (type === 'income') {
-            if (currentRow.contributor?.originalAmount) return currentRow.contributor.originalAmount;
-            if (currentRow.transaction.originalAmount) return currentRow.transaction.originalAmount;
-            return ((currentRow.contributorAmount != null) ? formatCurrency(currentRow.contributorAmount, language) : formatCurrency(currentRow.transaction.amount, language));
-        } else {
-            return currentRow.transaction.originalAmount ?? formatCurrency(currentRow.transaction.amount, language);
-        }
     };
 
     const handleEditClick = () => {
@@ -140,126 +171,237 @@ const ReportRow = memo(({
         }
     };
 
+    // Avatar Logic
+    const getChurchInitial = (name: string) => name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?';
+    const avatarColors = [
+        'bg-indigo-50 text-indigo-600 border-indigo-100',
+        'bg-blue-50 text-blue-600 border-blue-100',
+        'bg-violet-50 text-violet-600 border-violet-100',
+        'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100'
+    ];
+    const avatarColor = avatarColors[currentRow.church.name.length % avatarColors.length];
+
     return (
-        <tr className={`bg-white dark:bg-slate-800 ${!isEditing && 'hover:bg-indigo-50/20 dark:hover:bg-indigo-900/10'} transition-colors duration-200`}>
-            <td className="px-6 py-4 whitespace-nowrap">
+        <tr className={`group bg-white dark:bg-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${isEditing ? 'bg-slate-50' : ''}`}>
+            
+            {/* Date Column */}
+            <td className="px-4 py-2.5 whitespace-nowrap align-top">
                 {isEditing ? (
-                    <input type="text" value={displayDate} onChange={e => onEditChange('transaction.date', e.target.value)} className={inputClass} />
-                ) : showBothDates ? (
-                    <div className="flex flex-col">
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400 tabular-nums">{contributorDate}</span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 tabular-nums">{transactionDate}</span>
-                    </div>
+                    <input type="text" value={transactionDate} onChange={e => onEditChange('transaction.date', e.target.value)} className={inputClass} />
                 ) : (
-                    <span className="tabular-nums font-medium text-slate-600 dark:text-slate-400">{displayDate}</span>
+                    <div className="flex flex-col gap-1.5">
+                        {isIdentified && contributorDate ? (
+                            <>
+                                <div className="flex items-center gap-2" title="Data na Lista de Membros">
+                                    <UserIcon className="w-3 h-3 text-indigo-400" />
+                                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200 tabular-nums tracking-tight">
+                                        {contributorDate}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2" title="Data no Extrato Bancário">
+                                    <BanknotesIcon className="w-3 h-3 text-slate-400" />
+                                    <span className={`font-mono text-[10px] tabular-nums tracking-tight ${datesDiffer ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
+                                        {transactionDate}
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
+                                {transactionDate}
+                            </span>
+                        )}
+                    </div>
                 )}
             </td>
             
             {reportType === 'income' ? (
                 <>
-                    <td className="px-6 py-4 break-words">
+                    {/* Church Column with Avatar */}
+                    <td className="px-4 py-2.5 align-top">
                         {isEditing ? (
                             <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
                                 <option value="unidentified">{t('common.unassigned')}</option>
                                 {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
-                        ) : (currentRow.church.name === '---' ? <span className="text-slate-400 italic font-light">{t('common.unassigned')}</span> : <span className="font-semibold text-slate-700 dark:text-slate-300">{currentRow.church.name}</span>)}
-                    </td>
-                    <td className="px-6 py-4 break-words">
-                        {isEditing ? (
-                            <input type="text" value={currentRow.contributor?.name || ''} onChange={e => onEditChange('contributor.name', e.target.value)} className={inputClass + (currentRow.status === 'NÃO IDENTIFICADO' ? ' bg-slate-100 dark:bg-slate-700 cursor-not-allowed' : '')} disabled={currentRow.status === 'NÃO IDENTIFICADO' && !currentRow.contributor} />
-                        ) : currentRow.contributor ? (
-                                <div>
-                                    <div className="font-bold text-slate-800 dark:text-slate-200">{displayContributor}</div>
-                                    {!currentRow.transaction.id.startsWith('pending-') && transactionDesc && transactionDesc !== displayContributor && (
-                                        <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 font-medium">{transactionDesc}</div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="font-semibold text-slate-800 dark:text-slate-200">{displayContributor}</div>
+                        ) : (
+                            <div className="flex items-center">
+                                {currentRow.church.name !== '---' && (
+                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold mr-2 border shrink-0 transition-transform group-hover:scale-105 ${avatarColor} dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600`}>
+                                        {getChurchInitial(currentRow.church.name)}
+                                    </div>
+                                )}
+                                <span className={`text-xs font-semibold truncate max-w-[120px] ${currentRow.church.name === '---' ? 'text-slate-400 italic font-normal' : 'text-slate-700 dark:text-slate-200'}`}>
+                                    {currentRow.church.name === '---' ? t('common.unassigned') : currentRow.church.name}
+                                </span>
+                            </div>
                         )}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-lg shadow-sm ${getSimilarityBadgeClasses(currentRow.similarity)}`}>
-                            {currentRow.similarity?.toFixed(0) ?? '0'}%
-                        </span>
+
+                    {/* Name / Description Column (SOURCE LABELS ADDED) */}
+                    <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
+                        {isEditing ? (
+                            <input type="text" value={currentRow.contributor?.name || ''} onChange={e => onEditChange('contributor.name', e.target.value)} className={inputClass} disabled={currentRow.status === 'NÃO IDENTIFICADO' && !currentRow.contributor} />
+                        ) : (
+                            <div className="flex flex-col gap-1.5">
+                                {/* Primary: Contributor Name (Lista) */}
+                                {isIdentified ? (
+                                    <>
+                                        <div className="flex items-start gap-2">
+                                            <SourceBadge type="list" />
+                                            <span className="text-xs font-bold leading-tight text-slate-900 dark:text-white pt-0.5" title="Nome na Lista">
+                                                {contributorName || '---'}
+                                            </span>
+                                        </div>
+                                        {/* Secondary: Transaction Description (Extrato) */}
+                                        <div className="flex items-start gap-2">
+                                            <SourceBadge type="bank" />
+                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight pt-0.5" title="Descrição no Extrato">
+                                                {transactionDesc}
+                                            </span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight">
+                                        {transactionDesc || '---'}
+                                    </span>
+                                )}
+                                
+                                {!contributorName && isIdentified && (
+                                     <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 italic pl-[55px]">
+                                        Nome do membro não vinculado
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums tracking-tight text-base">
-                            {getDisplayValue('income')}
-                        </span>
+
+                    {/* Similarity Column */}
+                    <td className="px-4 py-2.5 text-center align-top">
+                        {currentRow.similarity != null && currentRow.status === 'IDENTIFICADO' && (
+                            <div className="flex flex-col items-center justify-center gap-0.5 pt-1">
+                                <span className={`text-[10px] font-bold ${getSimilarityColor(currentRow.similarity)} tabular-nums`}>
+                                    {currentRow.similarity.toFixed(0)}%
+                                </span>
+                                <div className={`w-8 h-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden`}>
+                                    <div className={`h-full ${getSimilarityColor(currentRow.similarity).replace('text-', 'bg-')}`} style={{ width: `${currentRow.similarity}%` }}></div>
+                                </div>
+                            </div>
+                        )}
+                    </td>
+
+                    {/* Value Column (ICONS ADDED) */}
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
+                        <div className="flex flex-col items-end gap-1.5">
+                            {isIdentified ? (
+                                <>
+                                    <div className="flex items-center gap-2" title="Valor na Lista">
+                                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
+                                            {formatCurrency(contribAmount, language)}
+                                        </span>
+                                        <UserIcon className="w-3 h-3 text-indigo-400" />
+                                    </div>
+                                    <div className="flex items-center gap-2" title="Valor no Extrato">
+                                        <span className={`font-mono text-[10px] tabular-nums tracking-tight ${amountsDiffer ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
+                                            {formatCurrency(txAmount, language)}
+                                        </span>
+                                        <BanknotesIcon className="w-3 h-3 text-slate-400" />
+                                    </div>
+                                </>
+                            ) : (
+                                <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
+                                    {formatCurrency(txAmount, language)}
+                                </span>
+                            )}
+                        </div>
                     </td>
                 </>
             ) : (
                 <>
-                    <td className="px-6 py-4 break-words">
+                    {/* Expenses: Description */}
+                    <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
                         {isEditing ? (
                                 <input type="text" value={currentRow.transaction.description} onChange={e => onEditChange('transaction.description', e.target.value)} className={inputClass} />
                         ) : (
-                            <div className="font-medium text-slate-800 dark:text-slate-200">{result.transaction.cleanedDescription || result.transaction.description}</div>
-                        )}
-                    </td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
-                        {isEditing ? (
-                            <input type="text" value={currentRow.transaction.originalAmount || currentRow.transaction.amount} onChange={e => onEditChange('transaction.amount', e.target.value)} className={`${inputClass} text-right`} />
-                        ) : (
-                            <span className={`${currentRow.transaction.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} font-bold tabular-nums tracking-tight text-base`}>
-                                {getDisplayValue('expenses')}
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                {result.transaction.cleanedDescription || result.transaction.description}
                             </span>
                         )}
                     </td>
-                    <td className="px-6 py-4 break-words">
+
+                    {/* Expenses: Amount */}
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
+                        {isEditing ? (
+                            <input type="text" value={currentRow.transaction.originalAmount || currentRow.transaction.amount} onChange={e => onEditChange('transaction.amount', e.target.value)} className={`${inputClass} text-right`} />
+                        ) : (
+                            <span className={`${currentRow.transaction.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} font-mono text-xs font-bold tabular-nums tracking-tight`}>
+                                {formatCurrency(currentRow.transaction.amount, language)}
+                            </span>
+                        )}
+                    </td>
+
+                    {/* Expenses: Cost Center (Church) */}
+                    <td className="px-4 py-2.5 align-top">
                         {isEditing ? (
                             <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
                                 <option value="unidentified">{t('common.unassigned')}</option>
                                 {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
-                        ) : (currentRow.church.name === '---' ? <span className="text-slate-400 italic">{t('common.unassigned')}</span> : <span className="font-semibold text-slate-700 dark:text-slate-300">{currentRow.church.name}</span>)}
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <BuildingOfficeIcon className="w-3.5 h-3.5 text-slate-400" />
+                                <span className={`text-xs font-medium ${currentRow.church.name === '---' ? 'text-slate-400 italic' : 'text-slate-600 dark:text-slate-300'}`}>
+                                    {currentRow.church.name === '---' ? t('common.unassigned') : currentRow.church.name}
+                                </span>
+                            </div>
+                        )}
                     </td>
                 </>
             )}
 
-            <td className="px-6 py-4 text-center">
+            {/* Status Column */}
+            <td className="px-4 py-2.5 text-center align-top">
                 {isEditing ? (
                     <select value={currentRow.status} onChange={e => onEditChange('status', e.target.value)} className={selectClass}>
                         <option value="IDENTIFICADO">{t('table.status.identified')}</option>
                         <option value="NÃO IDENTIFICADO">{t('table.status.unidentified')}</option>
                     </select>
                 ) : (
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-1.5">
                         <StatusBadge />
                         {currentRow.divergence && (
                             <button
                                 onClick={() => openDivergenceModal(currentRow)}
-                                className="p-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-800 transition-colors shadow-sm"
+                                className="p-0.5 rounded-full bg-yellow-100 text-yellow-600 hover:bg-yellow-200 transition-colors shadow-sm animate-pulse"
                                 aria-label="Revisar divergência"
                             >
-                                <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                                <ExclamationTriangleIcon className="w-3 h-3" />
                             </button>
                         )}
                     </div>
                 )}
             </td>
-            <td className="px-6 py-4 text-center">
-                <div className="flex items-center justify-center space-x-2">
+
+            {/* Actions Column - Ghost Buttons */}
+            <td className="px-4 py-2.5 text-center align-top">
+                <div className={`flex items-center justify-center space-x-1 transition-opacity duration-200 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     {isEditing ? (
                         <>
-                            <button onClick={onSave} className="p-2 rounded-xl text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50 transition-colors shadow-sm" title={t('common.save')}><FloppyDiskIcon className="w-4 h-4" /></button>
-                            <button onClick={onCancel} className="p-2 rounded-xl text-slate-500 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 transition-colors shadow-sm" title={t('common.cancel')}><XCircleIcon className="w-4 h-4" /></button>
+                            <button onClick={onSave} className="p-1 rounded-full text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 transition-colors shadow-sm" title={t('common.save')}><FloppyDiskIcon className="w-3.5 h-3.5" /></button>
+                            <button onClick={onCancel} className="p-1 rounded-full text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 transition-colors shadow-sm" title={t('common.cancel')}><XCircleIcon className="w-3.5 h-3.5" /></button>
                         </>
                     ) : (
-                        <div className="flex items-center space-x-2">
-                            <button onClick={handleEditClick} className="p-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors shadow-sm" title={t('common.edit')}>
-                                <PencilIcon className="w-4 h-4 stroke-current" />
+                        <>
+                            <button onClick={handleEditClick} className="p-1 rounded-full text-slate-400 hover:text-brand-blue hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title={t('common.edit')}>
+                                <PencilIcon className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={() => onDelete(result)}
-                                className="p-2 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 transition-colors shadow-sm"
+                                className="p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
                                 aria-label={t('common.delete')}
                             >
-                                <TrashIcon className="w-4 h-4 stroke-current" />
+                                <TrashIcon className="w-3.5 h-3.5" />
                             </button>
-                        </div>
+                        </>
                     )}
                 </div>
             </td>
@@ -348,41 +490,19 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
 
     return (
         <div className="flex flex-col">
-            <div className="overflow-x-auto">
-                <table className={`w-full text-sm text-left text-slate-600 dark:text-slate-300 ${reportType === 'income' ? 'print-income-table' : 'print-expense-table'}`}>
-                    <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700">
+            <div className="overflow-x-auto custom-scrollbar relative">
+                <table className={`min-w-[800px] w-full text-left text-slate-600 dark:text-slate-300 ${reportType === 'income' ? 'print-income-table' : 'print-expense-table'}`}>
+                    <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
                         <tr>
                             {reportType === 'income' ? (
                                 <>
-                                    <th scope="col" className="px-6 py-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[12%]">
-                                        <button onClick={() => onSort('transaction.date')} className="flex items-center gap-1.5 group hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                                            <span>{t('table.date')}</span>
-                                            <span className={`transition-all duration-200 ${sortConfig?.key === 'transaction.date' ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover:opacity-50'}`}>
-                                                {sortConfig?.key === 'transaction.date' ? (
-                                                    sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
-                                                ) : (
-                                                <ChevronUpIcon className="w-3 h-3" />
-                                                )}
-                                            </span>
-                                        </button>
-                                    </th>
+                                    <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
                                     <SortableHeader sortKey="church.name" title={t('table.church')} sortConfig={sortConfig} onSort={onSort} className="w-[20%]" />
-                                    <th scope="col" className="px-6 py-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider w-[30%]">
-                                        <button onClick={() => onSort('contributor.name')} className="flex items-center gap-1.5 group hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                                            <span>Contribuinte / Descrição</span>
-                                            <span className={`transition-all duration-200 ${sortConfig?.key === 'contributor.name' ? 'opacity-100 text-indigo-500' : 'opacity-0 group-hover:opacity-50'}`}>
-                                                {sortConfig?.key === 'contributor.name' ? (
-                                                    sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
-                                                ) : (
-                                                <ChevronUpIcon className="w-3 h-3" />
-                                                )}
-                                            </span>
-                                        </button>
-                                    </th>
-                                    <SortableHeader sortKey="similarity" title={t('table.percentage')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
+                                    <SortableHeader sortKey="contributor.name" title="Contribuinte / Descrição" sortConfig={sortConfig} onSort={onSort} className="w-[30%]" />
+                                    <SortableHeader sortKey="similarity" title="Simil." sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
                                     <SortableHeader sortKey="contributor.amount" title="Valor" sortConfig={sortConfig} onSort={onSort} className="w-[15%] text-right" />
                                     <SortableHeader sortKey="status" title={t('table.status')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
-                                    <th scope="col" className="w-[7%] px-6 py-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{t('table.actions')}</th>
+                                    <th scope="col" className="w-[7%] px-4 py-2.5 text-center"></th>
                                 </>
                             ) : (
                                 <>
@@ -391,12 +511,12 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[15%] text-right" />
                                     <SortableHeader sortKey="church.name" title={t('table.costCenter')} sortConfig={sortConfig} onSort={onSort} className="w-[15%]" />
                                     <SortableHeader sortKey="status" title={t('table.status')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
-                                    <th scope="col" className="w-[7%] px-6 py-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">{t('table.actions')}</th>
+                                    <th scope="col" className="w-[7%] px-4 py-2.5 text-center"></th>
                                 </>
                             )}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                         {paginatedData.map((result) => (
                             <ReportRow
                                 key={result.transaction.id}
@@ -420,57 +540,38 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 </table>
             </div>
 
-            {/* Pagination Controls */}
+            {/* Compact Pagination */}
             {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-8 py-5 bg-white dark:bg-slate-800 rounded-b-3xl">
+                <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 bg-white dark:bg-slate-800">
                     <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                         <div>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Mostrando <span className="font-bold text-slate-900 dark:text-slate-100">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> a <span className="font-bold text-slate-900 dark:text-slate-100">{Math.min(currentPage * ITEMS_PER_PAGE, data.length)}</span> de <span className="font-bold text-slate-900 dark:text-slate-100">{data.length}</span> resultados
+                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                <span className="text-slate-700 dark:text-slate-200">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="text-slate-700 dark:text-slate-200">{Math.min(currentPage * ITEMS_PER_PAGE, data.length)}</span> de <span className="text-slate-900 dark:text-white">{data.length}</span>
                             </p>
                         </div>
                         <div>
-                            <nav className="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px" aria-label="Pagination">
+                            <nav className="relative z-0 inline-flex rounded-full shadow-sm" aria-label="Pagination">
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
-                                    className="relative inline-flex items-center px-3 py-2 rounded-l-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    className="relative inline-flex items-center px-3 py-1 rounded-l-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase"
                                 >
-                                    <span className="sr-only">Anterior</span>
-                                    <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
+                                    <ChevronLeftIcon className="h-3 w-3 mr-1" aria-hidden="true" />
+                                    Ant
                                 </button>
-                                <span className="relative inline-flex items-center px-4 py-2 border-t border-b border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300">
-                                    {currentPage} de {totalPages}
+                                <span className="relative inline-flex items-center px-3 py-1 border-t border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-brand-blue dark:text-blue-400 min-w-[2rem] justify-center">
+                                    {currentPage}
                                 </span>
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage === totalPages}
-                                    className="relative inline-flex items-center px-3 py-2 rounded-r-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    className="relative inline-flex items-center px-3 py-1 rounded-r-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase"
                                 >
-                                    <span className="sr-only">Próxima</span>
-                                    <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
+                                    Prox
+                                    <ChevronRightIcon className="h-3 w-3 ml-1" aria-hidden="true" />
                                 </button>
                             </nav>
                         </div>
-                    </div>
-                    <div className="flex items-center justify-between sm:hidden w-full">
-                         <button
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                            className="relative inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 shadow-sm"
-                        >
-                            Anterior
-                        </button>
-                        <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
-                            {currentPage} / {totalPages}
-                        </span>
-                        <button
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                            className="relative inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-xl text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 shadow-sm"
-                        >
-                            Próxima
-                        </button>
                     </div>
                 </div>
             )}

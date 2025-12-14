@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { XMarkIcon, ExclamationTriangleIcon } from '../Icons';
@@ -12,7 +13,7 @@ export const DivergenceConfirmationModal: React.FC = () => {
 
     return (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700">
                 <div className="p-8">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 tracking-tight">Confirmar Divergência</h3>
@@ -32,7 +33,7 @@ export const DivergenceConfirmationModal: React.FC = () => {
                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Alerta de Histórico</p>
                                <p>
                                     Geralmente associado à igreja: <span className="font-bold text-purple-600 dark:text-purple-400">{expectedChurch.name}</span>.
-                               </p>
+                                </p>
                            </div>
                            <p className="font-medium text-slate-800 dark:text-slate-200">
                                Deseja confirmar esta identificação na igreja <span className="font-bold text-blue-600 dark:text-blue-400">{actualChurch.name}</span>?
@@ -40,9 +41,9 @@ export const DivergenceConfirmationModal: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/30 px-8 py-5 flex justify-end space-x-3 rounded-b-2xl border-t border-slate-100 dark:border-slate-700/50">
-                    <button type="button" onClick={() => rejectDivergence(divergenceConfirmation)} className="px-5 py-2.5 text-sm font-bold rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20 dark:text-red-400 transition-colors">Rejeitar</button>
-                    <button type="button" onClick={() => confirmDivergence(divergenceConfirmation)} className="px-6 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 transition-all">Confirmar Associação</button>
+                <div className="bg-slate-50 dark:bg-slate-900/30 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
+                    <button type="button" onClick={() => rejectDivergence(divergenceConfirmation)} className="px-5 py-2.5 text-xs font-bold rounded-full border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20 dark:text-red-400 transition-colors uppercase tracking-wide">Rejeitar</button>
+                    <button type="button" onClick={() => confirmDivergence(divergenceConfirmation)} className="px-6 py-2.5 text-xs font-bold text-white rounded-full shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288]">Confirmar Associação</button>
                 </div>
             </div>
         </div>
