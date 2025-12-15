@@ -83,8 +83,9 @@ export const PaymentModal: React.FC = () => {
             const aiLimitToAdd = aiPacks * 1000;
             const description = `Plano: ${numSlots} Slots Unificados, +${aiLimitToAdd} AI`;
             const customerName = user?.user_metadata?.full_name || user?.email || 'Cliente';
+            const customerEmail = user?.email; // Get real email
 
-            const data = await paymentService.createPayment(calculateTotal, customerName, description, paymentMethod);
+            const data = await paymentService.createPayment(calculateTotal, customerName, description, paymentMethod, customerEmail);
             setPaymentData(data);
             
             if (data.status === 'CONFIRMED') {

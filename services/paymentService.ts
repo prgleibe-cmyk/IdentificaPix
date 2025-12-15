@@ -23,9 +23,11 @@ export const paymentService = {
         amount: number, 
         customerName: string, 
         description: string,
-        method: 'PIX' | 'CREDIT_CARD' | 'BOLETO'
+        method: 'PIX' | 'CREDIT_CARD' | 'BOLETO',
+        email?: string,
+        cpfCnpj?: string
     ): Promise<PaymentResponse> => {
-        Logger.info(`Initiating Real Payment [${method}]...`, { amount, customerName });
+        Logger.info(`Initiating Real Payment [${method}]...`, { amount, customerName, email });
 
         try {
             const response = await fetch('/api/payment/create', {
@@ -34,6 +36,8 @@ export const paymentService = {
                 body: JSON.stringify({
                     amount,
                     name: customerName,
+                    email,
+                    cpfCnpj,
                     description,
                     method,
                 })

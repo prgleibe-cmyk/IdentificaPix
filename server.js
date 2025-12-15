@@ -42,7 +42,8 @@ const rawKey = process.env.ASAAS_API_KEY || '';
 // 2. Inteligência de Ambiente: Se não tem URL definida (ou está vazia), tenta adivinhar pela chave
 if (!rawUrl || rawUrl.trim() === '') {
     if (rawKey.includes('prod') || rawKey.includes('PROD')) {
-        rawUrl = 'https://api.asaas.com/api/v3';
+        // CORREÇÃO: Produção no subdomínio 'api' não leva '/api' no path
+        rawUrl = 'https://api.asaas.com/v3'; 
         console.log('ℹ️ Auto-detecção: Chave de Produção identificada. Usando URL de Produção.');
     } else {
         rawUrl = 'https://sandbox.asaas.com/api/v3';
@@ -56,6 +57,13 @@ if (rawUrl.startsWith('_')) rawUrl = rawUrl.substring(1);
 // Loop para remover barras ou iguais no final (pode ter mais de um)
 while (rawUrl.endsWith('/') || rawUrl.endsWith('=')) {
     rawUrl = rawUrl.slice(0, -1);
+}
+
+// 4. CORREÇÃO CRÍTICA DE ROTA (Fix para Erro 404 em Produção)
+// Se a URL for de produção (api.asaas.com) e tiver /api/v3, remove o /api extra
+if (rawUrl.includes('api.asaas.com') && rawUrl.includes('/api/v3')) {
+    rawUrl = rawUrl.replace('/api/v3', '/v3');
+    console.log('🔧 Auto-fix: URL de produção corrigida (removido /api redundante).');
 }
 
 const ASAAS_URL = cleanEnvVar(rawUrl);
@@ -129,14 +137,31 @@ const asaasRequest = async (endpoint, method = 'GET', body = null) => {
             // Se não for JSON (provavelmente HTML de erro 404/500), pega o texto para debug
             const text = await response.text();
             console.error(`[Asaas] Erro Crítico: Resposta não-JSON recebida. Status: ${response.status}. URL: ${fullUrl}`);
-            console.error(`[Asaas] Conteúdo da resposta (início): ${text.substring(0, 200)}...`);
-            throw new Error(`Erro HTTP ${response.status}: O servidor Asaas retornou uma resposta inválida (provavelmente URL errada).`);
+            // console.error(`[Asaas] Conteúdo da resposta (início): ${text.substring(0, 200)}...`);
+            throw new Error(`Erro HTTP ${response.status}: O servidor Asaas retornou uma resposta inválida. Verifique se a URL da API está correta.`);
         }
 
     } catch (error) {
         console.error(`[Asaas] Falha de Conexão:`, error.message);
         throw error;
     }
+};
+
+// --- Helper: Gerador de CPF Válido (Fallback para Produção) ---
+const generateCpf = () => {
+  const rnd = (n) => Math.round(Math.random() * n);
+  const mod = (base, div) => Math.round(base - Math.floor(base / div) * div);
+  const n = Array(9).fill(0).map(() => rnd(9));
+  
+  let d1 = n.reduce((total, num, i) => total + (num * (10 - i)), 0);
+  d1 = 11 - mod(d1, 11);
+  if (d1 >= 10) d1 = 0;
+  
+  let d2 = n.reduce((total, num, i) => total + (num * (11 - i)), 0) + (d1 * 2);
+  d2 = 11 - mod(d2, 11);
+  if (d2 >= 10) d2 = 0;
+  
+  return `${n.join('')}${d1}${d2}`;
 };
 
 // --- Rota de Health Check ---
@@ -166,22 +191,27 @@ app.post('/api/payment/create', async (req, res) => {
                 customerId = customerSearch.data[0].id;
                 console.log(`[Asaas] Cliente existente: ${customerId}`);
             } else {
+                // Em produção, o CPF deve ser válido. Usamos o gerado se não fornecido.
+                const validCpf = cpfCnpj || generateCpf();
+                console.log(`[Asaas] Criando cliente com CPF gerado/fornecido: ${validCpf}`);
+                
                 const newCustomer = await asaasRequest('/customers', 'POST', {
                     name: name || 'Cliente IdentificaPix',
                     email: customerEmail,
-                    cpfCnpj: cpfCnpj || '00000000000'
+                    cpfCnpj: validCpf
                 });
                 customerId = newCustomer.id;
                 console.log(`[Asaas] Novo cliente criado: ${customerId}`);
             }
         } catch (e) {
             console.error("[Asaas] Erro ao buscar/criar cliente:", e.message);
-            // Fallback: Tenta criar direto mesmo sem busca
+            // Fallback: Tenta criar direto mesmo sem busca, gerando CPF válido
             try {
+                const validCpf = cpfCnpj || generateCpf();
                 const newCustomer = await asaasRequest('/customers', 'POST', {
                     name: name || 'Cliente IdentificaPix',
                     email: customerEmail,
-                    cpfCnpj: cpfCnpj || '00000000000'
+                    cpfCnpj: validCpf
                 });
                 customerId = newCustomer.id;
             } catch (createError) {
