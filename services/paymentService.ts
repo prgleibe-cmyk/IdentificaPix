@@ -36,13 +36,22 @@ export const paymentService = {
                     name: customerName,
                     description,
                     method,
-                    // TODO: In a future update, pass email/cpf from auth context
                 })
             });
 
+            // Handle non-OK responses
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Erro ao criar pagamento');
+                // Try to parse JSON error first
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Erro da API: ${response.status}`);
+                } else {
+                    // Handle HTML/Text error (Common with Coolify/Nginx 404/500/502)
+                    const text = await response.text();
+                    console.error("Non-JSON API Error:", text.substring(0, 200)); // Log partial response for debug
+                    throw new Error(`Erro HTTP ${response.status}: Falha de comunicação com o servidor.`);
+                }
             }
 
             const data = await response.json();
@@ -56,24 +65,19 @@ export const paymentService = {
 
             if (method === 'PIX') {
                 result.pixCopiaECola = data.pixCopiaECola;
-                // If the backend returns raw base64 without prefix, add it. If it returns url, use it.
-                // Assuming Asaas returns Base64 for encodedImage.
                 result.qrCodeImage = data.pixQrCodeImage 
                     ? `data:image/png;base64,${data.pixQrCodeImage}`
                     : undefined;
             } else if (method === 'BOLETO') {
                 result.bankSlipUrl = data.bankSlipUrl;
-                // Asaas API v3 create doesn't always return barcode directly in main response, 
-                // typically provided in bankSlipUrl or separate call. 
-                // For MVP we use the URL.
                 result.barcode = "Ver Boleto no Link"; 
             }
 
             return result;
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Payment Service Error:", error);
-            throw error;
+            throw new Error(error.message || "Erro desconhecido ao processar pagamento.");
         }
     },
 
@@ -87,8 +91,6 @@ export const paymentService = {
             
             const data = await response.json();
             
-            // Map Asaas statuses to internal types
-            // Asaas: PENDING, RECEIVED, CONFIRMED, OVERDUE, REFUNDED, etc.
             if (data.status === 'RECEIVED' || data.status === 'CONFIRMED') return 'CONFIRMED';
             if (data.status === 'OVERDUE') return 'OVERDUE';
             

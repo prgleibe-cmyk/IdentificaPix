@@ -46,7 +46,7 @@ const ASAAS_API_KEY = cleanEnvVar(process.env.ASAAS_API_KEY);
 console.log('================================================');
 console.log('🚀 IDENTIFICAPIX SERVER STARTING');
 console.log(`📡 URL Base Asaas Configurada: "${ASAAS_URL}"`);
-console.log(`🔑 API Key Asaas: ${ASAAS_API_KEY ? 'DEFINIDA (OK)' : 'FALTANDO (ERRO)'}`);
+console.log(`🔑 API Key Asaas: ${ASAAS_API_KEY ? 'DEFINIDA (OK)' : 'FALTANDO (ERRO) - Verifique Env Vars'}`);
 console.log('================================================');
 
 // Helper para chamadas ao Asaas
@@ -89,7 +89,11 @@ const asaasRequest = async (endpoint, method = 'GET', body = null) => {
 
 // --- Rota de Health Check ---
 app.get('/health', (req, res) => {
-    res.status(200).send('OK - Server is running');
+    const status = {
+        status: 'OK',
+        asaasConfigured: !!ASAAS_API_KEY
+    };
+    res.status(200).json(status);
 });
 
 // --- Rotas de Pagamento (ASAAS) ---
@@ -265,6 +269,12 @@ app.post('/api/ai/analyze-receipt', async (req, res) => {
         console.error('Erro na rota /analyze-receipt:', error);
         res.status(500).json({ error: 'Erro ao analisar comprovante' });
     }
+});
+
+// --- API 404 Handler (CRUCIAL) ---
+// Impede que rotas de API não encontradas retornem o index.html, causando erro de parsing no JSON
+app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: `Endpoint de API não encontrado: ${req.method} ${req.url}` });
 });
 
 // --- Servir Frontend em Produção ---
