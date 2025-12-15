@@ -20,29 +20,58 @@ app.use(cors());
 // Inicializa o cliente Gemini com a chave segura do servidor
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// --- Configuração ASAAS ---
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY; // Chave da API do Asaas (Sandbox ou Produção)
-const ASAAS_URL = process.env.ASAAS_URL || 'https://sandbox.asaas.com/api/v3'; // Padrão Sandbox, mude no .env para Produção
+// --- Configuração ASAAS (Com Limpeza Automática de Erros de Digitação) ---
+const cleanEnvVar = (val) => val ? val.trim().replace(/['";]/g, '') : '';
+
+// Remove underlines ou espaços acidentais no início da URL
+let rawUrl = process.env.ASAAS_URL || 'https://sandbox.asaas.com/api/v3';
+if (rawUrl.startsWith('_')) rawUrl = rawUrl.substring(1); 
+
+const ASAAS_URL = cleanEnvVar(rawUrl);
+const ASAAS_API_KEY = cleanEnvVar(process.env.ASAAS_API_KEY);
+
+// Log de Diagnóstico na Inicialização
+console.log('------------------------------------------------');
+console.log('--- DIAGNÓSTICO ASAAS (Server Start) ---');
+console.log('URL Base:', ASAAS_URL);
+console.log('Ambiente Detectado:', ASAAS_URL.includes('sandbox') ? 'SANDBOX (Testes)' : 'PRODUÇÃO (Dinheiro Real)');
+console.log('API Key Configurada:', ASAAS_API_KEY ? `SIM (Inicia com ${ASAAS_API_KEY.substring(0, 5)}...)` : 'NÃO');
+console.log('------------------------------------------------');
 
 // Helper para chamadas ao Asaas
 const asaasRequest = async (endpoint, method = 'GET', body = null) => {
-    if (!ASAAS_API_KEY) throw new Error('ASAAS_API_KEY não configurada no servidor.');
+    if (!ASAAS_API_KEY) {
+        console.error('ERRO FATAL: ASAAS_API_KEY não encontrada nas variáveis de ambiente.');
+        throw new Error('Servidor mal configurado: Falta ASAAS_API_KEY');
+    }
     
     const headers = {
         'Content-Type': 'application/json',
-        'access_token': ASAAS_API_KEY
+        'access_token': ASAAS_API_KEY,
+        'User-Agent': 'IdentificaPix-App/1.0'
     };
 
     const options = { method, headers };
     if (body) options.body = JSON.stringify(body);
 
-    const response = await fetch(`${ASAAS_URL}${endpoint}`, options);
-    const data = await response.json();
-    
-    if (!response.ok) {
-        throw new Error(data.errors?.[0]?.description || `Erro Asaas: ${response.statusText}`);
+    const fullUrl = `${ASAAS_URL}${endpoint}`;
+    console.log(`[Asaas] Enviando ${method} para ${fullUrl}`);
+
+    try {
+        const response = await fetch(fullUrl, options);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            console.error('[Asaas] Erro na resposta:', JSON.stringify(data, null, 2));
+            // Tenta extrair a mensagem de erro mais clara possível do Asaas
+            const errorMsg = data.errors?.[0]?.description || data.error || `Erro HTTP ${response.status}`;
+            throw new Error(errorMsg);
+        }
+        return data;
+    } catch (error) {
+        console.error(`[Asaas] Falha na requisição:`, error.message);
+        throw error;
     }
-    return data;
 };
 
 // --- Rota de Health Check ---
@@ -57,29 +86,44 @@ app.post('/api/payment/create', async (req, res) => {
     try {
         const { amount, name, email, cpfCnpj, description, method } = req.body;
 
-        // Passo 1: Criar ou recuperar cliente no Asaas
-        // (Simplificado: Cria um novo sempre ou busca por email se quiser refinar depois)
-        const customerPayload = {
-            name: name || 'Cliente IdentificaPix',
-            email: email || 'cliente@exemplo.com',
-            cpfCnpj: cpfCnpj || '00000000000' 
-        };
+        console.log(`[API] Criando pagamento: ${method} - R$${amount} para ${name}`);
 
-        // Tenta buscar cliente existente pelo email para evitar duplicatas
+        // Passo 1: Criar ou recuperar cliente no Asaas
+        // O Asaas não permite criar clientes duplicados com mesmo CPF/Email facilmente,
+        // então buscamos primeiro.
         let customerId;
+        const customerEmail = email || 'cliente@exemplo.com';
+        
         try {
-            const customerSearch = await asaasRequest(`/customers?email=${customerPayload.email}&limit=1`);
+            console.log(`[Asaas] Buscando cliente por email: ${customerEmail}`);
+            const customerSearch = await asaasRequest(`/customers?email=${customerEmail}&limit=1`);
+            
             if (customerSearch.data && customerSearch.data.length > 0) {
                 customerId = customerSearch.data[0].id;
+                console.log(`[Asaas] Cliente existente encontrado: ${customerId}`);
             } else {
-                const newCustomer = await asaasRequest('/customers', 'POST', customerPayload);
+                console.log(`[Asaas] Criando novo cliente...`);
+                const newCustomer = await asaasRequest('/customers', 'POST', {
+                    name: name || 'Cliente IdentificaPix',
+                    email: customerEmail,
+                    cpfCnpj: cpfCnpj || '00000000000'
+                });
                 customerId = newCustomer.id;
+                console.log(`[Asaas] Novo cliente criado: ${customerId}`);
             }
         } catch (e) {
-            console.error("Erro ao buscar/criar cliente Asaas", e);
-            // Fallback: Tenta criar mesmo assim
-            const newCustomer = await asaasRequest('/customers', 'POST', customerPayload);
-            customerId = newCustomer.id;
+            console.error("[Asaas] Erro ao gerenciar cliente:", e.message);
+            // Fallback: Tenta criar direto se a busca falhar (ex: API lenta)
+            try {
+                const newCustomer = await asaasRequest('/customers', 'POST', {
+                    name: name || 'Cliente IdentificaPix',
+                    email: customerEmail,
+                    cpfCnpj: cpfCnpj || '00000000000'
+                });
+                customerId = newCustomer.id;
+            } catch (createError) {
+                throw new Error(`Falha ao criar cliente: ${createError.message}`);
+            }
         }
 
         // Passo 2: Criar Cobrança
@@ -87,16 +131,21 @@ app.post('/api/payment/create', async (req, res) => {
             customer: customerId,
             billingType: method, // PIX, BOLETO, CREDIT_CARD
             value: amount,
-            dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Vence amanhã
+            dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Vence em 2 dias
             description: description || 'Assinatura IdentificaPix',
         };
 
         const paymentData = await asaasRequest('/payments', 'POST', paymentPayload);
+        console.log(`[Asaas] Cobrança criada: ${paymentData.id}`);
 
         // Passo 3: Se for PIX, buscar o QR Code Payload
         let pixData = null;
         if (method === 'PIX') {
-            pixData = await asaasRequest(`/payments/${paymentData.id}/pixQrCode`, 'GET');
+            try {
+                pixData = await asaasRequest(`/payments/${paymentData.id}/pixQrCode`, 'GET');
+            } catch (e) {
+                console.error("[Asaas] Erro ao obter QR Code:", e.message);
+            }
         }
 
         res.json({
@@ -109,8 +158,8 @@ app.post('/api/payment/create', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Erro ao criar pagamento:', error);
-        res.status(500).json({ error: error.message });
+        console.error('[API] Erro 500 em /payment/create:', error);
+        res.status(500).json({ error: error.message || 'Erro interno ao processar pagamento' });
     }
 });
 
@@ -121,7 +170,7 @@ app.get('/api/payment/status/:id', async (req, res) => {
         const paymentData = await asaasRequest(`/payments/${id}`, 'GET');
         res.json({ status: paymentData.status });
     } catch (error) {
-        console.error('Erro ao verificar status:', error);
+        console.error('[API] Erro ao verificar status:', error);
         res.status(500).json({ error: error.message });
     }
 });
