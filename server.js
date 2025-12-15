@@ -28,16 +28,22 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // Inicializa o cliente Gemini com a chave segura do servidor
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Prioriza API_KEY (Coolify) mas aceita VITE_GEMINI_API_KEY (Local) como fallback
+const GEMINI_KEY = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
+const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
 
-// --- Configuração ASAAS (Com Limpeza Automática) ---
+// --- Configuração ASAAS (Com Limpeza Automática Robusta) ---
 const cleanEnvVar = (val) => val ? val.trim().replace(/['";]/g, '') : '';
 
 // Tratamento robusto para a URL do ASAAS
 let rawUrl = process.env.ASAAS_URL || 'https://sandbox.asaas.com/api/v3';
-// Remove caracteres indesejados comuns de copy/paste
+
+// Remove a API Key se ela foi colada acidentalmente dentro da variável da URL
+if (rawUrl.includes(' ')) {
+    rawUrl = rawUrl.split(' ')[0];
+}
 if (rawUrl.startsWith('_')) rawUrl = rawUrl.substring(1); 
-if (rawUrl.endsWith('/')) rawUrl = rawUrl.slice(0, -1); // Remove barra final se houver
+if (rawUrl.endsWith('/')) rawUrl = rawUrl.slice(0, -1); 
 
 const ASAAS_URL = cleanEnvVar(rawUrl);
 const ASAAS_API_KEY = cleanEnvVar(process.env.ASAAS_API_KEY);
@@ -45,15 +51,29 @@ const ASAAS_API_KEY = cleanEnvVar(process.env.ASAAS_API_KEY);
 // Log de Diagnóstico na Inicialização
 console.log('================================================');
 console.log('🚀 IDENTIFICAPIX SERVER STARTING');
-console.log(`📡 URL Base Asaas Configurada: "${ASAAS_URL}"`);
-console.log(`🔑 API Key Asaas: ${ASAAS_API_KEY ? 'DEFINIDA (OK)' : 'FALTANDO (ERRO) - Verifique Env Vars'}`);
+console.log(`📡 URL Base Asaas Final: "${ASAAS_URL}"`);
+
+// DEBUG: Lista as chaves de variáveis detectadas para confirmar injeção
+const envKeys = Object.keys(process.env).filter(k => k.includes('ASAAS') || k.includes('API'));
+console.log(`🔍 Variáveis de Ambiente Detectadas: [${envKeys.join(', ')}]`);
+
+if (!ASAAS_API_KEY) {
+    console.error('❌ ERRO CRÍTICO: ASAAS_API_KEY está vazia ou indefinida.');
+    console.error('⚠️ DICA: Se sua chave começa com "$", altere no Coolify para "$$" (dois cifrões) ou coloque entre aspas simples.');
+} else if (ASAAS_API_KEY.length < 20) {
+    console.warn(`⚠️ ALERTA: ASAAS_API_KEY parece muito curta ou corrompida (${ASAAS_API_KEY.length} chars). Verifique se o caractere "$" não causou interpolação.`);
+} else {
+    console.log(`🔑 API Key Asaas: DEFINIDA (OK) - ${ASAAS_API_KEY.substring(0, 10)}... (Redacted)`);
+}
+
+console.log(`🤖 Gemini Key: ${GEMINI_KEY ? 'DEFINIDA (OK)' : 'FALTANDO (ERRO)'}`);
 console.log('================================================');
 
 // Helper para chamadas ao Asaas
 const asaasRequest = async (endpoint, method = 'GET', body = null) => {
     if (!ASAAS_API_KEY) {
         console.error('ERRO FATAL: ASAAS_API_KEY não encontrada nas variáveis de ambiente.');
-        throw new Error('Servidor mal configurado: Falta ASAAS_API_KEY');
+        throw new Error('Servidor mal configurado: Falta ASAAS_API_KEY. Verifique os logs de inicialização.');
     }
     
     // Garante que o endpoint comece com /
@@ -91,7 +111,8 @@ const asaasRequest = async (endpoint, method = 'GET', body = null) => {
 app.get('/health', (req, res) => {
     const status = {
         status: 'OK',
-        asaasConfigured: !!ASAAS_API_KEY
+        asaasConfigured: !!ASAAS_API_KEY,
+        envCheck: Object.keys(process.env).filter(k => k.includes('ASAAS'))
     };
     res.status(200).json(status);
 });
@@ -272,16 +293,13 @@ app.post('/api/ai/analyze-receipt', async (req, res) => {
 });
 
 // --- API 404 Handler (CRUCIAL) ---
-// Impede que rotas de API não encontradas retornem o index.html, causando erro de parsing no JSON
 app.all('/api/*', (req, res) => {
     res.status(404).json({ error: `Endpoint de API não encontrado: ${req.method} ${req.url}` });
 });
 
 // --- Servir Frontend em Produção ---
-// Serve os arquivos estáticos da pasta dist
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Qualquer outra rota não-API retorna o index.html (SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
