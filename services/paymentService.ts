@@ -12,13 +12,12 @@ export interface PaymentResponse {
     method: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
 }
 
-// PRODUCTION ADAPTER INTERFACE
-// This service simulates the interaction with Asaas.
-// In a production environment, these calls should be routed to a secure backend (Supabase Edge Functions).
+// REAL ADAPTER INTERFACE
+// Connects to the local Node.js backend which proxies to Asaas
 
 export const paymentService = {
     /**
-     * Creates a payment order via Asaas (Simulated).
+     * Creates a payment order via Backend API.
      */
     createPayment: async (
         amount: number, 
@@ -26,51 +25,77 @@ export const paymentService = {
         description: string,
         method: 'PIX' | 'CREDIT_CARD' | 'BOLETO'
     ): Promise<PaymentResponse> => {
-        Logger.info(`Initiating Asaas Payment [${method}]...`, { amount, customerName });
+        Logger.info(`Initiating Real Payment [${method}]...`, { amount, customerName });
 
-        // Simulate Network Latency
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+            const response = await fetch('/api/payment/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount,
+                    name: customerName,
+                    description,
+                    method,
+                    // TODO: In a future update, pass email/cpf from auth context
+                })
+            });
 
-        // Generate a transaction ID
-        const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        
-        let response: PaymentResponse = {
-            id: transactionId,
-            status: 'PENDING',
-            value: amount,
-            method
-        };
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Erro ao criar pagamento');
+            }
 
-        if (method === 'PIX') {
-            const mockPixString = `00020126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-426614174000520400005303986540${amount.toFixed(2).replace('.', '')}5802BR5913IdentificaPix6008SaoPaulo62070503***6304ABCD`;
-            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mockPixString)}`;
-            response.pixCopiaECola = mockPixString;
-            response.qrCodeImage = qrCodeUrl;
-        } 
-        else if (method === 'BOLETO') {
-            response.barcode = `34191.79001 01043.510047 91020.150008 8 845200000${amount.toString().replace('.', '')}`;
-            response.bankSlipUrl = "#"; // Would be a real PDF URL
+            const data = await response.json();
+
+            let result: PaymentResponse = {
+                id: data.id,
+                status: data.status === 'RECEIVED' || data.status === 'CONFIRMED' ? 'CONFIRMED' : 'PENDING',
+                value: amount,
+                method
+            };
+
+            if (method === 'PIX') {
+                result.pixCopiaECola = data.pixCopiaECola;
+                // If the backend returns raw base64 without prefix, add it. If it returns url, use it.
+                // Assuming Asaas returns Base64 for encodedImage.
+                result.qrCodeImage = data.pixQrCodeImage 
+                    ? `data:image/png;base64,${data.pixQrCodeImage}`
+                    : undefined;
+            } else if (method === 'BOLETO') {
+                result.bankSlipUrl = data.bankSlipUrl;
+                // Asaas API v3 create doesn't always return barcode directly in main response, 
+                // typically provided in bankSlipUrl or separate call. 
+                // For MVP we use the URL.
+                result.barcode = "Ver Boleto no Link"; 
+            }
+
+            return result;
+
+        } catch (error) {
+            console.error("Payment Service Error:", error);
+            throw error;
         }
-        else if (method === 'CREDIT_CARD') {
-            // Cards are usually approved instantly or rejected
-            response.status = 'CONFIRMED';
-        }
-        
-        return response;
     },
 
     /**
-     * Checks the status of a payment.
+     * Checks the status of a payment via Backend API.
      */
     checkPaymentStatus: async (paymentId: string): Promise<'PENDING' | 'RECEIVED' | 'OVERDUE' | 'CONFIRMED'> => {
-        // Mock Logic: Auto-approve after 10 seconds for user experience testing
-        const timestamp = parseInt(paymentId.split('_')[1]);
-        const elapsed = Date.now() - timestamp;
-
-        if (elapsed > 10000) { 
-            return 'RECEIVED';
+        try {
+            const response = await fetch(`/api/payment/status/${paymentId}`);
+            if (!response.ok) return 'PENDING';
+            
+            const data = await response.json();
+            
+            // Map Asaas statuses to internal types
+            // Asaas: PENDING, RECEIVED, CONFIRMED, OVERDUE, REFUNDED, etc.
+            if (data.status === 'RECEIVED' || data.status === 'CONFIRMED') return 'CONFIRMED';
+            if (data.status === 'OVERDUE') return 'OVERDUE';
+            
+            return 'PENDING';
+        } catch (error) {
+            console.error("Status Check Error:", error);
+            return 'PENDING';
         }
-        
-        return 'PENDING';
     }
 };

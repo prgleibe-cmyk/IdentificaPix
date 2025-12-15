@@ -18,15 +18,117 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // Inicializa o cliente Gemini com a chave segura do servidor
-// A chave deve estar no arquivo .env como API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// --- Rota de Health Check (Para o Coolify saber que o app está online) ---
+// --- Configuração ASAAS ---
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY; // Chave da API do Asaas (Sandbox ou Produção)
+const ASAAS_URL = process.env.ASAAS_URL || 'https://sandbox.asaas.com/api/v3'; // Padrão Sandbox, mude no .env para Produção
+
+// Helper para chamadas ao Asaas
+const asaasRequest = async (endpoint, method = 'GET', body = null) => {
+    if (!ASAAS_API_KEY) throw new Error('ASAAS_API_KEY não configurada no servidor.');
+    
+    const headers = {
+        'Content-Type': 'application/json',
+        'access_token': ASAAS_API_KEY
+    };
+
+    const options = { method, headers };
+    if (body) options.body = JSON.stringify(body);
+
+    const response = await fetch(`${ASAAS_URL}${endpoint}`, options);
+    const data = await response.json();
+    
+    if (!response.ok) {
+        throw new Error(data.errors?.[0]?.description || `Erro Asaas: ${response.statusText}`);
+    }
+    return data;
+};
+
+// --- Rota de Health Check ---
 app.get('/health', (req, res) => {
     res.status(200).send('OK');
 });
 
-// --- Rota 1: Sugestão de Conciliação (Transação vs Lista) ---
+// --- Rotas de Pagamento (ASAAS) ---
+
+// 1. Criar Pagamento
+app.post('/api/payment/create', async (req, res) => {
+    try {
+        const { amount, name, email, cpfCnpj, description, method } = req.body;
+
+        // Passo 1: Criar ou recuperar cliente no Asaas
+        // (Simplificado: Cria um novo sempre ou busca por email se quiser refinar depois)
+        const customerPayload = {
+            name: name || 'Cliente IdentificaPix',
+            email: email || 'cliente@exemplo.com',
+            cpfCnpj: cpfCnpj || '00000000000' 
+        };
+
+        // Tenta buscar cliente existente pelo email para evitar duplicatas
+        let customerId;
+        try {
+            const customerSearch = await asaasRequest(`/customers?email=${customerPayload.email}&limit=1`);
+            if (customerSearch.data && customerSearch.data.length > 0) {
+                customerId = customerSearch.data[0].id;
+            } else {
+                const newCustomer = await asaasRequest('/customers', 'POST', customerPayload);
+                customerId = newCustomer.id;
+            }
+        } catch (e) {
+            console.error("Erro ao buscar/criar cliente Asaas", e);
+            // Fallback: Tenta criar mesmo assim
+            const newCustomer = await asaasRequest('/customers', 'POST', customerPayload);
+            customerId = newCustomer.id;
+        }
+
+        // Passo 2: Criar Cobrança
+        const paymentPayload = {
+            customer: customerId,
+            billingType: method, // PIX, BOLETO, CREDIT_CARD
+            value: amount,
+            dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Vence amanhã
+            description: description || 'Assinatura IdentificaPix',
+        };
+
+        const paymentData = await asaasRequest('/payments', 'POST', paymentPayload);
+
+        // Passo 3: Se for PIX, buscar o QR Code Payload
+        let pixData = null;
+        if (method === 'PIX') {
+            pixData = await asaasRequest(`/payments/${paymentData.id}/pixQrCode`, 'GET');
+        }
+
+        res.json({
+            id: paymentData.id,
+            status: paymentData.status,
+            invoiceUrl: paymentData.invoiceUrl,
+            bankSlipUrl: paymentData.bankSlipUrl,
+            pixCopiaECola: pixData ? pixData.payload : null,
+            pixQrCodeImage: pixData ? pixData.encodedImage : null // Asaas retorna imagem base64
+        });
+
+    } catch (error) {
+        console.error('Erro ao criar pagamento:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 2. Verificar Status
+app.get('/api/payment/status/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const paymentData = await asaasRequest(`/payments/${id}`, 'GET');
+        res.json({ status: paymentData.status });
+    } catch (error) {
+        console.error('Erro ao verificar status:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// --- Rotas de IA (Gemini) ---
+
 app.post('/api/ai/suggestion', async (req, res) => {
     try {
         const { transactionDescription, contributorNames } = req.body;
@@ -57,7 +159,6 @@ app.post('/api/ai/suggestion', async (req, res) => {
     }
 });
 
-// --- Rota 2: Análise de Comprovantes (Imagem) ---
 app.post('/api/ai/analyze-receipt', async (req, res) => {
     try {
         const { imageBase64, mimeType } = req.body;
@@ -102,7 +203,6 @@ app.post('/api/ai/analyze-receipt', async (req, res) => {
     }
 });
 
-// --- Rota 3: Extração de Dados (Texto Puro) ---
 app.post('/api/ai/extract-data', async (req, res) => {
     try {
         const { text, examples } = req.body;
@@ -149,10 +249,8 @@ app.post('/api/ai/extract-data', async (req, res) => {
 });
 
 // --- Servir Frontend em Produção ---
-// O comando 'npm run build' cria a pasta 'dist'. O servidor Node serve essa pasta.
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Qualquer rota que não seja /api, retorna o index.html (SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
