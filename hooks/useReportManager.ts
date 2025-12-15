@@ -75,7 +75,7 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
         // Update Supabase
         const { error } = await supabase
             .from('saved_reports')
-            .update({ data: updatedReport.data })
+            .update({ data: updatedReport.data as any }) // Cast to any to satisfy Json type
             .eq('id', report.id);
 
         if (error) {
