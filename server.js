@@ -32,21 +32,34 @@ app.use(cors());
 const GEMINI_KEY = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
 
-// --- Configuração ASAAS (Com Limpeza Automática Robusta) ---
+// --- Configuração ASAAS (Com Limpeza Automática Robusta e Inteligência de Ambiente) ---
 const cleanEnvVar = (val) => val ? val.trim().replace(/['";]/g, '') : '';
 
-// Tratamento robusto para a URL do ASAAS
-let rawUrl = process.env.ASAAS_URL || 'https://sandbox.asaas.com/api/v3';
+// 1. Tenta pegar a URL correta, mas aceita erros de digitação comuns (ex: ASAAS_URL_)
+let rawUrl = process.env.ASAAS_URL || process.env.ASAAS_URL_ || ''; 
+const rawKey = process.env.ASAAS_API_KEY || '';
 
-// Remove a API Key se ela foi colada acidentalmente dentro da variável da URL
-if (rawUrl.includes(' ')) {
-    rawUrl = rawUrl.split(' ')[0];
+// 2. Inteligência de Ambiente: Se não tem URL definida (ou está vazia), tenta adivinhar pela chave
+if (!rawUrl || rawUrl.trim() === '') {
+    if (rawKey.includes('prod') || rawKey.includes('PROD')) {
+        rawUrl = 'https://api.asaas.com/api/v3';
+        console.log('ℹ️ Auto-detecção: Chave de Produção identificada. Usando URL de Produção.');
+    } else {
+        rawUrl = 'https://sandbox.asaas.com/api/v3';
+        console.log('ℹ️ Auto-detecção: Usando URL de Sandbox (Padrão).');
+    }
 }
+
+// 3. Limpeza final da URL (Corrige erros comuns de copy-paste)
+if (rawUrl.includes(' ')) rawUrl = rawUrl.split(' ')[0]; // Remove dados extras se houver
 if (rawUrl.startsWith('_')) rawUrl = rawUrl.substring(1); 
-if (rawUrl.endsWith('/')) rawUrl = rawUrl.slice(0, -1); 
+// Loop para remover barras ou iguais no final (pode ter mais de um)
+while (rawUrl.endsWith('/') || rawUrl.endsWith('=')) {
+    rawUrl = rawUrl.slice(0, -1);
+}
 
 const ASAAS_URL = cleanEnvVar(rawUrl);
-const ASAAS_API_KEY = cleanEnvVar(process.env.ASAAS_API_KEY);
+const ASAAS_API_KEY = cleanEnvVar(rawKey);
 
 // Log de Diagnóstico na Inicialização
 console.log('================================================');
@@ -63,7 +76,15 @@ if (!ASAAS_API_KEY) {
 } else if (ASAAS_API_KEY.length < 20) {
     console.warn(`⚠️ ALERTA: ASAAS_API_KEY parece muito curta ou corrompida (${ASAAS_API_KEY.length} chars). Verifique se o caractere "$" não causou interpolação.`);
 } else {
-    console.log(`🔑 API Key Asaas: DEFINIDA (OK) - ${ASAAS_API_KEY.substring(0, 10)}... (Redacted)`);
+    const keyEnv = ASAAS_API_KEY.includes('prod') ? 'PRODUÇÃO' : 'SANDBOX';
+    console.log(`🔑 API Key Asaas: DEFINIDA (${keyEnv}) - ${ASAAS_API_KEY.substring(0, 10)}...`);
+    
+    // Validação extra de segurança
+    if (ASAAS_URL.includes('sandbox') && ASAAS_API_KEY.includes('prod')) {
+        console.warn('⚠️ ALERTA DE CONFIGURAÇÃO: Você está usando chave de PRODUÇÃO em ambiente SANDBOX. Isso vai falhar.');
+    } else if (!ASAAS_URL.includes('sandbox') && !ASAAS_API_KEY.includes('prod')) {
+        console.warn('⚠️ ALERTA DE CONFIGURAÇÃO: Você está usando chave de SANDBOX em ambiente PRODUÇÃO. Isso vai falhar.');
+    }
 }
 
 console.log(`🤖 Gemini Key: ${GEMINI_KEY ? 'DEFINIDA (OK)' : 'FALTANDO (ERRO)'}`);
@@ -93,14 +114,25 @@ const asaasRequest = async (endpoint, method = 'GET', body = null) => {
 
     try {
         const response = await fetch(fullUrl, options);
-        const data = await response.json();
         
-        if (!response.ok) {
-            console.error('[Asaas] Resposta de Erro:', JSON.stringify(data, null, 2));
-            const errorMsg = data.errors?.[0]?.description || data.error || `Erro HTTP ${response.status}`;
-            throw new Error(errorMsg);
+        // Verifica se a resposta é JSON antes de tentar fazer o parse
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await response.json();
+            if (!response.ok) {
+                console.error('[Asaas] Resposta de Erro:', JSON.stringify(data, null, 2));
+                const errorMsg = data.errors?.[0]?.description || data.error || `Erro HTTP ${response.status}`;
+                throw new Error(errorMsg);
+            }
+            return data;
+        } else {
+            // Se não for JSON (provavelmente HTML de erro 404/500), pega o texto para debug
+            const text = await response.text();
+            console.error(`[Asaas] Erro Crítico: Resposta não-JSON recebida. Status: ${response.status}. URL: ${fullUrl}`);
+            console.error(`[Asaas] Conteúdo da resposta (início): ${text.substring(0, 200)}...`);
+            throw new Error(`Erro HTTP ${response.status}: O servidor Asaas retornou uma resposta inválida (provavelmente URL errada).`);
         }
-        return data;
+
     } catch (error) {
         console.error(`[Asaas] Falha de Conexão:`, error.message);
         throw error;
