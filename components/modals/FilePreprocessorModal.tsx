@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { GoogleGenAI, Type } from "@google/genai";
 import { XMarkIcon, DocumentArrowDownIcon, WrenchScrewdriverIcon, TrashIcon, PlusCircleIcon, UploadIcon, SparklesIcon, EyeIcon, ClipboardDocumentIcon } from '../Icons';
 import { useUI } from '../../contexts/UIContext';
 
@@ -9,20 +8,6 @@ import { useUI } from '../../contexts/UIContext';
 let pdfjsLib: any = null;
 let mammoth: any = null;
 let XLSX: any = null;
-
-// Recuperação robusta da API Key
-const getApiKey = () => {
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) {
-    // @ts-ignore
-    return import.meta.env.VITE_GEMINI_API_KEY;
-  }
-  try {
-    return process.env.API_KEY || '';
-  } catch (e) {
-    return '';
-  }
-};
 
 interface FilePreprocessorModalProps {
     onClose: () => void;
@@ -285,12 +270,6 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
     };
 
     const handleAIAutoComplete = async () => {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-            showToast("Chave da API não configurada.", "error");
-            return;
-        }
-
         if (!fullRawText) {
             showToast("Nenhum texto para analisar.", "error");
             return;
@@ -299,56 +278,30 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         setIsAiWorking(true);
 
         try {
-            const aiClient = new GoogleGenAI({ apiKey });
-
             const examples = cleanRows.filter(r => r.date.trim() && r.amount.trim() && r.description.trim());
-            const truncatedRawText = fullRawText.substring(0, 30000); 
             
-            const prompt = `
-                Extraia transações financeiras do texto abaixo.
-                ${examples.length > 0 
-                    ? `Siga este padrão de exemplo: ${JSON.stringify(examples.slice(0, 3))}` 
-                    : 'Busque padrões de Data, Descrição e Valor.'}
-                
-                TEXTO:
-                """
-                ${truncatedRawText}
-                """
-                
-                Retorne JSON array com: { date: "DD/MM/AAAA", description: "Texto", amount: "0.00" }
-            `;
-
-            const response = await aiClient.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                date: { type: Type.STRING },
-                                description: { type: Type.STRING },
-                                amount: { type: Type.STRING },
-                            }
-                        }
-                    }
-                }
+            const response = await fetch('/api/ai/extract-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: fullRawText,
+                    examples: examples.length > 0 ? examples.slice(0, 3) : undefined
+                })
             });
 
-            if (response.text) {
-                const extractedRows: any[] = JSON.parse(response.text);
-                const newRows: CleanRow[] = extractedRows.map(r => ({
-                    id: Math.random().toString(36).substr(2, 9),
-                    date: r.date || '',
-                    description: r.description || '',
-                    amount: r.amount || ''
-                }));
+            if (!response.ok) throw new Error("Erro no servidor de IA");
 
-                setCleanRows(newRows);
-                showToast(`${newRows.length} linhas extraídas!`, 'success');
-            }
+            const extractedRows = await response.json();
+            
+            const newRows: CleanRow[] = extractedRows.map((r: any) => ({
+                id: Math.random().toString(36).substr(2, 9),
+                date: r.date || '',
+                description: r.description || '',
+                amount: r.amount || ''
+            }));
+
+            setCleanRows(newRows);
+            showToast(`${newRows.length} linhas extraídas!`, 'success');
 
         } catch (error: any) {
             console.error(error);
@@ -375,11 +328,8 @@ export const FilePreprocessorModal: React.FC<FilePreprocessorModalProps> = ({ on
         document.body.removeChild(link);
     };
 
-    // Use createPortal to render the modal at the document body level
-    // This ignores parent overflow and stacking contexts (fixing sidebar z-index issues)
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/80 backdrop-blur-md animate-fade-in">
-            {/* Modal Container ajustado para 95% de largura e 85% de altura (tamanho de workspace) */}
             <div className="glass-modal rounded-2xl w-full max-w-[95vw] lg:max-w-[90vw] xl:max-w-7xl h-[85vh] flex flex-col overflow-hidden relative shadow-2xl border border-white/10">
                 
                 <input 
