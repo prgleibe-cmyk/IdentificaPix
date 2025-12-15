@@ -1,3 +1,4 @@
+
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -8,14 +9,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     server: {
-      port: 3000,
+      port: 5173, // Vite dev server port
       host: '0.0.0.0',
+      // Configuração de Proxy para Redirecionar chamadas /api para o Backend (server.js)
+      // Em produção (Coolify), isso não é usado, pois o server.js serve os arquivos estáticos.
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3000', // Alinhado com o padrão do server.js
+          changeOrigin: true,
+          secure: false,
+        }
+      }
     },
     plugins: [react()],
-    define: {
-      // garante acesso via import.meta.env
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-    },
     resolve: {
       alias: {
         '@': path.resolve('.'),
