@@ -127,12 +127,21 @@ create table if not exists public.payments (
   created_at timestamptz default now()
 );
 
--- 4. POLÍTICAS DE SEGURANÇA (RLS)
+-- 4. POLÍTICAS DE SEGURANÇA (RLS) - COM LIMPEZA PRÉVIA
 alter table public.profiles enable row level security;
+
+-- Remove políticas antigas para evitar erro de duplicidade
+drop policy if exists "Users can view own profile" on profiles;
+drop policy if exists "Users can update own profile" on profiles;
+
 create policy "Users can view own profile" on profiles for select using (auth.uid() = id);
 create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
 
 alter table public.payments enable row level security;
+
+-- Remove política antiga para evitar erro de duplicidade
+drop policy if exists "Users can view own payments" on payments;
+
 create policy "Users can view own payments" on payments for select using (auth.uid() = user_id);
 `;
 
