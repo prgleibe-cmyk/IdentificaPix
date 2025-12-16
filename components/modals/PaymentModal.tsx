@@ -107,9 +107,12 @@ export const PaymentModal: React.FC = () => {
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            showToast("Erro ao processar pagamento. Tente novamente.", "error");
+            const msg = error.message || "Erro desconhecido";
+            // Extrai mensagem limpa se possível
+            const cleanMsg = msg.replace('Erro da API:', '').trim();
+            showToast(`Erro no Pagamento: ${cleanMsg}`, "error");
         } finally {
             setIsLoading(false);
         }

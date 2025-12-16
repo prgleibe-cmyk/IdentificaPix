@@ -11,7 +11,10 @@ import {
     ExclamationTriangleIcon,
     ArrowsRightLeftIcon,
     XMarkIcon,
-    CircleStackIcon
+    CircleStackIcon,
+    BoltIcon,
+    CheckCircleIcon,
+    XCircleIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
@@ -25,10 +28,27 @@ export const AdminView: React.FC = () => {
     const { showToast } = useUI();
     const { t } = useTranslation();
     const [showSqlModal, setShowSqlModal] = useState(false);
+    const [showDiagModal, setShowDiagModal] = useState(false);
     const [sqlMode, setSqlMode] = useState<'debug' | 'schema'>('debug');
+    const [diagResult, setDiagResult] = useState<any>(null);
+    const [isLoadingDiag, setIsLoadingDiag] = useState(false);
 
     const handleSync = () => {
         showToast("Dados sincronizados com sucesso.", "success");
+    };
+
+    const runDiagnostics = async () => {
+        setIsLoadingDiag(true);
+        setShowDiagModal(true);
+        try {
+            const response = await fetch('/api/health');
+            const data = await response.json();
+            setDiagResult(data);
+        } catch (error) {
+            setDiagResult({ error: 'Falha ao conectar com o backend (/api/health)' });
+        } finally {
+            setIsLoadingDiag(false);
+        }
     };
 
     const TabButton = ({ id, label, icon: Icon, colorTheme }: { id: AdminTab, label: string, icon: any, colorTheme: 'blue' | 'indigo' | 'emerald' }) => {
@@ -173,6 +193,13 @@ create policy "Users can view own payments" on payments for select using (auth.u
 
                     <div className="flex items-center gap-2">
                         <button 
+                            onClick={runDiagnostics}
+                            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all uppercase tracking-wide whitespace-nowrap"
+                        >
+                            <BoltIcon className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Diagnóstico</span>
+                        </button>
+                        <button 
                             onClick={() => setShowSqlModal(true)}
                             className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide whitespace-nowrap"
                         >
@@ -241,6 +268,97 @@ create policy "Users can view own payments" on payments for select using (auth.u
                         <div className="px-6 py-4 bg-slate-900/50 border-t border-slate-700 flex justify-end shrink-0">
                             <button onClick={() => setShowSqlModal(false)} className="px-5 py-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-full transition-colors uppercase">
                                 {t('common.close')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Diagnostic Modal */}
+            {showDiagModal && (
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <BoltIcon className="w-5 h-5 text-amber-500" />
+                                Diagnóstico do Sistema
+                            </h3>
+                            <button onClick={() => setShowDiagModal(false)} className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                            {isLoadingDiag ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full mx-auto mb-3"></div>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Verificando conexão com backend...</p>
+                                </div>
+                            ) : diagResult ? (
+                                <>
+                                    {diagResult.error ? (
+                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
+                                            <XCircleIcon className="w-5 h-5 text-red-500 mt-0.5" />
+                                            <div>
+                                                <h4 className="text-sm font-bold text-red-700 dark:text-red-400">Erro de Conexão</h4>
+                                                <p className="text-xs text-red-600 dark:text-red-300 mt-1">{diagResult.error}</p>
+                                                <p className="text-[10px] text-red-500 mt-2">O frontend não conseguiu falar com o servidor Node.js. Verifique se o backend está rodando no Coolify.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                    <p className="text-[10px] text-slate-400 uppercase font-bold">API Status</p>
+                                                    <p className="text-sm font-bold text-emerald-600 flex items-center gap-1">
+                                                        <CheckCircleIcon className="w-3 h-3" /> {diagResult.status}
+                                                    </p>
+                                                </div>
+                                                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Host Atual</p>
+                                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={diagResult.host}>{diagResult.host}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className={`p-3 rounded-xl border flex justify-between items-center ${diagResult.asaasConfigured ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Asaas API Key</span>
+                                                {diagResult.asaasConfigured 
+                                                    ? <span className="text-[10px] font-bold text-emerald-600 bg-white dark:bg-emerald-900 px-2 py-1 rounded-full shadow-sm">Configurado</span>
+                                                    : <span className="text-[10px] font-bold text-red-600 bg-white dark:bg-red-900 px-2 py-1 rounded-full shadow-sm">Ausente</span>
+                                                }
+                                            </div>
+
+                                            <div className={`p-3 rounded-xl border flex justify-between items-center ${diagResult.supabaseAdminConfigured ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Supabase Service Key</span>
+                                                {diagResult.supabaseAdminConfigured 
+                                                    ? <span className="text-[10px] font-bold text-emerald-600 bg-white dark:bg-emerald-900 px-2 py-1 rounded-full shadow-sm">Configurado</span>
+                                                    : <span className="text-[10px] font-bold text-red-600 bg-white dark:bg-red-900 px-2 py-1 rounded-full shadow-sm">Ausente</span>
+                                                }
+                                            </div>
+
+                                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                                <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-2">Configuração de Webhook (Asaas)</p>
+                                                <div className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-black/30 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                    <code className="text-[10px] font-mono text-slate-600 dark:text-slate-400 flex-1 break-all">
+                                                        {window.location.origin}/api/webhooks/asaas
+                                                    </code>
+                                                    <button 
+                                                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/asaas`)}
+                                                        className="text-[10px] font-bold text-brand-blue uppercase hover:underline"
+                                                    >
+                                                        Copiar
+                                                    </button>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 mt-1">Cole esta URL no painel do Asaas para receber atualizações de pagamento.</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : null}
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                            <button onClick={() => setShowDiagModal(false)} className="px-5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors uppercase">
+                                Fechar
                             </button>
                         </div>
                     </div>

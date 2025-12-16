@@ -179,12 +179,14 @@ const generateCpf = () => {
 };
 
 // --- Rota de Health Check ---
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
     const status = {
         status: 'OK',
         asaasConfigured: !!ASAAS_API_KEY,
         supabaseAdminConfigured: !!supabaseAdmin,
-        envCheck: Object.keys(process.env).filter(k => k.includes('ASAAS'))
+        envCheck: Object.keys(process.env).filter(k => k.includes('ASAAS')),
+        host: req.headers.host,
+        protocol: req.protocol
     };
     res.status(200).json(status);
 });
