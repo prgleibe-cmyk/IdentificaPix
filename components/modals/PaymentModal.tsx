@@ -85,7 +85,15 @@ export const PaymentModal: React.FC = () => {
             const customerName = user?.user_metadata?.full_name || user?.email || 'Cliente';
             const customerEmail = user?.email; // Get real email
 
-            const data = await paymentService.createPayment(calculateTotal, customerName, description, paymentMethod, customerEmail);
+            const data = await paymentService.createPayment(
+                calculateTotal, 
+                customerName, 
+                description, 
+                paymentMethod, 
+                customerEmail,
+                undefined,
+                user?.id // Passando ID do usuário para vínculo no webhook
+            );
             setPaymentData(data);
             
             if (data.status === 'CONFIRMED') {

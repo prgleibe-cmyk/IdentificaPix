@@ -25,7 +25,8 @@ export const paymentService = {
         description: string,
         method: 'PIX' | 'CREDIT_CARD' | 'BOLETO',
         email?: string,
-        cpfCnpj?: string
+        cpfCnpj?: string,
+        userId?: string
     ): Promise<PaymentResponse> => {
         Logger.info(`Initiating Real Payment [${method}]...`, { amount, customerName, email });
 
@@ -40,6 +41,7 @@ export const paymentService = {
                     cpfCnpj,
                     description,
                     method,
+                    userId // Passando o ID do usuário para o backend vincular no Asaas
                 })
             });
 

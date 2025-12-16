@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
@@ -31,6 +32,19 @@ app.use(cors());
 // Prioriza API_KEY (Coolify) mas aceita VITE_GEMINI_API_KEY (Local) como fallback
 const GEMINI_KEY = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
+
+// --- Configuração SUPABASE ADMIN (Para Webhooks) ---
+// É necessário usar a Service Role Key para escrever no banco sem sessão de usuário ativa
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://uflheoknbopcgmzyjbft.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+let supabaseAdmin = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+    supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    console.log('✅ Supabase Admin inicializado com sucesso.');
+} else {
+    console.warn("⚠️ ALERTA: SUPABASE_SERVICE_KEY não encontrada. Webhooks de pagamento não atualizarão o banco de dados automaticamente.");
+}
 
 // --- Configuração ASAAS (Com Limpeza Automática Robusta e Inteligência de Ambiente) ---
 const cleanEnvVar = (val) => val ? val.trim().replace(/['";]/g, '') : '';
@@ -169,17 +183,85 @@ app.get('/health', (req, res) => {
     const status = {
         status: 'OK',
         asaasConfigured: !!ASAAS_API_KEY,
+        supabaseAdminConfigured: !!supabaseAdmin,
         envCheck: Object.keys(process.env).filter(k => k.includes('ASAAS'))
     };
     res.status(200).json(status);
+});
+
+// --- Rota de Webhook ASAAS (Recepção de Pagamentos) ---
+app.post('/api/webhooks/asaas', async (req, res) => {
+    const { event, payment } = req.body;
+    console.log(`[Webhook] Evento recebido: ${event} | ID: ${payment?.id}`);
+
+    // Confirmação de recebimento para o Asaas não ficar tentando reenviar
+    // Processamos de forma assíncrona se for válido
+    
+    if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+        const userId = payment.externalReference;
+        
+        if (userId && supabaseAdmin) {
+            console.log(`[Webhook] Processando liberação para usuário: ${userId}`);
+            
+            try {
+                // 1. Registrar pagamento no banco de dados (para auditoria)
+                await supabaseAdmin.from('payments').insert({
+                    user_id: userId,
+                    amount: payment.value,
+                    status: 'approved',
+                    notes: `Webhook Asaas: ${payment.billingType} - ${payment.id}`,
+                    created_at: new Date().toISOString()
+                });
+
+                // 2. Atualizar assinatura do usuário (Adicionar 30 dias)
+                // Primeiro buscamos o perfil para saber quando a assinatura atual vence
+                const { data: profile } = await supabaseAdmin
+                    .from('profiles')
+                    .select('subscription_ends_at')
+                    .eq('id', userId)
+                    .single();
+                
+                const now = new Date();
+                let currentEnd = profile?.subscription_ends_at ? new Date(profile.subscription_ends_at) : now;
+                
+                // Se já venceu, começa de agora. Se ainda vale, soma ao final.
+                if (currentEnd < now) currentEnd = now;
+                
+                const newEnd = new Date(currentEnd);
+                newEnd.setDate(newEnd.getDate() + 30); // Adiciona 30 dias
+
+                // Atualiza o perfil
+                const { error: updateError } = await supabaseAdmin
+                    .from('profiles')
+                    .update({
+                        subscription_status: 'active',
+                        subscription_ends_at: newEnd.toISOString()
+                    })
+                    .eq('id', userId);
+
+                if (updateError) throw updateError;
+
+                console.log(`[Webhook] ✅ Sucesso! Assinatura renovada até ${newEnd.toISOString()} para o usuário ${userId}.`);
+
+            } catch (err) {
+                console.error(`[Webhook] ❌ Erro ao atualizar Supabase:`, err);
+                // Retornamos 500 para o Asaas tentar de novo depois, pois é erro nosso de banco
+                return res.status(500).json({ received: true, error: 'Falha ao salvar no banco de dados' });
+            }
+        } else {
+            console.warn(`[Webhook] Ignorado: ${!userId ? 'Sem UserId (externalReference)' : 'SupabaseAdmin não configurado'}.`);
+        }
+    }
+
+    res.json({ received: true });
 });
 
 // --- Rotas de Pagamento (ASAAS) ---
 
 app.post('/api/payment/create', async (req, res) => {
     try {
-        const { amount, name, email, cpfCnpj, description, method } = req.body;
-        console.log(`[API] Nova Transação Solicitada: ${method} - R$${amount}`);
+        const { amount, name, email, cpfCnpj, description, method, userId } = req.body;
+        console.log(`[API] Nova Transação Solicitada: ${method} - R$${amount} (User: ${userId})`);
 
         // 1. Criar ou recuperar cliente
         let customerId;
@@ -220,12 +302,14 @@ app.post('/api/payment/create', async (req, res) => {
         }
 
         // 2. Criar Cobrança
+        // IMPORTANTE: Passamos o userId no campo 'externalReference' para o Webhook saber quem pagou
         const paymentPayload = {
             customer: customerId,
             billingType: method,
             value: amount,
             dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             description: description || 'Assinatura IdentificaPix',
+            externalReference: userId || null 
         };
 
         const paymentData = await asaasRequest('/payments', 'POST', paymentPayload);
