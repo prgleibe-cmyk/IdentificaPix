@@ -10,7 +10,8 @@ import {
     BanknotesIcon,
     ExclamationTriangleIcon,
     ArrowsRightLeftIcon,
-    XMarkIcon
+    XMarkIcon,
+    CircleStackIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
@@ -24,6 +25,7 @@ export const AdminView: React.FC = () => {
     const { showToast } = useUI();
     const { t } = useTranslation();
     const [showSqlModal, setShowSqlModal] = useState(false);
+    const [sqlMode, setSqlMode] = useState<'debug' | 'schema'>('debug');
 
     const handleSync = () => {
         showToast("Dados sincronizados com sucesso.", "success");
@@ -66,6 +68,74 @@ export const AdminView: React.FC = () => {
         );
     };
 
+    const debugSql = `-- Verificar Usuário Atual
+SELECT * FROM auth.users WHERE id = '${user?.id}';
+
+-- Verificar Perfil
+SELECT * FROM profiles WHERE id = '${user?.id}';
+
+-- Listar últimos 5 pagamentos
+SELECT * FROM payments ORDER BY created_at DESC LIMIT 5;`;
+
+    const schemaSql = `-- 1. TABELA DE PERFIS (Vinculada ao Auth)
+create table if not exists public.profiles (
+  id uuid references auth.users not null primary key,
+  email text,
+  name text,
+  subscription_status text default 'trial', 
+  trial_ends_at timestamptz,
+  subscription_ends_at timestamptz,
+  is_blocked boolean default false,
+  is_lifetime boolean default false,
+  limit_ai int default 100,
+  usage_ai int default 0,
+  max_churches int default 2,
+  max_banks int default 2,
+  custom_price numeric,
+  created_at timestamptz default now()
+);
+
+-- 2. TRIGGER PARA CRIAR PERFIL AUTOMATICAMENTE
+create or replace function public.handle_new_user() 
+returns trigger as $$
+begin
+  insert into public.profiles (id, email, name, trial_ends_at)
+  values (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'full_name', 
+    now() + interval '7 days'
+  );
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Remove trigger antigo se existir para evitar duplicação
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- 3. TABELA DE PAGAMENTOS
+create table if not exists public.payments (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users not null,
+  amount numeric not null,
+  status text check (status in ('pending', 'approved', 'rejected')),
+  notes text,
+  receipt_url text,
+  created_at timestamptz default now()
+);
+
+-- 4. POLÍTICAS DE SEGURANÇA (RLS)
+alter table public.profiles enable row level security;
+create policy "Users can view own profile" on profiles for select using (auth.uid() = id);
+create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
+
+alter table public.payments enable row level security;
+create policy "Users can view own payments" on payments for select using (auth.uid() = user_id);
+`;
+
     return (
         <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
             {/* Header & Controls */}
@@ -97,8 +167,8 @@ export const AdminView: React.FC = () => {
                             onClick={() => setShowSqlModal(true)}
                             className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide whitespace-nowrap"
                         >
-                            <ExclamationTriangleIcon className="w-3.5 h-3.5" />
-                            <span>{t('admin.actions.viewSql')}</span>
+                            <CircleStackIcon className="w-3.5 h-3.5" />
+                            <span>Banco de Dados</span>
                         </button>
                         <button 
                             onClick={handleSync}
@@ -121,30 +191,45 @@ export const AdminView: React.FC = () => {
             {/* SQL Modal */}
             {showSqlModal && (
                 <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-700 overflow-hidden animate-scale-in">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-slate-900/50">
+                    <div className="bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-3xl border border-slate-700 overflow-hidden animate-scale-in flex flex-col max-h-[85vh]">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-slate-900/50 shrink-0">
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <ExclamationTriangleIcon className="w-5 h-5 text-amber-500" />
-                                {t('admin.debug.title')}
+                                <CircleStackIcon className="w-5 h-5 text-amber-500" />
+                                Utilitários SQL
                             </h3>
                             <button onClick={() => setShowSqlModal(false)} className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
                                 <XMarkIcon className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-6">
-                            <p className="text-xs text-slate-400 mb-4">{t('admin.debug.desc')}</p>
-                            <div className="bg-black/50 p-4 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 leading-relaxed overflow-x-auto select-all">
-{`-- Verificar Usuário Atual
-SELECT * FROM auth.users WHERE id = '${user?.id}';
-
--- Verificar Perfil
-SELECT * FROM profiles WHERE id = '${user?.id}';
-
--- Listar últimos 5 pagamentos
-SELECT * FROM payments ORDER BY created_at DESC LIMIT 5;`}
+                        
+                        <div className="px-6 pt-4 shrink-0">
+                            <div className="flex space-x-1 bg-slate-800/50 p-1 rounded-lg border border-slate-700 inline-flex">
+                                <button
+                                    onClick={() => setSqlMode('debug')}
+                                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${sqlMode === 'debug' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                                >
+                                    Debug Rápido
+                                </button>
+                                <button
+                                    onClick={() => setSqlMode('schema')}
+                                    className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${sqlMode === 'schema' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-emerald-400'}`}
+                                >
+                                    Instalar Schema (Tabelas)
+                                </button>
                             </div>
                         </div>
-                        <div className="px-6 py-4 bg-slate-900/50 border-t border-slate-700 flex justify-end">
+
+                        <div className="p-6 flex-1 overflow-hidden flex flex-col min-h-0">
+                            <p className="text-xs text-slate-400 mb-2 shrink-0">
+                                {sqlMode === 'debug' 
+                                    ? 'Execute estes scripts no SQL Editor do Supabase para verificar o estado atual.' 
+                                    : '⚠️ IMPORTANTE: Execute este script no SQL Editor do Supabase para criar as tabelas necessárias para pagamentos e perfis.'}
+                            </p>
+                            <div className="bg-black/50 p-4 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 leading-relaxed overflow-auto select-all flex-1 custom-scrollbar">
+                                <pre>{sqlMode === 'debug' ? debugSql : schemaSql}</pre>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-slate-900/50 border-t border-slate-700 flex justify-end shrink-0">
                             <button onClick={() => setShowSqlModal(false)} className="px-5 py-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-full transition-colors uppercase">
                                 {t('common.close')}
                             </button>
