@@ -105,7 +105,6 @@ const ReportRow = memo(({
     // 1. Dates
     const transactionDate = currentRow.transaction.date;
     const contributorDate = currentRow.contributor?.date;
-    // Highlight if identified AND dates are textually different
     const datesDiffer = isIdentified && contributorDate && transactionDate !== contributorDate;
 
     // 2. Names
@@ -114,9 +113,8 @@ const ReportRow = memo(({
 
     // 3. Amounts
     const txAmount = Math.abs(currentRow.transaction.amount);
-    const contribAmount = currentRow.contributor ? Math.abs(currentRow.contributor.amount || 0) : 0;
-    // Highlight if identified AND amounts differ by more than 1 cent
-    const amountsDiffer = isIdentified && currentRow.contributor && Math.abs(txAmount - contribAmount) > 0.01;
+    const expectedAmount = currentRow.contributorAmount || (currentRow.contributor ? Math.abs(currentRow.contributor.amount || 0) : 0);
+    const amountsDiffer = isIdentified && currentRow.contributor && Math.abs(txAmount - expectedAmount) > 0.01;
 
     // High Density Input Styles
     const inputClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm h-7";
@@ -171,8 +169,6 @@ const ReportRow = memo(({
         }
     };
 
-    // Avatar Logic
-    const getChurchInitial = (name: string) => name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?';
     const avatarColors = [
         'bg-indigo-50 text-indigo-600 border-indigo-100',
         'bg-blue-50 text-blue-600 border-blue-100',
@@ -216,7 +212,7 @@ const ReportRow = memo(({
             
             {reportType === 'income' ? (
                 <>
-                    {/* Church Column with Avatar */}
+                    {/* Church Column */}
                     <td className="px-4 py-2.5 align-top">
                         {isEditing ? (
                             <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
@@ -227,7 +223,7 @@ const ReportRow = memo(({
                             <div className="flex items-center">
                                 {currentRow.church.name !== '---' && (
                                     <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold mr-2 border shrink-0 transition-transform group-hover:scale-105 ${avatarColor} dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600`}>
-                                        {getChurchInitial(currentRow.church.name)}
+                                        {currentRow.church.name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?'}
                                     </div>
                                 )}
                                 <span className={`text-xs font-semibold truncate max-w-[120px] ${currentRow.church.name === '---' ? 'text-slate-400 italic font-normal' : 'text-slate-700 dark:text-slate-200'}`}>
@@ -237,13 +233,12 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Name / Description Column (SOURCE LABELS ADDED) */}
+                    {/* Name / Description Column */}
                     <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
                         {isEditing ? (
                             <input type="text" value={currentRow.contributor?.name || ''} onChange={e => onEditChange('contributor.name', e.target.value)} className={inputClass} disabled={currentRow.status === 'NÃO IDENTIFICADO' && !currentRow.contributor} />
                         ) : (
                             <div className="flex flex-col gap-1.5">
-                                {/* Primary: Contributor Name (Lista) */}
                                 {isIdentified ? (
                                     <>
                                         <div className="flex items-start gap-2">
@@ -252,7 +247,6 @@ const ReportRow = memo(({
                                                 {contributorName || '---'}
                                             </span>
                                         </div>
-                                        {/* Secondary: Transaction Description (Extrato) */}
                                         <div className="flex items-start gap-2">
                                             <SourceBadge type="bank" />
                                             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight pt-0.5" title="Descrição no Extrato">
@@ -263,12 +257,6 @@ const ReportRow = memo(({
                                 ) : (
                                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight">
                                         {transactionDesc || '---'}
-                                    </span>
-                                )}
-                                
-                                {!contributorName && isIdentified && (
-                                     <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 italic pl-[55px]">
-                                        Nome do membro não vinculado
                                     </span>
                                 )}
                             </div>
@@ -289,14 +277,14 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Value Column (ICONS ADDED) */}
+                    {/* Value Column */}
                     <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
                         <div className="flex flex-col items-end gap-1.5">
                             {isIdentified ? (
                                 <>
                                     <div className="flex items-center gap-2" title="Valor na Lista">
                                         <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                                            {formatCurrency(contribAmount, language)}
+                                            {formatCurrency(expectedAmount, language)}
                                         </span>
                                         <UserIcon className="w-3 h-3 text-indigo-400" />
                                     </div>
@@ -309,7 +297,7 @@ const ReportRow = memo(({
                                 </>
                             ) : (
                                 <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                                    {formatCurrency(txAmount, language)}
+                                    {formatCurrency(expectedAmount || txAmount, language)}
                                 </span>
                             )}
                         </div>
@@ -339,7 +327,7 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Expenses: Cost Center (Church) */}
+                    {/* Expenses: Cost Center */}
                     <td className="px-4 py-2.5 align-top">
                         {isEditing ? (
                             <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
@@ -381,7 +369,7 @@ const ReportRow = memo(({
                 )}
             </td>
 
-            {/* Actions Column - Ghost Buttons */}
+            {/* Actions */}
             <td className="px-4 py-2.5 text-center align-top">
                 <div className={`flex items-center justify-center space-x-1 transition-opacity duration-200 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     {isEditing ? (
@@ -416,7 +404,6 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const [editingRowId, setEditingRowId] = useState<string | null>(null);
     const [draftRow, setDraftRow] = useState<MatchResult | null>(null);
     
-    // --- Pagination State ---
     const [currentPage, setCurrentPage] = useState(1);
 
     useEffect(() => {
