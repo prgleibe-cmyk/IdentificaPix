@@ -139,8 +139,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { t } = useTranslation();
     const { showToast, setIsLoading, setActiveView } = useUI();
 
-    // --- 1. Composition: Use Domain-Specific Hooks ---
-    // These hooks now return MEMOIZED objects, so 'referenceData' etc. are stable unless their internals change.
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
     const reconciliation = useReconciliation({
@@ -154,16 +152,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
-    // --- 2. Global UI State & Lifecycle ---
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
 
-    // --- 3. Dashboard Summary Calculation (Heavy, Derived) ---
-    // Kept here as it aggregates data from multiple sources
-    // UPDATED KEY TO '_v5' TO FORCE RESET AND FIX LOOPS caused by corrupt data
-    const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v5', {
+    // V6 Force Clean
+    const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v6', {
         autoConfirmed: { count: 0, value: 0 },
         manualConfirmed: { count: 0, value: 0 },
         pending: { count: 0, value: 0 },
@@ -175,14 +170,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         methodBreakdown: { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 }
     }, false);
 
-    // --- 4. Global Effects ---
-    // Fetch Initial Data
     useEffect(() => {
         if (!user) return;
         const fetchData = async () => {
-            const hasCachedData = referenceData.banks.length > 0 || referenceData.churches.length > 0 || reconciliation.hasActiveSession;
-            if (!hasCachedData) setIsLoading(true);
-            
             try {
                 const [churchesResult, banksResult, savedReportsResult] = await Promise.all([
                     supabase.from('churches').select('*').order('name'),
@@ -194,50 +184,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (banksResult.data) referenceData.setBanks(banksResult.data as any || []);
                 if (savedReportsResult.data) {
                     const mappedReports = (savedReportsResult.data || []).map(report => {
-                        // Ensure data is parsed if it comes as string (double encoded)
                         let parsedData = report.data;
                         if (typeof report.data === 'string') {
-                            try {
-                                parsedData = JSON.parse(report.data);
-                            } catch (e) {
-                                console.error("Failed to parse saved report data", e);
-                                parsedData = { results: [] };
-                            }
+                            try { parsedData = JSON.parse(report.data); } catch (e) { parsedData = { results: [] }; }
                         }
-                        
-                        return {
-                            id: report.id,
-                            name: report.name,
-                            createdAt: report.created_at,
-                            recordCount: report.record_count,
-                            user_id: report.user_id,
-                            data: parsedData as unknown as SavedReport['data'], 
-                        };
+                        return { id: report.id, name: report.name, createdAt: report.created_at, recordCount: report.record_count, user_id: report.user_id, data: parsedData as unknown as SavedReport['data'] };
                     });
                     reportManager.setSavedReports(mappedReports);
                 }
-                referenceData.setLearnedAssociations([]);
-                
             } catch (err) {
-                Logger.error('Unexpected error fetching initial data', err);
+                Logger.error('Fetch initial data failed', err);
             } finally {
                 setIsLoading(false);
                 setInitialDataLoaded(true);
             }
         };
         fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]); 
 
-    // Summary Calculation Effect - OPTIMIZED TO PREVENT LOOPS
-    // We use JSON.stringify on the IDs to detect meaningful changes, rather than object references.
-    const resultsHash = JSON.stringify(reconciliation.matchResults.map(r => r.transaction.id + r.status + (r.contributor?.id || '')));
+    const resultsHash = JSON.stringify(reconciliation.matchResults.map(r => r.transaction.id + r.status));
     const reportsHash = reportManager.savedReports.length;
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            // Safety check: if data isn't loaded or arrays are empty, don't re-calculate
-            if (!initialDataLoaded && reconciliation.matchResults.length === 0) return;
+            if (!initialDataLoaded) return;
 
             let resultsToProcess = reconciliation.matchResults;
             let isHistorical = false;
@@ -261,29 +231,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         valuePerChurch.set(r.church.name, current + r.transaction.amount);
                     }
                     const method = r.matchMethod || 'AUTOMATIC';
-                    if (Object.prototype.hasOwnProperty.call(methodBreakdown, method)) {
-                        methodBreakdown[method]++;
-                    }
+                    if (Object.prototype.hasOwnProperty.call(methodBreakdown, method)) methodBreakdown[method]++;
                 }
             });
             
-            const newTotalValue = resultsToProcess.reduce((sum, r) => sum + r.transaction.amount, 0);
+            const newTotal = resultsToProcess.reduce((sum, r) => sum + r.transaction.amount, 0);
             
             setSummary(prev => {
-                // Strict equality check to prevent React Loop
-                if (prev.totalValue === newTotalValue && 
-                    prev.identifiedCount === (autoConfirmed.length + manualConfirmed.length) &&
-                    prev.isHistorical === isHistorical) {
-                    return prev;
-                }
-                
+                if (prev.totalValue === newTotal && prev.identifiedCount === (autoConfirmed.length + manualConfirmed.length) && prev.isHistorical === isHistorical) return prev;
                 return {
                     autoConfirmed: { count: autoConfirmed.length, value: autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0) },
                     manualConfirmed: { count: manualConfirmed.length, value: manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0) },
                     pending: { count: pending.length, value: pending.reduce((sum, r) => sum + r.transaction.amount, 0) },
                     identifiedCount: autoConfirmed.length + manualConfirmed.length,
                     unidentifiedCount: pending.length,
-                    totalValue: newTotalValue,
+                    totalValue: newTotal,
                     valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
                     isHistorical,
                     methodBreakdown
@@ -293,50 +255,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return () => clearTimeout(timer);
     }, [resultsHash, reportsHash, initialDataLoaded]);
 
-    // --- 5. Handlers ---
-
     const handleBackToSettings = useCallback(() => setActiveView('upload'), [setActiveView]);
-
-    const resetApplicationData = useCallback(async () => {
-        if (!user) return;
-        
-        await Promise.all([
-            supabase.from('banks').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-            supabase.from('churches').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
-            supabase.from('saved_reports').delete().eq('user_id', user.id)
-        ]);
-
-        referenceData.setChurches([]);
-        referenceData.setBanks([]);
-        reportManager.setSavedReports([]);
-        referenceData.setLearnedAssociations([]);
-        reconciliation.clearUploadedFiles();
-        reconciliation.clearMatchResults();
-        referenceData.setSimilarityLevel(80);
-        referenceData.setDayTolerance(2);
-        showToast("Todos os dados da aplicação foram redefinidos.", 'success');
-    }, [user, referenceData, reportManager, reconciliation, showToast]);
 
     const openDeleteConfirmation = useCallback((item: DeletingItem) => setDeletingItem(item), []);
     const closeDeleteConfirmation = useCallback(() => setDeletingItem(null), []);
 
     const confirmDeletion = useCallback(async () => {
         if (!deletingItem) return;
-        
         if (deletingItem.type === 'report-row') {
              reconciliation.setReportPreviewData(prev => {
                  if (!prev) return null;
                  const newPreview = { ...prev };
                  const targetGroup = deletingItem.meta?.reportType === 'expenses' ? newPreview.expenses : newPreview.income;
-                 Object.keys(targetGroup).forEach(key => {
-                     targetGroup[key] = targetGroup[key].filter(r => r.transaction.id !== deletingItem.id);
-                 });
+                 Object.keys(targetGroup).forEach(key => { targetGroup[key] = targetGroup[key].filter(r => r.transaction.id !== deletingItem.id); });
                  return newPreview;
              });
              reconciliation.setMatchResults(prev => prev.filter(r => r.transaction.id !== deletingItem.id));
-             showToast("Linha excluída com sucesso.", 'success');
-        }
-        else if (deletingItem.type === 'report-group') {
+        } else if (deletingItem.type === 'report-group') {
              reconciliation.setReportPreviewData(prev => {
                  if (!prev) return null;
                  const newPreview = { ...prev };
@@ -344,217 +279,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                  if (targetGroup[deletingItem.id]) {
                      const idsToRemove = targetGroup[deletingItem.id].map(r => r.transaction.id);
                      delete targetGroup[deletingItem.id];
-                     reconciliation.setMatchResults(prevResults => prevResults.filter(r => !idsToRemove.includes(r.transaction.id)));
+                     reconciliation.setMatchResults(prev => prev.filter(r => !idsToRemove.includes(r.transaction.id)));
                  }
                  return newPreview;
              });
-             showToast("Grupo excluído com sucesso.", 'success');
-        }
-        else if (deletingItem.type === 'bank') {
-            if(!user) return;
+        } else if (deletingItem.type === 'bank') {
             referenceData.setBanks(prev => prev.filter(b => b.id !== deletingItem.id));
             await supabase.from('banks').delete().eq('id', deletingItem.id);
-            showToast('Banco excluído.', 'success');
         } else if (deletingItem.type === 'church') {
-            if(!user) return;
             referenceData.setChurches(prev => prev.filter(c => c.id !== deletingItem.id));
             await supabase.from('churches').delete().eq('id', deletingItem.id);
-            showToast('Igreja excluída.', 'success');
         } else if (deletingItem.type === 'report-saved') {
-            if(!user) return;
             reportManager.setSavedReports(prev => prev.filter(r => r.id !== deletingItem.id));
             await supabase.from('saved_reports').delete().eq('id', deletingItem.id);
-            showToast('Relatório excluído.', 'success');
         } else if (deletingItem.type === 'uploaded-files') {
             reconciliation.clearUploadedFiles();
         } else if (deletingItem.type === 'match-results') {
             reconciliation.clearMatchResults();
         } else if (deletingItem.type === 'learned-associations') {
-            if(!user) return;
             referenceData.setLearnedAssociations([]);
-            await supabase.from('learned_associations').delete().eq('user_id', user.id);
-            showToast('Associações aprendidas removidas.', 'success');
-        } else if (deletingItem.type === 'all-data') {
-            resetApplicationData();
+            await supabase.from('learned_associations').delete().eq('user_id', user?.id);
         }
         closeDeleteConfirmation();
-    }, [deletingItem, user, referenceData, reportManager, reconciliation, showToast, resetApplicationData, closeDeleteConfirmation]);
+        showToast("Ação realizada com sucesso.");
+    }, [deletingItem, user, referenceData, reportManager, reconciliation, showToast, closeDeleteConfirmation]);
 
     const viewSavedReport = useCallback((reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
-        
-        // Validation
-        if (!report) {
-            showToast("Relatório não encontrado.", 'error');
-            return;
-        }
-        
-        // Robust check for data integrity
-        if (!report.data || !Array.isArray(report.data.results)) {
-             console.error("Saved report data corrupted:", report);
-             showToast("Este relatório não contém dados válidos ou está corrompido.", 'error');
-             return;
-        }
-
+        if (!report || !report.data) return;
         try {
-            const rawResults = report.data.results;
-            
-            // Filter out any potential malformed records that could crash the app
-            // And inject default values for missing objects (like church)
-            const validResults = rawResults
-                .filter(r => r && r.transaction && typeof r.transaction === 'object')
-                .map(r => ({
-                    ...r,
-                    // Ensure church exists to prevent render crashes accessing church.name
-                    church: r.church || { ...PLACEHOLDER_CHURCH, name: 'Igreja Desconhecida (Histórico)' },
-                    status: r.status || 'NÃO IDENTIFICADO',
-                    transaction: {
-                        ...r.transaction,
-                        amount: Number(r.transaction.amount) || 0
-                    },
-                    // Ensure contributor exists if identified
-                    contributor: r.contributor || null
-                }));
-
-            const incomeResults = validResults.filter(r => (r.transaction.amount || 0) > 0);
-            const expenseResults = validResults.filter(r => (r.transaction.amount || 0) < 0);
-            
-            const previewData: { income: GroupedReportData; expenses: GroupedReportData } = {
-                income: groupResultsByChurch(incomeResults),
-                expenses: {}
-            };
-
-            if (expenseResults.length > 0) {
-                previewData.expenses = { 'all_expenses_group': expenseResults };
-            }
-
-            // Important: Set results AND preview data
+            const validResults = report.data.results.map(r => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
             reconciliation.setMatchResults(validResults);
-            reconciliation.setReportPreviewData(previewData);
+            reconciliation.setReportPreviewData({
+                income: groupResultsByChurch(validResults.filter(r => r.transaction.amount > 0)),
+                expenses: { 'all_expenses_group': validResults.filter(r => r.transaction.amount < 0) }
+            });
             reconciliation.setHasActiveSession(true);
-
-            // HYDRATE FILES FOR RE-COMPARISON (NEW FEATURE)
-            if (report.data.bankStatementFile) {
-                reconciliation.setBankStatementFile(report.data.bankStatementFile);
-            }
-            if (report.data.sourceFiles && Array.isArray(report.data.sourceFiles)) {
-                // Ensure type safety when mapping
-                const sourceFilesHydrated = report.data.sourceFiles.map((sf: any) => ({
-                    churchId: sf.churchId,
-                    content: sf.content,
-                    fileName: sf.fileName
-                }));
-                reconciliation.setContributorFiles(sourceFilesHydrated);
-            }
-
-            // Redirect immediately
             setActiveView('reports'); 
-        } catch (error) {
-            console.error("Erro ao abrir relatório:", error);
-            showToast("Erro crítico ao processar os dados do relatório.", 'error');
-        }
+        } catch (error) { showToast("Erro ao abrir relatório.", 'error'); }
     }, [reportManager.savedReports, reconciliation, setActiveView, showToast]);
 
-    const openPaymentModal = useCallback(() => setIsPaymentModalOpen(true), []);
-    const closePaymentModal = useCallback(() => setIsPaymentModalOpen(false), []);
+    const findMatchResult = useCallback((transactionId: string) => reconciliation.matchResults.find(r => r.transaction.id === transactionId) || reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId), [reconciliation.matchResults, reportManager.allHistoricalResults]);
 
-    // Recompare Modal Controls
-    const openRecompareModal = useCallback(() => setIsRecompareModalOpen(true), []);
-    const closeRecompareModal = useCallback(() => setIsRecompareModalOpen(false), []);
-
-    // --- Unified Manual Identification Logic ---
-    // Helper to find transaction anywhere
-    const findMatchResult = useCallback((transactionId: string): MatchResult | undefined => {
-        // 1. Try Current Session
-        const current = reconciliation.matchResults.find(r => r.transaction.id === transactionId);
-        if (current) return current;
-
-        // 2. Try Saved Reports
-        return reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId);
-    }, [reconciliation.matchResults, reportManager.allHistoricalResults]);
-
-    // Override openManualIdentify to search globally
     const openManualIdentify = useCallback((transactionId: string) => {
         const result = findMatchResult(transactionId);
-        if (result) {
-            reconciliation.setManualIdentificationTx(result.transaction);
-        }
+        if (result) reconciliation.setManualIdentificationTx(result.transaction);
     }, [findMatchResult, reconciliation]);
 
-    // Override confirmManualIdentification to update the correct source
     const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
         const church = referenceData.churches.find(c => c.id === churchId);
         const result = findMatchResult(transactionId);
-        
         if (church && result) {
-            const newContributor: Contributor = {
-                id: `manual-${transactionId}`,
-                name: result.transaction.cleanedDescription || result.transaction.description, 
-                cleanedName: result.transaction.cleanedDescription,
-                amount: result.transaction.amount,
-                originalAmount: result.transaction.originalAmount,
-                date: result.transaction.date
-            };
-
-            const updatedRow: MatchResult = {
-                ...result,
-                status: 'IDENTIFICADO',
-                church,
-                contributor: newContributor,
-                matchMethod: 'MANUAL',
-                similarity: 100,
-                contributorAmount: result.transaction.amount
-            };
-            
-            // Check where it belongs and update accordingly
-            const isInCurrent = reconciliation.matchResults.some(r => r.transaction.id === transactionId);
-            
-            if (isInCurrent) {
-                reconciliation.updateReportData(updatedRow, 'income');
-            } else {
-                reportManager.updateSavedReportTransaction(transactionId, updatedRow);
-            }
-
+            const updated: MatchResult = { ...result, status: 'IDENTIFICADO', church, contributor: { id: `manual-${transactionId}`, name: result.transaction.cleanedDescription || result.transaction.description, amount: result.transaction.amount }, matchMethod: 'MANUAL', similarity: 100, contributorAmount: result.transaction.amount };
+            if (reconciliation.matchResults.some(r => r.transaction.id === transactionId)) reconciliation.updateReportData(updated, 'income');
+            else reportManager.updateSavedReportTransaction(transactionId, updated);
             reconciliation.closeManualIdentify();
-            showToast('Identificação manual realizada.', 'success');
+            showToast('Identificação realizada.', 'success');
         }
     }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
 
-
-    // --- 6. Provider Value ---
     const value = useMemo(() => ({
-        // Reference Data
-        ...referenceData,
-        // Reconciliation
-        ...reconciliation,
-        isCompareDisabled: !reconciliation.bankStatementFile,
-        openManualIdentify, // Override with global version
-        confirmManualIdentification, // Override with global version
-        findMatchResult, // Helper
-        // Reports
-        ...reportManager,
-        viewSavedReport,
-        // Handlers overrides/extras
-        handleBackToSettings,
-        // UI Globals
-        deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
-        initialDataLoaded, summary,
-        isPaymentModalOpen, openPaymentModal, closePaymentModal,
-        isRecompareModalOpen, openRecompareModal, closeRecompareModal
-    }), [
-        referenceData, reconciliation, reportManager, 
-        viewSavedReport, handleBackToSettings, 
-        deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion,
-        initialDataLoaded, summary, 
-        isPaymentModalOpen, openPaymentModal, closePaymentModal,
-        isRecompareModalOpen, openRecompareModal, closeRecompareModal,
-        openManualIdentify, confirmManualIdentification, findMatchResult
-    ]);
+        ...referenceData, ...reconciliation, isCompareDisabled: !reconciliation.bankStatementFile, openManualIdentify, confirmManualIdentification, findMatchResult, ...reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false), isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false)
+    }), [referenceData, reconciliation, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, confirmManualIdentification, findMatchResult]);
 
-    return (
-        <AppContext.Provider value={value}>
-            {children}
-            <RecompareModal />
-        </AppContext.Provider>
-    );
+    return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };

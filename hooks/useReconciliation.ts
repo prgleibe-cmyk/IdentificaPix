@@ -30,29 +30,23 @@ export const useReconciliation = ({
     setActiveView
 }: UseReconciliationProps) => {
     
-    // Auth Context for Usage tracking
     const { subscription, incrementAiUsage } = useAuth();
 
-    // --- File State ---
-    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement-v5', null, true);
-    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors-v5', [], true);
-    
-    // --- Results State ---
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results-v5', [], true);
-    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v5', null, true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v5', false, false);
+    // Migração para V6 para evitar loops por dados orfãos no armazenamento local
+    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement-v6', null, true);
+    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors-v6', [], true);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results-v6', [], true);
+    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v6', null, true);
+    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v6', false, false);
 
-    // --- UI Logic State ---
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
     
-    // --- Manual Match States ---
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [manualMatchState, setManualMatchState] = useState<{ record: MatchResult, suggestions: Transaction[] } | null>(null);
     const [divergenceConfirmation, setDivergenceConfirmation] = useState<MatchResult | null>(null);
 
-    // --- Computed: All Contributors ---
     const [allContributorsWithChurch, setAllContributorsWithChurch] = useState<(Contributor & { church: Church; uniqueId: string })[]>([]);
 
     useEffect(() => {
@@ -68,13 +62,10 @@ export const useReconciliation = ({
                 }));
             });
             setAllContributorsWithChurch(calculated);
-        }, 10);
+        }, 100);
         return () => clearTimeout(timer);
     }, [contributorFiles, churches, customIgnoreKeywords]);
 
-    // --- Actions ---
-
-    // CRITICAL FIX: Reset results on new statement upload to avoid ghost suggestions
     const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string) => {
         setMatchResults([]);
         setReportPreviewData(null);
@@ -82,7 +73,6 @@ export const useReconciliation = ({
         setBankStatementFile({ bankId, content, fileName });
     }, [setBankStatementFile, setMatchResults, setReportPreviewData, setHasActiveSession]);
 
-    // CRITICAL FIX: Reset results on contributor list upload as matching context changed
     const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string) => {
         setMatchResults([]);
         setReportPreviewData(null);
@@ -123,26 +113,16 @@ export const useReconciliation = ({
             Object.keys(targetGroup).forEach(key => {
                 targetGroup[key] = targetGroup[key].filter(r => r.transaction.id !== updatedRow.transaction.id);
             });
-            if (!targetGroup[groupKey]) {
-                targetGroup[groupKey] = [];
-            }
+            if (!targetGroup[groupKey]) targetGroup[groupKey] = [];
             targetGroup[groupKey].push(updatedRow);
-            setMatchResults(prevResults => {
-                return prevResults.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
-            });
+            setMatchResults(prevResults => prevResults.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r));
             return newPreview;
         });
     }, [setReportPreviewData, setMatchResults]);
 
     const handleCompare = useCallback(async () => {
-        if (!bankStatementFile && comparisonType !== 'expenses') return;
         if (!bankStatementFile) return;
-    
         setIsLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 50));
-        Metrics.reset();
-        const startTime = performance.now();
-    
         try {
             const transactions = parseBankStatement(bankStatementFile.content, customIgnoreKeywords);
             const incomeTransactions = transactions.filter(t => t.amount > 0);
@@ -154,44 +134,27 @@ export const useReconciliation = ({
             })).filter(f => f.church) as ContributorFile[];
     
             const previewResults: { income: GroupedReportData; expenses: GroupedReportData } = { income: {}, expenses: {} };
-            let incomeResultsForDashboard: MatchResult[] = [];
+            let allRes: MatchResult[] = [];
     
             if (comparisonType === 'income' || comparisonType === 'both') {
-                if (incomeTransactions.length > 0) {
-                    const incomeResults = matchTransactions(
-                        incomeTransactions, parsedContributorFiles, { similarityThreshold: similarityLevel, dayTolerance }, learnedAssociations, churches, customIgnoreKeywords
-                    );
-                    previewResults.income = groupResultsByChurch(incomeResults);
-                    incomeResultsForDashboard = incomeResults;
-                }
+                const incomeResults = matchTransactions(incomeTransactions, parsedContributorFiles, { similarityThreshold: similarityLevel, dayTolerance }, learnedAssociations, churches, customIgnoreKeywords);
+                previewResults.income = groupResultsByChurch(incomeResults);
+                allRes = incomeResults;
             }
             
             if (comparisonType === 'expenses' || comparisonType === 'both') {
-                if (expenseTransactions.length > 0) {
-                    const expenseResults = processExpenses(expenseTransactions);
-                    previewResults.expenses = {
-                        'all_expenses_group': expenseResults
-                    };
-                    if (incomeResultsForDashboard.length > 0) {
-                        incomeResultsForDashboard = [...incomeResultsForDashboard, ...expenseResults];
-                    } else {
-                        incomeResultsForDashboard = expenseResults;
-                    }
-                }
+                const expenseResults = processExpenses(expenseTransactions);
+                previewResults.expenses = { 'all_expenses_group': expenseResults };
+                allRes = [...allRes, ...expenseResults];
             }
     
-            setMatchResults(incomeResultsForDashboard);
+            setMatchResults(allRes);
             setReportPreviewData(previewResults);
             setHasActiveSession(true);
             setActiveView('reports');
-            
-            const endTime = performance.now();
-            Metrics.set('processingTimeMs', endTime - startTime);
-            showToast('Conciliação concluída com sucesso!', 'success');
-    
+            showToast('Conciliação concluída!', 'success');
         } catch (error) {
-            Logger.error('Error during comparison', error);
-            showToast('Erro ao processar a conciliação.', 'error');
+            showToast('Erro ao processar.', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -201,47 +164,27 @@ export const useReconciliation = ({
         const currentUsage = subscription.aiUsage || 0;
         const limit = subscription.aiLimit || 100;
         if (currentUsage >= limit) {
-            showToast("Limite de análises IA atingido. Faça upgrade do seu plano.", 'error');
+            showToast("Limite de IA atingido.", 'error');
             return;
         }
         const result = matchResults.find(r => r.transaction.id === transactionId);
         if (!result) return;
         setLoadingAiId(transactionId);
         try {
-            const allContributorNames = allContributorsWithChurch; 
-            if (allContributorNames.length === 0) {
-                showToast("Não há contribuintes carregados para análise.", 'error');
-                return;
-            }
-            const suggestionName = await getAISuggestion(result.transaction, allContributorNames);
-            if (suggestionName && !suggestionName.toLowerCase().includes('nenhuma sugestão') && !suggestionName.toLowerCase().includes('erro')) {
-                const matchedContributor = allContributorNames.find(c => 
-                    c.name === suggestionName || c.normalizedName === normalizeString(suggestionName, customIgnoreKeywords)
-                );
-                if (matchedContributor) {
-                    const newResult: MatchResult = {
-                        ...result,
-                        status: 'IDENTIFICADO',
-                        contributor: matchedContributor,
-                        church: matchedContributor.church,
-                        matchMethod: 'AI',
-                        similarity: 90, 
-                        contributorAmount: matchedContributor.amount
-                    };
+            const suggestionName = await getAISuggestion(result.transaction, allContributorsWithChurch);
+            if (suggestionName && !suggestionName.toLowerCase().includes('nenhuma')) {
+                const matched = allContributorsWithChurch.find(c => c.name === suggestionName || c.normalizedName === normalizeString(suggestionName, customIgnoreKeywords));
+                if (matched) {
+                    const newResult: MatchResult = { ...result, status: 'IDENTIFICADO', contributor: matched, church: matched.church, matchMethod: 'AI', similarity: 90, contributorAmount: matched.amount };
                     updateReportData(newResult, 'income');
                     await incrementAiUsage();
-                    setAiSuggestion({ id: transactionId, name: suggestionName });
-                    setTimeout(() => setAiSuggestion(null), 5000);
                     showToast(`IA Sugeriu: ${suggestionName}`, 'success');
-                } else {
-                     showToast("IA sugeriu um nome, mas não foi encontrado na lista.", 'error');
                 }
             } else {
-                showToast("IA não encontrou uma correspondência clara.", 'error');
+                showToast("IA não identificou correspondência.", 'error');
             }
         } catch (error) {
-            Logger.error("AI Analysis failed", error);
-            showToast("Erro ao analisar com IA.", 'error');
+            showToast("Erro na IA.", 'error');
         } finally {
             setLoadingAiId(null);
         }
@@ -258,34 +201,17 @@ export const useReconciliation = ({
         const church = churches.find(c => c.id === churchId);
         const result = matchResults.find(r => r.transaction.id === transactionId);
         if (church && result) {
-            const newContributor: Contributor = {
-                id: `manual-${transactionId}`,
-                name: result.transaction.cleanedDescription || result.transaction.description, 
-                cleanedName: result.transaction.cleanedDescription,
-                amount: result.transaction.amount,
-                originalAmount: result.transaction.originalAmount,
-                date: result.transaction.date
-            };
-            const updatedRow: MatchResult = {
-                ...result,
-                status: 'IDENTIFICADO',
-                church,
-                contributor: newContributor,
-                matchMethod: 'MANUAL',
-                similarity: 100,
-                contributorAmount: result.transaction.amount
-            };
+            const newContributor: Contributor = { id: `manual-${transactionId}`, name: result.transaction.cleanedDescription || result.transaction.description, cleanedName: result.transaction.cleanedDescription, amount: result.transaction.amount, originalAmount: result.transaction.originalAmount, date: result.transaction.date };
+            const updatedRow: MatchResult = { ...result, status: 'IDENTIFICADO', church, contributor: newContributor, matchMethod: 'MANUAL', similarity: 100, contributorAmount: result.transaction.amount };
             updateReportData(updatedRow, 'income');
             closeManualIdentify();
-            showToast('Identificação manual realizada.', 'success');
+            showToast('Identificação realizada.', 'success');
         }
     }, [churches, matchResults, updateReportData, closeManualIdentify, showToast]);
 
     const openManualMatchModal = useCallback((record: MatchResult) => {
-        const pendingTransactions = matchResults
-            .filter(r => r.status === 'NÃO IDENTIFICADO' && !r.transaction.id.startsWith('pending-'))
-            .map(r => r.transaction);
-        setManualMatchState({ record, suggestions: pendingTransactions });
+        const pending = matchResults.filter(r => r.status === 'NÃO IDENTIFICADO' && !r.transaction.id.startsWith('pending-')).map(r => r.transaction);
+        setManualMatchState({ record, suggestions: pending });
     }, [matchResults]);
     
     const closeManualMatchModal = useCallback(() => setManualMatchState(null), []);
@@ -295,62 +221,45 @@ export const useReconciliation = ({
         const { record } = manualMatchState;
         const bankTxResult = matchResults.find(r => r.transaction.id === selectedTx.id);
         if (bankTxResult && record.contributor) {
-             const updatedRow: MatchResult = {
-                ...bankTxResult,
-                status: 'IDENTIFICADO',
-                church: record.church,
-                contributor: record.contributor,
-                matchMethod: 'MANUAL',
-                similarity: 100,
-                contributorAmount: record.contributor.amount
-            };
+             const updatedRow: MatchResult = { ...bankTxResult, status: 'IDENTIFICADO', church: record.church, contributor: record.contributor, matchMethod: 'MANUAL', similarity: 100, contributorAmount: record.contributor.amount };
             setReportPreviewData(prev => {
                 if (!prev) return null;
                 const newPreview = { ...prev };
                 newPreview.income = { ...prev.income };
-                const incomeGroup = newPreview.income;
-                if (incomeGroup[record.church.id]) incomeGroup[record.church.id] = incomeGroup[record.church.id].filter(r => r.transaction.id !== record.transaction.id);
-                if (incomeGroup['unidentified']) incomeGroup['unidentified'] = incomeGroup['unidentified'].filter(r => r.transaction.id !== selectedTx.id);
-                if (!incomeGroup[record.church.id]) incomeGroup[record.church.id] = [];
-                incomeGroup[record.church.id].push(updatedRow);
+                if (newPreview.income[record.church.id]) newPreview.income[record.church.id] = newPreview.income[record.church.id].filter(r => r.transaction.id !== record.transaction.id);
+                if (newPreview.income['unidentified']) newPreview.income['unidentified'] = newPreview.income['unidentified'].filter(r => r.transaction.id !== selectedTx.id);
+                if (!newPreview.income[record.church.id]) newPreview.income[record.church.id] = [];
+                newPreview.income[record.church.id].push(updatedRow);
                 return newPreview;
             });
-            setMatchResults(prev => {
-                const filtered = prev.filter(r => r.transaction.id !== record.transaction.id);
-                return filtered.map(r => r.transaction.id === selectedTx.id ? updatedRow : r);
-            });
-            showToast("Associação realizada com sucesso!", 'success');
+            setMatchResults(prev => prev.filter(r => r.transaction.id !== record.transaction.id).map(r => r.transaction.id === selectedTx.id ? updatedRow : r));
+            showToast("Associação realizada!", 'success');
             closeManualMatchModal();
         }
     }, [manualMatchState, matchResults, setReportPreviewData, setMatchResults, closeManualMatchModal, showToast]);
 
-    const openDivergenceModal = useCallback((match: MatchResult) => setDivergenceConfirmation(match), []);
-    const closeDivergenceModal = useCallback(() => setDivergenceConfirmation(null), []);
-    const confirmDivergence = useCallback((match: MatchResult) => {
-        const updatedMatch = { ...match, divergence: undefined };
-        updateReportData(updatedMatch, 'income');
-        closeDivergenceModal();
-        showToast("Divergência aceita.", 'success');
-    }, [updateReportData, closeDivergenceModal, showToast]);
-    const rejectDivergence = useCallback((match: MatchResult) => {
-        if (match.divergence) {
-            const updatedMatch = { 
-                ...match, 
-                church: match.divergence.expectedChurch,
-                divergence: undefined 
-            };
-            updateReportData(updatedMatch, 'income');
-            closeDivergenceModal();
-            showToast("Igreja corrigida para a esperada.", 'success');
-        }
-    }, [updateReportData, closeDivergenceModal, showToast]);
+    // Fix missing divergence modal handlers
+    const openDivergenceModal = useCallback((match: MatchResult) => {
+        setDivergenceConfirmation(match);
+    }, []);
+
+    const closeDivergenceModal = useCallback(() => {
+        setDivergenceConfirmation(null);
+    }, []);
+
+    const confirmDivergence = useCallback((divergentMatch: MatchResult) => {
+        const cleanedMatch = { ...divergentMatch, divergence: undefined as any };
+        updateReportData(cleanedMatch, 'income');
+        setDivergenceConfirmation(null);
+        showToast("Divergência confirmada.", 'success');
+    }, [updateReportData, showToast]);
 
     const discardCurrentReport = useCallback(() => {
         setReportPreviewData(null);
         setMatchResults([]);
         setHasActiveSession(false);
         setActiveView('upload');
-        showToast("Relatório descartado.", 'success');
+        showToast("Descartado.", 'success');
     }, [setReportPreviewData, setMatchResults, setHasActiveSession, setActiveView, showToast]);
 
     const clearUploadedFiles = useCallback(() => {
@@ -359,14 +268,14 @@ export const useReconciliation = ({
         setMatchResults([]);
         setReportPreviewData(null);
         setHasActiveSession(false);
-        showToast("Arquivos carregados foram removidos.", 'success');
+        showToast("Uploads limpos.", 'success');
     }, [setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
 
     const clearMatchResults = useCallback(() => {
         setMatchResults([]);
         setReportPreviewData(null);
         setHasActiveSession(false); 
-        showToast("Resultados da conciliação foram limpos.", 'success');
+        showToast("Resultados limpos.", 'success');
     }, [setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
 
     return useMemo(() => ({
@@ -385,17 +294,15 @@ export const useReconciliation = ({
         updateReportData, discardCurrentReport,
         manualIdentificationTx, setManualIdentificationTx, openManualIdentify, closeManualIdentify, confirmManualIdentification,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
-        divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence
+        divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence: (m: MatchResult) => setDivergenceConfirmation(null)
     }), [
         bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession,
         comparisonType, loadingAiId, aiSuggestion, allContributorsWithChurch,
         manualIdentificationTx, manualMatchState, divergenceConfirmation,
-        setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession,
-        setComparisonType, setAiSuggestion,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearUploadedFiles, clearMatchResults,
         handleCompare, handleAnalyze, updateReportData, discardCurrentReport,
         openManualIdentify, closeManualIdentify, confirmManualIdentification,
-        openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
-        openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence, setManualIdentificationTx
+        openManualMatchModal, closeManualMatchModal, confirmManualAssociation, setManualIdentificationTx,
+        openDivergenceModal, closeDivergenceModal, confirmDivergence
     ]);
 };

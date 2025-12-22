@@ -52,7 +52,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
   const lastProcessedUserId = useRef<string | null>(null);
   
-  const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v5', DEFAULT_SETTINGS);
+  // Upgrade para V6 para limpar cache problemático no link oficial
+  const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v6', DEFAULT_SETTINGS);
   const settingsRef = useRef(systemSettings);
 
   useEffect(() => {
@@ -75,15 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const calculateSubscription = useCallback(async (currentUser: User | null, force: boolean = false) => {
       if (!currentUser || isSigningOut.current) return;
       
-      // Bloqueia re-calculos inúteis que causam loop
       if (!force && lastProcessedUserId.current === currentUser.id) return;
       lastProcessedUserId.current = currentUser.id;
 
       const settings = settingsRef.current;
-      const TRIAL_DAYS = settings.defaultTrialDays;
-      const BASE_AI = settings.baseAiLimit;
-      const BASE_SLOTS = settings.baseSlots;
-
       try {
           const { data: profileData } = await supabase
               .from('profiles')
@@ -108,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               daysRemaining = Math.ceil(diff / (1000 * 60 * 60 * 24));
               if (daysRemaining <= 0) { status = 'expired'; daysRemaining = 0; }
           } else {
-              const trialEnd = p.trial_ends_at ? new Date(p.trial_ends_at) : new Date(now.getTime() + TRIAL_DAYS * 86400000);
+              const trialEnd = p.trial_ends_at ? new Date(p.trial_ends_at) : new Date(now.getTime() + settings.defaultTrialDays * 86400000);
               const diff = trialEnd.getTime() - now.getTime();
               daysRemaining = Math.ceil(diff / (1000 * 60 * 60 * 24));
               if (daysRemaining <= 0) { status = 'expired'; daysRemaining = 0; }
@@ -117,19 +113,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscription({
               plan: status as any,
               daysRemaining: Math.max(0, daysRemaining),
-              totalDays: status === 'trial' ? TRIAL_DAYS : 30,
+              totalDays: status === 'trial' ? settings.defaultTrialDays : 30,
               isExpired: status === 'expired',
               isBlocked,
               isLifetime,
-              aiLimit: p.limit_ai || BASE_AI,
+              aiLimit: p.limit_ai || settings.baseAiLimit,
               aiUsage: p.usage_ai || 0,
-              maxChurches: p.max_churches || BASE_SLOTS,
-              maxBanks: p.max_banks || BASE_SLOTS
+              maxChurches: p.max_churches || settings.baseSlots,
+              maxBanks: p.max_banks || settings.baseSlots
           });
       } catch (e) {
           console.error("Erro assinatura:", e);
       }
   }, []);
+
+  // Ref para o listener acessar a função atualizada sem re-subscrever
+  const calcSubRef = useRef(calculateSubscription);
+  useEffect(() => { calcSubRef.current = calculateSubscription; }, [calculateSubscription]);
 
   const signOut = useCallback(async () => {
     if (isSigningOut.current) return;
@@ -137,42 +137,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
 
     try {
-        // Limpeza imediata dos estados para interromper qualquer efeito colateral
         lastProcessedUserId.current = null;
         setSession(null);
         setUser(null);
-        
         await supabase.auth.signOut();
         
-        // Limpeza agressiva de storage
-        const storageKeys = Object.keys(localStorage);
-        storageKeys.forEach(key => {
-            if (key.includes('supabase.auth.token') || key.includes('identificapix-results')) {
+        // Limpeza profunda
+        Object.keys(localStorage).forEach(key => {
+            if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
                 localStorage.removeItem(key);
             }
         });
 
-        setSubscription({
-            plan: 'trial',
-            daysRemaining: 0,
-            totalDays: 10,
-            isExpired: false,
-            isBlocked: false,
-            isLifetime: false,
-            aiLimit: 100,
-            aiUsage: 0,
-            maxChurches: 2,
-            maxBanks: 2
-        });
+        setSubscription({ plan: 'trial', daysRemaining: 0, totalDays: 10, isExpired: false, isBlocked: false, isLifetime: false, aiLimit: 100, aiUsage: 0, maxChurches: 2, maxBanks: 2 });
     } catch (e) {
-        console.error("Erro ao sair:", e);
+        console.error("Erro logout:", e);
     } finally {
         isSigningOut.current = false;
         setLoading(false);
     }
   }, []);
 
-  // Listener ÚNICO e ESTÁVEL. Não depende de funções que mudam.
+  // ÚNICO EFFECT DE AUTH - Dependências vazias para evitar loops em produção
   useEffect(() => {
     let mounted = true;
 
@@ -182,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (newSession) {
             setSession(newSession);
             setUser(newSession.user);
-            await calculateSubscription(newSession.user);
+            await calcSubRef.current(newSession.user);
         } else {
             setSession(null);
             setUser(null);
@@ -191,13 +177,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
     });
 
-    // Hidratação inicial silenciosa
     supabase.auth.getSession().then(({ data: { session: s } }) => {
         if (mounted && !isSigningOut.current) {
             if (s) {
                 setSession(s);
                 setUser(s.user);
-                calculateSubscription(s.user);
+                calcSubRef.current(s.user);
             }
             setLoading(false);
         }
@@ -207,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       authListener?.unsubscribe();
     };
-  }, [calculateSubscription]);
+  }, []); // Sem dependências = estabilidade total
 
   const updateSystemSettings = useCallback((newSettings: Partial<SystemSettings>) => {
       setSystemSettings(prev => ({ ...prev, ...newSettings }));
