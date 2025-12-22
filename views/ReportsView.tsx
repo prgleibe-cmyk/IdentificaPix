@@ -23,7 +23,8 @@ import {
     AdjustmentsHorizontalIcon,
     BuildingOfficeIcon,
     ExclamationTriangleIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    CheckBadgeIcon
 } from '../components/Icons';
 import { formatCurrency } from '../utils/formatters';
 import { MatchResult, Language } from '../types';
@@ -119,6 +120,7 @@ const ReportGroup: React.FC<{
         updateReportData,
         openDeleteConfirmation,
         searchFilters,
+        openBulkManualIdentify
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
@@ -256,18 +258,9 @@ const ReportGroup: React.FC<{
 
     const groupName = getGroupName(churchId);
 
-    const getExportValue = (item: MatchResult, type: 'income' | 'expenses') => {
-        if (type === 'income') {
-            const amount = item.contributorAmount ?? item.transaction.amount;
-            if (amount !== 0) return formatCurrency(amount, language);
-            if (item.contributor?.originalAmount) return item.contributor.originalAmount;
-            if (item.transaction.originalAmount) return item.transaction.originalAmount;
-            return formatCurrency(0, language);
-        } else {
-            const amount = item.transaction.amount;
-            if (amount !== 0) return formatCurrency(amount, language);
-            return item.transaction.originalAmount || formatCurrency(0, language);
-        }
+    const handleBulkIdentify = () => {
+        const transactions = processedResults.map(r => r.transaction);
+        openBulkManualIdentify(transactions);
     };
 
     const handlePrint = () => {
@@ -383,11 +376,11 @@ const ReportGroup: React.FC<{
                 const mappedData = group.results.map(item => {
                     if (group.reportType === 'income') {
                          if (isUnidentifiedIncome) {
-                            return { [t('table.date')]: item.transaction.date, [t('table.name')]: item.transaction.cleanedDescription || item.transaction.description, ['Valor']: getExportValue(item, 'income') };
+                            return { [t('table.date')]: item.transaction.date, [t('table.name')]: item.transaction.cleanedDescription || item.transaction.description, ['Valor']: item.transaction.amount };
                         }
-                        return { [t('table.date')]: item.transaction.date, [t('table.contributor')]: item.contributor?.cleanedName || item.contributor?.name || '---', [t('table.description')]: item.transaction.description, [t('table.percentage')]: item.similarity != null ? `${item.similarity.toFixed(0)}%` : '0%', [t('table.amount')]: getExportValue(item, 'income'), [t('table.status')]: t(item.status === 'IDENTIFICADO' ? 'table.status.identified' : 'table.status.unidentified') };
+                        return { [t('table.date')]: item.transaction.date, [t('table.contributor')]: item.contributor?.cleanedName || item.contributor?.name || '---', [t('table.description')]: item.transaction.description, [t('table.percentage')]: item.similarity != null ? `${item.similarity.toFixed(0)}%` : '0%', [t('table.amount')]: item.transaction.amount, [t('table.status')]: t(item.status === 'IDENTIFICADO' ? 'table.status.identified' : 'table.status.unidentified') };
                     } else {
-                        return { [t('table.date')]: item.transaction.date, [t('table.description')]: item.transaction.cleanedDescription || item.transaction.description, [t('table.amount')]: getExportValue(item, 'expenses'), [t('table.costCenter')]: item.church.name !== '---' ? item.church.name : '' };
+                        return { [t('table.date')]: item.transaction.date, [t('table.description')]: item.transaction.cleanedDescription || item.transaction.description, [t('table.amount')]: item.transaction.amount, [t('table.costCenter')]: item.church.name !== '---' ? item.church.name : '' };
                     }
                 });
                 const sheet = XLSX.utils.json_to_sheet(mappedData);
@@ -405,14 +398,14 @@ const ReportGroup: React.FC<{
                 if (group.reportType === 'income') {
                      if (isUnidentifiedIncome) {
                         head = [[t('table.date'), t('table.name'), 'Valor']];
-                        body = group.results.map(item => [item.transaction.date, item.transaction.cleanedDescription || item.transaction.description, getExportValue(item, 'income')]);
+                        body = group.results.map(item => [item.transaction.date, item.transaction.cleanedDescription || item.transaction.description, item.transaction.amount]);
                     } else {
                         head = [[t('table.date'), t('table.contributor'), t('table.amount'), t('table.status')]];
-                        body = group.results.map(item => [item.transaction.date, item.contributor?.cleanedName || item.contributor?.name || '---', getExportValue(item, 'income'), t(item.status === 'IDENTIFICADO' ? 'table.status.identified' : 'table.status.unidentified')]);
+                        body = group.results.map(item => [item.transaction.date, item.contributor?.cleanedName || item.contributor?.name || '---', item.transaction.amount, t(item.status === 'IDENTIFICADO' ? 'table.status.identified' : 'table.status.unidentified')]);
                     }
                 } else {
                     head = [[t('table.date'), t('table.description'), t('table.amount'), t('table.costCenter')]];
-                    body = group.results.map(item => [item.transaction.date, item.transaction.cleanedDescription || item.transaction.description, getExportValue(item, 'expenses'), item.church.name !== '---' ? item.church.name : '']);
+                    body = group.results.map(item => [item.transaction.date, item.transaction.cleanedDescription || item.transaction.description, item.transaction.amount, item.church.name !== '---' ? item.church.name : '']);
                 }
                 (doc as any).autoTable({ startY: yPos, head, body, theme: 'grid', styles: { fontSize: 10 }, headStyles: { fillColor: [30, 41, 59] } });
                 yPos = (doc as any).autoTable.previous.finalY + 10;
@@ -519,7 +512,19 @@ const ReportGroup: React.FC<{
                         </div>
                     )}
 
-                    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700/50 bg-slate-100/50 dark:bg-slate-900/50 flex justify-end">
+                    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700/50 bg-slate-100/50 dark:bg-slate-900/50 flex justify-between items-center">
+                        <div className="flex-1">
+                            {isUnidentifiedIncome && searchQuery && processedResults.length > 0 && (
+                                <button 
+                                    onClick={handleBulkIdentify}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 active:scale-95 transition-all"
+                                >
+                                    <CheckBadgeIcon className="w-3.5 h-3.5" />
+                                    <span>Identificar {processedResults.length} como...</span>
+                                </button>
+                            )}
+                        </div>
+                        
                         <div className="relative w-full max-w-[200px]">
                             <SearchIcon className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
@@ -613,7 +618,6 @@ export const ReportsView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-4 pb-2">
-            {/* CABEÇALHO DESTACADO - MAIS ESCURO PARA CONTRASTE */}
             <div className="flex-shrink-0 bg-slate-50 dark:bg-[#0B1120] p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-500">
                 <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                     <div>
@@ -669,7 +673,6 @@ export const ReportsView: React.FC = () => {
                     </div>
                 </div>
 
-                {/* TABS DENTRO DO CABEÇALHO PARA MELHOR FLUXO */}
                 {(hasIncome && hasExpenses) && (
                     <div className="mt-6 flex bg-slate-100 dark:bg-slate-900 p-1 rounded-full border border-slate-200 dark:border-slate-800 shadow-inner w-fit">
                         <button
@@ -690,7 +693,6 @@ export const ReportsView: React.FC = () => {
                 )}
             </div>
 
-            {/* CORPO DO RELATÓRIO */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 pb-10">
                 {activeTab === 'income' && incomeGroups.length > 0 && (
                     <>

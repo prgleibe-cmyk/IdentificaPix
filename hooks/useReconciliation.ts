@@ -32,7 +32,6 @@ export const useReconciliation = ({
     
     const { subscription, incrementAiUsage } = useAuth();
 
-    // Migração para V6 para evitar loops por dados orfãos no armazenamento local
     const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement-v6', null, true);
     const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors-v6', [], true);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results-v6', [], true);
@@ -44,6 +43,7 @@ export const useReconciliation = ({
     const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
     
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
+    const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[] | null>(null);
     const [manualMatchState, setManualMatchState] = useState<{ record: MatchResult, suggestions: Transaction[] } | null>(null);
     const [divergenceConfirmation, setDivergenceConfirmation] = useState<MatchResult | null>(null);
 
@@ -195,7 +195,10 @@ export const useReconciliation = ({
         if (tx) setManualIdentificationTx(tx);
     }, [matchResults]);
 
-    const closeManualIdentify = useCallback(() => setManualIdentificationTx(null), []);
+    const closeManualIdentify = useCallback(() => {
+        setManualIdentificationTx(null);
+        setBulkIdentificationTxs(null);
+    }, []);
 
     const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
         const church = churches.find(c => c.id === churchId);
@@ -238,7 +241,6 @@ export const useReconciliation = ({
         }
     }, [manualMatchState, matchResults, setReportPreviewData, setMatchResults, closeManualMatchModal, showToast]);
 
-    // Fix missing divergence modal handlers
     const openDivergenceModal = useCallback((match: MatchResult) => {
         setDivergenceConfirmation(match);
     }, []);
@@ -292,13 +294,15 @@ export const useReconciliation = ({
         clearUploadedFiles, clearMatchResults,
         handleCompare, handleAnalyze,
         updateReportData, discardCurrentReport,
-        manualIdentificationTx, setManualIdentificationTx, openManualIdentify, closeManualIdentify, confirmManualIdentification,
+        manualIdentificationTx, setManualIdentificationTx, 
+        bulkIdentificationTxs, setBulkIdentificationTxs,
+        openManualIdentify, closeManualIdentify, confirmManualIdentification,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence: (m: MatchResult) => setDivergenceConfirmation(null)
     }), [
         bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession,
         comparisonType, loadingAiId, aiSuggestion, allContributorsWithChurch,
-        manualIdentificationTx, manualMatchState, divergenceConfirmation,
+        manualIdentificationTx, bulkIdentificationTxs, manualMatchState, divergenceConfirmation,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearUploadedFiles, clearMatchResults,
         handleCompare, handleAnalyze, updateReportData, discardCurrentReport,
         openManualIdentify, closeManualIdentify, confirmManualIdentification,

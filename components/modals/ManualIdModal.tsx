@@ -4,23 +4,21 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { formatCurrency } from '../../utils/formatters';
-import { XMarkIcon } from '../Icons';
+import { XMarkIcon, BanknotesIcon } from '../Icons';
 import { Contributor, MatchResult } from '../../types';
 
 export const ManualIdModal: React.FC = () => {
     const { 
         manualIdentificationTx, 
+        bulkIdentificationTxs,
         churches,
         confirmManualIdentification, 
+        confirmBulkManualIdentification,
         closeManualIdentify,
-        findMatchResult, // Used to find the original row
-        learnAssociation,
-        // For local preview updates only if needed, but main update is via confirm
-        updateReportData, 
-        reportPreviewData
+        findMatchResult,
+        learnAssociation
     } = useContext(AppContext);
     const { t, language } = useTranslation();
-    const { showToast } = useUI();
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
@@ -31,53 +29,50 @@ export const ManualIdModal: React.FC = () => {
         } else {
             setSelectedChurchId('');
         }
-    }, [churches, manualIdentificationTx]);
+    }, [churches, manualIdentificationTx, bulkIdentificationTxs]);
 
 
-    if (!manualIdentificationTx) return null;
+    if (!manualIdentificationTx && !bulkIdentificationTxs) return null;
     
     const handleConfirm = () => {
-        if (selectedChurchId) {
-            setIsSaving(true);
-            
-            // Find the original result from ANY source (Active or History)
+        if (!selectedChurchId) return;
+        setIsSaving(true);
+
+        if (bulkIdentificationTxs) {
+            const ids = bulkIdentificationTxs.map(tx => tx.id);
+            confirmBulkManualIdentification(ids, selectedChurchId);
+        } else if (manualIdentificationTx) {
             const originalResult = findMatchResult(manualIdentificationTx.id);
             const church = churches.find(c => c.id === selectedChurchId);
         
             if (!originalResult || !church) {
-                // Fallback to simpler confirm if full result not found (unlikely)
                 confirmManualIdentification(manualIdentificationTx.id, selectedChurchId);
-                setIsSaving(false);
-                return;
+            } else {
+                const newContributor: Contributor = {
+                    id: `manual-${manualIdentificationTx.id}`,
+                    name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
+                    originalAmount: originalResult.transaction.originalAmount,
+                    amount: originalResult.transaction.amount,
+                };
+                const updatedRow: MatchResult = {
+                    ...originalResult,
+                    status: 'IDENTIFICADO',
+                    church,
+                    contributor: newContributor,
+                    matchMethod: 'MANUAL',
+                    similarity: 100,
+                    contributorAmount: originalResult.transaction.amount,
+                };
+                learnAssociation(updatedRow);
+                confirmManualIdentification(manualIdentificationTx.id, selectedChurchId);
             }
-        
-            // Construct new Contributor Data
-            const newContributor: Contributor = {
-                id: `manual-${manualIdentificationTx.id}`,
-                name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
-                originalAmount: originalResult.transaction.originalAmount,
-                amount: originalResult.transaction.amount,
-            };
-        
-            const updatedRow: MatchResult = {
-                ...originalResult,
-                status: 'IDENTIFICADO',
-                church,
-                contributor: newContributor,
-                matchMethod: 'MANUAL',
-                similarity: 100,
-                contributorAmount: originalResult.transaction.amount,
-            };
-            
-            // Learn Association
-            learnAssociation(updatedRow);
-            
-            // Confirm & Update Data Source (Delegated to AppContext to decide where to update)
-            confirmManualIdentification(manualIdentificationTx.id, selectedChurchId);
-            
-            setIsSaving(false);
         }
+        setIsSaving(false);
     };
+
+    const isBulk = !!bulkIdentificationTxs;
+    const count = bulkIdentificationTxs?.length || 0;
+    const totalAmount = bulkIdentificationTxs?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
 
     return (
         <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
@@ -85,12 +80,29 @@ export const ManualIdModal: React.FC = () => {
                 <div className="p-8">
                     <div className="flex items-start justify-between mb-6">
                         <div>
-                            <h3 className="text-xl font-bold text-brand-graphite dark:text-white tracking-tight">{t('modal.manualId')}</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700">
-                                Transação: <span className="font-bold text-slate-700 dark:text-slate-200">{manualIdentificationTx.cleanedDescription || manualIdentificationTx.description}</span>
-                                <br/>
-                                Valor: <span className="font-bold text-emerald-600 dark:text-emerald-400">{manualIdentificationTx.originalAmount || formatCurrency(manualIdentificationTx.amount, language)}</span>
-                            </p>
+                            <h3 className="text-xl font-bold text-brand-graphite dark:text-white tracking-tight">
+                                {isBulk ? 'Identificar em Massa' : t('modal.manualId')}
+                            </h3>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                                {isBulk ? (
+                                    <>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <BanknotesIcon className="w-3.5 h-3.5 text-blue-500" />
+                                            <span>Selecionadas: <span className="font-bold text-slate-700 dark:text-slate-200">{count} transações</span></span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3.5" />
+                                            <span>Valor Total: <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalAmount, language)}</span></span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        Transação: <span className="font-bold text-slate-700 dark:text-slate-200">{manualIdentificationTx?.cleanedDescription || manualIdentificationTx?.description}</span>
+                                        <br/>
+                                        Valor: <span className="font-bold text-emerald-600 dark:text-emerald-400">{manualIdentificationTx?.originalAmount || formatCurrency(manualIdentificationTx?.amount || 0, language)}</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
                         <button type="button" onClick={closeManualIdentify} className="p-2 rounded-full hover:bg-brand-bg dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                             <XMarkIcon className="w-5 h-5" />
@@ -117,7 +129,7 @@ export const ManualIdModal: React.FC = () => {
                 <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-white/5">
                     <button type="button" onClick={closeManualIdentify} className="px-5 py-2.5 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
                     <button type="button" onClick={handleConfirm} disabled={!selectedChurchId || isSaving} className="px-6 py-2.5 text-xs font-bold text-white rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288]">
-                         {isSaving ? `${t('common.save')}...` : t('common.save')}
+                         {isSaving ? `${t('common.save')}...` : (isBulk ? 'Identificar Tudo' : t('common.save'))}
                     </button>
                 </div>
             </div>

@@ -12,8 +12,7 @@ export const PLACEHOLDER_CHURCH: Church = {
     pastor: '',
 };
 
-// Palavras que indicam linhas de resumo em extratos bancários.
-const STOP_WORDS_RESUMO = ['TOTAL', 'SALDO', 'SUBTOTAL', 'RESUMO', 'ACUMULADO', 'FECHAMENTO', 'DISPONIVEL', 'APLICAÇÃO', 'RESGATE', 'SALDO ANTERIOR', 'TOTAL GERAL'];
+const STOP_WORDS_RESUMO = ['TOTAL GERAL', 'SALDO ANTERIOR', 'SALDO DO DIA', 'ACUMULADO MENSUAL', 'SALDO ATUAL'];
 
 // --- Intelligent Search Filtering ---
 
@@ -123,10 +122,12 @@ const isAmountString = (s: string): boolean => {
     if (!s || typeof s !== 'string') return false;
     const clean = s.trim();
     if (!/\d/.test(clean)) return false;
-    const digitsOnly = clean.replace(/\D/g, '');
-    if (digitsOnly.length >= 11) return false;
+    
+    // Filtro para não confundir anos isolados com valores (ex: 2024)
+    if (/^(19|20)\d{2}$/.test(clean)) return false;
+
     const val = parseAmountString(clean);
-    return !isNaN(val) && isFinite(val); 
+    return !isNaN(val) && isFinite(val) && Math.abs(val) > 0.001; 
 };
 
 const parseAmountString = (s: string): number => {
@@ -197,22 +198,21 @@ const intelligentParser = <T>(
 
     // Detecção de Cabeçalhos
     let hDate = -1, hAmount = -1, hText = -1;
-    for (const row of lines.slice(0, 10)) {
+    for (const row of lines.slice(0, 15)) {
         row.forEach((cell, idx) => {
             const up = cell.toUpperCase().trim();
-            if (['DATA', 'DATA_PAGAMENTO', 'DATA_PAGTO', 'DT_MOV', 'DT'].includes(up)) hDate = idx;
-            if (['VALOR', 'VALOR_PAGO', 'VR_LANC', 'CONTRIBUIÇÃO', 'QUANTIA', 'VALOR_RECEBIDO'].includes(up)) hAmount = idx;
+            if (['DATA', 'DATA_PAGAMENTO', 'DATA_PAGTO', 'DT_MOV', 'DT', 'MOVIMENTO'].includes(up)) hDate = idx;
+            if (['VALOR', 'VALOR_PAGO', 'VR_LANC', 'CONTRIBUIÇÃO', 'QUANTIA', 'VALOR_RECEBIDO', 'LANCAMENTO', 'VALOR_LIQUIDO'].includes(up)) hAmount = idx;
             if (['NOME', 'CONTRIBUINTE', 'MEMBRO', 'NOME_DO_MEMBRO', 'DESCRIÇÃO', 'HISTORICO', 'NOME COMPLETO'].includes(up)) hText = idx;
         });
     }
 
-    const sample = lines.slice(0, 50);
+    const sample = lines.slice(0, 60);
     const numCols = Math.max(...sample.map(l => l.length));
     const colStats = Array.from({ length: numCols }, () => ({
         dates: 0,
         amounts: 0,
-        sumValue: 0,
-        countAboveOne: 0,
+        sumAbsValue: 0,
         uniqueValues: new Set<string>(),
         totalChars: 0,
         numericChars: 0
@@ -225,8 +225,7 @@ const intelligentParser = <T>(
             if (isAmountString(cell)) {
                 const val = Math.abs(parseAmountString(cell));
                 colStats[i].amounts++;
-                colStats[i].sumValue += val;
-                if (val > 1.01) colStats[i].countAboveOne++;
+                colStats[i].sumAbsValue += val;
             }
             colStats[i].uniqueValues.add(cell.toUpperCase());
             colStats[i].totalChars += cell.length;
@@ -234,65 +233,70 @@ const intelligentParser = <T>(
         });
     });
 
-    const dateIdx = hDate !== -1 ? hDate : colStats.findIndex((s) => s.dates > (sample.length * 0.2));
+    const dateIdx = hDate !== -1 ? hDate : colStats.findIndex((s) => s.dates > (sample.length * 0.05));
     
-    // Identificação de Valor Individual vs Totais/Centavos
     let amountIdx = hAmount;
     if (amountIdx === -1) {
         const candidates = colStats
             .map((s, i) => ({ 
                 i, 
                 count: s.amounts, 
-                avg: s.amounts > 0 ? s.sumValue / s.amounts : Infinity,
-                aboveOneRatio: s.amounts > 0 ? s.countAboveOne / s.amounts : 0
+                avg: s.amounts > 0 ? s.sumAbsValue / s.amounts : Infinity 
             }))
-            .filter(c => c.i !== dateIdx && c.count > (sample.length * 0.1) && c.aboveOneRatio > 0.3) // Exclui colunas que parecem apenas centavos
-            .sort((a, b) => {
-                // Prioriza a coluna com a MENOR média (coluna individual vs total acumulado), mas garante que não é apenas centavos
-                if (Math.abs(a.count - b.count) < (sample.length * 0.1)) return a.avg - b.avg;
-                return b.count - a.count;
-            });
+            .filter(c => c.i !== dateIdx && c.count > (sample.length * 0.05))
+            .sort((a, b) => a.avg - b.avg); 
         if (candidates.length > 0) amountIdx = candidates[0].i;
     }
 
-    // Identificação de Texto (Nome/Descrição) - INDIVIDUALIZADA
     let textIdx = hText;
     if (textIdx === -1) {
         const textCandidates = colStats
             .map((s, i) => {
                 const numericRatio = s.totalChars > 0 ? s.numericChars / s.totalChars : 1;
-                // Penaliza colunas puramente numéricas ou datas
-                const penalty = (numericRatio > 0.6 || i === dateIdx || i === amountIdx) ? 0.0001 : 1.0;
+                const penalty = (numericRatio > 0.7 || i === dateIdx || i === amountIdx) ? 0.0001 : 1.0;
                 return { i, score: s.uniqueValues.size * (s.totalChars / (sample.length || 1)) * penalty };
             })
             .sort((a, b) => b.score - a.score);
-        if (textCandidates.length > 0 && textCandidates[0].score > 0.1) textIdx = textCandidates[0].i;
+        if (textCandidates.length > 0 && textCandidates[0].score > 0.01) textIdx = textCandidates[0].i;
     }
 
     const results: any[] = [];
-    lines.forEach(row => {
+    lines.forEach((row, lineIndex) => {
         const dateRaw = dateIdx !== -1 ? row[dateIdx] : null;
         const amountRaw = amountIdx !== -1 ? row[amountIdx] : null;
         const textRaw = textIdx !== -1 ? row[textIdx] : null;
 
+        // FIDELIDADE TOTAL: Se tem Data e Valor, a linha DEVE ser incluída.
+        // Relaxamos a validação de texto para não perder registros.
         if (!dateRaw || !amountRaw || !isDateString(dateRaw) || !isAmountString(amountRaw)) return;
+        
         const parsedAmount = parseAmountString(amountRaw);
+        if (isNaN(parsedAmount)) return;
 
         if (type === 'EXTRATO') {
             results.push({
                 date: dateRaw,
                 amount: parsedAmount,
                 originalAmount: amountRaw,
-                description: textRaw || 'Sem Descrição'
+                description: textRaw || 'LANÇAMENTO SEM DESCRIÇÃO',
+                lineIndex 
             });
         } else {
-            if (textRaw && textRaw.length > 1) {
-                const upperText = textRaw.toUpperCase();
-                const isStopWord = STOP_WORDS_RESUMO.some(sw => upperText.includes(sw));
-                const isHeader = ['NOME', 'CONTRIBUINTE', 'MEMBRO', 'VALOR', 'DATA', 'HISTÓRICO', 'HISTORICO'].includes(upperText);
-                if (!isStopWord && !isHeader) {
-                    results.push({ name: textRaw, date: dateRaw, amount: parsedAmount, originalAmount: amountRaw });
-                }
+            const upperText = textRaw ? textRaw.toString().toUpperCase() : '';
+            const isStopWord = STOP_WORDS_RESUMO.some(sw => upperText && upperText.includes(sw));
+            const isHeader = ['NOME', 'CONTRIBUINTE', 'MEMBRO', 'VALOR', 'DATA', 'VALOR_PAGO'].includes(upperText);
+            
+            // Em LISTAS, ignoramos apenas cabeçalhos/rodapés óbvios.
+            // Se tiver Data e Valor, mas for um cabeçalho, isHeader vai impedir, 
+            // mas geralmente cabeçalhos não têm valores numéricos parseáveis como moedas.
+            if (!isHeader || (parsedAmount !== 0 && !isStopWord)) {
+                results.push({ 
+                    name: textRaw || 'CONTRIBUINTE NÃO IDENTIFICADO', 
+                    date: dateRaw, 
+                    amount: parsedAmount, 
+                    originalAmount: amountRaw,
+                    lineIndex 
+                });
             }
         }
     });
@@ -301,32 +305,42 @@ const intelligentParser = <T>(
 };
 
 export const parseBankStatement = (content: string, customIgnoreKeywords: string[] = []): Transaction[] => {
-    const raw = intelligentParser<Transaction>(content, 'EXTRATO');
+    const raw = intelligentParser<any>(content, 'EXTRATO');
     const ignoreRegex = createIgnoreKeywordsRegex(customIgnoreKeywords);
     return raw.map((t, i) => ({
         ...t,
-        id: `tx-${i}-${Math.random().toString(36).substr(2, 5)}`,
-        cleanedDescription: cleanText(t.description, ignoreRegex, true)
+        id: `tx-${t.lineIndex}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+        cleanedDescription: cleanText(t.description, ignoreRegex)
     }));
 };
 
 export const parseContributors = (content: string, customIgnoreKeywords: string[] = []): Contributor[] => {
-    const raw = intelligentParser<Contributor>(content, 'LISTA');
+    const raw = intelligentParser<any>(content, 'LISTA');
     const ignoreRegex = createIgnoreKeywordsRegex(customIgnoreKeywords);
     return raw.map((c, i) => ({
         ...c,
-        id: `contrib-${i}-${Math.random().toString(36).substr(2, 5)}`,
-        cleanedName: cleanText(c.name, ignoreRegex, false), 
+        id: `contrib-${c.lineIndex}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+        cleanedName: cleanText(c.name, ignoreRegex), 
         normalizedName: normalizeString(c.name, customIgnoreKeywords)
     }));
 };
 
 // --- Helpers de Limpeza ---
 
+/**
+ * Remove QUALQUER código numérico de 3 ou mais dígitos.
+ * Mantém o original se a limpeza apagar tudo, garantindo fidelidade da linha.
+ */
 const removeCodes = (text: string): string => {
-    const cpfRegex = /\d{3}\.\d{3}\.\d{3}-\d{2}|\*\*\*\.\d{3}\.\d{3}-\*\*/g;
-    const longNumRegex = /\b\d{8,}\b/g;
-    return text.replace(cpfRegex, '').replace(longNumRegex, '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    // Regex para CPFs, CNPJs e sequências numéricas de 3+ dígitos (IDs, referências, etc)
+    const cpfRegex = /\d{3}\.\d{3}\.\d{3}-\d{2}|\*\*\*\.\d{3}\.\d{3}-\*\*|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g;
+    const numericCodeRegex = /\b\d{3,}\b/g; 
+    
+    let cleaned = text.replace(cpfRegex, '').replace(numericCodeRegex, '').replace(/\s+/g, ' ').trim();
+    
+    // Se a limpeza removeu tudo (era apenas um código), mantemos o original para não sumir a linha
+    return cleaned.length > 0 ? cleaned : text;
 };
 
 export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
@@ -336,58 +350,34 @@ export const normalizeString = (str: string, ignoreKeywords: string[] = []): str
 
     if (ignoreKeywords.length > 0) {
         const regex = createIgnoreKeywordsRegex(ignoreKeywords);
-        if (regex) {
-            // No modo de normalização, removemos as palavras ignoradas também normalizadas
-            normalized = normalized.replace(regex, '');
-        }
+        if (regex) normalized = normalized.replace(regex, '');
     }
 
     return normalized.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
-export const cleanTransactionDescriptionForDisplay = (text: string): string => {
-    if (!text) return '';
-    let cleaned = text.replace(/PIX Recebido|TED|DOC|<[^>]*>/gi, '');
-    cleaned = removeCodes(cleaned);
-    return cleaned.replace(/\s+/g, ' ').trim();
-};
-
 const createIgnoreKeywordsRegex = (keywords: string[]): RegExp | null => {
     if (!keywords || keywords.length === 0) return null;
-    
-    // Para cada palavra, geramos uma versão normalizada (sem acentos) para garantir o match
     const allVariations = keywords.flatMap(k => {
         const trimmed = k.trim();
         if (!trimmed) return [];
         const unaccented = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         return unaccented !== trimmed ? [trimmed, unaccented] : [trimmed];
     });
-
-    // Escapa caracteres especiais e junta com pipe
-    const pattern = allVariations
-        .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-        .join('|');
-
-    // Usamos delimitadores flexíveis (espaço, início, fim ou pontuação bancária comum) em vez de \b estrito
+    const pattern = allVariations.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
     return new RegExp(`(?:^|\\s|[-:/])(${pattern})(?:$|\\s|[-:/])`, 'gi');
 };
 
-const cleanText = (text: string, ignoreRegex: RegExp | null, isBankStatement: boolean): string => {
+const cleanText = (text: string, ignoreRegex: RegExp | null): string => {
     if (!text) return '';
     let cleaned = removeCodes(text);
-    
     if (ignoreRegex) {
-        // Remove múltiplas vezes caso haja palavras coladas ou repetidas
         let lastCleaned = '';
         while (cleaned !== lastCleaned) {
             lastCleaned = cleaned;
-            cleaned = cleaned.replace(ignoreRegex, (match, p1) => {
-                // Mantém os delimitadores externos e remove apenas a palavra capturada (p1)
-                return match.replace(p1, '');
-            });
+            cleaned = cleaned.replace(ignoreRegex, (match, p1) => match.replace(p1, ''));
         }
     }
-    
     return cleaned.replace(/\s+/g, ' ').trim();
 };
 
@@ -397,10 +387,8 @@ export const calculateNameSimilarity = (desc: string, contrib: Contributor): num
     const s1 = normalizeString(desc);
     const s2 = contrib.normalizedName || normalizeString(contrib.name);
     if (!s1 || !s2) return 0;
-    
     const words1 = new Set(s1.split(' ').filter(w => w.length > 1));
     const words2 = new Set(s2.split(' ').filter(w => w.length > 1));
-    
     const intersect = new Set([...words1].filter(w => words2.has(w)));
     if (words1.size + words2.size === 0) return 0;
     return (2 * intersect.size) / (words1.size + words2.size) * 100;
@@ -419,28 +407,30 @@ export const matchTransactions = (
     );
 
     const finalResults: MatchResult[] = [];
-    const matchedContributorIds = new Set<string>();
+    const usedContributorIds = new Set<string>(); 
 
     transactions.forEach(tx => {
         let bestMatch: any = null;
         let highestScore = 0;
-
         const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
-        const learned = learnedAssociations.find(la => la.normalizedDescription === txDescNormalized);
         
+        const learned = learnedAssociations.find(la => la.normalizedDescription === txDescNormalized);
         if (learned) {
             const matchedContrib = allContributors.find(c => 
+                !usedContributorIds.has(`${c.church.id}-${c.id}`) &&
                 (c.normalizedName === learned.contributorNormalizedName) && 
                 (c.church.id === learned.churchId)
             );
             if (matchedContrib) {
-                matchedContributorIds.add(`${matchedContrib.church.id}-${matchedContrib.id}`);
+                usedContributorIds.add(`${matchedContrib.church.id}-${matchedContrib.id}`);
                 finalResults.push({ transaction: tx, contributor: matchedContrib, status: 'IDENTIFICADO', church: matchedContrib.church, similarity: 100, matchMethod: 'LEARNED', contributorAmount: matchedContrib.amount });
                 return;
             }
         }
 
         allContributors.forEach(contrib => {
+            const uniqueId = `${contrib.church.id}-${contrib.id}`;
+            if (usedContributorIds.has(uniqueId)) return;
             if (contrib.date && tx.date) {
                 const d1 = parseDate(tx.date), d2 = parseDate(contrib.date);
                 if (d1 && d2) {
@@ -456,7 +446,7 @@ export const matchTransactions = (
         });
 
         if (bestMatch) {
-            matchedContributorIds.add(`${bestMatch.church.id}-${bestMatch.id}`);
+            usedContributorIds.add(`${bestMatch.church.id}-${bestMatch.id}`);
             finalResults.push({ transaction: tx, contributor: bestMatch, status: 'IDENTIFICADO', church: bestMatch.church, similarity: highestScore, matchMethod: 'AUTOMATIC', contributorAmount: bestMatch.amount });
         } else {
             finalResults.push({ transaction: tx, contributor: null, status: 'NÃO IDENTIFICADO', church: PLACEHOLDER_CHURCH });
@@ -465,7 +455,7 @@ export const matchTransactions = (
 
     allContributors.forEach(contrib => {
         const uniqueId = `${contrib.church.id}-${contrib.id}`;
-        if (!matchedContributorIds.has(uniqueId)) {
+        if (!usedContributorIds.has(uniqueId)) {
             const virtualTx: Transaction = {
                 id: `pending-${contrib.id}-${Math.random().toString(36).substr(2, 5)}`,
                 date: contrib.date || '---',
@@ -490,6 +480,15 @@ export const groupResultsByChurch = (results: MatchResult[]): GroupedReportData 
     return grouped;
 };
 
-// Fix typo on line 493: PLACEHOLDER_CHOLDER_CHURCH -> PLACEHOLDER_CHURCH
 export const processExpenses = (txs: Transaction[]): MatchResult[] => 
     txs.map(t => ({ transaction: t, contributor: null, status: 'NÃO IDENTIFICADO', church: PLACEHOLDER_CHURCH }));
+
+export const cleanTransactionDescriptionForDisplay = (text: string): string => {
+    if (!text) return '';
+    let cleaned = removeCodes(text);
+    cleaned = cleaned.replace(/<[^>]*>/g, '');
+    const prefixes = ['PIX Recebido', 'TED', 'DOC', 'PIX', 'Pagamento'];
+    const prefixRegex = new RegExp(`\\b(${prefixes.join('|')})\\b`, 'gi');
+    cleaned = cleaned.replace(prefixRegex, '');
+    return cleaned.replace(/\s+/g, ' ').trim();
+};

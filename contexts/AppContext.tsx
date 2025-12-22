@@ -72,9 +72,12 @@ interface AppContextType {
 
     // Manual Operations
     manualIdentificationTx: Transaction | null;
+    bulkIdentificationTxs: Transaction[] | null;
     openManualIdentify: (transactionId: string) => void;
+    openBulkManualIdentify: (transactions: Transaction[]) => void;
     closeManualIdentify: () => void;
     confirmManualIdentification: (transactionId: string, churchId: string) => void;
+    confirmBulkManualIdentification: (transactionIds: string[], churchId: string) => void;
     manualMatchState: { record: MatchResult, suggestions: Transaction[] } | null;
     openManualMatchModal: (recordToMatch: MatchResult) => void;
     closeManualMatchModal: () => void;
@@ -174,7 +177,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         const fetchData = async () => {
             try {
-                // Timeout de 10 segundos para não travar a abertura do app
                 const fetchPromise = Promise.all([
                     supabase.from('churches').select('*').order('name'),
                     supabase.from('banks').select('*').order('name'),
@@ -202,14 +204,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             } catch (err) {
                 Logger.error('Fetch initial data failed', err);
-                // Não mostramos erro para o usuário se for apenas timeout, o app abre vazio
             } finally {
                 setIsLoading(false);
                 setInitialDataLoaded(true);
             }
         };
         fetchData();
-    }, [user?.id]); // Usar user.id como dependência é mais estável que o objeto user
+    }, [user?.id]);
 
     const resultsHash = JSON.stringify(reconciliation.matchResults.map(r => r.transaction.id + r.status));
     const reportsHash = reportManager.savedReports.length;
@@ -335,6 +336,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (result) reconciliation.setManualIdentificationTx(result.transaction);
     }, [findMatchResult, reconciliation]);
 
+    const openBulkManualIdentify = useCallback((transactions: Transaction[]) => {
+        reconciliation.setBulkIdentificationTxs(transactions);
+    }, [reconciliation]);
+
     const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
         const church = referenceData.churches.find(c => c.id === churchId);
         const result = findMatchResult(transactionId);
@@ -347,9 +352,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
 
+    const confirmBulkManualIdentification = useCallback((transactionIds: string[], churchId: string) => {
+        const church = referenceData.churches.find(c => c.id === churchId);
+        if (!church) return;
+
+        transactionIds.forEach(id => {
+            const result = findMatchResult(id);
+            if (result) {
+                const updated: MatchResult = { 
+                    ...result, 
+                    status: 'IDENTIFICADO', 
+                    church, 
+                    contributor: { 
+                        id: `manual-${id}`, 
+                        name: result.transaction.cleanedDescription || result.transaction.description, 
+                        amount: result.transaction.amount 
+                    }, 
+                    matchMethod: 'MANUAL', 
+                    similarity: 100, 
+                    contributorAmount: result.transaction.amount 
+                };
+                
+                // Aprendizado para as próximas vezes
+                referenceData.learnAssociation(updated);
+
+                if (reconciliation.matchResults.some(r => r.transaction.id === id)) {
+                    reconciliation.updateReportData(updated, 'income');
+                } else {
+                    reportManager.updateSavedReportTransaction(id, updated);
+                }
+            }
+        });
+
+        reconciliation.setBulkIdentificationTxs(null);
+        showToast(`${transactionIds.length} transações identificadas.`, 'success');
+    }, [referenceData, findMatchResult, reconciliation, reportManager, showToast]);
+
     const value = useMemo(() => ({
-        ...referenceData, ...reconciliation, isCompareDisabled: !reconciliation.bankStatementFile, openManualIdentify, confirmManualIdentification, findMatchResult, ...reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false), isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false)
-    }), [referenceData, reconciliation, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, confirmManualIdentification, findMatchResult]);
+        ...referenceData, 
+        ...reconciliation, 
+        isCompareDisabled: !reconciliation.bankStatementFile, 
+        openManualIdentify, 
+        openBulkManualIdentify,
+        confirmManualIdentification, 
+        confirmBulkManualIdentification,
+        findMatchResult, 
+        ...reportManager, 
+        viewSavedReport, 
+        handleBackToSettings, 
+        deletingItem, 
+        openDeleteConfirmation, 
+        closeDeleteConfirmation, 
+        confirmDeletion, 
+        initialDataLoaded, 
+        summary, 
+        isPaymentModalOpen, 
+        openPaymentModal: () => setIsPaymentModalOpen(true), 
+        closePaymentModal: () => setIsPaymentModalOpen(false), 
+        isRecompareModalOpen, 
+        openRecompareModal: () => setIsRecompareModalOpen(true), 
+        closeRecompareModal: () => setIsRecompareModalOpen(false)
+    }), [referenceData, reconciliation, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult]);
 
     return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };

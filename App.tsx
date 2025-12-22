@@ -79,7 +79,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-// --- Modals Render Helper ---
+// --- Modals Renderer Helper ---
 const ModalsRenderer = () => {
     const context = React.useContext(AppContext);
     if (!context) return null;
@@ -88,6 +88,7 @@ const ModalsRenderer = () => {
         editingBank, 
         editingChurch, 
         manualIdentificationTx, 
+        bulkIdentificationTxs,
         deletingItem, 
         manualMatchState, 
         savingReportState, 
@@ -96,7 +97,18 @@ const ModalsRenderer = () => {
         isPaymentModalOpen
     } = context;
 
-    if (!editingBank && !editingChurch && !manualIdentificationTx && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen) {
+    if (
+        !editingBank && 
+        !editingChurch && 
+        !manualIdentificationTx && 
+        !bulkIdentificationTxs && 
+        !deletingItem && 
+        !manualMatchState && 
+        !savingReportState && 
+        !isSearchFiltersOpen && 
+        !divergenceConfirmation && 
+        !isPaymentModalOpen
+    ) {
         return null;
     }
 
@@ -104,7 +116,7 @@ const ModalsRenderer = () => {
         <>
             {editingBank && <EditBankModal />}
             {editingChurch && <EditChurchModal />}
-            {manualIdentificationTx && <ManualIdModal />}
+            {(manualIdentificationTx || bulkIdentificationTxs) && <ManualIdModal />}
             {deletingItem && <ConfirmDeleteModal />}
             {manualMatchState && <ManualMatchModal />}
             {savingReportState && <SaveReportModal />}
