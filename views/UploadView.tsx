@@ -77,9 +77,9 @@ export const UploadView: React.FC = () => {
                                         id={`bank-uploader-${bank.id}`}
                                         title={t('upload.upload')}
                                         onFileUpload={(content, name) => handleStatementUpload(content, name, bank.id)}
-                                        isUploaded={bankStatementFile?.bankId === bank.id && !!bankStatementFile.content}
+                                        isUploaded={bankStatementFile?.bankId === bank.id && !!bankStatementFile?.content}
                                         uploadedFileName={bankStatementFile?.bankId === bank.id ? bankStatementFile.fileName : null}
-                                        disabled={!!bankStatementFile && bankStatementFile.bankId !== bank.id}
+                                        disabled={!!(bankStatementFile?.bankId) && bankStatementFile.bankId !== bank.id}
                                         onDelete={removeBankStatementFile}
                                     />
                                 </div>

@@ -38,6 +38,14 @@ export const useReconciliation = ({
     const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v6', null, true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v6', false, false);
 
+    // --- Resiliência de Estado ---
+    // Se o arquivo de extrato não tiver um bankId (corrompido), limpa para evitar travar a UI
+    useEffect(() => {
+        if (bankStatementFile && !bankStatementFile.bankId) {
+            setBankStatementFile(null);
+        }
+    }, [bankStatementFile, setBankStatementFile]);
+
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
