@@ -312,11 +312,12 @@ export const parseBankStatement = (content: string, customIgnoreKeywords: string
 
 export const parseContributors = (content: string, customIgnoreKeywords: string[] = []): Contributor[] => {
     const raw = intelligentParser<Contributor>(content, 'LISTA');
+    const ignoreRegex = createIgnoreKeywordsRegex(customIgnoreKeywords);
     return raw.map((c, i) => ({
         ...c,
         id: `contrib-${i}-${Math.random().toString(36).substr(2, 5)}`,
-        cleanedName: c.name, 
-        normalizedName: normalizeString(c.name)
+        cleanedName: cleanText(c.name, ignoreRegex, false), 
+        normalizedName: normalizeString(c.name, customIgnoreKeywords)
     }));
 };
 
@@ -335,7 +336,10 @@ export const normalizeString = (str: string, ignoreKeywords: string[] = []): str
 
     if (ignoreKeywords.length > 0) {
         const regex = createIgnoreKeywordsRegex(ignoreKeywords);
-        if (regex) normalized = normalized.replace(regex, '');
+        if (regex) {
+            // No modo de normalização, removemos as palavras ignoradas também normalizadas
+            normalized = normalized.replace(regex, '');
+        }
     }
 
     return normalized.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -350,14 +354,40 @@ export const cleanTransactionDescriptionForDisplay = (text: string): string => {
 
 const createIgnoreKeywordsRegex = (keywords: string[]): RegExp | null => {
     if (!keywords || keywords.length === 0) return null;
-    const pattern = keywords.map(k => k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    return new RegExp(`\\b(${pattern})\\b`, 'gi');
+    
+    // Para cada palavra, geramos uma versão normalizada (sem acentos) para garantir o match
+    const allVariations = keywords.flatMap(k => {
+        const trimmed = k.trim();
+        if (!trimmed) return [];
+        const unaccented = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return unaccented !== trimmed ? [trimmed, unaccented] : [trimmed];
+    });
+
+    // Escapa caracteres especiais e junta com pipe
+    const pattern = allVariations
+        .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+
+    // Usamos delimitadores flexíveis (espaço, início, fim ou pontuação bancária comum) em vez de \b estrito
+    return new RegExp(`(?:^|\\s|[-:/])(${pattern})(?:$|\\s|[-:/])`, 'gi');
 };
 
 const cleanText = (text: string, ignoreRegex: RegExp | null, isBankStatement: boolean): string => {
     if (!text) return '';
     let cleaned = removeCodes(text);
-    if (isBankStatement && ignoreRegex) cleaned = cleaned.replace(ignoreRegex, '');
+    
+    if (ignoreRegex) {
+        // Remove múltiplas vezes caso haja palavras coladas ou repetidas
+        let lastCleaned = '';
+        while (cleaned !== lastCleaned) {
+            lastCleaned = cleaned;
+            cleaned = cleaned.replace(ignoreRegex, (match, p1) => {
+                // Mantém os delimitadores externos e remove apenas a palavra capturada (p1)
+                return match.replace(p1, '');
+            });
+        }
+    }
+    
     return cleaned.replace(/\s+/g, ' ').trim();
 };
 
@@ -460,5 +490,6 @@ export const groupResultsByChurch = (results: MatchResult[]): GroupedReportData 
     return grouped;
 };
 
+// Fix typo on line 493: PLACEHOLDER_CHOLDER_CHURCH -> PLACEHOLDER_CHURCH
 export const processExpenses = (txs: Transaction[]): MatchResult[] => 
     txs.map(t => ({ transaction: t, contributor: null, status: 'NÃO IDENTIFICADO', church: PLACEHOLDER_CHURCH }));

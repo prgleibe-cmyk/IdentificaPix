@@ -102,10 +102,14 @@ const ReportRow = memo(({
     const datesDiffer = isIdentified && contributorDate && transactionDate !== contributorDate;
 
     const contributorName = currentRow.contributor?.cleanedName || currentRow.contributor?.name;
-    const transactionDesc = currentRow.transaction.cleanedDescription || currentRow.transaction.description;
+    
+    // PRIORIDADE: Exibir o texto LIMPO (sem as palavras ignoradas) se ele existir. 
+    // Fallback para original apenas se cleaned for nulo/indefinido (não se for string vazia, pois string vazia significa que tudo foi ignorado).
+    const transactionDesc = (currentRow.transaction.cleanedDescription !== undefined && currentRow.transaction.cleanedDescription !== null)
+        ? currentRow.transaction.cleanedDescription
+        : currentRow.transaction.description;
 
     const txAmount = Math.abs(currentRow.transaction.amount);
-    // Prioridade total para o valor da lista (Fidelidade ao arquivo enviado)
     const expectedAmount = currentRow.contributorAmount !== undefined 
         ? Math.abs(currentRow.contributorAmount) 
         : (currentRow.contributor?.amount ? Math.abs(currentRow.contributor.amount) : 0);
@@ -238,7 +242,6 @@ const ReportRow = memo(({
                                                 {contributorName || '---'}
                                             </span>
                                         </div>
-                                        {/* EXTRATO INFO: Só aparece se estiver IDENTIFICADO, conforme solicitado pelo usuário */}
                                         {isIdentified && (
                                             <div className="flex items-start gap-2">
                                                 <SourceBadge type="bank" />
@@ -307,7 +310,7 @@ const ReportRow = memo(({
                                 <input type="text" value={currentRow.transaction.description} onChange={e => onEditChange('transaction.description', e.target.value)} className={inputClass} />
                         ) : (
                             <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                {result.transaction.cleanedDescription || result.transaction.description}
+                                {transactionDesc}
                             </span>
                         )}
                     </td>
