@@ -62,6 +62,12 @@ export const Sidebar: React.FC = () => {
 
     const StatusIcon = subscription.isExpired ? ExclamationTriangleIcon : (subscription.plan === 'lifetime' ? CheckBadgeIcon : SparklesIcon);
 
+    const handleLogout = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        signOut();
+    };
+
     return (
         <aside className={`relative h-screen flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-50 ${isCollapsed ? 'w-20' : 'w-64'} bg-[#020610] text-white border-r border-white/5 shadow-2xl`}>
             <div className="relative z-10 flex flex-col h-full">
@@ -103,11 +109,10 @@ export const Sidebar: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Footer User & Logout - Separados para evitar conflito de clique */}
                     <div className="flex items-center justify-between pt-1 border-t border-white/5">
                         <div 
                             className={`flex items-center gap-3 min-w-0 group cursor-pointer ${isCollapsed ? 'mx-auto' : ''}`} 
-                            onClick={() => setActiveView('settings')}
+                            onClick={() => !isCollapsed && setActiveView('settings')}
                         >
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-blue to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-lg border border-white/10 group-hover:ring-2 group-hover:ring-brand-blue/50 transition-all">
                                 {user?.email?.charAt(0).toUpperCase()}
@@ -120,21 +125,14 @@ export const Sidebar: React.FC = () => {
                             )}
                         </div>
                         
-                        {/* Botão de Logout ISOLADO */}
-                        {!isCollapsed && (
-                            <button 
-                                type="button"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    signOut();
-                                }}
-                                className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-auto shrink-0"
-                                title="Sair da Conta"
-                            >
-                                <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />
-                            </button>
-                        )}
+                        <button 
+                            type="button"
+                            onClick={handleLogout}
+                            className={`p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'}`}
+                            title="Sair da Conta"
+                        >
+                            <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />
+                        </button>
                     </div>
                 </div>
             </div>
