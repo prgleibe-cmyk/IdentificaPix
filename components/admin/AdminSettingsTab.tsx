@@ -11,6 +11,36 @@ import {
     ClockIcon
 } from '../Icons';
 
+// Componente movido para fora para evitar recriação e perda de foco
+const InputGroup = ({ label, name, value, onChange, type = "text", placeholder = "", icon: Icon }: any) => (
+    <div className="group">
+        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 group-focus-within:text-brand-blue transition-colors">
+            {label}
+        </label>
+        <div className="relative">
+            {Icon && (
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-colors">
+                    <Icon className="w-3.5 h-3.5" />
+                </div>
+            )}
+            <input 
+                type={type} 
+                name={name}
+                step={type === 'number' ? "0.01" : undefined}
+                value={value} 
+                onChange={onChange}
+                placeholder={placeholder}
+                className={`
+                    w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 
+                    rounded-xl py-2 text-xs font-bold text-slate-700 dark:text-slate-200 
+                    focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all
+                    ${Icon ? 'pl-9 pr-3' : 'px-3'}
+                `}
+            />
+        </div>
+    </div>
+);
+
 export const AdminSettingsTab: React.FC = () => {
     const { systemSettings, updateSystemSettings } = useAuth();
     const { showToast } = useUI();
@@ -24,7 +54,7 @@ export const AdminSettingsTab: React.FC = () => {
         const { name, value, type } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: type === 'number' ? parseFloat(value) : value
+            [name]: type === 'number' ? (value === '' ? 0 : parseFloat(value)) : value
         }));
     };
 
@@ -33,35 +63,6 @@ export const AdminSettingsTab: React.FC = () => {
         updateSystemSettings(formData);
         showToast("Configurações do sistema atualizadas!", "success");
     };
-
-    const InputGroup = ({ label, name, type = "text", placeholder = "", icon: Icon }: any) => (
-        <div className="group">
-            <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 group-focus-within:text-brand-blue transition-colors">
-                {label}
-            </label>
-            <div className="relative">
-                {Icon && (
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-colors">
-                        <Icon className="w-3.5 h-3.5" />
-                    </div>
-                )}
-                <input 
-                    type={type} 
-                    name={name}
-                    step={type === 'number' ? "0.01" : undefined}
-                    value={formData[name as keyof typeof formData]} 
-                    onChange={handleChange}
-                    placeholder={placeholder}
-                    className={`
-                        w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 
-                        rounded-xl py-2 text-xs font-bold text-slate-700 dark:text-slate-200 
-                        focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all
-                        ${Icon ? 'pl-9 pr-3' : 'px-3'}
-                    `}
-                />
-            </div>
-        </div>
-    );
 
     return (
         <div className="w-full max-w-5xl mx-auto animate-fade-in pb-4">
@@ -84,18 +85,24 @@ export const AdminSettingsTab: React.FC = () => {
                             label="Dias de Teste" 
                             name="defaultTrialDays" 
                             type="number" 
+                            value={formData.defaultTrialDays}
+                            onChange={handleChange}
                             icon={ClockIcon} 
                         />
                         <InputGroup 
                             label="Limite Base de IA" 
                             name="baseAiLimit" 
                             type="number" 
+                            value={formData.baseAiLimit}
+                            onChange={handleChange}
                             icon={SparklesIcon} 
                         />
                         <InputGroup 
                             label="Slots Base" 
                             name="baseSlots" 
                             type="number" 
+                            value={formData.baseSlots}
+                            onChange={handleChange}
                             icon={CircleStackIcon} 
                         />
                     </div>
@@ -118,16 +125,22 @@ export const AdminSettingsTab: React.FC = () => {
                             label="Mensalidade Base (R$)" 
                             name="monthlyPrice" 
                             type="number" 
+                            value={formData.monthlyPrice}
+                            onChange={handleChange}
                         />
                         <InputGroup 
                             label="Adicional por Slot (R$)" 
                             name="pricePerExtra" 
                             type="number" 
+                            value={formData.pricePerExtra}
+                            onChange={handleChange}
                         />
                         <InputGroup 
                             label="Pacote 1k IA (R$)" 
                             name="pricePerAiBlock" 
                             type="number" 
+                            value={formData.pricePerAiBlock}
+                            onChange={handleChange}
                         />
                     </div>
                 </div>
@@ -139,11 +152,15 @@ export const AdminSettingsTab: React.FC = () => {
                         <InputGroup 
                             label="Chave PIX (Recebimento)" 
                             name="pixKey" 
+                            value={formData.pixKey}
+                            onChange={handleChange}
                             placeholder="CPF/CNPJ/Email"
                         />
                         <InputGroup 
                             label="WhatsApp Suporte" 
                             name="supportNumber" 
+                            value={formData.supportNumber}
+                            onChange={handleChange}
                             placeholder="551199..."
                         />
                     </div>
