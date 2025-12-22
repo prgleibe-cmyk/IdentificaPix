@@ -4,7 +4,6 @@ import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { SubscriptionStatus } from '../types';
-import { Logger } from '../services/monitoringService';
 
 interface SystemSettings {
     defaultTrialDays: number;
@@ -49,11 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  
   const isSigningOut = useRef(false);
+  const lastProcessedUserId = useRef<string | null>(null);
   
   const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v5', DEFAULT_SETTINGS);
-  
   const settingsRef = useRef(systemSettings);
+
   useEffect(() => {
     settingsRef.current = systemSettings;
   }, [systemSettings]);
@@ -71,8 +72,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       maxBanks: 2
   });
 
-  const calculateSubscription = useCallback(async (currentUser: User | null) => {
+  const calculateSubscription = useCallback(async (currentUser: User | null, force: boolean = false) => {
       if (!currentUser || isSigningOut.current) return;
+      
+      // Bloqueia re-calculos inúteis que causam loop
+      if (!force && lastProcessedUserId.current === currentUser.id) return;
+      lastProcessedUserId.current = currentUser.id;
 
       const settings = settingsRef.current;
       const TRIAL_DAYS = settings.defaultTrialDays;
@@ -87,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .maybeSingle();
           
           const now = new Date();
-          // Fix: Explicitly cast to any to avoid TS2339 build error
           const p = (profileData as any) || {};
           
           const isBlocked = p.is_blocked === true;
@@ -133,16 +137,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
 
     try {
-        // Immediate clean
+        // Limpeza imediata dos estados para interromper qualquer efeito colateral
+        lastProcessedUserId.current = null;
         setSession(null);
         setUser(null);
         
         await supabase.auth.signOut();
         
-        const keysToRemove = Object.keys(localStorage).filter(k => 
-            k.includes('supabase.auth.token') || k.includes('identificapix-results')
-        );
-        keysToRemove.forEach(k => localStorage.removeItem(k));
+        // Limpeza agressiva de storage
+        const storageKeys = Object.keys(localStorage);
+        storageKeys.forEach(key => {
+            if (key.includes('supabase.auth.token') || key.includes('identificapix-results')) {
+                localStorage.removeItem(key);
+            }
+        });
 
         setSubscription({
             plan: 'trial',
@@ -164,18 +172,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Listener ÚNICO e ESTÁVEL. Não depende de funções que mudam.
   useEffect(() => {
     let mounted = true;
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
         if (!mounted || isSigningOut.current) return;
-
-        if (event === 'SIGNED_OUT') {
-            setSession(null);
-            setUser(null);
-            setLoading(false);
-            return;
-        }
 
         if (newSession) {
             setSession(newSession);
@@ -184,17 +186,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
             setSession(null);
             setUser(null);
+            lastProcessedUserId.current = null;
         }
         setLoading(false);
     });
 
+    // Hidratação inicial silenciosa
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-        if (mounted && s && !isSigningOut.current) {
-            setSession(s);
-            setUser(s.user);
-            calculateSubscription(s.user);
+        if (mounted && !isSigningOut.current) {
+            if (s) {
+                setSession(s);
+                setUser(s.user);
+                calculateSubscription(s.user);
+            }
+            setLoading(false);
         }
-        if (mounted) setLoading(false);
     });
 
     return () => {
@@ -207,7 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSystemSettings(prev => ({ ...prev, ...newSettings }));
   }, [setSystemSettings]);
 
-  const refreshSubscription = useCallback(() => calculateSubscription(user), [calculateSubscription, user]);
+  const refreshSubscription = useCallback(() => calculateSubscription(user, true), [calculateSubscription, user]);
 
   const addSubscriptionDays = useCallback(async (days: number) => {
       if (!user) return;
@@ -215,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const current = (p as any)?.subscription_ends_at ? new Date((p as any).subscription_ends_at) : new Date();
       const next = new Date(current.getTime() + days * 86400000);
       await supabase.from('profiles').update({ subscription_status: 'active', subscription_ends_at: next.toISOString() }).eq('id', user.id);
-      await calculateSubscription(user);
+      await calculateSubscription(user, true);
   }, [user, calculateSubscription]);
 
   const updateLimits = useCallback(async (slots: number, aiPacks: number) => {
@@ -223,7 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: p } = await supabase.from('profiles').select('limit_ai').eq('id', user.id).single();
       const newLimit = ((p as any)?.limit_ai || 100) + (aiPacks * 1000);
       await supabase.from('profiles').update({ limit_ai: newLimit, max_churches: slots, max_banks: slots }).eq('id', user.id);
-      await calculateSubscription(user);
+      await calculateSubscription(user, true);
   }, [user, calculateSubscription]);
 
   const incrementAiUsage = useCallback(async () => {
