@@ -1,83 +1,46 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 
-/**
- * Hook otimizado para SaaS.
- * Dados leves (preferências, tema) -> LocalStorage (Síncrono, instantâneo)
- * Dados pesados (extratos, listas) -> IndexedDB (Assíncrono, não trava a tela)
- */
 export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
-    // Inicializa com o valor padrão
     const [state, setState] = useState<T>(initialValue);
-    const [isHydrated, setIsHydrated] = useState(false);
-    
-    // Refs para evitar re-renders desnecessários e loops de dependência
+    const isHydrated = useRef(false);
     const isMounted = useRef(false);
-    const stateRef = useRef(state);
+    const timeoutRef = useRef<any>(null);
 
-    // Mantém o ref atualizado com o valor mais recente
-    useEffect(() => {
-        stateRef.current = state;
-    }, [state]);
-
-    // 1. Hidratação (Carregar dados) - Executa ao montar ou mudar a chave
     useEffect(() => {
         isMounted.current = true;
-        setIsHydrated(false);
-
+        
         const hydrate = async () => {
             try {
                 let value: T | undefined;
-
                 if (isHeavy) {
-                    // Leitura Assíncrona do IndexedDB
                     value = await get(key);
                 } else {
-                    // Leitura Síncrona do LocalStorage
                     const item = window.localStorage.getItem(key);
-                    if (item) {
-                        value = JSON.parse(item);
-                    }
+                    if (item) value = JSON.parse(item);
                 }
 
-                if (isMounted.current) {
-                    if (value !== undefined && value !== null) {
-                        // FIX CRÍTICO PARA LOOP:
-                        // Compara o valor atual (via functional update) com o novo valor.
-                        // Se o conteúdo JSON for idêntico, retorna o estado anterior (mesma referência).
-                        // Isso impede que o React renderize novamente.
-                        setState(prev => {
-                            try {
-                                if (JSON.stringify(prev) === JSON.stringify(value)) {
-                                    return prev;
-                                }
-                            } catch (e) {
-                                // Se falhar ao comparar (circular ref), atualiza assim mesmo
-                            }
-                            stateRef.current = value as T;
-                            return value as T;
-                        });
-                    }
-                    setIsHydrated(true);
+                if (isMounted.current && value !== undefined && value !== null) {
+                    setState(value);
                 }
             } catch (error) {
-                console.warn(`Erro ao carregar estado para ${key}:`, error);
-                if (isMounted.current) setIsHydrated(true);
+                console.warn(`Erro hidratação ${key}:`, error);
+            } finally {
+                if (isMounted.current) isHydrated.current = true;
             }
         };
 
         hydrate();
-
         return () => { isMounted.current = false; };
     }, [key, isHeavy]);
 
-    // 2. Persistência (Salvar dados)
     useEffect(() => {
-        // Só salva se já estiver hidratado para evitar sobrescrever dados com o valor inicial
-        if (!isHydrated) return;
+        if (!isHydrated.current || !isMounted.current) return;
 
-        const save = async () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+        timeoutRef.current = setTimeout(async () => {
             try {
                 if (isHeavy) {
                     await set(key, state);
@@ -85,15 +48,12 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                     window.localStorage.setItem(key, JSON.stringify(state));
                 }
             } catch (error) {
-                console.error(`Erro ao salvar estado para ${key}:`, error);
+                console.error(`Erro salvamento ${key}:`, error);
             }
-        };
+        }, 800);
 
-        // Debounce aumentado para 1s para reduzir pressão no disco local durante edições rápidas
-        const timeoutId = setTimeout(save, 1000);
-        return () => clearTimeout(timeoutId);
-
-    }, [key, state, isHeavy, isHydrated]);
+        return () => clearTimeout(timeoutRef.current);
+    }, [key, state, isHeavy]);
 
     return [state, setState];
 }
