@@ -146,6 +146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const reportManager = useReportManager(user, showToast);
     const reconciliation = useReconciliation({
         churches: referenceData.churches,
+        banks: referenceData.banks, // Passando bancos para o hook
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance,
         customIgnoreKeywords: referenceData.customIgnoreKeywords,

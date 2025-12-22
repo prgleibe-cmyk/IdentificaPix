@@ -24,7 +24,7 @@ export const UploadView: React.FC = () => {
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
     // O botão só aparece se houver pelo menos o extrato bancário (essencial para conciliação)
-    const showProcessButton = !!bankStatementFile;
+    const showProcessButton = !!(bankStatementFile && bankStatementFile.content);
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-2 pb-1 relative">
@@ -79,7 +79,7 @@ export const UploadView: React.FC = () => {
                                         onFileUpload={(content, name) => handleStatementUpload(content, name, bank.id)}
                                         isUploaded={bankStatementFile?.bankId === bank.id && !!bankStatementFile?.content}
                                         uploadedFileName={bankStatementFile?.bankId === bank.id ? bankStatementFile.fileName : null}
-                                        disabled={!!(bankStatementFile?.bankId) && bankStatementFile.bankId !== bank.id}
+                                        disabled={!!(bankStatementFile?.bankId && bankStatementFile.content) && bankStatementFile.bankId !== bank.id}
                                         onDelete={removeBankStatementFile}
                                     />
                                 </div>

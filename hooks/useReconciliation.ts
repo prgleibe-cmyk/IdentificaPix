@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { usePersistentState } from './usePersistentState';
-import { Transaction, MatchResult, GroupedReportData, ComparisonType, Contributor, Church, ContributorFile } from '../types';
+import { Transaction, MatchResult, GroupedReportData, ComparisonType, Contributor, Church, ContributorFile, Bank } from '../types';
 import { parseBankStatement, parseContributors, matchTransactions, processExpenses, groupResultsByChurch, parseDate, normalizeString } from '../services/processingService';
 import { getAISuggestion } from '../services/geminiService';
 import { Logger, Metrics } from '../services/monitoringService';
@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface UseReconciliationProps {
     churches: Church[];
+    banks: Bank[]; // Adicionado banks para validação
     similarityLevel: number;
     dayTolerance: number;
     customIgnoreKeywords: string[];
@@ -21,6 +22,7 @@ interface UseReconciliationProps {
 
 export const useReconciliation = ({
     churches,
+    banks,
     similarityLevel,
     dayTolerance,
     customIgnoreKeywords,
@@ -38,13 +40,26 @@ export const useReconciliation = ({
     const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v6', null, true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v6', false, false);
 
-    // --- Resiliência de Estado ---
-    // Se o arquivo de extrato não tiver um bankId (corrompido), limpa para evitar travar a UI
+    // --- Validação de Integridade (Resiliência contra IDs Órfãos) ---
     useEffect(() => {
-        if (bankStatementFile && !bankStatementFile.bankId) {
-            setBankStatementFile(null);
+        // Se temos um extrato, mas o banco não existe mais na lista atual, limpamos o estado para destravar a UI
+        if (bankStatementFile && banks.length > 0) {
+            const bankExists = banks.some(b => b.id === bankStatementFile.bankId);
+            if (!bankExists) {
+                console.warn("Limpando extrato órfão detectado.");
+                setBankStatementFile(null);
+            }
         }
-    }, [bankStatementFile, setBankStatementFile]);
+        
+        // O mesmo para as listas de contribuintes
+        if (contributorFiles.length > 0 && churches.length > 0) {
+            const validFiles = contributorFiles.filter(f => churches.some(c => c.id === f.churchId));
+            if (validFiles.length !== contributorFiles.length) {
+                console.warn("Limpando listas de contribuintes órfãs detectadas.");
+                setContributorFiles(validFiles);
+            }
+        }
+    }, [banks, churches, bankStatementFile, contributorFiles, setBankStatementFile, setContributorFiles]);
 
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
