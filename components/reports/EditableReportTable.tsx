@@ -6,7 +6,7 @@ import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
 import { PencilIcon, FloppyDiskIcon, XCircleIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon, ExclamationTriangleIcon, ChevronLeftIcon, ChevronRightIcon, BuildingOfficeIcon, UserIcon, BanknotesIcon } from '../Icons';
-import { PLACEHOLDER_CHURCH } from '../../services/processingService';
+import { PLACEHOLDER_CHURCH, cleanTransactionDescriptionForDisplay } from '../../services/processingService';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -77,7 +77,8 @@ const ReportRow = memo(({
     draftRow,
     onEditChange,
     onSave,
-    onCancel
+    onCancel,
+    customIgnoreKeywords
 }: {
     result: MatchResult;
     reportType: 'income' | 'expenses';
@@ -93,6 +94,7 @@ const ReportRow = memo(({
     onEditChange: (field: string, value: any) => void;
     onSave: () => void;
     onCancel: () => void;
+    customIgnoreKeywords: string[];
 }) => {
     const currentRow = isEditing && draftRow ? draftRow : result;
     const isIdentified = currentRow.status === 'IDENTIFICADO';
@@ -103,11 +105,8 @@ const ReportRow = memo(({
 
     const contributorName = currentRow.contributor?.cleanedName || currentRow.contributor?.name;
     
-    // PRIORIDADE: Exibir o texto LIMPO (sem as palavras ignoradas) se ele existir. 
-    // Fallback para original apenas se cleaned for nulo/indefinido (não se for string vazia, pois string vazia significa que tudo foi ignorado).
-    const transactionDesc = (currentRow.transaction.cleanedDescription !== undefined && currentRow.transaction.cleanedDescription !== null)
-        ? currentRow.transaction.cleanedDescription
-        : currentRow.transaction.description;
+    // CRÍTICO: Re-limpar a descrição bancária usando as keywords customizadas para garantir que fiquem invisíveis se cadastradas
+    const transactionDesc = cleanTransactionDescriptionForDisplay(currentRow.transaction.description, customIgnoreKeywords);
 
     const txAmount = Math.abs(currentRow.transaction.amount);
     const expectedAmount = currentRow.contributorAmount !== undefined 
@@ -395,7 +394,7 @@ const ReportRow = memo(({
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort }) => {
     const { t, language } = useTranslation();
     const { showToast } = useUI();
-    const { churches, openManualMatchModal, openDeleteConfirmation, openDivergenceModal } = useContext(AppContext);
+    const { churches, openManualMatchModal, openDeleteConfirmation, openDivergenceModal, customIgnoreKeywords } = useContext(AppContext);
     const [editingRowId, setEditingRowId] = useState<string | null>(null);
     const [draftRow, setDraftRow] = useState<MatchResult | null>(null);
     
@@ -417,10 +416,10 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         openDeleteConfirmation({ 
             type: 'report-row', 
             id: result.transaction.id, 
-            name: `a linha "${result.transaction.cleanedDescription || result.transaction.description}"`,
+            name: `a linha "${cleanTransactionDescriptionForDisplay(result.transaction.description, customIgnoreKeywords)}"`,
             meta: { reportType }
         });
-    }, [openDeleteConfirmation, reportType]);
+    }, [openDeleteConfirmation, reportType, customIgnoreKeywords]);
 
     const handleEditChange = useCallback((field: string, value: any) => {
         setDraftRow(prev => {
@@ -516,6 +515,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 onEditChange={handleEditChange}
                                 onSave={handleSave}
                                 onCancel={handleCancel}
+                                customIgnoreKeywords={customIgnoreKeywords}
                             />
                         ))}
                     </tbody>

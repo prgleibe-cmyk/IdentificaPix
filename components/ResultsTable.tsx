@@ -1,9 +1,11 @@
 
-import React, { memo } from 'react';
+import React, { memo, useContext } from 'react';
 import { MatchResult } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
+import { AppContext } from '../contexts/AppContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon } from './Icons';
+import { cleanTransactionDescriptionForDisplay } from '../services/processingService';
 
 interface ResultsTableProps {
   results: MatchResult[];
@@ -37,6 +39,7 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
 
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManualIdentify, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
+    const { customIgnoreKeywords } = useContext(AppContext);
   
     // Avatar Logic Helpers
     const getChurchInitial = (name: string) => name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?';
@@ -103,7 +106,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                             
                             const churchName = church?.name || '---';
                             const displayDate = contributor?.date || transaction.date;
-                            const displayName = contributor?.cleanedName || contributor?.name || transaction.cleanedDescription || transaction.description;
+                            
+                            // CRÍTICO: Re-limpar a descrição na hora da exibição para refletir alterações em Palavras-chave Ignoradas sem precisar re-processar
+                            const cleanedTxDesc = cleanTransactionDescriptionForDisplay(transaction.description, customIgnoreKeywords);
+                            const displayName = contributor?.cleanedName || contributor?.name || cleanedTxDesc;
+                            
                             const avatarColor = avatarColors[churchName.length % avatarColors.length];
 
                             return (
@@ -136,9 +143,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                             <span className="text-xs font-bold text-slate-800 dark:text-white leading-tight line-clamp-1" title={displayName}>
                                                 {displayName}
                                             </span>
-                                            {status === 'IDENTIFICADO' && contributor && transaction.cleanedDescription && transaction.cleanedDescription !== contributor.cleanedName && (
+                                            {status === 'IDENTIFICADO' && contributor && cleanedTxDesc && cleanedTxDesc !== contributor.cleanedName && (
                                                 <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium truncate max-w-[250px]">
-                                                    Origem: {transaction.cleanedDescription}
+                                                    Origem: {cleanedTxDesc}
                                                 </span>
                                             )}
                                         </div>
