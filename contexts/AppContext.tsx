@@ -157,7 +157,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
 
-    // V6 Force Clean
     const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v6', {
         autoConfirmed: { count: 0, value: 0 },
         manualConfirmed: { count: 0, value: 0 },
@@ -172,13 +171,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     useEffect(() => {
         if (!user) return;
+        
         const fetchData = async () => {
             try {
-                const [churchesResult, banksResult, savedReportsResult] = await Promise.all([
+                // Timeout de 10 segundos para não travar a abertura do app
+                const fetchPromise = Promise.all([
                     supabase.from('churches').select('*').order('name'),
                     supabase.from('banks').select('*').order('name'),
                     supabase.from('saved_reports').select('id, name, created_at, record_count, user_id, data').eq('user_id', user.id).order('created_at', { ascending: false }),
                 ]);
+
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Supabase Timeout")), 10000)
+                );
+
+                const results = await Promise.race([fetchPromise, timeoutPromise]) as any[];
+                const [churchesResult, banksResult, savedReportsResult] = results;
         
                 if (churchesResult.data) referenceData.setChurches(churchesResult.data as any || []);
                 if (banksResult.data) referenceData.setBanks(banksResult.data as any || []);
@@ -194,13 +202,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             } catch (err) {
                 Logger.error('Fetch initial data failed', err);
+                // Não mostramos erro para o usuário se for apenas timeout, o app abre vazio
             } finally {
                 setIsLoading(false);
                 setInitialDataLoaded(true);
             }
         };
         fetchData();
-    }, [user]); 
+    }, [user?.id]); // Usar user.id como dependência é mais estável que o objeto user
 
     const resultsHash = JSON.stringify(reconciliation.matchResults.map(r => r.transaction.id + r.status));
     const reportsHash = reportManager.savedReports.length;

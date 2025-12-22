@@ -15,7 +15,10 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
             try {
                 let value: T | undefined;
                 if (isHeavy) {
-                    value = await get(key);
+                    // Timeout de 2s para IndexedDB (evita travamento infinito)
+                    const idbPromise = get(key);
+                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("timeout"), 2000));
+                    value = await Promise.race([idbPromise, timeoutPromise]) as T | undefined;
                 } else {
                     const item = window.localStorage.getItem(key);
                     if (item) value = JSON.parse(item);
@@ -36,10 +39,12 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     }, [key, isHeavy]);
 
     useEffect(() => {
+        // Só salva se já estiver hidratado e montado
         if (!isHydrated.current || !isMounted.current) return;
 
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
+        // Debounce de salvamento para evitar loops agressivos
         timeoutRef.current = setTimeout(async () => {
             try {
                 if (isHeavy) {
@@ -50,7 +55,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
             } catch (error) {
                 console.error(`Erro salvamento ${key}:`, error);
             }
-        }, 800);
+        }, 1000);
 
         return () => clearTimeout(timeoutRef.current);
     }, [key, state, isHeavy]);

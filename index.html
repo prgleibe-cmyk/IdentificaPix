@@ -11,30 +11,19 @@
     <meta name="description" content="Conciliação bancária automatizada para igrejas e instituições com tecnologia Gemini AI." />
     <meta name="theme-color" content="#051024" />
 
-    <!-- Meta Tags para Compartilhamento (WhatsApp, Facebook, LinkedIn) -->
+    <!-- Meta Tags para Compartilhamento -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="IdentificaPix - Sistema de Conciliação" />
     <meta property="og:description" content="Automatize suas doações PIX e ofertas com precisão absoluta." />
     <meta property="og:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png" />
     <meta property="og:url" content="https://identificapix.com.br" />
 
-    <!-- Meta Tags para Twitter / X -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="IdentificaPix" />
-    <meta name="twitter:description" content="Conciliação bancária inteligente via IA." />
-    <meta name="twitter:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png" />
-
-    <!-- Ícone de Atalho para Dispositivos Móveis (Add to Home Screen) -->
-    <link rel="apple-touch-icon" href="/vite.svg" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    
-    <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS via CDN -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -54,28 +43,6 @@
                 surface: '#FFFFFF',
                 graphite: '#1E293B',
               }
-            },
-            boxShadow: {
-              'soft': '0 2px 10px rgba(0, 0, 0, 0.03)',
-              'card': '0 0 0 1px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.05)',
-              'glow': '0 0 20px rgba(0, 82, 204, 0.4)',
-              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
-              'premium': '0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0,0,0,0.05)',
-            },
-            backgroundImage: {
-              'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E\")",
-              'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-              'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-              'slide-in': 'slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            },
-            keyframes: {
-              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-              fadeInUp: { '0%': { opacity: '0', transform: 'translateY(15px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-              slideIn: { '0%': { transform: 'translateX(-20px)', opacity: '0' }, '100%': { transform: 'translateX(0)', opacity: '1' } }
             }
           }
         }
@@ -87,23 +54,23 @@
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "path": "https://esm.sh/path@^0.12.7",
-    "vite": "https://esm.sh/vite@^7.2.7",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.87.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.39.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
-    "pdfjs-dist": "https://esm.sh/pdfjs-dist@^5.4.449",
-    "mammoth": "https://esm.sh/mammoth@^1.11.0",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@^3.11.174",
+    "mammoth": "https://esm.sh/mammoth@^1.6.0",
     "xlsx": "https://esm.sh/xlsx@^0.18.5",
     "jspdf": "https://esm.sh/jspdf@^2.5.1",
     "jspdf-autotable": "https://esm.sh/jspdf-autotable@^3.8.2",
-    "idb-keyval": "https://esm.sh/idb-keyval@^6.2.2",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "idb-keyval": "https://esm.sh/idb-keyval@^6.2.1",
     "react-dom": "https://esm.sh/react-dom@^19.2.3",
-    "dotenv": "https://esm.sh/dotenv@^17.2.3",
     "express": "https://esm.sh/express@^5.2.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "cors": "https://esm.sh/cors@^2.8.5",
-    "url": "https://esm.sh/url@^0.11.4"
+    "url": "https://esm.sh/url@^0.11.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "path": "https://esm.sh/path@^0.12.7",
+    "dotenv": "https://esm.sh/dotenv@^17.2.3"
   }
 }
 </script>

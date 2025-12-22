@@ -52,7 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
   const lastProcessedUserId = useRef<string | null>(null);
   
-  // Upgrade para V6 para limpar cache problemático no link oficial
   const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v6', DEFAULT_SETTINGS);
   const settingsRef = useRef(systemSettings);
 
@@ -81,11 +80,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const settings = settingsRef.current;
       try {
-          const { data: profileData } = await supabase
+          // Timeout de segurança para a chamada do Supabase
+          const fetchPromise = supabase
               .from('profiles')
               .select('*')
               .eq('id', currentUser.id)
               .maybeSingle();
+
+          const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error("Timeout")), 5000)
+          );
+
+          const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;
           
           const now = new Date();
           const p = (profileData as any) || {};
@@ -123,11 +129,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               maxBanks: p.max_banks || settings.baseSlots
           });
       } catch (e) {
-          console.error("Erro assinatura:", e);
+          console.error("Erro assinatura (resgatando padrão):", e);
       }
   }, []);
 
-  // Ref para o listener acessar a função atualizada sem re-subscrever
   const calcSubRef = useRef(calculateSubscription);
   useEffect(() => { calcSubRef.current = calculateSubscription; }, [calculateSubscription]);
 
@@ -142,7 +147,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         await supabase.auth.signOut();
         
-        // Limpeza profunda
         Object.keys(localStorage).forEach(key => {
             if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
                 localStorage.removeItem(key);
@@ -158,7 +162,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // ÚNICO EFFECT DE AUTH - Dependências vazias para evitar loops em produção
   useEffect(() => {
     let mounted = true;
 
@@ -168,7 +171,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (newSession) {
             setSession(newSession);
             setUser(newSession.user);
-            await calcSubRef.current(newSession.user);
+            // Não aguardamos o cálculo para não travar a UI
+            calcSubRef.current(newSession.user);
         } else {
             setSession(null);
             setUser(null);
@@ -192,7 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       authListener?.unsubscribe();
     };
-  }, []); // Sem dependências = estabilidade total
+  }, []);
 
   const updateSystemSettings = useCallback((newSettings: Partial<SystemSettings>) => {
       setSystemSettings(prev => ({ ...prev, ...newSettings }));
