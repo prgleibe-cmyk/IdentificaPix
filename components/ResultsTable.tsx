@@ -95,7 +95,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                         {results.map(({ transaction, contributor, status, church, matchMethod, contributorAmount, divergence }) => {
                             const isExpense = transaction.amount < 0;
-                            const amount = isExpense ? transaction.amount : (contributorAmount ?? transaction.amount);
+                            // Prioridade para o valor do contribuinte se for uma transação virtual (pendente no extrato)
+                            // Senão, usa o valor da transação bancária original.
+                            const amount = isExpense 
+                                ? transaction.amount 
+                                : (contributorAmount ?? (Math.abs(transaction.amount) > 0 ? transaction.amount : (contributor?.amount ?? 0)));
+                            
                             const churchName = church?.name || '---';
                             const displayDate = contributor?.date || transaction.date;
                             const displayName = contributor?.cleanedName || contributor?.name || transaction.cleanedDescription || transaction.description;
@@ -139,7 +144,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                         </div>
                                     </td>
 
-                                    {/* Amount - FORCED FORMATTING HERE */}
+                                    {/* Amount */}
                                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
                                         <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
                                             {formatCurrency(amount, language)}

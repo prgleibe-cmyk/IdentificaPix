@@ -1,50 +1,57 @@
 
+import { GoogleGenAI, Type } from "@google/genai";
 import { ReceiptAnalysisResult } from "../types";
 import { Logger } from "./monitoringService";
 
-/**
- * Converte um objeto File para uma string Base64 limpa.
- */
-const fileToBase64 = async (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      // Remove o prefixo (ex: "data:image/jpeg;base64,") para enviar apenas os bytes
-      const base64Data = base64String.split(',')[1];
-      resolve(base64Data);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
+const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeReceipt = async (file: File): Promise<ReceiptAnalysisResult> => {
   try {
-    const base64Data = await fileToBase64(file);
-
-    const response = await fetch('/api/ai/analyze-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            imageBase64: base64Data,
-            mimeType: file.type
-        })
+    const ai = getAIClient();
+    
+    // Converter arquivo para base64 para o Gemini
+    const base64Data = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.readAsDataURL(file);
     });
 
-    if (!response.ok) {
-        throw new Error("Falha na comunicação com o servidor de IA");
-    }
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [
+        {
+          inlineData: {
+            mimeType: file.type,
+            data: base64Data,
+          },
+        },
+        { text: "Analise este comprovante de PIX/Transferência. Extraia o valor, data, pagador e recebedor. Verifique se parece um documento autêntico." }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isValid: { type: Type.BOOLEAN },
+            amount: { type: Type.NUMBER },
+            date: { type: Type.STRING },
+            recipient: { type: Type.STRING },
+            sender: { type: Type.STRING },
+            reason: { type: Type.STRING }
+          },
+          required: ["isValid"]
+        }
+      }
+    });
 
-    const analysis: ReceiptAnalysisResult = await response.json();
-    return analysis;
+    const text = response.text;
+    return text ? JSON.parse(text) : { isValid: false, reason: "Falha na interpretação da IA" };
 
   } catch (error) {
-    Logger.error("Erro ao analisar comprovante", error);
+    Logger.error("Erro ao analisar comprovante via Gemini", error);
     return {
         isValid: false,
-        confidence: 0,
-        reason: "Erro técnico ao processar a imagem. Tente novamente."
+        reason: "Erro técnico ao processar a imagem diretamente."
     } as any;
   }
 };

@@ -34,7 +34,6 @@ export const useReconciliation = ({
     const { subscription, incrementAiUsage } = useAuth();
 
     // --- File State ---
-    // UPDATED KEYS TO _v5 to prevent loading corrupted legacy data
     const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string } | null>('identificapix-statement-v5', null, true);
     const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string }[]>('identificapix-contributors-v5', [], true);
     
@@ -75,63 +74,62 @@ export const useReconciliation = ({
 
     // --- Actions ---
 
+    // CRITICAL FIX: Reset results on new statement upload to avoid ghost suggestions
     const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string) => {
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setHasActiveSession(false);
         setBankStatementFile({ bankId, content, fileName });
-    }, [setBankStatementFile]);
+    }, [setBankStatementFile, setMatchResults, setReportPreviewData, setHasActiveSession]);
 
+    // CRITICAL FIX: Reset results on contributor list upload as matching context changed
     const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string) => {
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setHasActiveSession(false);
         setContributorFiles(prev => {
             const existing = prev.filter(f => f.churchId !== churchId);
             return [...existing, { churchId, content, fileName }];
         });
-    }, [setContributorFiles]);
+    }, [setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession]);
 
     const removeBankStatementFile = useCallback(() => {
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setHasActiveSession(false);
         setBankStatementFile(null);
         showToast("Extrato bancário removido.", 'success');
-    }, [setBankStatementFile, showToast]);
+    }, [setBankStatementFile, setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
     
     const removeContributorFile = useCallback((churchId: string) => {
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setHasActiveSession(false);
         setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
         showToast("Lista de contribuintes removida.", 'success');
-    }, [setContributorFiles, showToast]);
+    }, [setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
 
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
         setReportPreviewData(prev => {
             if (!prev) return null;
-            
-            // 1. Create a shallow copy of the root object
             const newPreview = { ...prev };
-            
-            // 2. Create a shallow copy of the specific target group container (income or expenses)
-            // This is CRITICAL: If we don't copy this object, React won't see that the 'income' object reference changed,
-            // and won't re-render the components that depend on `reportPreviewData.income`.
             if (reportType === 'income') {
                 newPreview.income = { ...prev.income };
             } else {
                 newPreview.expenses = { ...prev.expenses };
             }
-
             const groupKey = reportType === 'income' ? (updatedRow.church.id || 'unidentified') : 'all_expenses_group';
             const targetGroup = reportType === 'income' ? newPreview.income : newPreview.expenses;
-            
-            // 3. Remove the transaction from ALL existing groups in this bucket
-            // This ensures it disappears from "unidentified" or any previous group it belonged to.
             Object.keys(targetGroup).forEach(key => {
                 targetGroup[key] = targetGroup[key].filter(r => r.transaction.id !== updatedRow.transaction.id);
             });
-
-            // 4. Add the transaction to the NEW correct group
             if (!targetGroup[groupKey]) {
                 targetGroup[groupKey] = [];
             }
             targetGroup[groupKey].push(updatedRow);
-            
-            // 5. Update the master matchResults list to keep it in sync
             setMatchResults(prevResults => {
                 return prevResults.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
             });
-
             return newPreview;
         });
     }, [setReportPreviewData, setMatchResults]);
@@ -141,7 +139,6 @@ export const useReconciliation = ({
         if (!bankStatementFile) return;
     
         setIsLoading(true);
-        // Yield to UI
         await new Promise(resolve => setTimeout(resolve, 50));
         Metrics.reset();
         const startTime = performance.now();
@@ -201,18 +198,14 @@ export const useReconciliation = ({
     }, [bankStatementFile, contributorFiles, churches, similarityLevel, dayTolerance, customIgnoreKeywords, comparisonType, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading]);
 
     const handleAnalyze = useCallback(async (transactionId: string) => {
-        // Enforce AI Limit
         const currentUsage = subscription.aiUsage || 0;
         const limit = subscription.aiLimit || 100;
-        
         if (currentUsage >= limit) {
             showToast("Limite de análises IA atingido. Faça upgrade do seu plano.", 'error');
             return;
         }
-
         const result = matchResults.find(r => r.transaction.id === transactionId);
         if (!result) return;
-
         setLoadingAiId(transactionId);
         try {
             const allContributorNames = allContributorsWithChurch; 
@@ -220,14 +213,11 @@ export const useReconciliation = ({
                 showToast("Não há contribuintes carregados para análise.", 'error');
                 return;
             }
-
             const suggestionName = await getAISuggestion(result.transaction, allContributorNames);
-            
             if (suggestionName && !suggestionName.toLowerCase().includes('nenhuma sugestão') && !suggestionName.toLowerCase().includes('erro')) {
                 const matchedContributor = allContributorNames.find(c => 
                     c.name === suggestionName || c.normalizedName === normalizeString(suggestionName, customIgnoreKeywords)
                 );
-
                 if (matchedContributor) {
                     const newResult: MatchResult = {
                         ...result,
@@ -238,12 +228,8 @@ export const useReconciliation = ({
                         similarity: 90, 
                         contributorAmount: matchedContributor.amount
                     };
-                    
                     updateReportData(newResult, 'income');
-                    
-                    // Increment usage on success
                     await incrementAiUsage();
-
                     setAiSuggestion({ id: transactionId, name: suggestionName });
                     setTimeout(() => setAiSuggestion(null), 5000);
                     showToast(`IA Sugeriu: ${suggestionName}`, 'success');
@@ -261,16 +247,16 @@ export const useReconciliation = ({
         }
     }, [matchResults, allContributorsWithChurch, customIgnoreKeywords, updateReportData, showToast, subscription, incrementAiUsage]);
 
-    // Manual Identification Logic
     const openManualIdentify = useCallback((transactionId: string) => {
         const tx = matchResults.find(r => r.transaction.id === transactionId)?.transaction;
         if (tx) setManualIdentificationTx(tx);
     }, [matchResults]);
+
     const closeManualIdentify = useCallback(() => setManualIdentificationTx(null), []);
+
     const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
         const church = churches.find(c => c.id === churchId);
         const result = matchResults.find(r => r.transaction.id === transactionId);
-        
         if (church && result) {
             const newContributor: Contributor = {
                 id: `manual-${transactionId}`,
@@ -280,7 +266,6 @@ export const useReconciliation = ({
                 originalAmount: result.transaction.originalAmount,
                 date: result.transaction.date
             };
-
             const updatedRow: MatchResult = {
                 ...result,
                 status: 'IDENTIFICADO',
@@ -290,30 +275,25 @@ export const useReconciliation = ({
                 similarity: 100,
                 contributorAmount: result.transaction.amount
             };
-            
             updateReportData(updatedRow, 'income');
             closeManualIdentify();
             showToast('Identificação manual realizada.', 'success');
         }
     }, [churches, matchResults, updateReportData, closeManualIdentify, showToast]);
 
-    // Manual Match Modal Logic
     const openManualMatchModal = useCallback((record: MatchResult) => {
-        // CHANGED: We now pass ALL unidentified transactions to the modal.
-        // The modal will handle filtering (showing smart suggestions by default, or searching everything).
         const pendingTransactions = matchResults
             .filter(r => r.status === 'NÃO IDENTIFICADO' && !r.transaction.id.startsWith('pending-'))
             .map(r => r.transaction);
-
         setManualMatchState({ record, suggestions: pendingTransactions });
     }, [matchResults]);
     
     const closeManualMatchModal = useCallback(() => setManualMatchState(null), []);
+
     const confirmManualAssociation = useCallback((selectedTx: Transaction) => {
         if (!manualMatchState) return;
         const { record } = manualMatchState;
         const bankTxResult = matchResults.find(r => r.transaction.id === selectedTx.id);
-        
         if (bankTxResult && record.contributor) {
              const updatedRow: MatchResult = {
                 ...bankTxResult,
@@ -324,36 +304,26 @@ export const useReconciliation = ({
                 similarity: 100,
                 contributorAmount: record.contributor.amount
             };
-
-            // Complex logic to remove the "pending" row and update the "real" row
             setReportPreviewData(prev => {
                 if (!prev) return null;
-                
-                // DEEP COPY to ensure re-render
                 const newPreview = { ...prev };
                 newPreview.income = { ...prev.income };
                 const incomeGroup = newPreview.income;
-
                 if (incomeGroup[record.church.id]) incomeGroup[record.church.id] = incomeGroup[record.church.id].filter(r => r.transaction.id !== record.transaction.id);
                 if (incomeGroup['unidentified']) incomeGroup['unidentified'] = incomeGroup['unidentified'].filter(r => r.transaction.id !== selectedTx.id);
-                
                 if (!incomeGroup[record.church.id]) incomeGroup[record.church.id] = [];
                 incomeGroup[record.church.id].push(updatedRow);
-                
                 return newPreview;
             });
-
             setMatchResults(prev => {
                 const filtered = prev.filter(r => r.transaction.id !== record.transaction.id);
                 return filtered.map(r => r.transaction.id === selectedTx.id ? updatedRow : r);
             });
-            
             showToast("Associação realizada com sucesso!", 'success');
             closeManualMatchModal();
         }
     }, [manualMatchState, matchResults, setReportPreviewData, setMatchResults, closeManualMatchModal, showToast]);
 
-    // Divergence Logic
     const openDivergenceModal = useCallback((match: MatchResult) => setDivergenceConfirmation(match), []);
     const closeDivergenceModal = useCallback(() => setDivergenceConfirmation(null), []);
     const confirmDivergence = useCallback((match: MatchResult) => {
@@ -386,8 +356,11 @@ export const useReconciliation = ({
     const clearUploadedFiles = useCallback(() => {
         setBankStatementFile(null);
         setContributorFiles([]);
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setHasActiveSession(false);
         showToast("Arquivos carregados foram removidos.", 'success');
-    }, [setBankStatementFile, setContributorFiles, showToast]);
+    }, [setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
 
     const clearMatchResults = useCallback(() => {
         setMatchResults([]);
@@ -402,18 +375,14 @@ export const useReconciliation = ({
         matchResults, setMatchResults,
         reportPreviewData, setReportPreviewData,
         hasActiveSession, setHasActiveSession,
-        
         comparisonType, setComparisonType,
         loadingAiId, aiSuggestion, setAiSuggestion,
         allContributorsWithChurch,
-
         handleStatementUpload, handleContributorsUpload,
         removeBankStatementFile, removeContributorFile,
         clearUploadedFiles, clearMatchResults,
-        
         handleCompare, handleAnalyze,
         updateReportData, discardCurrentReport,
-
         manualIdentificationTx, setManualIdentificationTx, openManualIdentify, closeManualIdentify, confirmManualIdentification,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence

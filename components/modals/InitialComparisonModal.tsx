@@ -129,7 +129,7 @@ export const InitialComparisonModal: React.FC<InitialComparisonModalProps> = ({ 
                                     />
                                 </div>
                                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                                    Rigor na comparação de nomes. <strong className="text-slate-600 dark:text-slate-300">Recomendado: 80%</strong>.
+                                    Rigor na comparação de nomes. <strong className="text-slate-600 dark:text-slate-300">Recomendado: 55%</strong>.
                                 </p>
                             </div>
 

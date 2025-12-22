@@ -24,7 +24,7 @@ export const useReferenceData = (user: User | null, showToast: (msg: string, typ
     // --- State ---
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
     const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
-    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 80);
+    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>(`identificapix-ignore-keywords${userSuffix}`, DEFAULT_IGNORE_KEYWORDS);
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);

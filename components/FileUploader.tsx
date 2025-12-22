@@ -64,11 +64,49 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
              const loadingTask = pdfjsLib.getDocument(new Uint8Array(fileBuffer));
              const pdf = await loadingTask.promise;
              let fullText = '';
+             
              for (let i = 1; i <= pdf.numPages; i++) {
                  const page = await pdf.getPage(i);
                  const textContent = await page.getTextContent();
-                 const items = textContent.items.map((item: any) => item.str).join(' ');
-                 fullText += items + '\n';
+                 const items = textContent.items as any[];
+                 
+                 const lineTolerance = 2; 
+                 const lineGroups: Map<number, any[]> = new Map();
+                 
+                 items.forEach(item => {
+                     if (!item.str || item.str.trim() === '') return;
+                     const y = Math.round(item.transform[5] / lineTolerance) * lineTolerance;
+                     if (!lineGroups.has(y)) lineGroups.set(y, []);
+                     lineGroups.get(y)!.push(item);
+                 });
+
+                 const sortedY = Array.from(lineGroups.keys()).sort((a, b) => b - a);
+                 
+                 sortedY.forEach(y => {
+                     const lineItems = lineGroups.get(y)!;
+                     lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
+                     
+                     let lineStr = '';
+                     let lastX = -1;
+                     let lastWidth = 0;
+                     
+                     lineItems.forEach(item => {
+                         const x = item.transform[4];
+                         if (lastX !== -1) {
+                             const gap = x - (lastX + lastWidth);
+                             // Reduzido para 3 para detectar colunas muito próximas
+                             if (gap > 3) lineStr += '\t';
+                             else if (gap > 1.2) lineStr += ' ';
+                         }
+                         lineStr += item.str;
+                         lastX = x;
+                         lastWidth = item.width || 0;
+                     });
+                     
+                     if (lineStr.trim() !== '') {
+                         fullText += lineStr + '\n';
+                     }
+                 });
              }
              csvContent = fullText;
         } else if (fileNameLower.endsWith('.docx')) {
@@ -84,10 +122,10 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
             csvContent = new TextDecoder('utf-8').decode(fileBuffer);
         }
 
-        if (!csvContent.trim()) throw new Error("Arquivo vazio");
+        if (!csvContent.trim()) throw new Error("Arquivo vazio ou sem dados processáveis");
         onFileUpload(csvContent, file.name);
     } catch (error: any) {
-        alert(`Erro: ${error.message}`);
+        alert(`Erro ao ler arquivo: ${error.message}`);
     } finally {
         setIsParsing(false);
         if (fileInputRef.current) fileInputRef.current.value = '';

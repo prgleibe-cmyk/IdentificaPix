@@ -24,8 +24,6 @@ interface EditableReportTableProps {
 
 const ITEMS_PER_PAGE = 50;
 
-// --- Sub-components for Performance ---
-
 const SortableHeader: React.FC<{
     sortKey: string;
     title: string;
@@ -37,7 +35,7 @@ const SortableHeader: React.FC<{
     const direction = sortConfig?.direction;
 
     return (
-        <th scope="col" className={`px-4 py-2.5 text-left text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest ${className}`}>
+        <th scope="col" className={`px-4 py-3 text-left text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest ${className}`}>
             <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-brand-blue dark:hover:text-blue-400 transition-colors focus:outline-none">
                 <span>{title}</span>
                 <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-brand-blue' : 'opacity-0 group-hover:opacity-50'}`}>
@@ -65,7 +63,6 @@ const SourceBadge: React.FC<{ type: 'list' | 'bank'; className?: string }> = ({ 
     );
 };
 
-// Memoized Row Component
 const ReportRow = memo(({ 
     result, 
     reportType, 
@@ -98,25 +95,23 @@ const ReportRow = memo(({
     onCancel: () => void;
 }) => {
     const currentRow = isEditing && draftRow ? draftRow : result;
-    
-    // Data Preparation
     const isIdentified = currentRow.status === 'IDENTIFICADO';
     
-    // 1. Dates
     const transactionDate = currentRow.transaction.date;
     const contributorDate = currentRow.contributor?.date;
     const datesDiffer = isIdentified && contributorDate && transactionDate !== contributorDate;
 
-    // 2. Names
     const contributorName = currentRow.contributor?.cleanedName || currentRow.contributor?.name;
     const transactionDesc = currentRow.transaction.cleanedDescription || currentRow.transaction.description;
 
-    // 3. Amounts
     const txAmount = Math.abs(currentRow.transaction.amount);
-    const expectedAmount = currentRow.contributorAmount || (currentRow.contributor ? Math.abs(currentRow.contributor.amount || 0) : 0);
+    // Prioridade total para o valor da lista (Fidelidade ao arquivo enviado)
+    const expectedAmount = currentRow.contributorAmount !== undefined 
+        ? Math.abs(currentRow.contributorAmount) 
+        : (currentRow.contributor?.amount ? Math.abs(currentRow.contributor.amount) : 0);
+    
     const amountsDiffer = isIdentified && currentRow.contributor && Math.abs(txAmount - expectedAmount) > 0.01;
 
-    // High Density Input Styles
     const inputClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm h-7";
     const selectClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm cursor-pointer h-7";
 
@@ -179,8 +174,6 @@ const ReportRow = memo(({
 
     return (
         <tr className={`group bg-white dark:bg-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${isEditing ? 'bg-slate-50' : ''}`}>
-            
-            {/* Date Column */}
             <td className="px-4 py-2.5 whitespace-nowrap align-top">
                 {isEditing ? (
                     <input type="text" value={transactionDate} onChange={e => onEditChange('transaction.date', e.target.value)} className={inputClass} />
@@ -203,7 +196,7 @@ const ReportRow = memo(({
                             </>
                         ) : (
                             <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
-                                {transactionDate}
+                                {contributorDate || transactionDate}
                             </span>
                         )}
                     </div>
@@ -212,7 +205,6 @@ const ReportRow = memo(({
             
             {reportType === 'income' ? (
                 <>
-                    {/* Church Column */}
                     <td className="px-4 py-2.5 align-top">
                         {isEditing ? (
                             <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
@@ -233,13 +225,12 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Name / Description Column */}
                     <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
                         {isEditing ? (
                             <input type="text" value={currentRow.contributor?.name || ''} onChange={e => onEditChange('contributor.name', e.target.value)} className={inputClass} disabled={currentRow.status === 'NÃO IDENTIFICADO' && !currentRow.contributor} />
                         ) : (
                             <div className="flex flex-col gap-1.5">
-                                {isIdentified ? (
+                                {currentRow.contributor ? (
                                     <>
                                         <div className="flex items-start gap-2">
                                             <SourceBadge type="list" />
@@ -247,23 +238,30 @@ const ReportRow = memo(({
                                                 {contributorName || '---'}
                                             </span>
                                         </div>
-                                        <div className="flex items-start gap-2">
-                                            <SourceBadge type="bank" />
-                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight pt-0.5" title="Descrição no Extrato">
-                                                {transactionDesc}
-                                            </span>
-                                        </div>
+                                        {/* EXTRATO INFO: Só aparece se estiver IDENTIFICADO, conforme solicitado pelo usuário */}
+                                        {isIdentified && (
+                                            <div className="flex items-start gap-2">
+                                                <SourceBadge type="bank" />
+                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight pt-0.5" title="Descrição no Extrato">
+                                                    {transactionDesc || '---'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </>
                                 ) : (
-                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight">
-                                        {transactionDesc || '---'}
-                                    </span>
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex items-start gap-2">
+                                            <SourceBadge type="bank" />
+                                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight pt-0.5">
+                                                {transactionDesc || '---'}
+                                            </span>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         )}
                     </td>
 
-                    {/* Similarity Column */}
                     <td className="px-4 py-2.5 text-center align-top">
                         {currentRow.similarity != null && currentRow.status === 'IDENTIFICADO' && (
                             <div className="flex flex-col items-center justify-center gap-0.5 pt-1">
@@ -277,7 +275,6 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Value Column */}
                     <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
                         <div className="flex flex-col items-end gap-1.5">
                             {isIdentified ? (
@@ -297,7 +294,7 @@ const ReportRow = memo(({
                                 </>
                             ) : (
                                 <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                                    {formatCurrency(expectedAmount || txAmount, language)}
+                                    {formatCurrency(expectedAmount > 0 ? expectedAmount : txAmount, language)}
                                 </span>
                             )}
                         </div>
@@ -305,7 +302,6 @@ const ReportRow = memo(({
                 </>
             ) : (
                 <>
-                    {/* Expenses: Description */}
                     <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
                         {isEditing ? (
                                 <input type="text" value={currentRow.transaction.description} onChange={e => onEditChange('transaction.description', e.target.value)} className={inputClass} />
@@ -316,7 +312,6 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Expenses: Amount */}
                     <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
                         {isEditing ? (
                             <input type="text" value={currentRow.transaction.originalAmount || currentRow.transaction.amount} onChange={e => onEditChange('transaction.amount', e.target.value)} className={`${inputClass} text-right`} />
@@ -327,7 +322,6 @@ const ReportRow = memo(({
                         )}
                     </td>
 
-                    {/* Expenses: Cost Center */}
                     <td className="px-4 py-2.5 align-top">
                         {isEditing ? (
                             <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
@@ -346,7 +340,6 @@ const ReportRow = memo(({
                 </>
             )}
 
-            {/* Status Column */}
             <td className="px-4 py-2.5 text-center align-top">
                 {isEditing ? (
                     <select value={currentRow.status} onChange={e => onEditChange('status', e.target.value)} className={selectClass}>
@@ -369,7 +362,6 @@ const ReportRow = memo(({
                 )}
             </td>
 
-            {/* Actions */}
             <td className="px-4 py-2.5 text-center align-top">
                 <div className={`flex items-center justify-center space-x-1 transition-opacity duration-200 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                     {isEditing ? (
@@ -479,7 +471,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         <div className="flex flex-col">
             <div className="overflow-x-auto custom-scrollbar relative">
                 <table className={`min-w-[800px] w-full text-left text-slate-600 dark:text-slate-300 ${reportType === 'income' ? 'print-income-table' : 'print-expense-table'}`}>
-                    <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
+                    <thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 backdrop-blur-md sticky top-0 z-20">
                         <tr>
                             {reportType === 'income' ? (
                                 <>
@@ -527,7 +519,6 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 </table>
             </div>
 
-            {/* Compact Pagination */}
             {totalPages > 1 && (
                 <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 bg-white dark:bg-slate-800">
                     <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
