@@ -312,13 +312,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [calculateSubscription]);
 
   const signOut = useCallback(async () => {
+    // Immediate UI feedback
+    setSession(null);
+    setUser(null);
+
     try {
         await supabase.auth.signOut();
     } catch (error) {
         console.error("Error signing out:", error);
     } finally {
-        setSession(null);
-        setUser(null);
+        // Redundancy: Ensure storage is cleared for Supabase keys
+        Object.keys(localStorage).forEach(key => {
+            if (key.includes('supabase.auth.token')) {
+                localStorage.removeItem(key);
+            }
+        });
+
         setSubscription({
               plan: 'trial',
               daysRemaining: 10,

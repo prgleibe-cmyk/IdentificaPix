@@ -209,11 +209,15 @@ export const Sidebar: React.FC = () => {
                         
                         <button 
                             type="button"
-                            onClick={signOut}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                signOut();
+                            }}
                             className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                             title="Sair"
                         >
-                            <ArrowLeftOnRectangleIcon className="w-4 h-4 stroke-[2]" />
+                            <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />
                         </button>
                     </div>
                 </div>
