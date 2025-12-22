@@ -5,7 +5,29 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IdentificaPix - Sistema de Conciliação</title>
+    
+    <!-- Configurações de Identidade Visual -->
+    <title>IdentificaPix - Sistema de Conciliação Inteligente</title>
+    <meta name="description" content="Conciliação bancária automatizada para igrejas e instituições com tecnologia Gemini AI." />
+    <meta name="theme-color" content="#051024" />
+
+    <!-- Meta Tags para Compartilhamento (WhatsApp, Facebook, LinkedIn) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="IdentificaPix - Sistema de Conciliação" />
+    <meta property="og:description" content="Automatize suas doações PIX e ofertas com precisão absoluta." />
+    <meta property="og:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png" />
+    <meta property="og:url" content="https://identificapix.com.br" />
+
+    <!-- Meta Tags para Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="IdentificaPix" />
+    <meta name="twitter:description" content="Conciliação bancária inteligente via IA." />
+    <meta name="twitter:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png" />
+
+    <!-- Ícone de Atalho para Dispositivos Móveis (Add to Home Screen) -->
+    <link rel="apple-touch-icon" href="/vite.svg" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     
     <!-- Google Fonts: Inter & Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,12 +47,12 @@
             },
             colors: {
               brand: {
-                deep: '#051024',       // Azul quase preto (Mais profundo que o anterior)
-                blue: '#0052CC',       // Azul vibrante (Primary - Updated from image)
-                teal: '#4FE6D0',       // Verde água (Accent)
-                bg: '#F8FAFC',         // Fundo muito leve
-                surface: '#FFFFFF',    // Superfícies
-                graphite: '#1E293B',   // Texto principal
+                deep: '#051024',
+                blue: '#0052CC',
+                teal: '#4FE6D0',
+                bg: '#F8FAFC',
+                surface: '#FFFFFF',
+                graphite: '#1E293B',
               }
             },
             boxShadow: {
@@ -51,18 +73,9 @@
               'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             },
             keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(15px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              slideIn: {
-                '0%': { transform: 'translateX(-20px)', opacity: '0' },
-                '100%': { transform: 'translateX(0)', opacity: '1' },
-              }
+              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+              fadeInUp: { '0%': { opacity: '0', transform: 'translateY(15px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+              slideIn: { '0%': { transform: 'translateX(-20px)', opacity: '0' }, '100%': { transform: 'translateX(0)', opacity: '1' } }
             }
           }
         }
