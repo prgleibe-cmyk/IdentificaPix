@@ -9,6 +9,7 @@ import { UIProvider, useUI } from './contexts/UIContext';
 
 // --- Layout & Shared Components ---
 import { Sidebar } from './components/layout/Sidebar';
+// Header removed as per request
 import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
 import { ExclamationTriangleIcon } from './components/Icons';
@@ -61,7 +62,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-[100dvh] flex items-center justify-center bg-brand-bg p-4">
+        <div className="min-h-screen flex items-center justify-center bg-brand-bg p-4">
             <div className="bg-white p-8 rounded-2xl shadow-card text-center max-w-md border border-red-100">
                 <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
                     <ExclamationTriangleIcon className="w-6 h-6 text-red-500" />
@@ -78,15 +79,27 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+// --- Modals Render Helper ---
 const ModalsRenderer = () => {
     const context = React.useContext(AppContext);
     if (!context) return null;
 
     const {
-        editingBank, editingChurch, manualIdentificationTx, bulkIdentificationTxs,
-        deletingItem, manualMatchState, savingReportState, isSearchFiltersOpen, 
-        divergenceConfirmation, isPaymentModalOpen
+        editingBank, 
+        editingChurch, 
+        manualIdentificationTx, 
+        bulkIdentificationTxs,
+        deletingItem, 
+        manualMatchState, 
+        savingReportState, 
+        isSearchFiltersOpen, 
+        divergenceConfirmation,
+        isPaymentModalOpen
     } = context;
+
+    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen) {
+        return null;
+    }
 
     return (
         <>
@@ -103,9 +116,12 @@ const ModalsRenderer = () => {
     );
 };
 
+// --- View Router ---
 const ViewRouter = () => {
     const { activeView } = useUI();
     const { user } = useAuth();
+
+    // Robust check: Lowercase comparison to ensure access matches regardless of casing
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
     
     switch (activeView) {
@@ -122,27 +138,35 @@ const ViewRouter = () => {
     }
 };
 
+// --- Main Application Layout ---
 const MainAppContent = () => {
     const { isLoading, toast } = useUI();
     const context = React.useContext(AppContext);
     
     if (!context) return <LoadingSpinner />;
+
     const { initialDataLoaded } = context;
 
     if (!initialDataLoaded) {
         return (
-            <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#020610]">
+            <div className="h-screen w-screen flex items-center justify-center bg-brand-deep">
                 <LoadingSpinner />
             </div>
         );
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#F8FAFC] dark:bg-[#0B1120] font-sans overflow-hidden">
+        <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0B1120] font-sans overflow-hidden">
+            {/* Sidebar is fixed height, main content scrolls */}
             <Sidebar />
+
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 scroll-smooth z-10 custom-scrollbar relative">
+                {/* Header Removed for cleaner look */}
+                
+                <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth z-10 custom-scrollbar relative">
+                    {/* Header Gradient Decoration - Subtle ambient light */}
                     <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-brand-blue/5 to-transparent pointer-events-none z-0"></div>
+                    
                     <div className="max-w-[1600px] mx-auto h-full flex flex-col relative z-10">
                         {isLoading ? (
                             <div className="flex-1 flex items-center justify-center">
@@ -156,16 +180,29 @@ const MainAppContent = () => {
                     </div>
                 </div>
             </main>
+
             {toast && <Toast message={toast.message} type={toast.type} />}
             <ModalsRenderer />
         </div>
     );
 };
 
+// --- App Controller ---
 const AppController: React.FC = () => {
     const { session, loading } = useAuth();
-    if (loading) return <div className="h-[100dvh] flex items-center justify-center bg-[#051024]"><LoadingSpinner /></div>;
-    if (!session) return <AuthView />;
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#051024]">
+                <LoadingSpinner />
+            </div>
+        );
+    }
+
+    if (!session) {
+        return <AuthView />;
+    }
+
     return (
         <ErrorBoundary>
             <UIProvider>

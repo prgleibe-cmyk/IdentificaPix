@@ -514,13 +514,13 @@ const ReportGroup: React.FC<{
 
                     <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700/50 bg-slate-100/50 dark:bg-slate-900/50 flex justify-between items-center">
                         <div className="flex-1">
-                            {isUnidentifiedIncome && searchQuery && processedResults.length > 0 && (
+                            {isUnidentifiedIncome && processedResults.length > 0 && (
                                 <button 
                                     onClick={handleBulkIdentify}
                                     className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 active:scale-95 transition-all"
                                 >
                                     <CheckBadgeIcon className="w-3.5 h-3.5" />
-                                    <span>Identificar {processedResults.length} como...</span>
+                                    <span>Identificar {processedResults.length} {searchQuery ? 'filtrados' : 'pendentes'} como...</span>
                                 </button>
                             )}
                         </div>
