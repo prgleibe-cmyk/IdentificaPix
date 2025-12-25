@@ -77,6 +77,59 @@ export type Database = {
           },
         ]
       }
+      file_models: {
+        Row: {
+          id: string
+          created_at: string
+          name: string
+          user_id: string
+          version: number
+          lineage_id: string
+          is_active: boolean
+          fingerprint: Json
+          mapping: Json
+          parsing_rules: Json
+          snippet: string | null
+          last_used_at: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          name: string
+          user_id: string
+          version: number
+          lineage_id: string
+          is_active?: boolean
+          fingerprint: Json
+          mapping: Json
+          parsing_rules: Json
+          snippet?: string | null
+          last_used_at?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          name?: string
+          user_id?: string
+          version?: number
+          lineage_id?: string
+          is_active?: boolean
+          fingerprint?: Json
+          mapping?: Json
+          parsing_rules?: Json
+          snippet?: string | null
+          last_used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_models_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       learned_associations: {
         Row: {
           id: string
@@ -168,6 +221,8 @@ export type Database = {
           custom_price: number | null
           limit_ai: number | null
           usage_ai: number
+          max_churches: number | null
+          max_banks: number | null
         }
         Insert: {
           id: string
@@ -182,6 +237,8 @@ export type Database = {
           custom_price?: number | null
           limit_ai?: number | null
           usage_ai?: number
+          max_churches?: number | null
+          max_banks?: number | null
         }
         Update: {
           id?: string
@@ -196,6 +253,8 @@ export type Database = {
           custom_price?: number | null
           limit_ai?: number | null
           usage_ai?: number
+          max_churches?: number | null
+          max_banks?: number | null
         }
         Relationships: [
           {

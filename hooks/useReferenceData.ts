@@ -7,6 +7,7 @@ import { Logger } from '../services/monitoringService';
 import { User } from '@supabase/supabase-js';
 import { normalizeString, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/processingService';
 import { useAuth } from '../contexts/AuthContext';
+import { modelService } from '../services/modelService';
 
 const DEFAULT_IGNORE_KEYWORDS = [
     'DÍZIMOS', 'OFERTAS', 'MISSÕES', 'TERRENO - NOVA SEDE', 'PIX', 'TED', 'DOC',
@@ -55,8 +56,12 @@ export const useReferenceData = (user: User | null, showToast: (msg: string, typ
     // --- Fetch Models ---
     const fetchModels = useCallback(async () => {
         if (!user) return;
-        const { data, error } = await supabase.from('file_models').select('*').eq('user_id', user.id).eq('is_active', true);
-        if (data) setFileModels(data as FileModel[]);
+        try {
+            const models = await modelService.getUserModels(user.id);
+            setFileModels(models);
+        } catch (e) {
+            console.error("Failed to fetch models", e);
+        }
     }, [user]);
 
     useEffect(() => {

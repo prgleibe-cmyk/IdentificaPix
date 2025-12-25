@@ -3,6 +3,22 @@ import { supabase } from './supabaseClient';
 import { FileModel } from '../types';
 import { Logger } from './monitoringService';
 
+// Helper para converter DB Row -> FileModel
+const mapDbRowToModel = (row: any): FileModel => ({
+    id: row.id,
+    name: row.name,
+    user_id: row.user_id,
+    version: row.version,
+    lineage_id: row.lineage_id,
+    is_active: row.is_active,
+    fingerprint: row.fingerprint,
+    mapping: row.mapping,
+    parsingRules: row.parsing_rules, // Snake -> Camel
+    snippet: row.snippet,
+    createdAt: row.created_at, // Snake -> Camel
+    lastUsedAt: row.last_used_at // Snake -> Camel
+});
+
 export const modelService = {
     /**
      * Salva um novo modelo ou uma nova versão de um modelo existente.
@@ -18,17 +34,20 @@ export const modelService = {
                     .eq('user_id', model.user_id);
             }
 
+            const { parsingRules, ...rest } = model;
+
             const { data, error } = await supabase
                 .from('file_models')
                 .insert([{
-                    ...model,
+                    ...rest,
+                    parsing_rules: parsingRules, // Camel -> Snake
                     is_active: true
                 }])
                 .select()
                 .single();
 
             if (error) throw error;
-            return data as FileModel;
+            return mapDbRowToModel(data);
         } catch (error) {
             Logger.error("Erro ao salvar modelo aprendido", error);
             return null;
@@ -45,8 +64,8 @@ export const modelService = {
             .eq('user_id', userId)
             .eq('is_active', true);
         
-        if (error) return [];
-        return data as FileModel[];
+        if (error || !data) return [];
+        return data.map(mapDbRowToModel);
     },
 
     /**
@@ -73,9 +92,9 @@ export const modelService = {
 
             // Mapeia email no modelo
             return models.map(m => ({
-                ...m,
+                ...mapDbRowToModel(m),
                 user_email: profiles?.find(p => p.id === m.user_id)?.email || 'Usuário Desconhecido'
-            })) as (FileModel & { user_email?: string })[];
+            }));
 
         } catch (error) {
             Logger.error("Erro ao buscar modelos admin", error);
@@ -89,7 +108,7 @@ export const modelService = {
     deleteModel: async (modelId: string): Promise<boolean> => {
         const { error } = await supabase
             .from('file_models')
-            .delete() // Hard delete para limpar o banco, ou update is_active=false se preferir histórico
+            .delete() // Hard delete para limpar o banco
             .eq('id', modelId);
         
         return !error;
