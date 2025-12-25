@@ -3,10 +3,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- GLOBAL CONSISTENCY FIX --- */
+/* Força um tamanho base consistente independente do ambiente ou navegador */
+html {
+  font-size: 16px; /* Garante que 1rem = 16px em qualquer lugar */
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px; /* Ajuste responsivo suave para telas menores */
+  }
+}
+
 /* Modern Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -14,61 +27,70 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+  background: #CBD5E1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-slate-600;
+  background: #94A3B8;
 }
 
 /* Base Styles */
 body {
-  @apply bg-brand-bg text-brand-graphite antialiased;
-  /* Previne o bounce effect em mobile */
-  height: 100dvh;
-  overflow: hidden;
-}
-
-#root {
+  @apply bg-brand-bg text-brand-graphite;
   height: 100%;
+  overscroll-behavior: none; /* Previne o bounce effect do scroll em Mac/iOS */
 }
 
 /* --- SUPER PREMIUM UTILITIES --- */
 
+/* Fundo do Modal (Overlay) */
 .glass-overlay {
-  @apply fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4;
-  @apply bg-[#020610]/70 backdrop-blur-[4px];
-  @apply transition-all duration-300 ease-out;
+  @apply fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6;
+  @apply bg-[#020610]/60 backdrop-blur-[6px]; /* Escurece o fundo e desfoca o app atrás */
+  @apply transition-all duration-500 ease-out;
 }
 
+/* Corpo do Modal (O Vidro) */
 .glass-modal {
-  @apply relative overflow-hidden flex flex-col;
-  @apply bg-white dark:bg-[#0B1120] border border-white/40 dark:border-white/10;
-  @apply rounded-[2rem] shadow-2xl;
-  max-height: calc(100dvh - 2rem);
-  width: 100%;
+  @apply relative overflow-hidden;
+  @apply bg-white/90 dark:bg-[#0B1120]/80; /* Base semi-transparente */
+  @apply backdrop-blur-2xl; /* Desfoque pesado estilo vidro fosco */
+  
+  /* Bordas de Luz e Profundidade */
+  @apply border border-white/40 dark:border-white/10;
+  @apply ring-1 ring-white/60 dark:ring-white/5 ring-inset; /* Anel interno de luz */
+  
+  /* Sombreamento Premium em Camadas */
+  /* 1. Sombra de ambiente (Glow Azulado muito sutil) */
+  /* 2. Sombra de profundidade (Preta profunda) */
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 20px 50px -12px rgba(0, 0, 0, 0.5), 
+    0 0 100px -20px rgba(0, 82, 204, 0.15); 
 }
 
+/* Header com Gradiente Sutil */
 .glass-header {
-  @apply border-b border-slate-100 dark:border-slate-800 shrink-0;
-  @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-md;
-}
-
-.glass-footer {
-  @apply border-t border-slate-100 dark:border-slate-800 shrink-0;
-  @apply bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md;
-}
-
-.custom-scrollbar {
-  scrollbar-gutter: stable;
+  @apply border-b border-slate-100/50 dark:border-slate-800/50;
+  @apply bg-gradient-to-b from-white/50 to-transparent dark:from-white/5 dark:to-transparent;
 }
 
 /* Animations */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
 @keyframes scale-in {
-  0% { opacity: 0; transform: scale(0.98) translateY(10px); }
+  0% { opacity: 0; transform: scale(0.95) translateY(10px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+.animate-pulse-soft {
+  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 .animate-scale-in {
-  animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

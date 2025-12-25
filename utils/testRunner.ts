@@ -1,4 +1,6 @@
-interface TestResult {
+
+// Fix: Added export to TestResult interface
+export interface TestResult {
     suite: string;
     test: string;
     passed: boolean;

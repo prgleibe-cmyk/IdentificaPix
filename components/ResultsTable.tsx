@@ -4,7 +4,7 @@ import { MatchResult } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
-import { SparklesIcon, UserPlusIcon, BrainIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon } from './Icons';
+import { SparklesIcon, UserPlusIcon, BrainIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, BarcodeIcon } from './Icons';
 import { cleanTransactionDescriptionForDisplay } from '../services/processingService';
 
 interface ResultsTableProps {
@@ -41,7 +41,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
     const { t, language } = useTranslation();
     const { customIgnoreKeywords } = useContext(AppContext);
   
-    // Avatar Logic Helpers
     const getChurchInitial = (name: string) => name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?';
     const avatarColors = [
         'bg-indigo-50 text-indigo-600 border-indigo-100',
@@ -81,49 +80,39 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden mt-6 flex flex-col">
-            
-            {/* Table Container with Internal Scroll */}
             <div className="overflow-x-auto custom-scrollbar relative">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
                         <tr>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%]">{t('table.date')}</th>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[20%]">{t('table.church')}</th>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[30%]">Descrição / Contribuinte</th>
-                            <th scope="col" className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%]">{t('table.amount')}</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">{t('table.date')}</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%]">{t('table.church')}</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[25%]">Descrição / Contribuinte</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">Tipo</th>
+                            <th scope="col" className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%]">{t('table.amount')}</th>
                             <th scope="col" className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">{t('table.status')}</th>
                             <th scope="col" className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[8%]">{t('table.actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {results.map(({ transaction, contributor, status, church, matchMethod, contributorAmount, divergence }) => {
+                        {results.map(({ transaction, contributor, status, church, matchMethod, contributorAmount, contributionType, divergence }) => {
                             const isExpense = transaction.amount < 0;
-                            // Prioridade para o valor do contribuinte se for uma transação virtual (pendente no extrato)
-                            // Senão, usa o valor da transação bancária original.
                             const amount = isExpense 
                                 ? transaction.amount 
                                 : (contributorAmount ?? (Math.abs(transaction.amount) > 0 ? transaction.amount : (contributor?.amount ?? 0)));
                             
                             const churchName = church?.name || '---';
                             const displayDate = contributor?.date || transaction.date;
-                            
-                            // CRÍTICO: Re-limpar a descrição na hora da exibição para refletir alterações em Palavras-chave Ignoradas sem precisar re-processar
                             const cleanedTxDesc = cleanTransactionDescriptionForDisplay(transaction.description, customIgnoreKeywords);
                             const displayName = contributor?.cleanedName || contributor?.name || cleanedTxDesc;
-                            
                             const avatarColor = avatarColors[churchName.length % avatarColors.length];
 
                             return (
                                 <tr key={transaction.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200">
-                                    
-                                    {/* Date */}
                                     <td className="px-4 py-2.5 whitespace-nowrap">
                                         <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
                                             {displayDate}
                                         </span>
                                     </td>
-
-                                    {/* Church */}
                                     <td className="px-4 py-2.5">
                                         <div className="flex items-center">
                                             {churchName !== '---' && (
@@ -136,8 +125,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                             </span>
                                         </div>
                                     </td>
-
-                                    {/* Description / Name */}
                                     <td className="px-4 py-2.5 break-words min-w-[200px]">
                                         <div className="flex flex-col">
                                             <span className="text-xs font-bold text-slate-800 dark:text-white leading-tight line-clamp-1" title={displayName}>
@@ -150,15 +137,16 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                             )}
                                         </div>
                                     </td>
-
-                                    {/* Amount */}
+                                    <td className="px-4 py-2.5">
+                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${contributionType ? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' : 'text-slate-300 italic'}`}>
+                                            {contributionType || '---'}
+                                        </span>
+                                    </td>
                                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                                        <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+                                        <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white'}`}>
                                             {formatCurrency(amount, language)}
                                         </span>
                                     </td>
-
-                                    {/* Status */}
                                     <td className="px-4 py-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             {getStatusBadge(status, matchMethod)}
@@ -168,8 +156,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                             )}
                                         </div>
                                     </td>
-
-                                    {/* Actions */}
                                     <td className="px-4 py-2.5 text-center">
                                         {status === 'NÃO IDENTIFICADO' && (
                                             <button 
@@ -188,48 +174,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                     </tbody>
                 </table>
             </div>
-
-            {/* Pagination Controls */}
-            {totalPages && totalPages > 1 && onPageChange && currentPage && (
-                <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 bg-white dark:bg-slate-800">
-                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                <span className="text-slate-700 dark:text-slate-200">{(currentPage - 1) * 50 + 1}</span> - <span className="text-slate-700 dark:text-slate-200">{Math.min(currentPage * 50, results.length)}</span>
-                            </p>
-                        </div>
-                        <div>
-                            <nav className="relative z-0 inline-flex rounded-full shadow-sm" aria-label="Pagination">
-                                <button
-                                    onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                                    disabled={currentPage === 1}
-                                    className="relative inline-flex items-center px-3 py-1 rounded-l-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase"
-                                >
-                                    <ChevronLeftIcon className="h-3 w-3 mr-1" aria-hidden="true" />
-                                    Ant
-                                </button>
-                                <span className="relative inline-flex items-center px-3 py-1 border-t border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-brand-blue dark:text-blue-400 min-w-[2rem] justify-center">
-                                    {currentPage}
-                                </span>
-                                <button
-                                    onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                                    disabled={currentPage === totalPages}
-                                    className="relative inline-flex items-center px-3 py-1 rounded-r-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase"
-                                >
-                                    Prox
-                                    <ChevronRightIcon className="h-3 w-3 ml-1" aria-hidden="true" />
-                                </button>
-                            </nav>
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {results.length === 0 && (
-                <div className="text-center py-16 bg-slate-50/50 dark:bg-slate-900/30">
-                    <p className="text-slate-400 font-medium text-xs">{t('common.noResults')}</p>
-                </div>
-            )}
         </div>
     );
 });

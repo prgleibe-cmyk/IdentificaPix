@@ -14,13 +14,15 @@ import {
     BoltIcon,
     CheckCircleIcon,
     XCircleIcon,
-    ArrowsRightLeftIcon
+    ArrowsRightLeftIcon,
+    BrainIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminAuditTab } from '../components/admin/AdminAuditTab';
+import { AdminModelsTab } from '../components/admin/AdminModelsTab';
 
-type AdminTab = 'settings' | 'users' | 'audit';
+type AdminTab = 'settings' | 'users' | 'audit' | 'models';
 
 export const AdminView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>('settings');
@@ -62,12 +64,13 @@ export const AdminView: React.FC = () => {
         }, 800);
     };
 
-    const TabButton = ({ id, label, icon: Icon, colorTheme }: { id: AdminTab, label: string, icon: any, colorTheme: 'blue' | 'indigo' | 'emerald' }) => {
+    const TabButton = ({ id, label, icon: Icon, colorTheme }: { id: AdminTab, label: string, icon: any, colorTheme: 'blue' | 'indigo' | 'emerald' | 'purple' }) => {
         const isActive = activeTab === id;
         const themes = {
             blue: { active: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300', inactive: 'text-slate-500' },
             indigo: { active: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300', inactive: 'text-slate-500' },
-            emerald: { active: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300', inactive: 'text-slate-500' }
+            emerald: { active: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300', inactive: 'text-slate-500' },
+            purple: { active: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300', inactive: 'text-slate-500' }
         };
         const style = themes[colorTheme];
 
@@ -96,10 +99,11 @@ export const AdminView: React.FC = () => {
                 </div>
                 
                 <div className="flex flex-col md:flex-row gap-2 md:items-center">
-                    <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
+                    <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
                         <TabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="blue" />
                         <TabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="indigo" />
                         <TabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
+                        <TabButton id="models" label="Modelos" icon={BrainIcon} colorTheme="purple" />
                     </div>
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
                     <div className="flex items-center gap-2">
@@ -119,6 +123,7 @@ export const AdminView: React.FC = () => {
                 {activeTab === 'settings' && <AdminSettingsTab />}
                 {activeTab === 'users' && <AdminUsersTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
+                {activeTab === 'models' && <AdminModelsTab />}
             </div>
 
             {/* Diagnostic Modal */}

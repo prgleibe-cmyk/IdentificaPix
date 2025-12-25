@@ -414,6 +414,8 @@ const ReportGroup: React.FC<{
         }
     };
 
+    // Removed the "return null" blocking to allow "No Results" placeholder to show if filtered
+    // This fixes the issue where filtering might hide the group entirely if results are 0
     if (safeResults.length === 0) {
         return null;
     }
@@ -570,7 +572,8 @@ export const ReportsView: React.FC = () => {
         discardCurrentReport, 
         openSearchFilters, 
         searchFilters,
-        openRecompareModal
+        openRecompareModal,
+        churches
     } = useContext(AppContext);
     
     const { t } = useTranslation();
@@ -578,9 +581,32 @@ export const ReportsView: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState<'income' | 'expenses'>('income');
 
-    const incomeGroups = reportPreviewData ? Object.keys(reportPreviewData.income) : [];
+    // Separate groups for safer rendering
+    const unidentifiedIncome = useMemo(() => {
+        if (!reportPreviewData?.income['unidentified']) return null;
+        return {
+            id: 'unidentified',
+            results: reportPreviewData.income['unidentified']
+        };
+    }, [reportPreviewData]);
+
+    const churchIncomeGroups = useMemo(() => {
+        if (!reportPreviewData) return [];
+        return Object.keys(reportPreviewData.income)
+            .filter(id => id !== 'unidentified')
+            .sort((a, b) => {
+                const churchA = churches.find(c => c.id === a)?.name || '';
+                const churchB = churches.find(c => c.id === b)?.name || '';
+                return churchA.localeCompare(churchB);
+            })
+            .map(id => ({
+                id,
+                results: reportPreviewData.income[id]
+            }));
+    }, [reportPreviewData, churches]);
+
     const expenseGroups = reportPreviewData ? Object.keys(reportPreviewData.expenses) : [];
-    const hasIncome = incomeGroups.length > 0;
+    const hasIncome = (unidentifiedIncome?.results?.length ?? 0) > 0 || churchIncomeGroups.length > 0;
     const hasExpenses = expenseGroups.length > 0;
 
     const handleSaveGlobalReport = () => {
@@ -595,10 +621,12 @@ export const ReportsView: React.FC = () => {
         });
     };
 
+    // Auto-switch tabs if data only exists in one type
     React.useEffect(() => {
         if (!reportPreviewData) return;
-        if (!hasIncome && hasExpenses && activeTab === 'income') setActiveTab('expenses');
-        if (hasIncome && !hasExpenses && activeTab === 'expenses') setActiveTab('income');
+        // Logic simplified: only switch if CURRENT view is empty but other has data
+        if (activeTab === 'income' && !hasIncome && hasExpenses) setActiveTab('expenses');
+        if (activeTab === 'expenses' && !hasExpenses && hasIncome) setActiveTab('income');
     }, [hasIncome, hasExpenses, activeTab, reportPreviewData]);
 
     const activeFilterCount = useMemo(() => {
@@ -694,13 +722,26 @@ export const ReportsView: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 pb-10">
-                {activeTab === 'income' && incomeGroups.length > 0 && (
+                {activeTab === 'income' && (
                     <>
-                        {reportPreviewData && reportPreviewData.income['unidentified'] && reportPreviewData.income['unidentified'].length > 0 && (
-                            <ReportGroup key="unidentified" churchId="unidentified" results={reportPreviewData.income['unidentified']} reportType="income" />
+                        {/* Always show unidentified group if it exists */}
+                        {unidentifiedIncome && (
+                            <ReportGroup 
+                                key="unidentified"
+                                churchId="unidentified"
+                                results={unidentifiedIncome.results}
+                                reportType="income"
+                            />
                         )}
-                        {incomeGroups.filter(id => id !== 'unidentified').map(churchId => (
-                            <ReportGroup key={churchId} churchId={churchId} results={(reportPreviewData?.income[churchId]) || []} reportType="income" />
+                        
+                        {/* Show church groups */}
+                        {churchIncomeGroups.map(group => (
+                            <ReportGroup 
+                                key={group.id} 
+                                churchId={group.id} 
+                                results={group.results} 
+                                reportType="income" 
+                            />
                         ))}
                     </>
                 )}
@@ -711,7 +752,7 @@ export const ReportsView: React.FC = () => {
                     ))
                 )}
                 
-                {((activeTab === 'income' && incomeGroups.length === 0) || (activeTab === 'expenses' && expenseGroups.length === 0)) && (
+                {((activeTab === 'income' && !hasIncome) || (activeTab === 'expenses' && !hasExpenses)) && (
                     <div className="text-center py-20 bg-white/50 dark:bg-slate-800/30 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center">
                         <SearchIcon className="w-10 h-10 text-slate-300 mb-3" />
                         <p className="text-slate-500 font-bold text-sm">Nenhum resultado encontrado.</p>

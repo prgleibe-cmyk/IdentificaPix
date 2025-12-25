@@ -17,9 +17,8 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Tenta pegar a chave de várias fontes possíveis em nuvem
-const GEMINI_KEY = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: GEMINI_KEY });
+// Fix: Strictly initialized using process.env.API_KEY as per the guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 app.post('/api/ai/extract-data', async (req, res) => {
     try {
@@ -78,6 +77,7 @@ app.post('/api/ai/extract-data', async (req, res) => {
             }
         });
 
+        // Fix: Access .text property instead of .text() method
         const resultText = response.text;
         if (!resultText) throw new Error("IA retornou resposta vazia");
         
@@ -93,6 +93,7 @@ app.post('/api/ai/suggestion', async (req, res) => {
     try {
         const { transactionDescription, contributorNames } = req.body;
         const prompt = `Analise: "${transactionDescription}" vs [${contributorNames}]. Responda APENAS o name exato ou "Nenhuma sugestão clara".`;
+        // Fix: accessing text property directly
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         res.json({ text: response.text ? response.text.trim() : "Erro na resposta da IA" });
     } catch (error) { res.status(500).json({ error: 'Erro na IA' }); }

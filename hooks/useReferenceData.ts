@@ -1,11 +1,11 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult } from '../types';
+import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { Logger } from '../services/monitoringService';
 import { User } from '@supabase/supabase-js';
-import { normalizeString } from '../services/processingService';
+import { normalizeString, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/processingService';
 import { useAuth } from '../contexts/AuthContext';
 
 const DEFAULT_IGNORE_KEYWORDS = [
@@ -15,29 +15,54 @@ const DEFAULT_IGNORE_KEYWORDS = [
 ];
 
 export const useReferenceData = (user: User | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    // Access subscription directly from AuthContext
     const { subscription } = useAuth();
-
-    // --- User Scoping for Local Storage ---
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     // --- State ---
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
     const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
+    const [fileModels, setFileModels] = useState<FileModel[]>([]);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
+    
+    // Keywords
     const [customIgnoreKeywords, setCustomIgnoreKeywords] = usePersistentState<string[]>(`identificapix-ignore-keywords${userSuffix}`, DEFAULT_IGNORE_KEYWORDS);
+    const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contribution-types${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
+    
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     
-    // UI State for Editing
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
-    // --- Actions: Keywords ---
-    const addIgnoreKeyword = useCallback((k: string) => setCustomIgnoreKeywords(prev => [...prev, k]), [setCustomIgnoreKeywords]);
+    // --- Methods for Keywords ---
+    const addIgnoreKeyword = useCallback((k: string) => {
+        if (!k.trim()) return;
+        setCustomIgnoreKeywords(prev => prev.includes(k.trim()) ? prev : [...prev, k.trim()]);
+    }, [setCustomIgnoreKeywords]);
+
     const removeIgnoreKeyword = useCallback((k: string) => setCustomIgnoreKeywords(prev => prev.filter(i => i !== k)), [setCustomIgnoreKeywords]);
 
-    // --- Actions: Banks ---
+    const addContributionKeyword = useCallback((k: string) => {
+        if (!k.trim()) return;
+        setContributionKeywords(prev => {
+            const normalized = k.toUpperCase().trim();
+            return prev.includes(normalized) ? prev : [...prev, normalized];
+        });
+    }, [setContributionKeywords]);
+
+    const removeContributionKeyword = useCallback((k: string) => setContributionKeywords(prev => prev.filter(i => i !== k)), [setContributionKeywords]);
+
+    // --- Fetch Models ---
+    const fetchModels = useCallback(async () => {
+        if (!user) return;
+        const { data, error } = await supabase.from('file_models').select('*').eq('user_id', user.id).eq('is_active', true);
+        if (data) setFileModels(data as FileModel[]);
+    }, [user]);
+
+    useEffect(() => {
+        fetchModels();
+    }, [fetchModels]);
+
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
 
@@ -46,54 +71,28 @@ export const useReferenceData = (user: User | null, showToast: (msg: string, typ
         const oldBanks = [...banks];
         setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
         closeEditBank();
-
         const { error } = await supabase.from('banks').update({ name }).eq('id', bankId);
-        if (error) {
-            setBanks(oldBanks); 
-            showToast('Erro ao atualizar banco.', 'error');
-        } else {
-            showToast('Banco atualizado com sucesso.', 'success');
-        }
+        if (error) { setBanks(oldBanks); showToast('Erro ao atualizar banco.', 'error'); }
+        else showToast('Banco atualizado com sucesso.', 'success');
     }, [user, banks, setBanks, closeEditBank, showToast]);
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
-        if(!user) {
-            showToast("Você precisa estar logado para adicionar um banco.", "error");
-            return false;
-        }
-
-        // Limit Enforcement
+        if(!user) { showToast("Você precisa estar logado.", "error"); return false; }
         if (banks.length >= (subscription.maxBanks || 1)) {
-            showToast(`Limite de bancos atingido (${subscription.maxBanks}). Faça upgrade do plano.`, 'error');
+            showToast(`Limite atingido (${subscription.maxBanks}).`, 'error');
             return false;
         }
-        
         const tempId = `temp-${Date.now()}`;
-        const newBank: Bank = { id: tempId, name };
-        setBanks(prev => [...prev, newBank]);
-
+        setBanks(prev => [...prev, { id: tempId, name }]);
         try {
             const { data, error } = await supabase.from('banks').insert([{ name, user_id: user.id }]).select();
-            
-            if (error || !data || data.length === 0) {
-                Logger.error('Error adding bank', error);
-                setBanks(prev => prev.filter(b => b.id !== tempId)); 
-                showToast(`Erro ao adicionar banco: ${error?.message || 'Erro de conexão'}`, 'error');
-                return false;
-            } else {
-                setBanks(prev => prev.map(b => b.id === tempId ? { ...b, id: data[0].id } : b));
-                showToast('Banco adicionado com sucesso.', 'success');
-                return true;
-            }
-        } catch (e: any) {
-            Logger.error('Exception adding bank', e);
-            setBanks(prev => prev.filter(b => b.id !== tempId));
-            showToast(`Erro de exceção: ${e.message}`, 'error');
-            return false;
-        }
+            if (error || !data) { setBanks(prev => prev.filter(b => b.id !== tempId)); return false; }
+            setBanks(prev => prev.map(b => b.id === tempId ? { ...b, id: data[0].id } : b));
+            showToast('Banco adicionado.', 'success');
+            return true;
+        } catch (e) { return false; }
     }, [user, setBanks, showToast, banks.length, subscription.maxBanks]);
 
-    // --- Actions: Churches ---
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
 
@@ -102,57 +101,26 @@ export const useReferenceData = (user: User | null, showToast: (msg: string, typ
         const oldChurches = [...churches];
         setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
         closeEditChurch();
-
         const { error } = await supabase.from('churches').update(formData).eq('id', churchId);
-        if (error) {
-            setChurches(oldChurches);
-            showToast('Erro ao atualizar igreja.', 'error');
-        } else {
-            showToast('Igreja atualizada com sucesso.', 'success');
-        }
+        if (error) { setChurches(oldChurches); showToast('Erro ao atualizar igreja.', 'error'); }
+        else showToast('Igreja atualizada.', 'success');
     }, [user, churches, setChurches, closeEditChurch, showToast]);
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
-        if(!user) {
-            showToast("Você precisa estar logado para adicionar uma igreja.", "error");
-            return false;
-        }
-
-        // Limit Enforcement
+        if(!user) return false;
         if (churches.length >= (subscription.maxChurches || 1)) {
-            showToast(`Limite de igrejas atingido (${subscription.maxChurches}). Faça upgrade do plano.`, 'error');
+            showToast(`Limite atingido (${subscription.maxChurches}).`, 'error');
             return false;
         }
-
-        const payloadSize = new Blob([JSON.stringify(formData)]).size;
-        if (payloadSize > 5 * 1024 * 1024) { 
-             showToast("A imagem do logo é muito grande. Por favor, use uma imagem menor.", "error");
-             return false;
-        }
-
         const tempId = `temp-${Date.now()}`;
-        const newChurch: Church = { id: tempId, ...formData };
-        setChurches(prev => [...prev, newChurch]);
-
+        setChurches(prev => [...prev, { id: tempId, ...formData }]);
         try {
             const { data, error } = await supabase.from('churches').insert([{ ...formData, user_id: user.id }]).select();
-
-            if (error || !data || data.length === 0) {
-                Logger.error('Error adding church', error);
-                setChurches(prev => prev.filter(c => c.id !== tempId));
-                showToast(`Erro ao adicionar igreja: ${error?.message || 'Erro de conexão'}`, 'error');
-                return false;
-            } else {
-                setChurches(prev => prev.map(c => c.id === tempId ? { ...c, id: data[0].id } : c));
-                showToast('Igreja adicionada com sucesso.', 'success');
-                return true;
-            }
-        } catch (e: any) {
-            Logger.error('Exception adding church', e);
-            setChurches(prev => prev.filter(c => c.id !== tempId));
-            showToast(`Erro de exceção: ${e.message}`, 'error');
-            return false;
-        }
+            if (error || !data) { setChurches(prev => prev.filter(c => c.id !== tempId)); return false; }
+            setChurches(prev => prev.map(c => c.id === tempId ? { ...c, id: data[0].id } : c));
+            showToast('Igreja adicionada.', 'success');
+            return true;
+        } catch (e) { return false; }
     }, [user, setChurches, showToast, churches.length, subscription.maxChurches]);
 
     useEffect(() => {
@@ -161,71 +129,38 @@ export const useReferenceData = (user: User | null, showToast: (msg: string, typ
             const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
             if (data) {
                 const mapped: LearnedAssociation[] = data.map(d => ({
-                    id: d.id,
-                    normalizedDescription: d.normalized_description,
+                    id: d.id, normalizedDescription: d.normalized_description,
                     contributorNormalizedName: d.contributor_normalized_name,
-                    churchId: d.church_id,
-                    user_id: d.user_id
+                    churchId: d.church_id, user_id: d.user_id
                 }));
                 setLearnedAssociations(mapped);
             }
         };
         fetchAssociations();
-    }, [user, setLearnedAssociations]);
+    }, [user]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
-        if (!user) return;
-        if (!matchResult.contributor || !matchResult.church) return;
-
+        if (!user || !matchResult.contributor || !matchResult.church) return;
         const normalizedDesc = normalizeString(matchResult.transaction.description, customIgnoreKeywords);
         const normalizedContrib = matchResult.contributor.normalizedName || normalizeString(matchResult.contributor.name, customIgnoreKeywords);
-
-        const exists = learnedAssociations.some(la => 
-            la.normalizedDescription === normalizedDesc && 
-            la.contributorNormalizedName === normalizedContrib &&
-            la.churchId === matchResult.church.id
-        );
-
-        if (exists) return;
-
-        const newAssociation: LearnedAssociation = {
-            normalizedDescription: normalizedDesc,
-            contributorNormalizedName: normalizedContrib,
-            churchId: matchResult.church.id,
-            user_id: user.id
-        };
-
+        if (learnedAssociations.some(la => la.normalizedDescription === normalizedDesc && la.contributorNormalizedName === normalizedContrib && la.churchId === matchResult.church.id)) return;
+        const newAssociation: LearnedAssociation = { normalizedDescription: normalizedDesc, contributorNormalizedName: normalizedContrib, churchId: matchResult.church.id, user_id: user.id };
         setLearnedAssociations(prev => [...prev, newAssociation]);
-
         try {
-            await supabase.from('learned_associations').insert({
-                user_id: user.id,
-                normalized_description: normalizedDesc,
-                contributor_normalized_name: normalizedContrib,
-                church_id: matchResult.church.id
-            });
-        } catch (err) {
-            Logger.error('Failed to save association', err);
-            setLearnedAssociations(prev => prev.filter(la => la.normalizedDescription !== normalizedDesc));
-        }
-    }, [user, customIgnoreKeywords, learnedAssociations, setLearnedAssociations]);
+            await supabase.from('learned_associations').insert({ user_id: user.id, normalized_description: normalizedDesc, contributor_normalized_name: normalizedContrib, church_id: matchResult.church.id });
+        } catch (err) { setLearnedAssociations(prev => prev.filter(la => la.normalizedDescription !== normalizedDesc)); }
+    }, [user, customIgnoreKeywords, learnedAssociations]);
 
     return useMemo(() => ({
         banks, setBanks,
         churches, setChurches,
+        fileModels, fetchModels,
         similarityLevel, setSimilarityLevel,
         dayTolerance, setDayTolerance,
         customIgnoreKeywords, setCustomIgnoreKeywords, addIgnoreKeyword, removeIgnoreKeyword,
+        contributionKeywords, setContributionKeywords, addContributionKeyword, removeContributionKeyword,
         learnedAssociations, setLearnedAssociations, learnAssociation,
-        
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch
-    }), [
-        banks, churches, similarityLevel, dayTolerance, customIgnoreKeywords, learnedAssociations, 
-        editingBank, editingChurch,
-        setBanks, setChurches, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, 
-        addIgnoreKeyword, removeIgnoreKeyword, setLearnedAssociations, learnAssociation,
-        openEditBank, closeEditBank, updateBank, addBank,
-        openEditChurch, closeEditChurch, updateChurch, addChurch
-    ]);
+    }), [banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, customIgnoreKeywords, contributionKeywords, learnedAssociations, editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, setDayTolerance, setCustomIgnoreKeywords, setContributionKeywords, addIgnoreKeyword, removeIgnoreKeyword, addContributionKeyword, removeContributionKeyword, setLearnedAssociations, learnAssociation, openEditBank, closeEditBank, updateBank, addBank, openEditChurch, closeEditChurch, updateChurch, addChurch]);
 };

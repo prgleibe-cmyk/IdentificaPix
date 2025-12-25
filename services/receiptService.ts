@@ -16,17 +16,20 @@ export const analyzeReceipt = async (file: File): Promise<ReceiptAnalysisResult>
       reader.readAsDataURL(file);
     });
 
+    // Fix: Updated contents structure to use { parts: [...] } for multi-modal input per SDK guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [
-        {
-          inlineData: {
-            mimeType: file.type,
-            data: base64Data,
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: file.type,
+              data: base64Data,
+            },
           },
-        },
-        { text: "Analise este comprovante de PIX/Transferência. Extraia o valor, data, pagador e recebedor. Verifique se parece um documento autêntico." }
-      ],
+          { text: "Analise este comprovante de PIX/Transferência. Extraia o valor, data, pagador e recebedor. Verifique se parece um documento autêntico." }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -44,6 +47,7 @@ export const analyzeReceipt = async (file: File): Promise<ReceiptAnalysisResult>
       }
     });
 
+    // Accessed .text property directly per GenAI guidelines
     const text = response.text;
     return text ? JSON.parse(text) : { isValid: false, reason: "Falha na interpretação da IA" };
 

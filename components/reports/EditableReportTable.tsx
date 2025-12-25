@@ -6,7 +6,7 @@ import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
 import { PencilIcon, FloppyDiskIcon, XCircleIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon, ExclamationTriangleIcon, ChevronLeftIcon, ChevronRightIcon, BuildingOfficeIcon, UserIcon, BanknotesIcon } from '../Icons';
-import { PLACEHOLDER_CHURCH, cleanTransactionDescriptionForDisplay } from '../../services/processingService';
+import { PLACEHOLDER_CHURCH, formatIncomeDescription, formatExpenseDescription } from '../../services/processingService';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -24,6 +24,8 @@ interface EditableReportTableProps {
 
 const ITEMS_PER_PAGE = 50;
 
+// --- Sub-Componentes de UI de Suporte ---
+
 const SortableHeader: React.FC<{
     sortKey: string;
     title: string;
@@ -32,359 +34,143 @@ const SortableHeader: React.FC<{
     className?: string;
 }> = memo(({ sortKey, title, sortConfig, onSort, className = '' }) => {
     const isSorted = sortConfig?.key === sortKey;
-    const direction = sortConfig?.direction;
-
     return (
         <th scope="col" className={`px-4 py-3 text-left text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest ${className}`}>
-            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-brand-blue dark:hover:text-blue-400 transition-colors focus:outline-none">
+            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-brand-blue transition-colors focus:outline-none">
                 <span>{title}</span>
                 <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-brand-blue' : 'opacity-0 group-hover:opacity-50'}`}>
-                    {isSorted ? (
-                        direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
-                    ) : (
-                       <ChevronUpIcon className="w-3 h-3" />
-                    )}
+                    {sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
                 </span>
             </button>
         </th>
     );
 });
 
-const SourceBadge: React.FC<{ type: 'list' | 'bank'; className?: string }> = ({ type, className = '' }) => {
-    const isList = type === 'list';
-    return (
-        <span className={`inline-flex items-center justify-center min-w-[45px] px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border select-none flex-shrink-0 ${
-            isList 
-            ? 'bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' 
-            : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-        } ${className}`}>
-            {isList ? 'Lista' : 'Extrato'}
-        </span>
-    );
-};
+const SourceBadge: React.FC<{ type: 'list' | 'bank' }> = ({ type }) => (
+    <span className={`inline-flex items-center justify-center min-w-[45px] px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border select-none ${
+        type === 'list' ? 'bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400'
+    }`}>
+        {type === 'list' ? 'Lista' : 'Extrato'}
+    </span>
+);
 
-const ReportRow = memo(({ 
-    result, 
-    reportType, 
-    churches, 
-    t, 
-    language, 
-    onEditStart, 
-    onDelete, 
-    openManualMatchModal, 
-    openDivergenceModal,
-    isEditing,
-    draftRow,
-    onEditChange,
-    onSave,
-    onCancel,
-    customIgnoreKeywords
-}: {
-    result: MatchResult;
-    reportType: 'income' | 'expenses';
-    churches: Church[];
-    t: any;
-    language: Language;
-    onEditStart: (row: MatchResult) => void;
-    onDelete: (row: MatchResult) => void;
-    openManualMatchModal: (row: MatchResult) => void;
-    openDivergenceModal: (row: MatchResult) => void;
-    isEditing: boolean;
-    draftRow: MatchResult | null;
-    onEditChange: (field: string, value: any) => void;
-    onSave: () => void;
-    onCancel: () => void;
-    customIgnoreKeywords: string[];
-}) => {
-    const currentRow = isEditing && draftRow ? draftRow : result;
-    const isIdentified = currentRow.status === 'IDENTIFICADO';
-    
-    const transactionDate = currentRow.transaction.date;
-    const contributorDate = currentRow.contributor?.date;
-    const datesDiffer = isIdentified && contributorDate && transactionDate !== contributorDate;
+// --- Trilhas de Renderização Isoladas ---
 
-    const contributorName = currentRow.contributor?.cleanedName || currentRow.contributor?.name;
-    
-    // CRÍTICO: Re-limpar a descrição bancária usando as keywords customizadas para garantir que fiquem invisíveis se cadastradas
-    const transactionDesc = cleanTransactionDescriptionForDisplay(currentRow.transaction.description, customIgnoreKeywords);
+const IncomeRow = memo(({ result, churches, t, language, onEdit, onDelete, openManualMatch, openDivergence, isEditing, draft, onDraftChange, onSave, onCancel, ignoreKeywords, contributionKeywords }: any) => {
+    const row = isEditing ? draft : result;
+    const isIdentified = row.status === 'IDENTIFICADO';
+    const displayDate = row.contributor?.date || row.transaction.date;
+    const txDescFormatted = formatIncomeDescription(row.transaction.description, ignoreKeywords);
+    const amount = row.contributorAmount ?? row.transaction.amount;
 
-    const txAmount = Math.abs(currentRow.transaction.amount);
-    const expectedAmount = currentRow.contributorAmount !== undefined 
-        ? Math.abs(currentRow.contributorAmount) 
-        : (currentRow.contributor?.amount ? Math.abs(currentRow.contributor.amount) : 0);
-    
-    const amountsDiffer = isIdentified && currentRow.contributor && Math.abs(txAmount - expectedAmount) > 0.01;
-
-    const inputClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm h-7";
-    const selectClass = "w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm cursor-pointer h-7";
-
-    const getSimilarityColor = (similarity: number | null | undefined) => {
-        const value = similarity ?? 0;
-        if (value >= 90) return 'text-emerald-500';
-        if (value >= 70) return 'text-blue-500';
-        if (value >= 50) return 'text-yellow-500';
-        return 'text-red-500';
-    };
-
-    const StatusBadge = () => {
-        if (currentRow.status === 'NÃO IDENTIFICADO') {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 uppercase tracking-wide whitespace-nowrap">
-                    Pendente
-                </span>
-            );
-        }
-        const isManual = currentRow.matchMethod === 'MANUAL';
-        const isAI = currentRow.matchMethod === 'AI';
-        const isLearned = currentRow.matchMethod === 'LEARNED';
-        
-        let bgClass = 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400';
-        let label = 'Auto';
-
-        if (isManual) {
-            bgClass = 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400';
-            label = 'Manual';
-        } else if (isAI) {
-            bgClass = 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-400';
-            label = 'IA';
-        } else if (isLearned) {
-            bgClass = 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400';
-            label = 'Aprendido';
-        }
-
+    if (isEditing) {
         return (
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide whitespace-nowrap ${bgClass}`}>
-                {label}
-            </span>
+            <tr className="bg-slate-50 dark:bg-slate-900/50">
+                <td className="px-4 py-2"><input type="text" value={row.transaction.date} onChange={e => onDraftChange('transaction.date', e.target.value)} className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600" /></td>
+                <td className="px-4 py-2">
+                    <select value={row.church.id} onChange={e => onDraftChange('churchId', e.target.value)} className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600">
+                        <option value="unidentified">---</option>
+                        {churches.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                </td>
+                <td className="px-4 py-2"><input type="text" value={row.contributor?.name || ''} onChange={e => onDraftChange('contributor.name', e.target.value)} className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600" /></td>
+                <td className="px-4 py-2">
+                    <select 
+                        value={row.contributionType || ''} 
+                        onChange={e => onDraftChange('contributionType', e.target.value)} 
+                        className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600 font-bold uppercase"
+                    >
+                        <option value="">Tipo...</option>
+                        {contributionKeywords.map((k: string) => (
+                            <option key={k} value={k}>{k}</option>
+                        ))}
+                    </select>
+                </td>
+                <td className="px-4 py-2 text-center">-</td>
+                <td className="px-4 py-2"><input type="number" value={amount} onChange={e => onDraftChange('transaction.amount', e.target.value)} className="w-full text-[10px] p-1 rounded border text-right dark:bg-slate-800 dark:border-slate-600" /></td>
+                <td className="px-4 py-2 text-center">
+                    <div className="flex gap-1 justify-center">
+                        <button onClick={onSave} className="text-emerald-600"><FloppyDiskIcon className="w-4 h-4" /></button>
+                        <button onClick={onCancel} className="text-slate-400"><XCircleIcon className="w-4 h-4" /></button>
+                    </div>
+                </td>
+            </tr>
         );
-    };
-
-    const handleEditClick = () => {
-        if (result.status === 'NÃO IDENTIFICADO' && result.transaction.id.startsWith('pending-') && reportType === 'income') {
-            openManualMatchModal(result);
-        } else {
-            onEditStart(result);
-        }
-    };
-
-    const avatarColors = [
-        'bg-indigo-50 text-indigo-600 border-indigo-100',
-        'bg-blue-50 text-blue-600 border-blue-100',
-        'bg-violet-50 text-violet-600 border-violet-100',
-        'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100'
-    ];
-    const avatarColor = avatarColors[currentRow.church.name.length % avatarColors.length];
+    }
 
     return (
-        <tr className={`group bg-white dark:bg-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 border-b border-slate-50 dark:border-slate-700/50 last:border-0 ${isEditing ? 'bg-slate-50' : ''}`}>
-            <td className="px-4 py-2.5 whitespace-nowrap align-top">
-                {isEditing ? (
-                    <input type="text" value={transactionDate} onChange={e => onEditChange('transaction.date', e.target.value)} className={inputClass} />
-                ) : (
-                    <div className="flex flex-col gap-1.5">
-                        {isIdentified && contributorDate ? (
-                            <>
-                                <div className="flex items-center gap-2" title="Data na Lista de Membros">
-                                    <UserIcon className="w-3 h-3 text-indigo-400" />
-                                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200 tabular-nums tracking-tight">
-                                        {contributorDate}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2" title="Data no Extrato Bancário">
-                                    <BanknotesIcon className="w-3 h-3 text-slate-400" />
-                                    <span className={`font-mono text-[10px] tabular-nums tracking-tight ${datesDiffer ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
-                                        {transactionDate}
-                                    </span>
-                                </div>
-                            </>
-                        ) : (
-                            <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
-                                {contributorDate || transactionDate}
-                            </span>
-                        )}
+        <tr className="group hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-50 dark:border-slate-700/50">
+            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{displayDate}</td>
+            <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200">{row.church.name}</td>
+            <td className="px-4 py-2.5">
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                        <SourceBadge type={isIdentified ? 'list' : 'bank'} />
+                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[200px]">{row.contributor?.name || txDescFormatted}</span>
                     </div>
-                )}
+                    {isIdentified && <span className="text-[10px] text-slate-400 pl-[53px]">Origem: {txDescFormatted}</span>}
+                </div>
             </td>
-            
-            {reportType === 'income' ? (
-                <>
-                    <td className="px-4 py-2.5 align-top">
-                        {isEditing ? (
-                            <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
-                                <option value="unidentified">{t('common.unassigned')}</option>
-                                {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        ) : (
-                            <div className="flex items-center">
-                                {currentRow.church.name !== '---' && (
-                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold mr-2 border shrink-0 transition-transform group-hover:scale-105 ${avatarColor} dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600`}>
-                                        {currentRow.church.name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?'}
-                                    </div>
-                                )}
-                                <span className={`text-xs font-semibold truncate max-w-[120px] ${currentRow.church.name === '---' ? 'text-slate-400 italic font-normal' : 'text-slate-700 dark:text-slate-200'}`}>
-                                    {currentRow.church.name === '---' ? t('common.unassigned') : currentRow.church.name}
-                                </span>
-                            </div>
-                        )}
-                    </td>
+            <td className="px-4 py-2.5">
+                 <span className={`text-[9px] font-black uppercase tracking-widest ${row.contributionType ? 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700' : 'text-slate-300 italic'}`}>
+                    {row.contributionType || '---'}
+                 </span>
+            </td>
+            <td className="px-4 py-2.5 text-center">
+                {row.similarity != null && isIdentified && <span className="text-[10px] font-bold text-brand-blue">{row.similarity.toFixed(0)}%</span>}
+            </td>
+            <td className="px-4 py-2.5 text-right font-mono text-xs font-bold text-slate-900 dark:text-white">{formatCurrency(amount, language)}</td>
+            <td className="px-4 py-2.5 text-center">
+                <div className="flex items-center justify-center gap-2">
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isIdentified ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {isIdentified ? 'IDENTIFICADO' : 'PENDENTE'}
+                    </span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => onEdit(row)} className="p-1 text-slate-400 hover:text-brand-blue"><PencilIcon className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => onDelete(row)} className="p-1 text-slate-400 hover:text-red-500"><TrashIcon className="w-3.5 h-3.5" /></button>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    );
+});
 
-                    <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
-                        {isEditing ? (
-                            <input type="text" value={currentRow.contributor?.name || ''} onChange={e => onEditChange('contributor.name', e.target.value)} className={inputClass} disabled={currentRow.status === 'NÃO IDENTIFICADO' && !currentRow.contributor} />
-                        ) : (
-                            <div className="flex flex-col gap-1.5">
-                                {currentRow.contributor ? (
-                                    <>
-                                        <div className="flex items-start gap-2">
-                                            <SourceBadge type="list" />
-                                            <span className="text-xs font-bold leading-tight text-slate-900 dark:text-white pt-0.5" title="Nome na Lista">
-                                                {contributorName || '---'}
-                                            </span>
-                                        </div>
-                                        {isIdentified && (
-                                            <div className="flex items-start gap-2">
-                                                <SourceBadge type="bank" />
-                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight pt-0.5" title="Descrição no Extrato">
-                                                    {transactionDesc || '---'}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="flex flex-col gap-1">
-                                        <div className="flex items-start gap-2">
-                                            <SourceBadge type="bank" />
-                                            <span className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight pt-0.5">
-                                                {transactionDesc || '---'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </td>
+const ExpenseRow = memo(({ result, churches, t, language, onEdit, onDelete, isEditing, draft, onDraftChange, onSave, onCancel }: any) => {
+    const row = isEditing ? draft : result;
+    const txDescFormatted = formatExpenseDescription(row.transaction.description);
 
-                    <td className="px-4 py-2.5 text-center align-top">
-                        {currentRow.similarity != null && currentRow.status === 'IDENTIFICADO' && (
-                            <div className="flex flex-col items-center justify-center gap-0.5 pt-1">
-                                <span className={`text-[10px] font-bold ${getSimilarityColor(currentRow.similarity)} tabular-nums`}>
-                                    {currentRow.similarity.toFixed(0)}%
-                                </span>
-                                <div className={`w-8 h-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden`}>
-                                    <div className={`h-full ${getSimilarityColor(currentRow.similarity).replace('text-', 'bg-')}`} style={{ width: `${currentRow.similarity}%` }}></div>
-                                </div>
-                            </div>
-                        )}
-                    </td>
-
-                    <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
-                        <div className="flex flex-col items-end gap-1.5">
-                            {isIdentified ? (
-                                <>
-                                    <div className="flex items-center gap-2" title="Valor na Lista">
-                                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                                            {formatCurrency(expectedAmount, language)}
-                                        </span>
-                                        <UserIcon className="w-3 h-3 text-indigo-400" />
-                                    </div>
-                                    <div className="flex items-center gap-2" title="Valor no Extrato">
-                                        <span className={`font-mono text-[10px] tabular-nums tracking-tight ${amountsDiffer ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
-                                            {formatCurrency(txAmount, language)}
-                                        </span>
-                                        <BanknotesIcon className="w-3 h-3 text-slate-400" />
-                                    </div>
-                                </>
-                            ) : (
-                                <span className="font-mono text-xs font-bold text-slate-900 dark:text-white tracking-tight tabular-nums">
-                                    {formatCurrency(expectedAmount > 0 ? expectedAmount : txAmount, language)}
-                                </span>
-                            )}
-                        </div>
-                    </td>
-                </>
-            ) : (
-                <>
-                    <td className="px-4 py-2.5 break-words min-w-[200px] align-top">
-                        {isEditing ? (
-                                <input type="text" value={currentRow.transaction.description} onChange={e => onEditChange('transaction.description', e.target.value)} className={inputClass} />
-                        ) : (
-                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                {transactionDesc}
-                            </span>
-                        )}
-                    </td>
-
-                    <td className="px-4 py-2.5 text-right whitespace-nowrap align-top">
-                        {isEditing ? (
-                            <input type="text" value={currentRow.transaction.originalAmount || currentRow.transaction.amount} onChange={e => onEditChange('transaction.amount', e.target.value)} className={`${inputClass} text-right`} />
-                        ) : (
-                            <span className={`${currentRow.transaction.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} font-mono text-xs font-bold tabular-nums tracking-tight`}>
-                                {formatCurrency(currentRow.transaction.amount, language)}
-                            </span>
-                        )}
-                    </td>
-
-                    <td className="px-4 py-2.5 align-top">
-                        {isEditing ? (
-                            <select value={currentRow.church.id} onChange={e => onEditChange('churchId', e.target.value)} className={selectClass}>
-                                <option value="unidentified">{t('common.unassigned')}</option>
-                                {churches.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <BuildingOfficeIcon className="w-3.5 h-3.5 text-slate-400" />
-                                <span className={`text-xs font-medium ${currentRow.church.name === '---' ? 'text-slate-400 italic' : 'text-slate-600 dark:text-slate-300'}`}>
-                                    {currentRow.church.name === '---' ? t('common.unassigned') : currentRow.church.name}
-                                </span>
-                            </div>
-                        )}
-                    </td>
-                </>
-            )}
-
-            <td className="px-4 py-2.5 text-center align-top">
-                {isEditing ? (
-                    <select value={currentRow.status} onChange={e => onEditChange('status', e.target.value)} className={selectClass}>
-                        <option value="IDENTIFICADO">{t('table.status.identified')}</option>
-                        <option value="NÃO IDENTIFICADO">{t('table.status.unidentified')}</option>
+    if (isEditing) {
+        return (
+            <tr className="bg-slate-50 dark:bg-slate-900/50">
+                <td className="px-4 py-2"><input type="text" value={row.transaction.date} onChange={e => onDraftChange('transaction.date', e.target.value)} className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600" /></td>
+                <td className="px-4 py-2"><input type="text" value={row.transaction.description} onChange={e => onDraftChange('transaction.description', e.target.value)} className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600" /></td>
+                <td className="px-4 py-2"><input type="number" value={row.transaction.amount} onChange={e => onDraftChange('transaction.amount', e.target.value)} className="w-full text-[10px] p-1 rounded border text-right dark:bg-slate-800 dark:border-slate-600" /></td>
+                <td className="px-4 py-2">
+                    <select value={row.church.id} onChange={e => onDraftChange('churchId', e.target.value)} className="w-full text-[10px] p-1 rounded border dark:bg-slate-800 dark:border-slate-600">
+                        <option value="unidentified">---</option>
+                        {churches.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
-                ) : (
-                    <div className="flex flex-col items-center justify-center gap-1.5">
-                        <StatusBadge />
-                        {currentRow.divergence && (
-                            <button
-                                onClick={() => openDivergenceModal(currentRow)}
-                                className="p-0.5 rounded-full bg-yellow-100 text-yellow-600 hover:bg-yellow-200 transition-colors shadow-sm animate-pulse"
-                                aria-label="Revisar divergência"
-                            >
-                                <ExclamationTriangleIcon className="w-3 h-3" />
-                            </button>
-                        )}
+                </td>
+                <td className="px-4 py-2 text-center">
+                     <div className="flex gap-1 justify-center">
+                        <button onClick={onSave} className="text-emerald-600"><FloppyDiskIcon className="w-4 h-4" /></button>
+                        <button onClick={onCancel} className="text-slate-400"><XCircleIcon className="w-4 h-4" /></button>
                     </div>
-                )}
-            </td>
+                </td>
+            </tr>
+        );
+    }
 
-            <td className="px-4 py-2.5 text-center align-top">
-                <div className={`flex items-center justify-center space-x-1 transition-opacity duration-200 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                    {isEditing ? (
-                        <>
-                            <button onClick={onSave} className="p-1 rounded-full text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 transition-colors shadow-sm" title={t('common.save')}><FloppyDiskIcon className="w-3.5 h-3.5" /></button>
-                            <button onClick={onCancel} className="p-1 rounded-full text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 transition-colors shadow-sm" title={t('common.cancel')}><XCircleIcon className="w-3.5 h-3.5" /></button>
-                        </>
-                    ) : (
-                        <>
-                            <button onClick={handleEditClick} className="p-1 rounded-full text-slate-400 hover:text-brand-blue hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors" title={t('common.edit')}>
-                                <PencilIcon className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                                onClick={() => onDelete(result)}
-                                className="p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
-                                aria-label={t('common.delete')}
-                            >
-                                <TrashIcon className="w-3.5 h-3.5" />
-                            </button>
-                        </>
-                    )}
+    return (
+        <tr className="group hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-50 dark:border-slate-700/50">
+            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{row.transaction.date}</td>
+            <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200">{txDescFormatted}</td>
+            <td className="px-4 py-2.5 text-right font-mono text-xs font-bold text-red-600 dark:text-red-400">{formatCurrency(row.transaction.amount, language)}</td>
+            <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300">{row.church.name}</td>
+            <td className="px-4 py-2.5 text-center">
+                <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => onEdit(row)} className="p-1 text-slate-400 hover:text-brand-blue"><PencilIcon className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => onDelete(row)} className="p-1 text-slate-400 hover:text-red-500"><TrashIcon className="w-3.5 h-3.5" /></button>
                 </div>
             </td>
         </tr>
@@ -394,129 +180,86 @@ const ReportRow = memo(({
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort }) => {
     const { t, language } = useTranslation();
     const { showToast } = useUI();
-    const { churches, openManualMatchModal, openDeleteConfirmation, openDivergenceModal, customIgnoreKeywords } = useContext(AppContext);
+    const { churches, openManualMatchModal, openDeleteConfirmation, customIgnoreKeywords, contributionKeywords } = useContext(AppContext);
+    
     const [editingRowId, setEditingRowId] = useState<string | null>(null);
     const [draftRow, setDraftRow] = useState<MatchResult | null>(null);
-    
     const [currentPage, setCurrentPage] = useState(1);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [data.length]);
+    useEffect(() => { setCurrentPage(1); }, [data.length]);
 
-    const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
-    const paginatedData = data.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const handleEditStart = useCallback((row: MatchResult) => {
+        if (row.status === 'NÃO IDENTIFICADO' && row.transaction.id.startsWith('pending-') && reportType === 'income') {
+            openManualMatchModal(row);
+        } else {
+            setEditingRowId(row.transaction.id);
+            setDraftRow(JSON.parse(JSON.stringify(row))); 
+        }
+    }, [reportType, openManualMatchModal]);
 
-    const startEditing = useCallback((row: MatchResult) => {
-        setEditingRowId(row.transaction.id);
-        setDraftRow(JSON.parse(JSON.stringify(row))); 
-    }, []);
-
-    const handleDelete = useCallback((result: MatchResult) => {
-        openDeleteConfirmation({ 
-            type: 'report-row', 
-            id: result.transaction.id, 
-            name: `a linha "${cleanTransactionDescriptionForDisplay(result.transaction.description, customIgnoreKeywords)}"`,
-            meta: { reportType }
-        });
-    }, [openDeleteConfirmation, reportType, customIgnoreKeywords]);
-
-    const handleEditChange = useCallback((field: string, value: any) => {
+    const handleDraftChange = useCallback((field: string, value: any) => {
         setDraftRow(prev => {
             if (!prev) return null;
             const newRow = { ...prev };
-            
-            if (field === 'transaction.date') newRow.transaction = { ...newRow.transaction, date: value };
-            else if (field === 'transaction.amount') newRow.transaction = { ...newRow.transaction, amount: parseFloat(value) || 0, originalAmount: value };
-            else if (field === 'transaction.description') newRow.transaction = { ...newRow.transaction, description: value };
-            else if (field === 'contributor.name') {
-                newRow.contributor = newRow.contributor ? { ...newRow.contributor, name: value } : { name: value };
-            }
-            else if (field === 'churchId') {
-                 const selectedChurch = churches.find(c => c.id === value);
-                 if (selectedChurch) {
-                    newRow.church = selectedChurch;
-                 } else if (value === 'unidentified') {
-                    newRow.church = PLACEHOLDER_CHURCH;
-                 }
-            }
-            else if (field === 'status') {
-                newRow.status = value;
-                if (value === 'NÃO IDENTIFICADO') {
-                    if (reportType === 'income') {
-                        newRow.contributor = null;
-                        newRow.matchMethod = undefined;
-                        newRow.similarity = 0;
-                        newRow.contributorAmount = undefined;
-                    }
-                    newRow.church = PLACEHOLDER_CHURCH;
-                }
-            }
+            if (field === 'transaction.date') newRow.transaction.date = value;
+            else if (field === 'transaction.amount') newRow.transaction.amount = parseFloat(value) || 0;
+            else if (field === 'transaction.description') newRow.transaction.description = value;
+            else if (field === 'contributionType') newRow.contributionType = value;
+            else if (field === 'contributor.name') { if (newRow.contributor) newRow.contributor.name = value; else newRow.contributor = { name: value } as any; }
+            else if (field === 'churchId') { const c = churches.find(ch => ch.id === value); newRow.church = c || PLACEHOLDER_CHURCH; }
             return newRow;
         });
-    }, [churches, reportType]);
-    
+    }, [churches]);
+
     const handleSave = useCallback(() => {
-        if (!draftRow) return;
-        onRowChange(draftRow);
-        setEditingRowId(null);
-        setDraftRow(null);
-        showToast(t('common.saveChanges'));
+        if (draftRow) { onRowChange(draftRow); setEditingRowId(null); setDraftRow(null); showToast(t('common.saveChanges')); }
     }, [draftRow, onRowChange, showToast, t]);
-    
-    const handleCancel = useCallback(() => {
-        setEditingRowId(null);
-        setDraftRow(null);
-    }, []);
+
+    const paginatedData = data.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
 
     return (
         <div className="flex flex-col">
-            <div className="overflow-x-auto custom-scrollbar relative">
-                <table className={`min-w-[800px] w-full text-left text-slate-600 dark:text-slate-300 ${reportType === 'income' ? 'print-income-table' : 'print-expense-table'}`}>
-                    <thead className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 backdrop-blur-md sticky top-0 z-20">
+            <div className="overflow-x-auto custom-scrollbar">
+                <table className="min-w-[900px] w-full text-left">
+                    <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
                         <tr>
                             {reportType === 'income' ? (
                                 <>
-                                    <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
-                                    <SortableHeader sortKey="church.name" title={t('table.church')} sortConfig={sortConfig} onSort={onSort} className="w-[20%]" />
-                                    <SortableHeader sortKey="contributor.name" title="Contribuinte / Descrição" sortConfig={sortConfig} onSort={onSort} className="w-[30%]" />
-                                    <SortableHeader sortKey="similarity" title="Simil." sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
-                                    <SortableHeader sortKey="contributor.amount" title="Valor" sortConfig={sortConfig} onSort={onSort} className="w-[15%] text-right" />
-                                    <SortableHeader sortKey="status" title={t('table.status')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
-                                    <th scope="col" className="w-[7%] px-4 py-2.5 text-center"></th>
+                                    <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[10%]" />
+                                    <SortableHeader sortKey="church.name" title={t('table.church')} sortConfig={sortConfig} onSort={onSort} className="w-[15%]" />
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">Contribuinte / Origem</th>
+                                    <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" />
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest text-center">Simil.</th>
+                                    <SortableHeader sortKey="transaction.amount" title="Valor" sortConfig={sortConfig} onSort={onSort} className="w-[12%] text-right" />
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest text-center">Status</th>
                                 </>
                             ) : (
                                 <>
                                     <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[15%]" />
-                                    <SortableHeader sortKey="transaction.description" title={t('table.supplier')} sortConfig={sortConfig} onSort={onSort} className="w-[40%]" />
+                                    <th className="px-4 py-3 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">Descrição da Saída</th>
                                     <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[15%] text-right" />
-                                    <SortableHeader sortKey="church.name" title={t('table.costCenter')} sortConfig={sortConfig} onSort={onSort} className="w-[15%]" />
-                                    <SortableHeader sortKey="status" title={t('table.status')} sortConfig={sortConfig} onSort={onSort} className="w-[8%] text-center" />
-                                    <th scope="col" className="w-[7%] px-4 py-2.5 text-center"></th>
+                                    <SortableHeader sortKey="church.name" title="Centro de Custo" sortConfig={sortConfig} onSort={onSort} className="w-[20%]" />
+                                    <th className="w-[8%]"></th>
                                 </>
                             )}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                        {paginatedData.map((result) => (
-                            <ReportRow
-                                key={result.transaction.id}
-                                result={result}
-                                reportType={reportType}
-                                churches={churches}
-                                t={t}
-                                language={language}
-                                onEditStart={startEditing}
-                                onDelete={handleDelete}
-                                openManualMatchModal={openManualMatchModal}
-                                openDivergenceModal={openDivergenceModal}
-                                isEditing={editingRowId === result.transaction.id}
-                                draftRow={draftRow}
-                                onEditChange={handleEditChange}
-                                onSave={handleSave}
-                                onCancel={handleCancel}
-                                customIgnoreKeywords={customIgnoreKeywords}
-                            />
+                        {paginatedData.map(res => (
+                            reportType === 'income' ? (
+                                <IncomeRow 
+                                    key={res.transaction.id} result={res} churches={churches} t={t} language={language} ignoreKeywords={customIgnoreKeywords} contributionKeywords={contributionKeywords}
+                                    isEditing={editingRowId === res.transaction.id} draft={draftRow} onDraftChange={handleDraftChange} onSave={handleSave} onCancel={() => setEditingRowId(null)}
+                                    onEdit={handleEditStart} onDelete={(r: any) => openDeleteConfirmation({ type: 'report-row', id: r.transaction.id, name: 'esta linha', meta: { reportType }})} 
+                                />
+                            ) : (
+                                <ExpenseRow 
+                                    key={res.transaction.id} result={res} churches={churches} t={t} language={language}
+                                    isEditing={editingRowId === res.transaction.id} draft={draftRow} onDraftChange={handleDraftChange} onSave={handleSave} onCancel={() => setEditingRowId(null)}
+                                    onEdit={handleEditStart} onDelete={(r: any) => openDeleteConfirmation({ type: 'report-row', id: r.transaction.id, name: 'esta linha', meta: { reportType }})} 
+                                />
+                            )
                         ))}
                     </tbody>
                 </table>
@@ -524,36 +267,13 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700 px-4 py-3 bg-white dark:bg-slate-800">
-                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                <span className="text-slate-700 dark:text-slate-200">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="text-slate-700 dark:text-slate-200">{Math.min(currentPage * ITEMS_PER_PAGE, data.length)}</span> de <span className="text-slate-900 dark:text-white">{data.length}</span>
-                            </p>
-                        </div>
-                        <div>
-                            <nav className="relative z-0 inline-flex rounded-full shadow-sm" aria-label="Pagination">
-                                <button
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                    className="relative inline-flex items-center px-3 py-1 rounded-l-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase"
-                                >
-                                    <ChevronLeftIcon className="h-3 w-3 mr-1" aria-hidden="true" />
-                                    Ant
-                                </button>
-                                <span className="relative inline-flex items-center px-3 py-1 border-t border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-brand-blue dark:text-blue-400 min-w-[2rem] justify-center">
-                                    {currentPage}
-                                </span>
-                                <button
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages}
-                                    className="relative inline-flex items-center px-3 py-1 rounded-r-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase"
-                                >
-                                    Prox
-                                    <ChevronRightIcon className="h-3 w-3 ml-1" aria-hidden="true" />
-                                </button>
-                            </nav>
-                        </div>
-                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Página {currentPage} de {totalPages} ({data.length} total)
+                    </p>
+                    <nav className="flex gap-1">
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold disabled:opacity-50"><ChevronLeftIcon className="w-3 h-3" /></button>
+                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 rounded-full border border-slate-200 text-[10px] font-bold disabled:opacity-50"><ChevronRightIcon className="w-3 h-3" /></button>
+                    </nav>
                 </div>
             )}
         </div>

@@ -8,10 +8,11 @@ import {
     Cog6ToothIcon, 
     SparklesIcon, 
     CircleStackIcon, 
-    ClockIcon
+    ClockIcon,
+    ShieldCheckIcon,
+    InformationCircleIcon
 } from '../Icons';
 
-// Componente movido para fora para evitar recriação e perda de foco
 const InputGroup = ({ label, name, value, onChange, type = "text", placeholder = "", icon: Icon }: any) => (
     <div className="group">
         <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 group-focus-within:text-brand-blue transition-colors">
@@ -66,8 +67,46 @@ export const AdminSettingsTab: React.FC = () => {
 
     return (
         <div className="w-full max-w-5xl mx-auto animate-fade-in pb-4">
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* System Health Card */}
+                <div className="bg-gradient-to-br from-brand-deep to-slate-900 p-6 rounded-[2rem] text-white shadow-xl border border-white/10 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+                        <ShieldCheckIcon className="w-24 h-24" />
+                    </div>
+                    <div className="relative z-10">
+                        <h3 className="text-lg font-black tracking-tight mb-2 flex items-center gap-2">
+                            <ShieldCheckIcon className="w-5 h-5 text-emerald-400" />
+                            Arquitetura v3
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                            O motor de processamento está operando com **Tripla Validação de DNA** e versionamento imutável de modelos.
+                        </p>
+                        <div className="flex gap-2">
+                            <span className="px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-wider border border-emerald-500/30">Data Shield On</span>
+                            <span className="px-2 py-1 rounded-md bg-blue-500/20 text-blue-400 text-[9px] font-bold uppercase tracking-wider border border-blue-500/30">Auto-Learn Active</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Quick Info Card */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col justify-center">
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-2xl text-brand-blue">
+                            <InformationCircleIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-800 dark:text-white">Dica de Engenharia</h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                Antes de atualizar a lógica de normalização, consulte o arquivo 
+                                <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded text-brand-blue">docs/CHECKLIST_QA_ARQUITETURA.md</code> 
+                                para evitar quebras estruturais.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <form onSubmit={handleSaveSettings} className="space-y-4">
-                
                 {/* 1. Base Plan Configuration */}
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 relative overflow-hidden">
                     <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">

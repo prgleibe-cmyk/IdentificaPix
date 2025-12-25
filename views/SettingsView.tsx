@@ -18,7 +18,8 @@ import {
     WrenchScrewdriverIcon,
     PlusCircleIcon,
     GlobeAltIcon,
-    TrashIcon
+    TrashIcon,
+    BanknotesIcon
 } from '../components/Icons';
 
 const PreferencesTab: React.FC = () => {
@@ -58,7 +59,6 @@ const PreferencesTab: React.FC = () => {
         <div className="h-full overflow-y-auto pr-1 custom-scrollbar pb-6">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
                 
-                {/* Column 1: Appearance & Interface */}
                 <div className="space-y-4 md:space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center space-x-3 mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
@@ -72,7 +72,6 @@ const PreferencesTab: React.FC = () => {
                         </div>
                         
                         <div className="space-y-3">
-                            {/* Theme Toggle */}
                             <button 
                                 onClick={toggleTheme} 
                                 className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-brand-blue dark:hover:border-brand-blue transition-all group"
@@ -91,7 +90,6 @@ const PreferencesTab: React.FC = () => {
                                 </div>
                             </button>
 
-                            {/* Language Selector */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-full text-emerald-600 dark:text-emerald-400 pointer-events-none">
                                     <GlobeAltIcon className="w-4 h-4" />
@@ -115,9 +113,7 @@ const PreferencesTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Column 2: Data & Danger */}
                 <div className="space-y-4 md:space-y-6">
-                    {/* Data Management */}
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center space-x-3 mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
                             <div className="p-2 bg-cyan-50 dark:bg-cyan-900/20 rounded-xl text-cyan-600 dark:text-cyan-400 border border-cyan-100 dark:border-cyan-800/50">
@@ -151,7 +147,6 @@ const PreferencesTab: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Danger Zone */}
                     <div className="bg-red-50/50 dark:bg-red-900/10 p-5 rounded-[1.5rem] border border-red-100 dark:border-red-900/30 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-red-100/50 dark:bg-red-900/20 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-red-200/50 transition-colors"></div>
                         
@@ -184,24 +179,31 @@ const PreferencesTab: React.FC = () => {
 
 const AutomationTab: React.FC = () => {
     const { 
-        customIgnoreKeywords, 
-        addIgnoreKeyword, 
-        removeIgnoreKeyword 
+        customIgnoreKeywords, addIgnoreKeyword, removeIgnoreKeyword,
+        contributionKeywords, addContributionKeyword, removeContributionKeyword
     } = useContext(AppContext);
     const { t } = useTranslation();
     const [newKeyword, setNewKeyword] = useState('');
+    const [newType, setNewType] = useState('');
 
     const handleAddKeyword = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!newKeyword.trim()) return;
         addIgnoreKeyword(newKeyword);
         setNewKeyword('');
     };
+
+    const handleAddType = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newType.trim()) return;
+        addContributionKeyword(newType);
+        setNewType('');
+    };
     
     return (
-        <div className="h-full flex flex-col pb-6">
-            <div className="flex-1 bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col min-h-0">
-                
-                {/* Header */}
+        <div className="h-full flex flex-col pb-6 space-y-6 overflow-y-auto custom-scrollbar">
+            {/* Seção de Palavras Ignoradas */}
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col">
                 <div className="flex-shrink-0 flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-800/50">
@@ -217,58 +219,74 @@ const AutomationTab: React.FC = () => {
                     </span>
                 </div>
                 
-                {/* Info & Input */}
                 <div className="flex-shrink-0 mb-5 space-y-4">
                     <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
                         <WrenchScrewdriverIcon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                         <p>{t('settings.keywords.desc')}</p>
                     </div>
-                    
-                    <form onSubmit={handleAddKeyword} className="relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                            <PlusCircleIcon className="w-4 h-4" />
-                        </div>
+                    <form onSubmit={handleAddKeyword} className="relative">
                         <input
                             type="text"
                             value={newKeyword}
                             onChange={(e) => setNewKeyword(e.target.value)}
-                            placeholder="Adicionar nova palavra-chave (ex: Dízimo, Oferta)..."
-                            className="block w-full rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 py-3 pl-10 pr-24 font-medium transition-all text-xs outline-none"
+                            placeholder="Palavra para ignorar (ex: Dízimo, Oferta)..."
+                            className="block w-full rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white py-3 pl-5 pr-24 font-medium transition-all text-xs outline-none focus:ring-2 focus:ring-purple-500/20"
                         />
-                        <button 
-                            type="submit" 
-                            disabled={!newKeyword.trim()}
-                            className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[10px] font-bold uppercase tracking-wide rounded-full shadow-md transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
-                        >
-                            Adicionar
-                        </button>
+                        <button type="submit" disabled={!newKeyword.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-purple-600 text-white text-[10px] font-bold uppercase rounded-full shadow-md">Adicionar</button>
                     </form>
                 </div>
 
-                {/* Tags List */}
-                <div className="flex-1 min-h-0 border border-slate-100 dark:border-slate-700/50 rounded-2xl bg-slate-50/50 dark:bg-slate-900/20 relative flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-                        <div className="flex flex-wrap gap-2">
-                            {customIgnoreKeywords.map(keyword => (
-                                <div key={keyword} className="flex items-center gap-2 pl-3 pr-1 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-full text-[11px] font-bold shadow-sm group hover:border-purple-300 dark:hover:border-purple-500 transition-all">
-                                    <span>{keyword}</span>
-                                    <button
-                                        onClick={() => removeIgnoreKeyword(keyword)}
-                                        className="p-1 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                                        aria-label={`Remover ${keyword}`}
-                                    >
-                                        <XMarkIcon className="w-3 h-3" />
-                                    </button>
-                                </div>
-                            ))}
-                             {customIgnoreKeywords.length === 0 && (
-                                <div className="flex flex-col items-center justify-center w-full h-full min-h-[150px] text-slate-400 opacity-50">
-                                    <SearchIcon className="w-8 h-8 mb-2" />
-                                    <p className="text-xs font-medium">Nenhuma palavra-chave configurada.</p>
-                                </div>
-                            )}
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
+                    {customIgnoreKeywords.map(keyword => (
+                        <div key={keyword} className="flex items-center gap-2 pl-3 pr-1 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-full text-[10px] font-bold">
+                            <span>{keyword}</span>
+                            <button onClick={() => removeIgnoreKeyword(keyword)} className="p-1 rounded-full text-slate-400 hover:text-red-500"><XMarkIcon className="w-3 h-3" /></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Seção de Tipos de Contribuição */}
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col">
+                <div className="flex-shrink-0 flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
+                    <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
+                            <BanknotesIcon className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tipos de Contribuição</h3>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Gerencie palavras que identificam colunas de tipo (Ex: Dízimo, Oferta)</p>
                         </div>
                     </div>
+                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-800">
+                        {contributionKeywords.length} ativos
+                    </span>
+                </div>
+                
+                <div className="flex-shrink-0 mb-5 space-y-4">
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        <PlusCircleIcon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                        <p>Adicione nomes que, se presentes na maioria das linhas de uma coluna, identificarão essa coluna como o "Tipo" da contribuição.</p>
+                    </div>
+                    <form onSubmit={handleAddType} className="relative">
+                        <input
+                            type="text"
+                            value={newType}
+                            onChange={(e) => setNewType(e.target.value)}
+                            placeholder="Novo tipo (ex: MISSÃO, CAMPANHA)..."
+                            className="block w-full rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white py-3 pl-5 pr-24 font-medium transition-all text-xs outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                        <button type="submit" disabled={!newType.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded-full shadow-md">Cadastrar</button>
+                    </form>
+                </div>
+
+                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
+                    {contributionKeywords.map(keyword => (
+                        <div key={keyword} className="flex items-center gap-2 pl-3 pr-1 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] font-bold">
+                            <span>{keyword}</span>
+                            <button onClick={() => removeContributionKeyword(keyword)} className="p-1 rounded-full text-emerald-400 hover:text-red-500"><XMarkIcon className="w-3 h-3" /></button>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -315,7 +333,6 @@ export const SettingsView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full lg:h-[calc(100vh-5.5rem)] animate-fade-in gap-4 pb-2">
-            {/* Header Compacto */}
             <div className="flex-shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
                 <div>
                     <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('settings.title')}</h2>
@@ -328,7 +345,6 @@ export const SettingsView: React.FC = () => {
                 </div>
             </div>
 
-            {/* Content Area */}
             <div className="flex-1 min-h-0">
                  <div className="h-full w-full">
                     {activeTab === 'preferences' && <PreferencesTab />}

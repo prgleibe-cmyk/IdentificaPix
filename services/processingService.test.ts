@@ -177,7 +177,8 @@ describe('processingService: Full Matching Logic', () => {
 describe('processingService: Universal Search Filtering', () => {
     const mockMatchResult: MatchResult = {
         transaction: { id: 't1', date: '10/09/2024', description: 'PIX de Maria Clara', amount: 150.75, cleanedDescription: 'Maria Clara' },
-        contributor: { name: 'Maria Clara de Jesus', cleanedName: 'Maria Clara de Jesus', normalizedName: 'maria clara jesus' },
+        // Fix: Added missing 'amount' property required by Contributor type to avoid property missing error
+        contributor: { name: 'Maria Clara de Jesus', cleanedName: 'Maria Clara de Jesus', normalizedName: 'maria clara jesus', amount: 150.75 },
         status: 'IDENTIFICADO',
         church: { id: 'c1', name: 'Igreja Matriz', address: '', logoUrl: '', pastor: '' }
     };

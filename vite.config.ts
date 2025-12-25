@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
   return {
+    // Define variáveis globais para compatibilidade com o SDK do Google
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.API_KEY)
+    },
     server: {
       port: 5173, // Vite dev server port
       host: '0.0.0.0',

@@ -149,14 +149,16 @@ const MainAppContent = () => {
 
     if (!initialDataLoaded) {
         return (
-            <div className="h-screen w-screen flex items-center justify-center bg-brand-deep">
+            <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
                 <LoadingSpinner />
             </div>
         );
     }
 
+    // FIX: Using h-[100dvh] instead of h-screen ensures the layout fits perfectly 
+    // within the visible viewport on mobile/cloud environments, accounting for address bars.
     return (
-        <div className="flex h-screen bg-[#F8FAFC] dark:bg-[#0B1120] font-sans overflow-hidden">
+        <div className="flex h-[100dvh] bg-[#F8FAFC] dark:bg-[#0B1120] font-sans overflow-hidden">
             {/* Sidebar is fixed height, main content scrolls */}
             <Sidebar />
 

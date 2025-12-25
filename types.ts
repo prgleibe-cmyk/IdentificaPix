@@ -1,74 +1,51 @@
 
-// --- Core Data Structures ---
-
-export interface Contributor {
-  id?: string; // Unique identifier for each contributor row
-  name: string; // Nome_original
-  cleanedName?: string; // Nome_limpo (for display)
-  normalizedName?: string; // Nome_normalizado (for matching)
-  cpf?: string;
-  date?: string;
-  amount?: number;
-  originalAmount?: string; // Raw amount string from file
-}
+export type Language = 'pt' | 'en' | 'es';
+export type Theme = 'light' | 'dark';
+export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis';
+export type SettingsTab = 'params' | 'associations' | 'preferences' | 'automation';
+export type MatchMethod = 'AUTOMATIC' | 'MANUAL' | 'LEARNED' | 'AI' | 'TEMPLATE';
+export type ComparisonType = 'income' | 'expenses' | 'both';
 
 export interface Bank {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 export interface Church {
-    id: string;
-    name: string;
-    address: string;
-    logoUrl: string;
-    pastor: string;
+  id: string;
+  name: string;
+  address: string;
+  logoUrl: string;
+  pastor: string;
+}
+
+export interface ChurchFormData {
+  name: string;
+  address: string;
+  pastor: string;
+  logoUrl: string;
 }
 
 export interface Transaction {
+  id: string;
   date: string;
   description: string;
-  cleanedDescription?: string;
   amount: number;
-  id: string;
-  originalAmount?: string; // Raw amount string from file
+  originalAmount?: string;
+  cleanedDescription?: string;
+  contributionType?: string;
 }
 
-export interface ContributorFile {
-    church: Church;
-    contributors: Contributor[];
-}
-
-export interface LearnedAssociation {
+export interface Contributor {
   id?: string;
-  normalizedDescription: string;
-  contributorNormalizedName: string;
-  churchId: string;
-  user_id?: string;
+  name: string;
+  cleanedName?: string;
+  normalizedName?: string;
+  amount: number;
+  date?: string;
+  originalAmount?: string;
+  contributionType?: string;
 }
-
-export interface SourceFile {
-    churchId: string;
-    content: string;
-    fileName: string;
-}
-
-export interface SavedReport {
-    id: string;
-    name: string;
-    createdAt: string;
-    recordCount: number;
-    data?: {
-        results: MatchResult[];
-        sourceFiles: SourceFile[];
-        bankStatementFile?: { bankId: string, content: string, fileName: string } | null;
-    };
-    user_id: string;
-}
-
-// --- Reconciliation and Matching ---
-
-export type MatchMethod = 'AUTOMATIC' | 'MANUAL' | 'LEARNED' | 'AI';
 
 export interface MatchResult {
   transaction: Transaction;
@@ -78,97 +55,123 @@ export interface MatchResult {
   matchMethod?: MatchMethod;
   similarity?: number;
   contributorAmount?: number;
+  contributionType?: string;
   divergence?: {
-    type: 'CHURCH_MISMATCH';
     expectedChurch: Church;
     actualChurch: Church;
   };
 }
 
-// --- Application UI State Types ---
-
-export type ViewType = 'dashboard' | 'upload' | 'reports' | 'settings' | 'cadastro' | 'search' | 'savedReports' | 'admin' | 'smart_analysis';
-
-export type Theme = 'light' | 'dark';
-
-export type Language = 'pt' | 'en' | 'es';
-
-export type SavingReportState = {
-    type: 'global' | 'group' | 'search';
-    groupName?: string;
-    results: MatchResult[];
-};
-
-export type ChurchFormData = Omit<Church, 'id'>;
-
-export type SettingsTab = 'preferences' | 'automation';
-
-export interface DeletingItem {
-  type: 'bank' | 'church' | 'association' | 'all-data' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'report-group' | 'report-saved' | 'report-row';
-  id: string;
-  name: string;
-  meta?: {
-    reportType?: 'income' | 'expenses';
-  }
+export interface ContributorFile {
+  church: Church;
+  contributors: Contributor[];
 }
 
-export type ComparisonType = 'income' | 'expenses' | 'both';
+export interface GroupedReportData {
+  [churchId: string]: MatchResult[];
+}
 
 export interface SearchFilters {
-    dateRange: {
-        start: string | null;
-        end: string | null;
-    };
-    valueFilter: {
-        operator: 'any' | 'exact' | 'gt' | 'lt' | 'between';
-        value1: number | null;
-        value2: number | null;
-    };
-    transactionType: 'all' | 'income' | 'expenses';
-    reconciliationStatus: 'all' | 'confirmed_any' | 'confirmed_auto' | 'confirmed_manual' | 'unconfirmed';
-    filterBy: 'none' | 'church' | 'contributor';
-    churchIds: string[];
-    contributorName: string;
-    reportId: string | null; // New field for filtering by specific saved report
+  dateRange: { start: string | null; end: string | null };
+  valueFilter: { operator: 'any' | 'exact' | 'gt' | 'lt' | 'between'; value1: number | null; value2: number | null };
+  transactionType: 'all' | 'income' | 'expenses';
+  reconciliationStatus: 'all' | 'confirmed_any' | 'confirmed_auto' | 'confirmed_manual' | 'unconfirmed';
+  filterBy: 'none' | 'church' | 'contributor';
+  churchIds: string[];
+  contributorName: string;
+  reportId: string | null;
 }
 
+export interface SavedReport {
+  id: string;
+  name: string;
+  createdAt: string;
+  recordCount: number;
+  user_id: string;
+  data: {
+    results: MatchResult[];
+    sourceFiles: any[];
+    bankStatementFile: any;
+  } | null;
+}
 
-// --- New Type for Grouped Reports ---
-export type GroupedReportData = Record<string, MatchResult[]>;
+export interface SavingReportState {
+  type: 'global' | 'group' | 'search';
+  results: MatchResult[];
+  groupName: string;
+}
 
-// --- Subscription Types ---
+export interface LearnedAssociation {
+  id?: string;
+  normalizedDescription: string;
+  contributorNormalizedName: string;
+  churchId: string;
+  user_id: string;
+}
+
+export interface DeletingItem {
+  type: 'bank' | 'church' | 'report-saved' | 'report-row' | 'report-group' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'all-data';
+  id: string;
+  name: string;
+  meta?: any;
+}
+
 export interface SubscriptionStatus {
-    plan: 'trial' | 'active' | 'expired' | 'lifetime';
-    daysRemaining: number;
-    totalDays: number;
-    isExpired: boolean;
-    isBlocked: boolean; // New: Blocked status
-    isLifetime: boolean; // New: Explicit lifetime flag
-    trialEndsAt?: string | null;
-    subscriptionEndsAt?: string | null;
-    customPrice?: number | null; // New: Custom monthly price for this user
-    aiLimit?: number; // New: Limit for AI analyses
-    aiUsage?: number; // New: Current Usage count
-    maxChurches: number; // Limit of registered churches
-    maxBanks: number; // Limit of registered banks
+  plan: 'trial' | 'active' | 'expired' | 'lifetime';
+  daysRemaining: number;
+  totalDays: number;
+  isExpired: boolean;
+  isBlocked: boolean;
+  isLifetime: boolean;
+  aiLimit: number;
+  aiUsage: number;
+  maxChurches: number;
+  maxBanks: number;
+  customPrice?: number;
 }
 
-export interface Payment {
-    id: string;
-    userId: string;
-    amount: number;
-    status: 'pending' | 'approved' | 'rejected';
-    date: string;
-    receiptUrl?: string | null;
-    notes?: string | null;
-}
-
-// --- Receipt Analysis ---
 export interface ReceiptAnalysisResult {
-    isValid: boolean;
-    amount?: number;
-    date?: string;
-    recipient?: string;
-    sender?: string;
-    reason?: string;
+  isValid: boolean;
+  amount?: number;
+  date?: string;
+  recipient?: string;
+  sender?: string;
+  reason?: string;
+}
+
+export interface FileModel {
+  id: string;
+  name: string;
+  user_id: string;
+  version: number;
+  lineage_id: string;
+  is_active: boolean;
+  
+  fingerprint: {
+    columnCount: number;
+    delimiter: string;
+    headerHash: string | null;
+    dataTopology: string;      
+  };
+  
+  mapping: {
+    dateColumnIndex: number;
+    descriptionColumnIndex: number;
+    amountColumnIndex: number;
+    typeColumnIndex?: number;
+    skipRowsStart: number;
+    skipRowsEnd: number;
+    decimalSeparator: ',' | '.';
+    thousandsSeparator: '.' | ',' | '';
+  };
+
+  parsingRules: {
+    ignoredKeywords: string[]; 
+    rowFilters: string[];      
+    dateFormat?: string;
+  };
+  
+  snippet?: string; // Novo campo para armazenar as primeiras linhas do arquivo
+  createdAt: string;
+  lastUsedAt?: string;
 }

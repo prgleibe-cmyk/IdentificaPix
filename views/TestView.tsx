@@ -1,20 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { getTestResults, clearTestResults } from '../utils/testRunner';
-import { CheckCircleIcon, XCircleIcon } from '../components/Icons';
 
-// This is a dynamic import to trigger the test execution.
+import React, { useState, useEffect } from 'react';
+// Fix: Import TestResult from testRunner
+import { getTestResults, clearTestResults, TestResult } from '../utils/testRunner';
+import { CheckCircleIcon, XCircleIcon, BoltIcon } from '../components/Icons';
+
+// Execução dinâmica das suítes de teste
 const runTests = async () => {
     clearTestResults();
+    // Importa as suítes de teste existentes
     await import('../services/processingService.test');
+    await import('../services/coreEngine.test');
     return getTestResults();
 };
-
-interface TestResult {
-    suite: string;
-    test: string;
-    passed: boolean;
-    error?: string;
-}
 
 export const TestView: React.FC = () => {
     const [results, setResults] = useState<TestResult[]>([]);
@@ -22,7 +19,8 @@ export const TestView: React.FC = () => {
 
     useEffect(() => {
         runTests().then(res => {
-            setResults(res);
+            // Fix: Cast result to TestResult[]
+            setResults(res as TestResult[]);
             setRunning(false);
         });
     }, []);
@@ -38,51 +36,61 @@ export const TestView: React.FC = () => {
         return acc;
     }, {} as Record<string, TestResult[]>);
 
-    return (
-        <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">Relatório de Testes</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-6">Resultados da execução dos testes unitários.</p>
-            
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between mb-4 border-b pb-4 dark:border-slate-700">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Sumário</h3>
-                    {running ? (
-                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Executando...</span>
-                    ) : (
-                        <div className="flex items-center space-x-4 text-sm">
-                            <span className="font-semibold text-slate-600 dark:text-slate-300">Total: {results.length}</span>
-                            <span className="font-semibold text-green-600 dark:text-green-400">Aprovados: {passedCount}</span>
-                            <span className="font-semibold text-red-600 dark:text-red-400">Reprovados: {failedCount}</span>
-                        </div>
-                    )}
-                </div>
+    const groupedEntries = Object.entries(groupedResults) as [string, TestResult[]][];
 
-                <div className="space-y-6">
-                    {Object.entries(groupedResults).map(([suiteName, suiteResults]: [string, TestResult[]]) => (
-                        <div key={suiteName}>
-                            <h4 className="font-bold text-slate-900 dark:text-slate-100 mb-2">{suiteName}</h4>
-                            <ul className="space-y-2">
-                                {suiteResults.map((result, index) => (
-                                    <li key={index} className="flex items-start p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md">
-                                        {result.passed ? (
-                                            <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5 mr-3" />
-                                        ) : (
-                                            <XCircleIcon className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5 mr-3" />
-                                        )}
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{result.test}</p>
-                                            {!result.passed && (
-                                                <pre className="mt-1 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 p-2 rounded-md overflow-x-auto">
-                                                    <code>{result.error}</code>
-                                                </pre>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
+    return (
+        <div className="flex flex-col h-full animate-fade-in gap-4 pb-6 overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between px-1">
+                <div>
+                    <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight">QA & Integridade</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Validação automatizada das regras de negócio do Core Engine.</p>
                 </div>
+                {running ? (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase animate-pulse">
+                        <BoltIcon className="w-3 h-3" /> Executando Testes...
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[10px] font-bold">
+                            PASSOU: {passedCount}
+                        </div>
+                        <div className={`px-3 py-1.5 ${failedCount > 0 ? 'bg-red-50 text-red-700 border-red-100' : 'bg-slate-50 text-slate-400'} rounded-lg text-[10px] font-bold`}>
+                            FALHOU: {failedCount}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-4">
+                {/* Fix: Explicitly typed groupedEntries to avoid 'map' not existing on unknown error */}
+                {groupedEntries.map(([suiteName, suiteResults]) => (
+                    <div key={suiteName} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                        <div className="px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{suiteName}</h4>
+                        </div>
+                        <div className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                            {suiteResults.map((result, index) => (
+                                <div key={index} className="px-5 py-3 flex items-start gap-4 group hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                                    {result.passed ? (
+                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500 shrink-0" />
+                                    ) : (
+                                        <XCircleIcon className="w-5 h-5 text-red-500 shrink-0" />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`text-xs font-bold ${result.passed ? 'text-slate-700 dark:text-slate-300' : 'text-red-600'}`}>{result.test}</p>
+                                        {!result.passed && (
+                                            <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/50">
+                                                <code className="text-[10px] text-red-700 dark:text-red-400 font-mono break-all leading-relaxed">
+                                                    {result.error}
+                                                </code>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
