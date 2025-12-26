@@ -1,4 +1,5 @@
 
+
 export type Language = 'pt' | 'en' | 'es';
 export type Theme = 'light' | 'dark';
 export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis';

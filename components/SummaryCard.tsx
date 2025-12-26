@@ -1,4 +1,5 @@
 
+
 import React, { memo } from 'react';
 import { useTranslation } from '../contexts/I18nContext';
 import { formatCurrency } from '../utils/formatters';

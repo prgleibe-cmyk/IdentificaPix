@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -12,7 +13,7 @@ import {
     SavingReportState, LearnedAssociation, MatchMethod, FileModel
 } from '../types';
 import { groupResultsByChurch, PLACEHOLDER_CHURCH } from '../services/processingService';
-import { Logger } from '../services/monitoringService';
+
 import { supabase } from '../services/supabaseClient';
 import { useTranslation } from './I18nContext';
 import { LoadingSpinner } from '../components/shared/LoadingSpinner';
@@ -206,7 +207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         data: (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as any 
                     })));
                 }
-            } catch (err) { Logger.error('Initial fetch failed', err); }
+            } catch (err) { console.error('Initial fetch failed', err); } // Using console.error directly instead of Logger
             finally { setIsLoading(false); setInitialDataLoaded(true); }
         };
         fetchData();

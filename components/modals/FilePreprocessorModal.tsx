@@ -108,10 +108,6 @@ const formatDisplayAmount = (val: string) => {
     return val.replace('.', ',');
 };
 
-const parseInputAmount = (val: string) => {
-    return val.replace(/\./g, '').replace(',', '.').trim();
-};
-
 export const FilePreprocessorModal: React.FC<{ 
     onClose: () => void; 
     initialFile?: any;
@@ -258,9 +254,12 @@ export const FilePreprocessorModal: React.FC<{
                 console.error("Erro na extração IA:", err);
                 const msg = err?.message?.toLowerCase() || '';
                 
+                // Trata erro de cota
                 if (msg.includes('quota') || msg.includes('429') || msg.includes('limit') || msg.includes('exceeded')) {
+                    showToast("Cota da IA excedida. Tentando novamente em breve.", "error");
                     await smartPause(15); 
-                } else {
+                } 
+                else {
                     consecutiveErrors++;
                     if (consecutiveErrors > 3) {
                         showToast("Muitos erros consecutivos. Parando.", "error");
@@ -332,8 +331,10 @@ export const FilePreprocessorModal: React.FC<{
                 const msg = err?.message?.toLowerCase() || '';
                 
                 if (msg.includes('quota') || msg.includes('429') || msg.includes('limit') || msg.includes('exceeded')) {
+                    showToast("Cota da IA excedida. Tentando novamente em breve.", "error");
                     await smartPause(15);
-                } else {
+                } 
+                else {
                     consecutiveErrors++;
                     if (consecutiveErrors > 3) {
                         showToast("Falha crítica no processamento. Tente novamente.", "error");

@@ -1,7 +1,8 @@
 
+
 import React, { useRef, useState, useEffect } from 'react';
 import { UploadIcon, CheckCircleIcon, XMarkIcon } from './Icons';
-import { Logger, Metrics } from '../services/monitoringService';
+
 
 let pdfjsLib: any = null;
 let mammoth: any = null;

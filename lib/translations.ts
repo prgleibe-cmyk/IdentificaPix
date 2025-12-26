@@ -1,5 +1,6 @@
 
 
+
 export const translations = {
     pt: {
         'app.title': 'IdentificaPix',
@@ -747,7 +748,7 @@ export const translations = {
         'search.filterBy.contributor': 'Contribuyente',
         'search.noResults': 'No se encontraron resultados para su búsqueda.',
         'search.filters': 'Filtros',
-        'search.filtersTitle': 'Filtros Avançados',
+        'search.filtersTitle': 'Filtros Avanzados',
         'search.applyFilters': 'Aplicar Filtros',
         'search.clearFilters': 'Limpiar Filtros',
         'search.filterByDate': 'Filtrar por Fecha',
@@ -791,7 +792,7 @@ export const translations = {
         'empty.dashboard.action': 'Cargar Archivos',
         'empty.dashboard.saved.title': 'Su Panel está listo para el análisis',
         'empty.dashboard.saved.message': 'Se poblará con datos agregados de sus informes guardados. Ejecute una conciliación y guarde el informe para comenzar.',
-        'empty.dashboard.saved.action': 'Iniciar Conciliação',
+        'empty.dashboard.saved.action': 'Iniciar Conciliación',
         'empty.search.title': 'No Hay Datos para Buscar',
         'empty.search.message': 'Genere y guarde informes para habilitar la búsqueda en el historial.',
         'empty.reports.title': 'No Hay Datos para Informes',

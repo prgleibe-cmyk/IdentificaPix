@@ -1,4 +1,5 @@
 
+
 import { Transaction, Contributor, MatchResult, Church, FileModel } from '../types';
 import { NameResolver } from '../core/processors/NameResolver';
 import { DateResolver } from '../core/processors/DateResolver';

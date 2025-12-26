@@ -1,4 +1,5 @@
 
+
 import React, { ReactNode } from 'react';
 
 // --- Contexts ---
@@ -9,7 +10,6 @@ import { UIProvider, useUI } from './contexts/UIContext';
 
 // --- Layout & Shared Components ---
 import { Sidebar } from './components/layout/Sidebar';
-// Header removed as per request
 import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
 import { ExclamationTriangleIcon } from './components/Icons';
@@ -163,7 +163,6 @@ const MainAppContent = () => {
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                {/* Header Removed for cleaner look */}
                 
                 <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth z-10 custom-scrollbar relative">
                     {/* Header Gradient Decoration - Subtle ambient light */}

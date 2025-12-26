@@ -1,7 +1,8 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Contributor, Transaction } from '../types';
-import { Logger, Metrics } from './monitoringService';
+
 
 const getAIClient = () => {
     // Tenta obter a chave de todas as formas possíveis para garantir compatibilidade Docker/Coolify
@@ -36,7 +37,7 @@ async function callWithSimpleRetry(fn: () => Promise<any>, retries = 3, delay = 
         }
         throw error;
     }
-}
+};
 
 export const performInitialInference = async (rawRows: string[][]): Promise<any[]> => {
     const ai = getAIClient();
@@ -58,15 +59,14 @@ export const performInitialInference = async (rawRows: string[][]): Promise<any[
     `;
 
     return callWithSimpleRetry(async () => {
-        // MUDANÇA CRÍTICA: Uso do modelo estável 1.5 Flash para respeitar Billing da conta paga
         const response = await ai.models.generateContent({
             model: 'gemini-1.5-flash', 
-            contents: `Processar este lote CSV: ${JSON.stringify(optimizedRows)}`,
+            contents: `Processar este lote CSV: ${JSON.stringify(optimizedRows)}`, // Conteúdo como string
             config: {
                 systemInstruction: instructions,
                 temperature: 0.1,
                 responseMimeType: "application/json",
-                responseSchema: {
+                responseSchema: { // Schema correto para transações
                     type: Type.ARRAY,
                     items: {
                         type: Type.OBJECT,
@@ -109,12 +109,12 @@ export const learnAndTransformFile = async (
     return callWithSimpleRetry(async () => {
         const response = await ai.models.generateContent({
             model: 'gemini-1.5-flash', // Modelo estável
-            contents: `Aplicar padrão aprendido nestas linhas: ${JSON.stringify(optimizedRows)}`,
+            contents: `Aplicar padrão aprendido nestas linhas: ${JSON.stringify(optimizedRows)}`, // Conteúdo como string
             config: {
                 systemInstruction: instructions,
                 temperature: 0,
                 responseMimeType: "application/json",
-                responseSchema: {
+                responseSchema: { // Schema correto para transações
                     type: Type.ARRAY,
                     items: {
                         type: Type.OBJECT,
