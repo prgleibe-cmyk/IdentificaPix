@@ -34,19 +34,31 @@ export const modelService = {
                     .eq('user_id', model.user_id);
             }
 
-            const { parsingRules, ...rest } = model;
+            // Mapeamento EXPLICITO para garantir compatibilidade com o banco
+            // Evita erros de campos undefined ou camelCase que não existem no banco
+            const dbPayload = {
+                name: model.name,
+                user_id: model.user_id,
+                version: model.version,
+                lineage_id: model.lineage_id,
+                is_active: true,
+                fingerprint: model.fingerprint,
+                mapping: model.mapping,
+                parsing_rules: model.parsingRules, // Camel -> Snake explícito
+                snippet: model.snippet || null,    // Garante null se undefined
+                last_used_at: model.lastUsedAt || null
+            };
 
             const { data, error } = await supabase
                 .from('file_models')
-                .insert([{
-                    ...rest,
-                    parsing_rules: parsingRules, // Camel -> Snake
-                    is_active: true
-                }])
+                .insert([dbPayload])
                 .select()
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                Logger.error("Supabase Insert Error:", error);
+                throw error;
+            }
             return mapDbRowToModel(data);
         } catch (error) {
             Logger.error("Erro ao salvar modelo aprendido", error);

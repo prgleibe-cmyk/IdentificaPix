@@ -26,9 +26,9 @@ import { generateFingerprint, cleanTransactionDescriptionForDisplay, normalizeSt
 import { modelService } from '../../services/modelService';
 import { FileModel, Transaction } from '../../types';
 
-// CONFIGURAÇÃO DE SEGURANÇA E RESILIÊNCIA
-const CHUNK_SIZE = 40; 
-const BASE_DELAY = 2000; 
+// CONFIGURAÇÃO ULTRA CONSERVADORA PARA EVITAR QUOTA EXCEEDED
+const CHUNK_SIZE = 25; // Reduzido de 40 para 25
+const BASE_DELAY = 4000; // Aumentado para 4 segundos (Garante < 15 RPM mesmo no free tier)
 const ROWS_PER_PAGE = 50;
 
 /**
@@ -97,24 +97,18 @@ interface TreatedRow {
     date: string;
     name: string;
     amount: string;
-    type?: string; // Adicionado campo type
+    type?: string;
     status: 'manual' | 'inferred' | 'unrecognized' | 'original' | 'suspect' | 'deleted' | 'processing' | 'invalid';
 }
 
 type ColumnType = 'ignore' | 'date' | 'description' | 'amount' | 'type';
 
 const formatDisplayAmount = (val: string) => {
-    // Retorna vazio se não houver valor ou for zero irrelevante
     if (!val || val === "0.00" || val === "") return "";
-    
-    // Substitui ponto por vírgula para visualização BR simples (editável)
-    // Não usamos toLocaleString aqui para evitar formatação agressiva durante a digitação
     return val.replace('.', ',');
 };
 
 const parseInputAmount = (val: string) => {
-    // Remove pontos de milhar (se o usuário colar "1.000,00") e substitui vírgula decimal por ponto
-    // Permite digitação livre sem quebrar o estado interno
     return val.replace(/\./g, '').replace(',', '.').trim();
 };
 
@@ -132,7 +126,7 @@ export const FilePreprocessorModal: React.FC<{
     const [referenceRowIdx, setReferenceRowIdx] = useState<number | null>(null);
     const [isAILoading, setIsAILoading] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
-    const [viewMode, setViewMode] = useState<'original' | 'cells'>('cells'); // Default to cells for mapping
+    const [viewMode, setViewMode] = useState<'original' | 'cells'>('cells');
     const [currentPage, setCurrentPage] = useState(1);
     const [columnMapping, setColumnMapping] = useState<Record<number, ColumnType>>({});
     
@@ -160,7 +154,6 @@ export const FilePreprocessorModal: React.FC<{
         }
     }, [initialFile]);
 
-    // Aplica mapeamento manual instantaneamente
     useEffect(() => {
         const dateIdx = Object.keys(columnMapping).find(k => columnMapping[parseInt(k)] === 'date');
         const descIdx = Object.keys(columnMapping).find(k => columnMapping[parseInt(k)] === 'description');
@@ -174,7 +167,6 @@ export const FilePreprocessorModal: React.FC<{
                 const rawAmount = row[parseInt(amountIdx)] || '0';
                 const rawType = typeIdx ? (row[parseInt(typeIdx)] || '') : '';
 
-                // Limpeza básica rápida
                 const cleanedAmount = rawAmount.replace(/[R$\s]/g, '').replace(',', '.');
                 
                 return {
@@ -194,7 +186,6 @@ export const FilePreprocessorModal: React.FC<{
     const handleColumnTypeChange = (colIndex: number, type: ColumnType) => {
         setColumnMapping(prev => {
             const next = { ...prev };
-            // Remove o tipo de outras colunas se for único (date, desc, amount, type)
             if (type !== 'ignore') {
                 Object.keys(next).forEach(k => {
                     if (next[parseInt(k)] === type) delete next[parseInt(k)];
@@ -223,7 +214,6 @@ export const FilePreprocessorModal: React.FC<{
     };
 
     const handleRunAIExtraction = async () => {
-        // Limpa mapeamento manual se usar IA
         setColumnMapping({});
         setIsAILoading(true);
         const total = rawRows.length;
@@ -284,15 +274,13 @@ export const FilePreprocessorModal: React.FC<{
     };
 
     const handleApplyReference = async () => {
-        // Verifica se há linhas manuais para usar de exemplo
         const manual = treatedRows.filter(r => r.status === 'manual' && r.originalIndex !== undefined).map(r => ({
             originalRow: rawRows[r.originalIndex!],
             corrected: { date: r.date, name: r.name, amount: r.amount }
         }));
 
         if (manual.length === 0) {
-            // Se o usuário já selecionou colunas, o arquivo já está processado com status 'inferred'
-            const hasMappedColumns = Object.keys(columnMapping).length >= 3; // Min: Date, Desc, Amount
+            const hasMappedColumns = Object.keys(columnMapping).length >= 3;
             if (hasMappedColumns) {
                 showToast("Colunas já mapeadas! Você pode Salvar o Modelo diretamente.", "success");
             } else {
@@ -358,19 +346,9 @@ export const FilePreprocessorModal: React.FC<{
         setIsAILoading(false);
     };
 
-    const updateRowField = (id: string, field: keyof TreatedRow, value: string) => {
-        setTreatedRows(prev => prev.map(r => {
-            if (r.id !== id) return r;
-            let processedValue = value;
-            if (field === 'amount') processedValue = parseInputAmount(value);
-            return { ...r, [field]: processedValue, status: 'manual' };
-        }));
-    };
-
     const handleFinalize = async () => {
         if (!user || !initialFile) return;
         
-        // Verifica se há linhas válidas (seja manual, inferida ou original)
         const validRows = treatedRows.filter(r => r.status !== 'invalid' && r.status !== 'deleted' && r.status !== 'unrecognized');
         if (validRows.length === 0) {
             showToast("Processe o arquivo ou edite linhas antes de salvar.", "error");
@@ -381,12 +359,9 @@ export const FilePreprocessorModal: React.FC<{
         try {
             const fingerprint = generateFingerprint(initialFile.content);
             if (fingerprint) {
-                // Modelo: Agora com contexto (qual entidade) se possível no nome
                 const entitySuffix = initialFile.type === 'contributor' ? '(Lista)' : '(Extrato)';
-                const snippet = extractSnippet(initialFile.content); // Captura o snippet para uso futuro
+                const snippet = extractSnippet(initialFile.content);
                 
-                // Mapeamento: Busca os índices das colunas. Retorna string, converte para int. Se não achar, undefined.
-                // IMPORTANTE: Object.keys retorna strings ('0', '1'). parseInt resolve.
                 const findColIndex = (type: ColumnType) => {
                     const key = Object.keys(columnMapping).find(k => columnMapping[parseInt(k)] === type);
                     return key !== undefined ? parseInt(key) : -1;
@@ -397,52 +372,54 @@ export const FilePreprocessorModal: React.FC<{
                 const amountCol = findColIndex('amount');
                 const typeCol = findColIndex('type');
 
-                // Se houver mapeamento manual válido (3 colunas principais), usamos ele.
-                // Se não, usamos valores "dummy" (0,1,2) pois a IA pode ter aprendido via few-shot sem mapeamento explícito.
                 const hasExplicitMapping = dateCol !== -1 && descCol !== -1 && amountCol !== -1;
                 
+                // CRITICAL FIX: Ensure no undefined values are passed to Supabase JSONB
                 const finalMapping = hasExplicitMapping
                     ? { 
                         dateColumnIndex: dateCol, 
                         descriptionColumnIndex: descCol, 
                         amountColumnIndex: amountCol, 
-                        typeColumnIndex: typeCol !== -1 ? typeCol : undefined, // Só inclui se for diferente de -1
+                        typeColumnIndex: typeCol !== -1 ? typeCol : null, // Use null instead of undefined
                         skipRowsStart: 1, 
                         skipRowsEnd: 0, 
                         decimalSeparator: ',' as const, 
                         thousandsSeparator: '.' as const 
                       }
-                    : { dateColumnIndex: 0, descriptionColumnIndex: 1, amountColumnIndex: 2, skipRowsStart: 1, skipRowsEnd: 0, decimalSeparator: ',' as const, thousandsSeparator: '.' as const };
+                    : { dateColumnIndex: 0, descriptionColumnIndex: 1, amountColumnIndex: 2, typeColumnIndex: null, skipRowsStart: 1, skipRowsEnd: 0, decimalSeparator: ',' as const, thousandsSeparator: '.' as const };
 
                 const modelData: Omit<FileModel, 'id' | 'createdAt'> = {
                     name: `Modelo Auto - ${initialFile.fileName} ${entitySuffix}`,
                     user_id: user.id, version: 1, lineage_id: `lin-${Date.now()}`, is_active: true,
                     fingerprint,
-                    snippet, // Armazena o snippet no modelo
-                    mapping: finalMapping,
+                    snippet,
+                    mapping: finalMapping as any,
                     parsingRules: { ignoredKeywords: customIgnoreKeywords, rowFilters: treatedRows.filter(r => r.status === 'deleted').map(r => r.name) }
                 };
                 
                 const savedModel = await modelService.saveModel(modelData);
-                
-                // Atualiza o contexto global para que outras partes do app saibam do novo modelo
                 await fetchModels();
                 
                 if (savedModel) {
                     showToast("Modelo salvo e ativado com sucesso!", "success");
                     
-                    // Converte as linhas tratadas em Transações limpas
-                    const processedData: Transaction[] = validRows.map((r, i) => ({
-                        id: `tx-lab-${i}-${Date.now()}`,
-                        date: r.date,
-                        description: r.name,
-                        amount: parseFloat(r.amount),
-                        cleanedDescription: r.name,
-                        originalAmount: r.amount,
-                        contributionType: r.type // Passa o tipo adiante
-                    }));
+                    const processedData: Transaction[] = validRows.map((r, i) => {
+                        // FIX: Ensure amount handles comma from manual edits correctly
+                        const cleanAmount = r.amount.includes(',') 
+                            ? r.amount.replace(/\./g, '').replace(',', '.') 
+                            : r.amount;
 
-                    // Se houver callback de sucesso, invoca-o para atualizar a view pai sem reload
+                        return {
+                            id: `tx-lab-${i}-${Date.now()}`,
+                            date: r.date,
+                            description: r.name,
+                            amount: parseFloat(cleanAmount),
+                            cleanedDescription: r.name,
+                            originalAmount: r.amount,
+                            contributionType: r.type
+                        };
+                    });
+
                     if (onSuccess) {
                         onSuccess(savedModel, processedData);
                     }
@@ -459,6 +436,15 @@ export const FilePreprocessorModal: React.FC<{
         } finally { 
             setIsLoading(false); 
         }
+    };
+
+    const updateRowField = (rowId: string, field: 'date' | 'name' | 'amount' | 'type', value: string) => {
+        setTreatedRows(prev => prev.map(r => {
+            if (r.id === rowId) {
+                return { ...r, [field]: value, status: 'manual' };
+            }
+            return r;
+        }));
     };
 
     const visibleRows = useMemo(() => treatedRows.filter(r => r.status !== 'unrecognized' || r.originalIndex! < 20), [treatedRows]);
