@@ -17,15 +17,15 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
+// --- SERVIR FRONTEND ESTÁTICO ---
+// Instrui o Express a servir os arquivos gerados pelo 'npm run build' (pasta dist)
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // A chave de API DEVE ser obtida de process.env.API_KEY.
-// O arquivo vite.config.ts garante que VITE_GEMINI_API_KEY ou API_KEY seja injetado corretamente.
 let ai;
 try {
     if (!process.env.API_KEY) {
         console.error("CRITICAL: Gemini API Key is missing from environment variables.");
-        // Não encerra o processo, apenas loga e a API Gemini não será inicializada corretamente
-        // Isso permite que outras partes do servidor funcionem, mas as chamadas de IA falharão.
-        // throw new Error("API_KEY environment variable is not set.");
     } else {
         ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     }
@@ -33,6 +33,7 @@ try {
     console.error("Failed to initialize GoogleGenAI client:", e.message);
 }
 
+// --- ROTAS DA API ---
 
 app.post('/api/ai/extract-data', async (req, res) => {
     if (!ai) {
@@ -53,7 +54,6 @@ app.post('/api/ai/extract-data', async (req, res) => {
             4. Se o usuário forneceu um exemplo, use-o como guia rigoroso.
         `;
         
-        // Se o usuário forneceu um exemplo, criamos um prompt de "Few-Shot" muito forte
         if (example && (example.date || example.description || example.amount)) {
             instructions += `
             Você é um extrator de dados financeiro. O usuário forneceu um exemplo manual de como uma linha DEVE SER EXTRAÍDA e formatada.
@@ -88,7 +88,7 @@ app.post('/api/ai/extract-data', async (req, res) => {
             contents: prompt,
             config: {
                 systemInstruction: "Você é um especialista em processamento de extratos bancários. Sua resposta deve ser EXCLUSIVAMENTE um array JSON válido.",
-                temperature: 0, // Rigidez para extração de dados
+                temperature: 0,
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.ARRAY,
@@ -107,7 +107,6 @@ app.post('/api/ai/extract-data', async (req, res) => {
         });
 
         let jsonStr = response.text ? response.text.trim() : "[]";
-        // Remove blocos de código markdown se o modelo os gerar (fallback)
         if (jsonStr.startsWith('```json')) {
             jsonStr = jsonStr.substring(7, jsonStr.lastIndexOf('```')).trim();
         } else if (jsonStr.startsWith('```')) {
@@ -135,7 +134,7 @@ app.post('/api/ai/suggestion', async (req, res) => {
             model: 'gemini-1.5-flash', 
             contents: prompt,
             config: {
-                temperature: 0.1, // Um pouco de flexibilidade para nomes
+                temperature: 0.1,
                 systemInstruction: "Você é um assistente de identificação de nomes. Responda apenas o nome sugerido ou 'Nenhuma sugestão clara'."
             }
         });
@@ -146,31 +145,26 @@ app.post('/api/ai/suggestion', async (req, res) => {
     }
 });
 
-// Implementação do endpoint de pagamento MOCK
-// Em produção, isso seria substituído por uma integração real com Asaas, Stripe, etc.
+// Mock de Pagamento
 const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co'; 
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
-
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 app.post('/api/payment/create', async (req, res) => {
     const { amount, name, email, description, method, userId } = req.body;
-
     console.log(`[MOCK PAYMENT] Recebido: ${method} para ${name} (${email}) - Valor: ${amount}`);
 
     try {
-        // Simulação de delay para API externa
         await new Promise(resolve => setTimeout(resolve, 1500));
 
         let paymentStatus = 'PENDING';
         let pixCopiaECola = null;
-        let qrCodeImage = null; // Mocked base64 QR would go here if needed
+        let qrCodeImage = null;
         let barcode = null;
         let bankSlipUrl = null;
 
         if (method === 'PIX') {
             pixCopiaECola = `00020126330014BR.GOV.BCB.PIX011112345678901520400005303986540${amount.toFixed(2)}5802BR590${name.length}${name}6007BRASIL62250521identificapix-mock6304CA77`;
-            // Mock QR Code Image (Placeholder Base64 - 1x1 Pixel Transparent)
             qrCodeImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
         } else if (method === 'BOLETO') {
             barcode = "23790.50400 44100.120004 02002.324009 1 92340000000000";
@@ -189,9 +183,7 @@ app.post('/api/payment/create', async (req, res) => {
             barcode,
             bankSlipUrl
         };
-
         res.json(responseData);
-
     } catch (error) {
         console.error("Erro no mock de pagamento:", error);
         res.status(500).json({ error: "Erro ao processar pagamento simulado." });
@@ -199,14 +191,18 @@ app.post('/api/payment/create', async (req, res) => {
 });
 
 app.get('/api/payment/status/:id', async (req, res) => {
-    // Simula que o pagamento foi recebido após 5 segundos
-    // Em produção, isso consultaria o gateway de pagamento
-    const shouldBePaid = Math.random() > 0.3; // 70% chance de "sucesso" no mock após polling
-    
+    const shouldBePaid = Math.random() > 0.3;
     res.json({
         id: req.params.id,
         status: shouldBePaid ? 'CONFIRMED' : 'PENDING'
     });
+});
+
+// --- ROTA CATCH-ALL (SPA) ---
+// Qualquer requisição que NÃO for para /api e NÃO for arquivo estático
+// retorna o index.html, permitindo que o React Router gerencie a navegação no cliente.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
