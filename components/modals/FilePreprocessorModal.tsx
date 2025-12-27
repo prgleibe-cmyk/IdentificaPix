@@ -2,19 +2,18 @@
 import React, { useState, useEffect, useRef, useMemo, useContext } from 'react';
 import { 
     XMarkIcon, 
-    TableCellsIcon, 
-    ArrowPathIcon, 
     WrenchScrewdriverIcon,
     DocumentArrowDownIcon,
-    EyeIcon,
-    CodeBracketSquareIcon
+    CodeBracketSquareIcon,
+    ArrowPathIcon
 } from '../Icons';
 import { useUI } from '../../contexts/UIContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { AppContext } from '../../contexts/AppContext'; // Import context
+import { AppContext } from '../../contexts/AppContext'; 
 import { processFileContent, detectDelimiter } from '../../services/processingService';
 import { Transaction, FileModel } from '../../types';
+import * as XLSX from 'xlsx';
 
+// --- Sub-componente: Renderizador de PDF ---
 const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [pages, setPages] = useState<number[]>([]);
@@ -62,7 +61,7 @@ const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
                 if (!pdf || !canvasRef.current) return;
                 try {
                     const page = await pdf.getPage(pageNum);
-                    const viewport = page.getViewport({ scale: 1.2 }); // Scale slightly reduced for side-by-side
+                    const viewport = page.getViewport({ scale: 1.2 }); 
                     const canvas = canvasRef.current;
                     const context = canvas.getContext('2d');
                     if (context) {
@@ -94,6 +93,85 @@ const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
     );
 };
 
+// --- Sub-componente: Renderizador de Planilha (Excel Grid Style) ---
+const SpreadsheetRenderer: React.FC<{ data: string[][], isLoading?: boolean }> = ({ data, isLoading }) => {
+    
+    // Função auxiliar para gerar letras de coluna (0 -> A, 1 -> B, 26 -> AA)
+    const getColumnLabel = (index: number) => {
+        let label = '';
+        let i = index;
+        while (i >= 0) {
+            label = String.fromCharCode((i % 26) + 65) + label;
+            i = Math.floor(i / 26) - 1;
+        }
+        return label;
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <ArrowPathIcon className="w-8 h-8 animate-spin mb-2" />
+                <p className="text-[10px] font-bold uppercase">Carregando planilha...</p>
+            </div>
+        );
+    }
+
+    if (!data || data.length === 0) return null;
+
+    // Calcula o número máximo de colunas para desenhar o header corretamente
+    const maxCols = data.reduce((max, row) => Math.max(max, row.length), 0);
+    const colIndices = Array.from({ length: maxCols }, (_, i) => i);
+
+    return (
+        <div className="flex-1 overflow-auto custom-scrollbar relative bg-[#f8f9fa] dark:bg-[#1e1e1e] w-full h-full select-text">
+            <table className="border-collapse table-fixed min-w-full">
+                {/* Header das Colunas (A, B, C...) */}
+                <thead className="sticky top-0 z-20">
+                    <tr>
+                        {/* Célula de Canto (Vazia) */}
+                        <th className="w-10 min-w-[40px] bg-[#e6e6e6] dark:bg-[#333] border-r border-b border-[#c0c0c0] dark:border-[#555] sticky left-0 z-30"></th>
+                        
+                        {/* Letras das Colunas */}
+                        {colIndices.map(colIndex => (
+                            <th key={colIndex} className="bg-[#f0f0f0] dark:bg-[#2d2d2d] border-r border-b border-[#d4d4d4] dark:border-[#555] text-center text-[10px] font-bold text-slate-600 dark:text-slate-300 h-6 min-w-[100px] select-none">
+                                {getColumnLabel(colIndex)}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.slice(0, 500).map((row, rowIndex) => (
+                        <tr key={rowIndex} className="h-6">
+                            {/* Header da Linha (1, 2, 3...) */}
+                            <td className="sticky left-0 z-10 bg-[#f0f0f0] dark:bg-[#2d2d2d] border-r border-b border-[#d4d4d4] dark:border-[#555] text-center text-[10px] font-bold text-slate-600 dark:text-slate-300 select-none w-10">
+                                {rowIndex + 1}
+                            </td>
+                            
+                            {/* Células de Dados */}
+                            {colIndices.map(colIndex => (
+                                <td 
+                                    key={`${rowIndex}-${colIndex}`} 
+                                    className="bg-white dark:bg-[#121212] border-r border-b border-[#e0e0e0] dark:border-[#444] px-2 py-0.5 text-xs text-slate-800 dark:text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis empty:bg-white dark:empty:bg-[#121212] focus:outline-none hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-cell"
+                                    title={row[colIndex]}
+                                >
+                                    {row[colIndex]}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                    {data.length > 500 && (
+                        <tr>
+                            <td colSpan={maxCols + 1} className="p-4 text-center text-slate-400 italic text-[10px] bg-slate-50 dark:bg-slate-900">
+                                ... visualização limitada a 500 linhas ...
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
 // Helper para converter float em BRL string
 const formatToBRL = (val: string | number) => {
     const num = typeof val === 'string' ? parseFloat(val) : val;
@@ -104,47 +182,79 @@ const formatToBRL = (val: string | number) => {
 export const FilePreprocessorModal: React.FC<{ 
     onClose: () => void; 
     initialFile?: any;
-    // Props legados mantidos para compatibilidade de interface, mas não usados neste modo "Inspector"
     initialModel?: FileModel; 
     onSuccess?: (model: FileModel, data: Transaction[]) => void;
 }> = ({ onClose, initialFile }) => {
     const { showToast } = useUI();
     const { effectiveIgnoreKeywords, contributionKeywords } = useContext(AppContext);
     
-    // State para visualização Esquerda (RAW)
-    const [rawRows, setRawRows] = useState<string[][]>([]);
+    // State para visualização Esquerda (RAW / GRID)
+    const [gridData, setGridData] = useState<string[][]>([]);
+    const [isGridLoading, setIsGridLoading] = useState(false);
     
     // State para visualização Direita (PROCESSED)
     const [processedTransactions, setProcessedTransactions] = useState<Transaction[]>([]);
     const [strategyUsed, setStrategyUsed] = useState<string>('Analisando...');
     
     const isPdf = useMemo(() => initialFile?.fileName?.toLowerCase().endsWith('.pdf'), [initialFile]);
-    const hasRawFile = !!initialFile?.rawFile;
+    const isExcelOrCsv = useMemo(() => {
+        const name = initialFile?.fileName?.toLowerCase() || '';
+        return name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv') || name.endsWith('.txt');
+    }, [initialFile]);
 
-    // Mescla as palavras-chave para o Lab refletir a mesma lógica do processamento principal
     const cleaningKeywords = useMemo(() => {
         return [...effectiveIgnoreKeywords, ...contributionKeywords];
     }, [effectiveIgnoreKeywords, contributionKeywords]);
 
-    // --- EFFECT: Load and Process Immediately ---
+    // --- EFFECT: Load and Process ---
     useEffect(() => {
         if (!initialFile) return;
 
         // 1. Prepare Left Panel Data (Raw Visualization)
-        const content = initialFile.content || '';
-        const lines = content.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
-        
-        if (lines.length > 0) {
-            let delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
-            if (!isPdf) delimiter = detectDelimiter(lines[0]);
-            const parsed = lines.map((l: string) => l.split(delimiter));
-            setRawRows(parsed);
-        }
+        const loadGrid = async () => {
+            setIsGridLoading(true);
+            
+            // Caso 1: PDF (Não usa grid, usa PDFRenderer)
+            if (isPdf) {
+                setIsGridLoading(false);
+                return;
+            }
+
+            // Caso 2: Excel Real (Recupera estrutura via XLSX)
+            // Se tiver rawFile (File Object), lemos diretamente para obter estrutura real
+            if (initialFile.rawFile && (initialFile.fileName.toLowerCase().endsWith('xls') || initialFile.fileName.toLowerCase().endsWith('xlsx'))) {
+                try {
+                    const buffer = await initialFile.rawFile.arrayBuffer();
+                    const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    // sheet_to_json com header:1 gera array de arrays preservando a grade
+                    const jsonData = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+                    setGridData(jsonData);
+                } catch (e) {
+                    console.error("Erro ao ler Excel para grid:", e);
+                    // Fallback para parse de texto
+                    const lines = initialFile.content.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                    const delimiter = detectDelimiter(lines[0] || '');
+                    setGridData(lines.map((l: string) => l.split(delimiter)));
+                }
+            } 
+            // Caso 3: CSV/Texto (Parsing de string)
+            else {
+                const lines = (initialFile.content || '').split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                if (lines.length > 0) {
+                    const delimiter = detectDelimiter(lines[0]);
+                    const parsed = lines.map((l: string) => l.split(delimiter));
+                    setGridData(parsed);
+                }
+            }
+            setIsGridLoading(false);
+        };
+
+        loadGrid();
 
         // 2. Prepare Right Panel Data (Strategy Execution)
         try {
-            // Executa o motor real imediatamente usando a lista combinada de limpeza
-            const result = processFileContent(content, initialFile.fileName, [], cleaningKeywords);
+            const result = processFileContent(initialFile.content, initialFile.fileName, [], cleaningKeywords);
             setProcessedTransactions(result.transactions);
             setStrategyUsed(result.method);
         } catch (e: any) {
@@ -156,15 +266,7 @@ export const FilePreprocessorModal: React.FC<{
     }, [initialFile, isPdf, cleaningKeywords]);
 
     return (
-        // z-[1000] garante prioridade absoluta sobre Sidebar (z-50) e Toasts
         <div className="fixed inset-0 z-[1000] bg-[#050B14]/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-            
-            {/* 
-                Container Responsivo Seguro:
-                - w-[95vw]: Ocupa 95% da largura da tela (centralizado)
-                - h-[90vh]: Ocupa 90% da altura (evita cortes verticais)
-                - max-w-[1600px]: Evita distorção em telas gigantes
-            */}
             <div className="bg-white dark:bg-[#0F172A] w-[95vw] max-w-[1600px] h-[90vh] rounded-[2rem] shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-scale-in relative">
                 
                 {/* Header Inspector */}
@@ -197,35 +299,18 @@ export const FilePreprocessorModal: React.FC<{
                     {/* LEFT PANEL: RAW SOURCE */}
                     <div className="flex-1 flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B1120] lg:w-1/2">
                         <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-[10px] font-bold uppercase tracking-widest text-slate-500 flex justify-between">
-                            <span>Arquivo Original (Raw Input)</span>
-                            <span>{rawRows.length} Linhas</span>
+                            <span>Arquivo Original (Visualização Real)</span>
+                            <span>{isPdf ? 'PDF Render' : (gridData.length + ' Linhas')}</span>
                         </div>
                         
-                        <div className="flex-1 overflow-auto custom-scrollbar relative">
-                            {isPdf && hasRawFile ? (
-                                <PDFRenderer file={initialFile.rawFile} />
-                            ) : (
-                                <div className="p-4">
-                                    <table className="w-full text-xs text-left border-collapse font-mono">
-                                        <tbody>
-                                            {rawRows.slice(0, 100).map((row, rowIndex) => (
-                                                <tr key={rowIndex} className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800/50">
-                                                    <td className="p-2 w-8 text-slate-400 text-right select-none bg-slate-100 dark:bg-slate-900/30 border-r border-slate-200 dark:border-slate-800">{rowIndex + 1}</td>
-                                                    <td className="p-2 whitespace-pre-wrap text-slate-600 dark:text-slate-300 break-all">
-                                                        {row.join(' | ')}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {rawRows.length > 100 && (
-                                                <tr>
-                                                    <td colSpan={2} className="p-4 text-center text-slate-400 italic text-[10px]">
-                                                        ... mais {rawRows.length - 100} linhas ocultas ...
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                        <div className="flex-1 overflow-hidden relative bg-white dark:bg-[#0B1120]">
+                            {isPdf && initialFile?.rawFile ? (
+                                <div className="h-full overflow-auto custom-scrollbar">
+                                    <PDFRenderer file={initialFile.rawFile} />
                                 </div>
+                            ) : (
+                                // Renderiza a Planilha Grid se for Excel/CSV
+                                <SpreadsheetRenderer data={gridData} isLoading={isGridLoading} />
                             )}
                         </div>
                     </div>
