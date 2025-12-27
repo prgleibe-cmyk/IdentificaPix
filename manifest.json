@@ -1,0 +1,20 @@
+{
+  "short_name": "IdentificaPix",
+  "name": "IdentificaPix - Sistema de Conciliação",
+  "icons": [
+    {
+      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#051024",
+  "background_color": "#051024"
+}
