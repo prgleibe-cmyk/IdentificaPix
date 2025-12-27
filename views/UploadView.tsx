@@ -49,29 +49,34 @@ export const UploadView: React.FC = () => {
             
             <div className="flex-1 min-h-0 pb-16">
                 
-                {/* NOTICE CARD: Arquivo não reconhecido */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-3 mb-4 flex items-center justify-between gap-4 shadow-sm animate-fade-in-up">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2 bg-white dark:bg-slate-800 rounded-lg text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 shrink-0">
-                            <InformationCircleIcon className="w-5 h-5" />
+                {/* NOTICE CARD: Arquivo não reconhecido (Highlight Colors) */}
+                <div className="bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-700/60 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4 shadow-lg shadow-amber-500/5 animate-fade-in-up relative overflow-hidden group">
+                    {/* Decorative Blob */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/10 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10 group-hover:bg-amber-400/20 transition-colors"></div>
+
+                    <div className="flex items-start gap-4 relative z-10">
+                        <div className="p-3 bg-amber-100 dark:bg-amber-900/40 rounded-xl text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-700 shrink-0 shadow-sm">
+                            <InformationCircleIcon className="w-6 h-6 stroke-[2]" />
                         </div>
                         <div>
-                            <h4 className="text-xs font-bold text-blue-800 dark:text-blue-200 uppercase tracking-tight mb-0.5">{t('upload.support.title')}</h4>
-                            <p className="text-[10px] text-blue-700/80 dark:text-blue-300 leading-snug max-w-2xl">
+                            <h4 className="text-sm font-black text-amber-900 dark:text-amber-100 uppercase tracking-wide mb-1 flex items-center gap-2">
+                                {t('upload.support.title')}
+                            </h4>
+                            <p className="text-xs text-amber-800/90 dark:text-amber-200/90 leading-snug max-w-2xl font-bold">
                                 {t('upload.support.desc')}
                             </p>
                         </div>
                     </div>
                     <button 
                         onClick={handleContactSupport}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wide shadow-md shadow-emerald-500/20 hover:-translate-y-0.5 transition-all whitespace-nowrap"
+                        className="relative z-10 flex items-center gap-2 px-5 py-2 bg-white hover:bg-emerald-50 border-2 border-emerald-100 hover:border-emerald-300 text-emerald-700 dark:bg-slate-800 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 rounded-full text-[10px] font-black uppercase tracking-wide shadow-sm hover:shadow-md transition-all whitespace-nowrap group/btn"
                     >
-                        <WhatsAppIcon className="w-3.5 h-3.5" />
+                        <WhatsAppIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-500 group-hover/btn:scale-110 transition-transform" />
                         <span className="hidden sm:inline">{t('upload.support.action')}</span>
                     </button>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full max-h-[calc(100%-80px)]">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full max-h-[calc(100%-100px)]">
                     
                     {/* BANK STATEMENTS COLUMN */}
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up">

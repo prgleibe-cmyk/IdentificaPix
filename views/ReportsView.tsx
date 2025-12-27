@@ -1,3 +1,4 @@
+
 import React, { useContext, useMemo, useState, memo, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
@@ -337,7 +338,7 @@ const ReportGroup: React.FC<{
 
                     <div className="h-4 w-px bg-blue-300 dark:bg-slate-700 mx-1"></div>
 
-                    <button onClick={handleDownload} className="p-1.5 rounded-lg bg-white/50 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 dark:text-emerald-400 transition-colors shadow-sm" title="Baixar Excel">
+                    <button onClick={() => handleDownload('xlsx')} className="p-1.5 rounded-lg bg-white/50 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 dark:text-emerald-400 transition-colors shadow-sm" title="Baixar Excel">
                         <DocumentArrowDownIcon className="w-4 h-4"/>
                     </button>
                     <button onClick={handlePrint} className="p-1.5 rounded-lg bg-white/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:text-blue-400 transition-colors shadow-sm" title="Imprimir">

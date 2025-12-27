@@ -91,7 +91,7 @@ export const AdminModelsTab: React.FC = () => {
                 loadModels();
                 
                 // CRÍTICO: Atualiza o estado global da aplicação para "esquecer" o modelo imediatamente
-                await fetchModels();
+                if (fetchModels) await fetchModels();
 
                 if (selectedModel?.id === id) setSelectedModel(null);
             } else {
@@ -131,7 +131,7 @@ export const AdminModelsTab: React.FC = () => {
         if (success) {
             showToast("Modelo renomeado.", "success");
             loadModels();
-            fetchModels(); // Atualiza globalmente também
+            if (fetchModels) fetchModels(); // Atualiza globalmente também
             setEditingId(null);
         } else {
             showToast("Erro ao renomear.", "error");
@@ -151,7 +151,7 @@ export const AdminModelsTab: React.FC = () => {
         setModelToRefine(null);
         showToast("Modelo refinado e atualizado!", "success");
         loadModels();
-        await fetchModels(); // Garante que o refinamento se propague
+        if (fetchModels) await fetchModels(); // Garante que o refinamento se propague
     };
 
     // --- FILTROS & RENDER ---
@@ -216,7 +216,7 @@ export const AdminModelsTab: React.FC = () => {
                                 ) : filteredModels.length === 0 ? (
                                     <tr><td colSpan={5} className="text-center py-8 text-slate-400">Nenhum modelo encontrado.</td></tr>
                                 ) : (
-                                    filteredModels.map(model => {
+                                    filteredModels.map((model: FileModel & { user_email?: string, isSystem?: boolean }) => {
                                         const isEditing = editingId === model.id;
                                         const isConfirmingDelete = deleteConfirmId === model.id;
                                         const isSelected = selectedModel?.id === model.id;
@@ -339,7 +339,7 @@ export const AdminModelsTab: React.FC = () => {
                 </div>
 
                 {/* Painel de Visualização (Preview/Snippet) - Apenas para DB Models */}
-                {selectedModel && !editingId && !selectedModel.isSystem && (
+                {selectedModel && !editingId && !(selectedModel as any).isSystem && (
                     <div className="w-1/3 min-w-[300px] bg-slate-50 dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-scale-in">
                         <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
                             <h4 className="font-bold text-xs text-slate-700 dark:text-white uppercase tracking-wider flex items-center gap-2">

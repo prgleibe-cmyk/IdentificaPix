@@ -23,7 +23,7 @@ interface AppContextType {
     banks: Bank[];
     churches: Church[];
     fileModels: FileModel[];
-    // fetchModels REMOVIDO: Modelos agora são hardcoded no Core Engine
+    fetchModels: () => Promise<void>; // Adicionado para corrigir erro TS no AdminModelsTab
     setBanks: React.Dispatch<React.SetStateAction<Bank[]>>;
     setChurches: React.Dispatch<React.SetStateAction<Church[]>>;
     similarityLevel: number;
@@ -53,7 +53,8 @@ interface AppContextType {
 
     // Reconciliation State (from useReconciliation)
     bankStatementFile: { bankId: string, content: string, fileName: string, rawFile?: File } | null;
-    contributorFiles: { churchId: string; content: string; fileName: string }[];
+    // Atualizado para incluir contributors opcionais para o SmartEditModal
+    contributorFiles: { churchId: string; content: string; fileName: string; contributors?: Contributor[] }[];
     matchResults: MatchResult[];
     setMatchResults: React.Dispatch<React.SetStateAction<MatchResult[]>>;
     reportPreviewData: { income: GroupedReportData; expenses: GroupedReportData } | null;
