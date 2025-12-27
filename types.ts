@@ -51,7 +51,7 @@ export interface Contributor {
 export interface MatchResult {
   transaction: Transaction;
   contributor: Contributor | null;
-  status: 'IDENTIFICADO' | 'NÃO IDENTIFICADO';
+  status: 'IDENTIFICADO' | 'NÃO IDENTIFICADO' | 'PENDENTE';
   church: Church;
   matchMethod?: MatchMethod;
   similarity?: number;

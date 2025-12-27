@@ -1,3 +1,4 @@
+
 import { describe, it, expect } from '../utils/testRunner';
 import { 
     normalizeString,
@@ -81,7 +82,7 @@ describe('processingService: Date Parsing', () => {
 describe('processingService: Intelligent CSV Parser (Column Detection)', () => {
     it('should correctly identify columns in standard format', () => {
         const content = `Data,Descricao,Valor\n15/07/2024,PIX JOAO,100.00`;
-        const result = parseBankStatement(content);
+        const result = parseBankStatement(content, [], []);
         expect(result.length).toBe(1);
         expect(result[0].date).toBe('15/07/2024');
         expect(result[0].description).toBe('PIX JOAO');
@@ -90,7 +91,7 @@ describe('processingService: Intelligent CSV Parser (Column Detection)', () => {
 
     it('should correctly identify columns in different order', () => {
         const content = `Descricao,Valor,Data\nPIX JOAO,100.00,15/07/2024`;
-        const result = parseBankStatement(content);
+        const result = parseBankStatement(content, [], []);
         expect(result.length).toBe(1);
         expect(result[0].date).toBe('15/07/2024');
         expect(result[0].description).toBe('PIX JOAO');
@@ -99,7 +100,7 @@ describe('processingService: Intelligent CSV Parser (Column Detection)', () => {
     
     it('should handle extra columns and choose correct amount column', () => {
         const content = `Data,Lixo,Descricao,Valor,Saldo\n15/07/2024,abc,PIX JOAO,100.00,5100.00\n16/07/2024,def,PIX MARIA,200.00,5300.00`;
-        const result = parseBankStatement(content);
+        const result = parseBankStatement(content, [], []);
         expect(result.length).toBe(2);
         expect(result[0].date).toBe('15/07/2024');
         expect(result[0].description).toBe('PIX JOAO');

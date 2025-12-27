@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -84,7 +83,7 @@ app.post('/api/ai/extract-data', async (req, res) => {
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-1.5-flash', 
+            model: 'gemini-3-flash-preview', 
             contents: prompt,
             config: {
                 systemInstruction: "Você é um especialista em processamento de extratos bancários. Sua resposta deve ser EXCLUSIVAMENTE um array JSON válido.",
@@ -131,7 +130,7 @@ app.post('/api/ai/suggestion', async (req, res) => {
         const prompt = `Analise a descrição da transação: "${transactionDescription}". Qual nome de contribuinte da lista abaixo se encaixa melhor? Responda APENAS o nome exato do contribuinte ou "Nenhuma sugestão clara". Lista: [${contributorNames.join(', ')}].`;
         
         const response = await ai.models.generateContent({ 
-            model: 'gemini-1.5-flash', 
+            model: 'gemini-3-flash-preview', 
             contents: prompt,
             config: {
                 temperature: 0.1,

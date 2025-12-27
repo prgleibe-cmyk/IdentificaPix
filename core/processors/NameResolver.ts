@@ -10,7 +10,8 @@ export class NameResolver {
     /\bCONTA\b/gi, /\bCORRENTE\b/gi, /\bPOUPANCA\b/gi, /\bBANCO\b/gi,
     /\bCOMPROVANTE\b/gi, /\bAUTENTICACAO\b/gi, /\bSTR\b/gi, /\bPGTO\b/gi,
     /\bCREDITO\b/gi, /\bDEBITO\b/gi, /\bEXTRATO\b/gi, /\bFAVORECIDO\b/gi,
-    /\bLIQUIDACAO\b/gi, /\bESTORNO\b/gi, /\bLANCTO\b/gi
+    /\bLIQUIDACAO\b/gi, /\bESTORNO\b/gi, /\bLANCTO\b/gi,
+    /\bRECEB\.?\s*OUTRA\s*IF\b/gi // Novo: Sicoob "RECEB.OUTRA IF"
   ];
 
   private static CONTROL_KEYWORDS = [
@@ -110,11 +111,24 @@ export class NameResolver {
       cleaned = cleaned.replace(pattern, ' ');
     });
 
-    // 3. Remoção de Palavras-chave do Usuário
-    userKeywords.forEach(k => {
+    // 3. Remoção de Palavras-chave do Usuário (Ordenadas por tamanho para matching correto de frases)
+    // Ex: Se remover "PIX" antes de "PIX RECEBIDO", sobraria "RECEBIDO". Removendo o maior primeiro resolve.
+    const sortedKeywords = [...userKeywords].sort((a, b) => b.length - a.length);
+
+    sortedKeywords.forEach(k => {
       if (k && k.trim()) {
-        const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        cleaned = cleaned.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), ' ');
+        // Divide a frase em tokens (ex: "RECEB OUTRA IF" -> ["RECEB", "OUTRA", "IF"])
+        const tokens = k.trim().split(/\s+/);
+        
+        // Escapa caracteres especiais de regex em cada token
+        const escapedTokens = tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        
+        // Cria um padrão que aceita espaços, pontos, traços ou underscores entre os tokens
+        // Isso resolve o problema de extratos como "RECEB.OUTRA.IF" vs config "RECEB OUTRA IF"
+        const patternStr = escapedTokens.join('[\\s._-]+');
+        
+        // \b garante que só remove se for palavra inteira ou frase delimitada
+        cleaned = cleaned.replace(new RegExp(`\\b${patternStr}\\b`, 'gi'), ' ');
       }
     });
 

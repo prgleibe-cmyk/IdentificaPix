@@ -16,12 +16,9 @@ import {
 import { 
     matchTransactions, 
     groupResultsByChurch, 
-    findMatchingModel,
     PLACEHOLDER_CHURCH,
-    parseWithModel,
-    isModelSafeToApply,
     normalizeString,
-    generateFingerprint
+    processFileContent
 } from '../services/processingService';
 
 interface UseReconciliationProps {
@@ -52,14 +49,20 @@ export const useReconciliation = ({
     setActiveView
 }: UseReconciliationProps) => {
     
-    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ bankId: string, content: string, fileName: string, rawFile?: File } | null>('identificapix-statement-v6', null, true);
+    const [bankStatementFile, setBankStatementFile] = usePersistentState<{ 
+        bankId: string, 
+        content: string, 
+        fileName: string, 
+        rawFile?: File,
+        processedTransactions?: Transaction[]
+    } | null>('identificapix-statement-v7', null, true);
+
     const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string, contributors?: Contributor[] }[]>('identificapix-contributors-v6', [], true);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results-v6', [], true);
     const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v6', null, true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v6', false, false);
     const [comparisonType, setComparisonType] = useState<ComparisonType>('both');
     
-    // Pending Training agora guarda o contexto de onde veio o arquivo (qual banco ou qual igreja)
     const [pendingTraining, setPendingTraining] = useState<{ content: string; fileName: string; type: 'statement' | 'contributor'; entityId: string, rawFile?: File } | null>(null);
 
     // Manual Identification State
@@ -70,91 +73,93 @@ export const useReconciliation = ({
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
 
-    // Lógica Central de Upload de Extrato
+    // --- LÓGICA DE LIMPEZA UNIFICADA ---
+    // Combina palavras ignoradas globais com os Tipos de Contribuição.
+    // Isso garante que "Dízimo", "Oferta", etc., sejam removidos da coluna NOME,
+    // mas a detecção de TIPO (que ocorre no raw description) continua funcionando.
+    const cleaningKeywords = useMemo(() => {
+        return Array.from(new Set([...customIgnoreKeywords, ...contributionKeywords]));
+    }, [customIgnoreKeywords, contributionKeywords]);
+
     const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string, rawFile: File) => {
         setIsLoading(true);
         try {
-            const matchedModel = findMatchingModel(content, fileModels);
+            // ESTRATÉGIA DIRETA: Usa a lista combinada para limpar descrições
+            const result = processFileContent(content, fileName, fileModels, cleaningKeywords);
+            const transactions = result.transactions;
 
-            if (matchedModel) {
-                const safety = isModelSafeToApply(content, matchedModel);
-                if (safety.safe) {
-                    // Modelo encontrado e seguro: Processa silenciosamente
-                    setBankStatementFile({ bankId, content, fileName, rawFile });
-                    showToast(`Extrato padronizado automaticamente (Modelo v${matchedModel.version}).`, 'success');
-                } else {
-                    // Modelo existe mas a estrutura mudou: Re-treinar
-                    setPendingTraining({ content, fileName, type: 'statement', entityId: bankId, rawFile });
-                    showToast("O layout deste banco mudou. Abrindo laboratório para ajuste.", "error");
-                }
+            if (transactions.length > 0) {
+                setBankStatementFile({ 
+                    bankId, 
+                    content, 
+                    fileName, 
+                    rawFile,
+                    processedTransactions: transactions 
+                });
+                showToast(`Extrato carregado (${result.method}).`, 'success');
             } else {
-                // Modelo desconhecido: Treinar obrigatoriamente
-                setPendingTraining({ content, fileName, type: 'statement', entityId: bankId, rawFile });
-                showToast("Novo layout de extrato detectado. Abrindo laboratório...", "success");
+                showToast("Formato de arquivo não reconhecido pelo sistema automático. Verifique se é um arquivo suportado.", "error");
             }
-        } catch (e) {
-            showToast("Erro ao ler o arquivo.", "error");
+        } catch (e: any) {
+            console.error(e);
+            showToast("Erro ao ler o arquivo: " + e.message, "error");
         } finally {
             setIsLoading(false);
         }
-    }, [fileModels, setBankStatementFile, showToast, setIsLoading]);
+    }, [setBankStatementFile, showToast, setIsLoading, fileModels, cleaningKeywords]);
 
-    // Lógica Central de Upload de Lista de Contribuintes
     const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string, rawFile?: File) => {
         setIsLoading(true);
         try {
-            const matchedModel = findMatchingModel(content, fileModels);
+            // ESTRATÉGIA DIRETA: Usa a lista combinada para limpar nomes de contribuintes
+            const result = processFileContent(content, fileName, fileModels, cleaningKeywords);
+            const transactions = result.transactions;
 
-            if (matchedModel) {
-                const safety = isModelSafeToApply(content, matchedModel);
-                if (safety.safe) {
-                    // Modelo encontrado: Processa silenciosamente e JÁ EXTRAI os contribuintes
-                    const transactions = parseWithModel(content, matchedModel, customIgnoreKeywords);
-                    const contributors: Contributor[] = transactions.map(t => ({
-                        name: t.description,
-                        cleanedName: t.cleanedDescription,
-                        normalizedName: normalizeString(t.description, customIgnoreKeywords),
-                        amount: t.amount,
-                        date: t.date,
-                        originalAmount: t.originalAmount,
-                        contributionType: t.contributionType
-                    }));
+            const contributors: Contributor[] = transactions.map(t => ({
+                name: t.description,
+                cleanedName: t.cleanedDescription,
+                normalizedName: normalizeString(t.description, cleaningKeywords),
+                amount: t.amount,
+                date: t.date,
+                originalAmount: t.originalAmount,
+                contributionType: t.contributionType
+            }));
 
-                    setContributorFiles(prev => {
-                        const other = prev.filter(f => f.churchId !== churchId);
-                        return [...other, { churchId, content, fileName, contributors }];
-                    });
-                    showToast(`Lista padronizada automaticamente (Modelo v${matchedModel.version}).`, 'success');
-                } else {
-                    setPendingTraining({ content, fileName, type: 'contributor', entityId: churchId, rawFile });
-                    showToast("O layout desta lista mudou. Abrindo laboratório.", "error");
-                }
+            if (contributors.length > 0) {
+                setContributorFiles(prev => {
+                    const other = prev.filter(f => f.churchId !== churchId);
+                    return [...other, { churchId, content, fileName, contributors }];
+                });
+                showToast(`Lista carregada (${result.method}).`, 'success');
             } else {
-                setPendingTraining({ content, fileName, type: 'contributor', entityId: churchId, rawFile });
-                showToast("Novo layout de lista detectado. Abrindo laboratório...", "success");
+                showToast("Formato de lista não reconhecido. Use CSV ou Excel padronizado.", "error");
             }
-        } catch (e) {
-            showToast("Erro ao ler o arquivo.", "error");
+        } catch (e: any) {
+            showToast("Erro ao ler o arquivo: " + e.message, "error");
         } finally {
             setIsLoading(false);
         }
-    }, [fileModels, customIgnoreKeywords, setContributorFiles, showToast, setIsLoading]);
+    }, [cleaningKeywords, setContributorFiles, showToast, setIsLoading, fileModels]);
 
-    // Callback chamado quando o Laboratório termina com sucesso (Salva o modelo E aplica os dados)
     const handleTrainingSuccess = useCallback((model: FileModel, processedData: Transaction[]) => {
         if (!pendingTraining) return;
 
         const { type, entityId, content, fileName, rawFile } = pendingTraining;
 
         if (type === 'statement') {
-            setBankStatementFile({ bankId: entityId, content, fileName, rawFile });
-            showToast("Modelo aprendido! Extrato processado e salvo.", "success");
+            setBankStatementFile({ 
+                bankId: entityId, 
+                content, 
+                fileName, 
+                rawFile,
+                processedTransactions: processedData 
+            });
+            showToast("Extrato processado e salvo!", "success");
         } else {
-            // Converte as transações geradas pelo laboratório em Contribuintes
             const contributors: Contributor[] = processedData.map(t => ({
                 name: t.description,
                 cleanedName: t.cleanedDescription,
-                normalizedName: normalizeString(t.description, customIgnoreKeywords),
+                normalizedName: normalizeString(t.description, cleaningKeywords),
                 amount: t.amount,
                 date: t.date,
                 originalAmount: t.originalAmount,
@@ -165,11 +170,11 @@ export const useReconciliation = ({
                 const other = prev.filter(f => f.churchId !== entityId);
                 return [...other, { churchId: entityId, content, fileName, contributors }];
             });
-            showToast("Modelo aprendido! Lista de contribuintes processada.", "success");
+            showToast("Lista de contribuintes salva!", "success");
         }
         
         setPendingTraining(null);
-    }, [pendingTraining, customIgnoreKeywords, setBankStatementFile, setContributorFiles, showToast]);
+    }, [pendingTraining, cleaningKeywords, setBankStatementFile, setContributorFiles, showToast]);
 
     const openLabManually = useCallback((targetFile?: { content: string, fileName: string, type: 'statement' | 'contributor', id: string, rawFile?: File }) => {
         if (targetFile) {
@@ -198,76 +203,76 @@ export const useReconciliation = ({
         setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
     }, [setContributorFiles]);
 
+    // --- RECONCILIATION ENGINE JIT (Just-In-Time) ---
     const handleCompare = useCallback(async () => {
         if (!bankStatementFile) return;
         setIsLoading(true);
 
         try {
-            // Processa o Extrato (busca modelo novamente para garantir, ou usa o parseWithModel se tiver cache)
-            let transactions: Transaction[] = [];
-            const stmtModel = findMatchingModel(bankStatementFile.content, fileModels);
-            
-            if (stmtModel) {
-                transactions = parseWithModel(bankStatementFile.content, stmtModel, customIgnoreKeywords);
-            } else {
-                // Fallback de segurança extremo (não deveria acontecer no novo fluxo)
-                throw new Error("Modelo do extrato não encontrado. Por favor, reabra o laboratório.");
+            // 1. REPROCESSAMENTO AUTOMÁTICO DO EXTRATO
+            // Reprocessa para aplicar as configurações mais recentes (modelos e keywords)
+            const stmtResult = processFileContent(bankStatementFile.content, bankStatementFile.fileName, fileModels, cleaningKeywords);
+            const activeTransactions = stmtResult.transactions;
+
+            if (activeTransactions.length === 0) {
+                throw new Error("O extrato não gerou transações válidas. Verifique o arquivo.");
             }
 
-            if (comparisonType === 'income') transactions = transactions.filter(t => t.amount > 0);
-            else if (comparisonType === 'expenses') transactions = transactions.filter(t => t.amount < 0);
+            setBankStatementFile(prev => prev ? { ...prev, processedTransactions: activeTransactions } : null);
 
-            // Prepara os dados dos contribuintes
-            // Agora contributorFiles JÁ TEM os contributors processados corretamente pelo handleTrainingSuccess ou handleContributorsUpload
+            let filteredTransactions = activeTransactions;
+            if (comparisonType === 'income') filteredTransactions = activeTransactions.filter(t => t.amount > 0);
+            else if (comparisonType === 'expenses') filteredTransactions = activeTransactions.filter(t => t.amount < 0);
+
+            // 2. REPROCESSAMENTO AUTOMÁTICO DAS LISTAS DE CONTRIBUINTES
             const contributorData = contributorFiles.map(cf => {
                 const church = churches.find(c => c.id === cf.churchId) || PLACEHOLDER_CHURCH;
                 
-                // Se por algum motivo os contributors não estiverem cacheados, tenta processar na hora (Resiliência)
-                let contributors = cf.contributors;
-                if (!contributors || contributors.length === 0) {
-                    const model = findMatchingModel(cf.content, fileModels);
-                    if (model) {
-                        const txs = parseWithModel(cf.content, model, customIgnoreKeywords);
-                        contributors = txs.map(t => ({
-                            name: t.description,
-                            cleanedName: t.cleanedDescription,
-                            normalizedName: normalizeString(t.description, customIgnoreKeywords),
-                            amount: t.amount,
-                            date: t.date,
-                            originalAmount: t.originalAmount,
-                            contributionType: t.contributionType
-                        }));
-                    } else {
-                         // Se chegou aqui, algo grave aconteceu no fluxo de upload.
-                         // Ignoramos este arquivo para não quebrar tudo.
-                         contributors = [];
-                    }
-                }
+                const listResult = processFileContent(cf.content, cf.fileName, fileModels, cleaningKeywords);
+                const currentContributors = listResult.transactions.map(t => ({
+                    name: t.description,
+                    cleanedName: t.cleanedDescription,
+                    normalizedName: normalizeString(t.description, cleaningKeywords),
+                    amount: t.amount,
+                    date: t.date,
+                    originalAmount: t.originalAmount,
+                    contributionType: t.contributionType
+                }));
 
                 return {
                     church,
-                    contributors: contributors || []
+                    contributors: currentContributors
                 };
             });
 
-            const results = matchTransactions(transactions, contributorData, { similarityThreshold: similarityLevel, dayTolerance }, learnedAssociations, churches, customIgnoreKeywords);
+            // 3. EXECUTAR O MATCHING
+            const results = matchTransactions(
+                filteredTransactions, 
+                contributorData, 
+                { similarityThreshold: similarityLevel, dayTolerance }, 
+                learnedAssociations, 
+                churches, 
+                cleaningKeywords // Usa a lista combinada para matching também
+            );
 
             setMatchResults(results);
             setReportPreviewData({
-                income: groupResultsByChurch(results.filter(r => r.transaction.amount > 0)),
+                // CORREÇÃO: Incluir itens PENDENTE (mesmo com valor 0) no relatório de entradas
+                income: groupResultsByChurch(results.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
                 expenses: { 'all_expenses_group': results.filter(r => r.transaction.amount < 0) }
             });
             setHasActiveSession(true);
             setActiveView('reports');
-            showToast("Conciliação finalizada!");
+            showToast("Conciliação finalizada!", 'success');
+
         } catch (e: any) {
+            console.error(e);
             showToast(e.message || "Erro ao processar dados.", "error");
         } finally {
             setIsLoading(false);
         }
-    }, [bankStatementFile, contributorFiles, churches, fileModels, similarityLevel, dayTolerance, customIgnoreKeywords, contributionKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType]);
+    }, [bankStatementFile, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, setBankStatementFile, fileModels]);
 
-    // ... (rest of the hook remains the same: updateReportData, discardCurrentReport, manual handlers, etc.)
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
         setMatchResults(prev => prev.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r));
         setReportPreviewData(prev => {
@@ -362,7 +367,7 @@ export const useReconciliation = ({
         pendingTraining, setPendingTraining, comparisonType, setComparisonType,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
         handleCompare, updateReportData, discardCurrentReport, openLabManually,
-        handleTrainingSuccess, // Exportado para o Modal usar
+        handleTrainingSuccess, 
         manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
         closeManualIdentify,

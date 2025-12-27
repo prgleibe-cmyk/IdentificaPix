@@ -323,7 +323,7 @@ export const AdminUsersTab: React.FC = () => {
 
                                         {/* Slots & Price */}
                                         <div>
-                                            <label className={labelClass}>Slots (Igrejas/Bancos)</label>
+                                            <label className={labelClass}>Cadastros (Igrejas/Bancos)</label>
                                             <div className="flex items-center gap-2">
                                                 <button type="button" onClick={() => setFormData(prev => ({...prev, max_churches: Math.max(1, prev.max_churches - 1)}))} className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-white font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-xs">-</button>
                                                 <input 

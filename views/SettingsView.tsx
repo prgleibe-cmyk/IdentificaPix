@@ -179,19 +179,10 @@ const PreferencesTab: React.FC = () => {
 
 const AutomationTab: React.FC = () => {
     const { 
-        customIgnoreKeywords, addIgnoreKeyword, removeIgnoreKeyword,
         contributionKeywords, addContributionKeyword, removeContributionKeyword
     } = useContext(AppContext);
     const { t } = useTranslation();
-    const [newKeyword, setNewKeyword] = useState('');
     const [newType, setNewType] = useState('');
-
-    const handleAddKeyword = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newKeyword.trim()) return;
-        addIgnoreKeyword(newKeyword);
-        setNewKeyword('');
-    };
 
     const handleAddType = (e: React.FormEvent) => {
         e.preventDefault();
@@ -202,50 +193,6 @@ const AutomationTab: React.FC = () => {
     
     return (
         <div className="h-full flex flex-col pb-6 space-y-6 overflow-y-auto custom-scrollbar">
-            {/* Seção de Palavras Ignoradas */}
-            <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col">
-                <div className="flex-shrink-0 flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-800/50">
-                            <BrainIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-800 dark:text-white">{t('settings.keywords')}</h3>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Refine a inteligência de identificação</p>
-                        </div>
-                    </div>
-                    <span className="text-[10px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300 px-2 py-1 rounded-md border border-purple-100 dark:border-purple-800">
-                        {customIgnoreKeywords.length} regras
-                    </span>
-                </div>
-                
-                <div className="flex-shrink-0 mb-5 space-y-4">
-                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        <WrenchScrewdriverIcon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                        <p>{t('settings.keywords.desc')}</p>
-                    </div>
-                    <form onSubmit={handleAddKeyword} className="relative">
-                        <input
-                            type="text"
-                            value={newKeyword}
-                            onChange={(e) => setNewKeyword(e.target.value)}
-                            placeholder="Palavra para ignorar (ex: Dízimo, Oferta)..."
-                            className="block w-full rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white py-3 pl-5 pr-24 font-medium transition-all text-xs outline-none focus:ring-2 focus:ring-purple-500/20"
-                        />
-                        <button type="submit" disabled={!newKeyword.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-purple-600 text-white text-[10px] font-bold uppercase rounded-full shadow-md">Adicionar</button>
-                    </form>
-                </div>
-
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
-                    {customIgnoreKeywords.map(keyword => (
-                        <div key={keyword} className="flex items-center gap-2 pl-3 pr-1 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-full text-[10px] font-bold">
-                            <span>{keyword}</span>
-                            <button onClick={() => removeIgnoreKeyword(keyword)} className="p-1 rounded-full text-slate-400 hover:text-red-500"><XMarkIcon className="w-3 h-3" /></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
             {/* Seção de Tipos de Contribuição */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col">
                 <div className="flex-shrink-0 flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">

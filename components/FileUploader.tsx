@@ -1,8 +1,6 @@
 
-
 import React, { useRef, useState, useEffect } from 'react';
 import { UploadIcon, CheckCircleIcon, XMarkIcon } from './Icons';
-
 
 let pdfjsLib: any = null;
 let mammoth: any = null;
@@ -33,6 +31,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
                     lib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
                 }
                 pdfjsLib = lib;
+                // EXPOSIÇÃO GLOBAL CRÍTICA PARA O LAB DE ARQUIVOS
+                (window as any).pdfjsLib = lib; 
             } catch (e) {}
         }
         if (!mammoth) { try { const mod = await import('mammoth'); mammoth = mod.default || mod; } catch (e) {} }
@@ -54,91 +54,70 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ title, onFileUpload,
         await ensureLibsLoaded();
         const fileNameLower = file.name.toLowerCase();
         const fileBuffer = await file.arrayBuffer();
-        let csvContent = '';
+        let extractedText = '';
+
+        // ESTRATÉGIA DE LEITURA PURA:
+        // O objetivo aqui é APENAS extrair o texto/conteúdo cru do arquivo.
+        // A interpretação (parsing de colunas, identificação de banco) é responsabilidade do StrategyEngine.
 
         if (fileNameLower.endsWith('.pdf')) {
-             if (!pdfjsLib) throw new Error("PDF lib missing");
+             if (!pdfjsLib) throw new Error("Biblioteca PDF não carregada. Tente recarregar a página.");
              const loadingTask = pdfjsLib.getDocument(new Uint8Array(fileBuffer));
              const pdf = await loadingTask.promise;
-             let fullText = '';
-             let firstPageTitles: string[] = []; 
              
+             // Extração linha a linha preservando layout visual aproximado
              for (let i = 1; i <= pdf.numPages; i++) {
                  const page = await pdf.getPage(i);
                  const textContent = await page.getTextContent();
                  const items = textContent.items as any[];
                  
-                 const lineTolerance = 2; 
-                 const lineGroups: Map<number, any[]> = new Map();
+                 // Agrupa por Y para reconstruir linhas visuais
+                 const lineMap: Map<number, { str: string, x: number }[]> = new Map();
                  
                  items.forEach(item => {
-                     if (!item.str || item.str.trim() === '') return;
-                     const y = Math.round(item.transform[5] / lineTolerance) * lineTolerance;
-                     if (!lineGroups.has(y)) lineGroups.set(y, []);
-                     lineGroups.get(y)!.push(item);
+                     const y = Math.round(item.transform[5]); 
+                     if (!lineMap.has(y)) lineMap.set(y, []);
+                     lineMap.get(y)!.push({ str: item.str, x: item.transform[4] });
                  });
 
-                 const sortedY = Array.from(lineGroups.keys()).sort((a, b) => b - a);
-                 let pageLines: string[] = [];
-                 
-                 sortedY.forEach(y => {
-                     const lineItems = lineGroups.get(y)!;
-                     lineItems.sort((a, b) => a.transform[4] - b.transform[4]);
-                     
-                     let lineStr = '';
-                     let lastX = -1;
-                     let lastWidth = 0;
-                     
-                     lineItems.forEach(item => {
-                         const x = item.transform[4];
-                         if (lastX !== -1) {
-                             const gap = x - (lastX + lastWidth);
-                             if (gap > 3) lineStr += '\t';
-                             else if (gap > 1.2) lineStr += ' ';
-                         }
-                         lineStr += item.str;
-                         lastX = x;
-                         lastWidth = item.width || 0;
-                     });
+                 // Ordena linhas de cima para baixo
+                 const sortedY = Array.from(lineMap.keys()).sort((a, b) => b - a);
 
-                     const cleanLine = lineStr.trim();
-                     if (cleanLine === '') return;
-
-                     // Filtros de metadados de página
-                     const isPageIndicator = /p[áa]gina\s*\d+/i.test(cleanLine);
-                     const isEmitDate = /emitido\s*em\s*|data\s*de\s*emiss[ãa]o/i.test(cleanLine);
-                     const isBankBalanceLine = /saldo\s*anterior|saldo\s*atual|total\s*de\s*d[ée]bitos/i.test(cleanLine);
-                     
-                     if (!isPageIndicator && !isEmitDate) {
-                         // Nas páginas subsequentes, ignorar o topo se for idêntico ao topo da página 1 (títulos de colunas)
-                         if (i === 1 && pageLines.length < 4) {
-                             firstPageTitles.push(cleanLine.toLowerCase());
-                         } else if (i > 1 && pageLines.length < 4 && firstPageTitles.includes(cleanLine.toLowerCase())) {
-                             return; 
-                         }
-                         pageLines.push(lineStr);
-                     }
-                 });
-                 fullText += pageLines.join('\n') + '\n';
+                 for (const y of sortedY) {
+                     // Ordena itens da esquerda para a direita na mesma linha
+                     const lineItems = lineMap.get(y)!.sort((a, b) => a.x - b.x);
+                     const lineStr = lineItems.map(it => it.str).join(' '); // Junta com espaço simples
+                     if (lineStr.trim()) extractedText += lineStr + '\n';
+                 }
              }
-             csvContent = fullText;
+
         } else if (fileNameLower.endsWith('.docx')) {
             if (!mammoth) throw new Error("Word lib missing");
             const result = await mammoth.extractRawText({ arrayBuffer: fileBuffer });
-            csvContent = result.value;
+            extractedText = result.value;
+
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
             if (!XLSX) throw new Error("Excel lib missing");
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            csvContent = XLSX.utils.sheet_to_csv(worksheet);
+            // Converte para CSV usando ponto-e-vírgula para facilitar a vida do StrategyEngine
+            extractedText = XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }); 
+
         } else {
-            csvContent = new TextDecoder('utf-8').decode(fileBuffer);
+            // TXT, CSV
+            extractedText = new TextDecoder('utf-8').decode(fileBuffer);
         }
 
-        if (!csvContent.trim()) throw new Error("Arquivo vazio");
-        onFileUpload(csvContent, file.name, file);
+        if (!extractedText || extractedText.trim().length === 0) {
+            throw new Error("O arquivo parece estar vazio.");
+        }
+        
+        // Passa o texto cru para o Pai (que chamará o StrategyEngine)
+        onFileUpload(extractedText, file.name, file);
+
     } catch (error: any) {
-        alert(`Erro: ${error.message}`);
+        console.error(error);
+        alert(`Erro ao ler arquivo: ${error.message}`);
     } finally {
         setIsParsing(false);
         if (fileInputRef.current) fileInputRef.current.value = '';

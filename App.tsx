@@ -1,5 +1,4 @@
 
-
 import React, { ReactNode } from 'react';
 
 // --- Contexts ---
@@ -24,6 +23,8 @@ import { SaveReportModal } from './components/modals/SaveReportModal';
 import { SearchFiltersModal } from './components/modals/SearchFiltersModal';
 import { DivergenceConfirmationModal } from './components/modals/DivergenceConfirmationModal';
 import { PaymentModal } from './components/modals/PaymentModal';
+import { FilePreprocessorModal } from './components/modals/FilePreprocessorModal';
+import { SmartEditModal } from './components/modals/SmartEditModal';
 
 // --- Views ---
 import { AuthView } from './views/AuthView';
@@ -94,10 +95,14 @@ const ModalsRenderer = () => {
         savingReportState, 
         isSearchFiltersOpen, 
         divergenceConfirmation,
-        isPaymentModalOpen
+        isPaymentModalOpen,
+        pendingTraining,
+        setPendingTraining,
+        handleTrainingSuccess,
+        smartEditTarget
     } = context;
 
-    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen) {
+    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget) {
         return null;
     }
 
@@ -112,6 +117,14 @@ const ModalsRenderer = () => {
             {isSearchFiltersOpen && <SearchFiltersModal />}
             {divergenceConfirmation && <DivergenceConfirmationModal />}
             {isPaymentModalOpen && <PaymentModal />}
+            {pendingTraining && (
+                <FilePreprocessorModal 
+                    onClose={() => setPendingTraining(null)}
+                    initialFile={pendingTraining}
+                    onSuccess={handleTrainingSuccess}
+                />
+            )}
+            {smartEditTarget && <SmartEditModal />}
         </>
     );
 };

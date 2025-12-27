@@ -14,6 +14,7 @@ interface SystemSettings {
     baseAiLimit: number;
     baseSlots: number;
     supportNumber: string;
+    globalIgnoreKeywords: string[]; // Nova configuração global
 }
 
 interface AuthContextType {
@@ -36,12 +37,18 @@ const AuthContext = createContext<AuthContextType>(null!);
 const DEFAULT_SETTINGS: SystemSettings = {
     defaultTrialDays: 10,
     pixKey: '',
-    monthlyPrice: 79.90,
-    pricePerExtra: 19.90, 
-    pricePerAiBlock: 15.00,
+    monthlyPrice: 49.90,      // Valor ajustado
+    pricePerExtra: 6.90,      // Valor por Cadastro (antigo Slot)
+    pricePerAiBlock: 15.00,   // Valor pacote IA
     baseAiLimit: 100,
     baseSlots: 2,
-    supportNumber: '5511999999999'
+    supportNumber: '5565996835098', // Número formatado para API do WhatsApp
+    // Palavras-chave padrão que o Admin define para limpar TODOS os arquivos
+    globalIgnoreKeywords: [
+        'PIX', 'TED', 'DOC', 'TRANSFERENCIA', 'PAGAMENTO', 'RECEBIMENTO', 
+        'DEPOSITO', 'CREDITO', 'DEBITO', 'RESGATE', 'APLICACAO', 
+        'SALDO', 'EXTRATO', 'CONTA', 'AUTOMATICO'
+    ]
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

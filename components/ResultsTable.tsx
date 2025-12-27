@@ -1,11 +1,10 @@
 
-
 import React, { memo, useContext } from 'react';
 import { MatchResult } from '../types';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
-import { SparklesIcon, UserPlusIcon, BrainIcon, ChevronLeftIcon, ChevronRightIcon, ExclamationTriangleIcon, BarcodeIcon } from './Icons';
+import { SparklesIcon, UserPlusIcon, BrainIcon, ExclamationTriangleIcon, BanknotesIcon, UserIcon } from './Icons';
 import { cleanTransactionDescriptionForDisplay } from '../services/processingService';
 
 interface ResultsTableProps {
@@ -42,19 +41,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
     const { t, language } = useTranslation();
     const { customIgnoreKeywords } = useContext(AppContext);
   
-    const getChurchInitial = (name: string) => name.replace(/[^a-zA-Z]/g, '').charAt(0).toUpperCase() || '?';
-    const avatarColors = [
-        'bg-indigo-50 text-indigo-600 border-indigo-100',
-        'bg-blue-50 text-blue-600 border-blue-100',
-        'bg-violet-50 text-violet-600 border-violet-100',
-        'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-100'
-    ];
-
     const getStatusBadge = (status: MatchResult['status'], method?: MatchResult['matchMethod']) => {
         if (status === 'NÃO IDENTIFICADO') {
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 uppercase tracking-wide whitespace-nowrap">
                     Pendente
+                </span>
+            );
+        }
+
+        if (status === 'PENDENTE') {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide whitespace-nowrap">
+                    Não Localizado
                 </span>
             );
         }
@@ -85,66 +84,115 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
                         <tr>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">{t('table.date')}</th>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%]">{t('table.church')}</th>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[25%]">Descrição / Contribuinte</th>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">Tipo</th>
-                            <th scope="col" className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%]">{t('table.amount')}</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%]">{t('table.date')}</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[40%]">Nome / Descrição</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[13%]">Tipo</th>
+                            <th scope="col" className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%]">{t('table.amount')}</th>
                             <th scope="col" className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">{t('table.status')}</th>
-                            <th scope="col" className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[8%]">{t('table.actions')}</th>
+                            <th scope="col" className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">{t('table.actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {results.map(({ transaction, contributor, status, church, matchMethod, contributorAmount, contributionType, divergence }) => {
+                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, contributionType, divergence }) => {
                             const isExpense = transaction.amount < 0;
-                            const amount = isExpense 
-                                ? transaction.amount 
-                                : (contributorAmount ?? (Math.abs(transaction.amount) > 0 ? transaction.amount : (contributor?.amount ?? 0)));
+                            const isPendingList = status === 'PENDENTE';
                             
-                            const churchName = church?.name || '---';
-                            const displayDate = contributor?.date || transaction.date;
+                            // Se for PENDENTE (lista não encontrada), mostra o valor esperado (contributorAmount)
+                            // Caso contrário, mostra o valor da transação real (ou o esperado se a transação for placeholder)
+                            const amount = isPendingList 
+                                ? (contributorAmount || 0) 
+                                : (isExpense 
+                                    ? transaction.amount 
+                                    : (contributorAmount ?? (Math.abs(transaction.amount) > 0 ? transaction.amount : (contributor?.amount ?? 0))));
+                            
+                            // --- Lógica de Data com Divergência Visual ---
+                            const bankDateRaw = transaction.date;
+                            const listDateRaw = contributor?.date;
+                            
+                            const bankDisplay = formatDate(bankDateRaw);
+                            const listDisplay = listDateRaw ? formatDate(listDateRaw) : null;
+                            
+                            const isIdentified = status === 'IDENTIFICADO';
+                            const datesDiverge = isIdentified && listDisplay && bankDisplay !== listDisplay;
+
                             const cleanedTxDesc = cleanTransactionDescriptionForDisplay(transaction.description, customIgnoreKeywords);
+                            // PRIORIDADE DE NOME: Contribuinte > Descrição Limpa > Descrição Bruta
                             const displayName = contributor?.cleanedName || contributor?.name || cleanedTxDesc;
-                            const avatarColor = avatarColors[churchName.length % avatarColors.length];
+                            
+                            // Tipo: Combinação de Contribuinte (Lista) + Transação (Banco)
+                            const contribType = contributor?.contributionType;
+                            const bankType = transaction.contributionType;
+                            
+                            let displayType = '---';
+                            if (contribType && bankType) {
+                                if (contribType.toUpperCase().trim() === bankType.toUpperCase().trim()) {
+                                    displayType = contribType;
+                                } else {
+                                    displayType = `${contribType} • ${bankType}`;
+                                }
+                            } else {
+                                displayType = contribType || contributionType || bankType || '---';
+                            }
 
                             return (
-                                <tr key={transaction.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200">
+                                <tr key={transaction.id} className={`group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 ${isPendingList ? 'opacity-70 bg-slate-50/30 dark:bg-slate-800/30' : ''}`}>
+                                    
+                                    {/* Coluna Data */}
                                     <td className="px-4 py-2.5 whitespace-nowrap">
-                                        <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
-                                            {displayDate}
-                                        </span>
+                                        {datesDiverge ? (
+                                            <div className="flex flex-col leading-tight font-mono text-[11px]">
+                                                <span className="text-slate-500 dark:text-slate-400" title="Data Banco">{bankDisplay}</span>
+                                                <span className="text-amber-600 dark:text-amber-400 font-bold" title="Data Lista (Divergente)">{listDisplay}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
+                                                {bankDisplay || listDisplay}
+                                            </span>
+                                        )}
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                        <div className="flex items-center">
-                                            {churchName !== '---' && (
-                                                <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold mr-2 border shrink-0 transition-transform group-hover:scale-105 ${avatarColor} dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600`}>
-                                                    {getChurchInitial(churchName)}
+                                    
+                                    {/* Coluna Nome / Descrição com Ícones Inline */}
+                                    <td className="px-4 py-2.5 break-words min-w-[200px]">
+                                        <div className="flex flex-col gap-1">
+                                            {/* Linha Principal (Preferência para Lista/Pessoa) */}
+                                            <div className="flex items-center gap-2">
+                                                {/* Ícone Lógico: Se tem contribuinte (mesmo que venha da lista ou match), usa User. Se é só banco, usa Banknotes */}
+                                                {(contributor || isPendingList) ? (
+                                                    <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" title="Origem: Lista de Contribuintes" />
+                                                ) : (
+                                                    <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
+                                                )}
+                                                
+                                                <span className={`text-xs font-bold leading-tight line-clamp-1 ${isPendingList ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`} title={displayName}>
+                                                    {displayName}
+                                                </span>
+                                            </div>
+
+                                            {/* Linha Secundária (Origem Banco - Exibida se houver Match e for diferente ou para contexto) */}
+                                            {status === 'IDENTIFICADO' && contributor && cleanedTxDesc && cleanedTxDesc !== contributor.cleanedName && (
+                                                <div className="flex items-center gap-2 opacity-80">
+                                                    <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
+                                                    <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[250px]">
+                                                        {cleanedTxDesc}
+                                                    </span>
                                                 </div>
                                             )}
-                                            <span className={`text-xs font-semibold truncate max-w-[150px] ${churchName === '---' ? 'text-slate-400 italic font-normal' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                {churchName === '---' ? t('common.unassigned') : churchName}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-2.5 break-words min-w-[200px]">
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-bold text-slate-800 dark:text-white leading-tight line-clamp-1" title={displayName}>
-                                                {displayName}
-                                            </span>
-                                            {status === 'IDENTIFICADO' && contributor && cleanedTxDesc && cleanedTxDesc !== contributor.cleanedName && (
-                                                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium truncate max-w-[250px]">
-                                                    Origem: {cleanedTxDesc}
+                                            
+                                            {isPendingList && (
+                                                <span className="text-[9px] text-red-400 dark:text-red-400 pl-5 font-medium italic">
+                                                    Não encontrado no extrato
                                                 </span>
                                             )}
                                         </div>
                                     </td>
+
                                     <td className="px-4 py-2.5">
-                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${contributionType ? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' : 'text-slate-300 italic'}`}>
-                                            {contributionType || '---'}
+                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${displayType !== '---' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800' : 'text-slate-300 italic'}`}>
+                                            {displayType}
                                         </span>
                                     </td>
                                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                                        <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white'}`}>
+                                        <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400 font-black' : isPendingList ? 'text-slate-400 dark:text-slate-500 line-through decoration-slate-300' : 'text-slate-900 dark:text-white'}`}>
                                             {formatCurrency(amount, language)}
                                         </span>
                                     </td>

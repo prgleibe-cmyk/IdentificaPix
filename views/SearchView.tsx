@@ -7,7 +7,7 @@ import { ResultsTable } from '../components/ResultsTable';
 import { EmptyState } from '../components/EmptyState';
 import { SearchIcon, AdjustmentsHorizontalIcon, PrinterIcon, FloppyDiskIcon, CheckCircleIcon, XCircleIcon, CircleStackIcon, XMarkIcon } from '../components/Icons';
 import { filterByUniversalQuery, parseDate, normalizeString } from '../services/processingService';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 const ITEMS_PER_PAGE = 50;
 
@@ -154,7 +154,7 @@ export const SearchView: React.FC = () => {
         
         const tableRows = filteredResults.map(r => `
             <tr>
-                <td>${r.transaction.date}</td>
+                <td>${formatDate(r.transaction.date)}</td>
                 <td>${r.transaction.cleanedDescription || r.transaction.description}</td>
                 <td>${formatCurrency(r.transaction.amount, language)}</td>
                 <td>${r.church.name}</td>

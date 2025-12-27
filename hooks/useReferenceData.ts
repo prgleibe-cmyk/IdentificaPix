@@ -12,7 +12,7 @@ import { modelService } from '../services/modelService';
 const DEFAULT_IGNORE_KEYWORDS = [
     'DÍZIMOS', 'OFERTAS', 'MISSÕES', 'TERRENO - NOVA SEDE', 'PIX', 'TED', 'DOC',
     'Transferência', 'Pagamento', 'Recebimento', 'Depósito', 'Contribuição',
-    'Sr', 'Sra', 'Dr', 'Dra'
+    'Sr', 'Sra', 'Dr', 'Dra', 'RECEB OUTRA IF'
 ];
 
 export const useReferenceData = (user: User | null, showToast: (msg: string, type: 'success' | 'error') => void) => {

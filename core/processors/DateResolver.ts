@@ -5,11 +5,11 @@
  */
 export class DateResolver {
   private static DATE_PATTERNS = [
-    /(\d{2})[/-](\d{2})[/-](\d{4})/, // 15/07/2024
-    /(\d{4})-(\d{2})-(\d{2})/,       // 2024-07-15
-    /(\d{2})[/-](\d{2})[/-](\d{2})\b/, // 15/07/24
-    /\b(\d{2})[/-](\d{2})\b/,        // 15/07 ou 15-07
-    /\b(\d{2})[/-](\d{2})[/-](\d{4})\b/
+    /(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/, // 15/07/2024 ou 1/7/24
+    /(\d{4})-(\d{1,2})-(\d{1,2})/,       // 2024-07-15 ou 2024-7-1
+    /(\d{1,2})[/-](\d{1,2})[/-](\d{2})\b/, // 15/07/24
+    /\b(\d{1,2})[/-](\d{1,2})\b/,        // 15/07 ou 1-7
+    /\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/
   ];
 
   /**
@@ -45,7 +45,7 @@ export class DateResolver {
     const contextMatch = textToScan.match(/(ANO|EXERCICIO|DATA|EMISSAO|PERIODO|EXTRATO).*?\b(20\d{2})\b/i);
     if (contextMatch && contextMatch[2]) return parseInt(contextMatch[2]);
 
-    const fullDateMatch = textToScan.match(/\b\d{2}[/-]\d{2}[/-](20\d{2})\b/);
+    const fullDateMatch = textToScan.match(/\b\d{1,2}[/-]\d{1,2}[/-](20\d{2})\b/);
     if (fullDateMatch && fullDateMatch[1]) return parseInt(fullDateMatch[1]);
 
     return new Date().getFullYear();
@@ -58,7 +58,8 @@ export class DateResolver {
   static resolveToISO(rawDate: string, anchorYear: number): string {
     if (!rawDate) return '';
     
-    const dateMatch = rawDate.match(/(\d{2,4})[/-](\d{2})([/-](\d{2,4}))?/);
+    // Suporta 1 ou 2 dígitos para dia/mês
+    const dateMatch = rawDate.match(/(\d{1,4})[/-](\d{1,2})([/-](\d{1,4}))?/);
     if (!dateMatch) return '';
 
     let part1 = dateMatch[1];
@@ -68,10 +69,12 @@ export class DateResolver {
     let day: string, month: string, year: string;
 
     if (part1.length === 4) {
+      // Formato YYYY-MM-DD
       year = part1;
       month = part2;
       day = part3 || '01';
     } else {
+      // Formato DD-MM-YYYY ou D-M-YY
       day = part1.padStart(2, '0');
       month = part2.padStart(2, '0');
       
@@ -95,7 +98,7 @@ export class DateResolver {
 
   private static isValidDatePattern(val: string): boolean {
     const clean = val.trim();
-    if (clean.length < 4) return false;
+    if (clean.length < 3) return false; // Reduzido de 4 para 3 (ex: 1/5)
     return this.DATE_PATTERNS.some(regex => regex.test(clean));
   }
 }

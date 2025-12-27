@@ -22,7 +22,8 @@ import {
     CheckBadgeIcon,
     ExclamationTriangleIcon,
     WhatsAppIcon,
-    PresentationChartLineIcon
+    PresentationChartLineIcon,
+    DocumentDuplicateIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -41,6 +42,7 @@ export const Sidebar: React.FC = () => {
             { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> },
             { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> },
             { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
+            { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
             { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-5 h-5"/> },
         ];

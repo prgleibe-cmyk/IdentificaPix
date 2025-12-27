@@ -13,3 +13,19 @@ export const formatCurrency = (amount: number, language: Language = 'pt'): strin
         currency: 'BRL' 
     }).format(amount);
 };
+
+/**
+ * Converte data ISO (YYYY-MM-DD) para formato brasileiro (DD/MM/AAAA).
+ */
+export const formatDate = (isoDate: string): string => {
+    if (!isoDate) return '';
+    // Se já estiver com barras, assume que já está formatado ou é original
+    if (isoDate.includes('/')) return isoDate;
+    
+    const parts = isoDate.split('-');
+    if (parts.length === 3) {
+        // YYYY-MM-DD -> DD/MM/AAAA
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return isoDate;
+};

@@ -1,25 +1,40 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { modelService } from '../../services/modelService';
 import { useUI } from '../../contexts/UIContext';
+import { AppContext } from '../../contexts/AppContext';
 import { FileModel } from '../../types';
+import { StrategyEngine, DatabaseModelStrategy } from '../../core/strategies';
 import { 
     BrainIcon, 
     TrashIcon, 
-    EyeIcon, 
-    DocumentArrowDownIcon, 
     MagnifyingGlassIcon, 
     TableCellsIcon,
     XMarkIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    PencilIcon,
+    WrenchScrewdriverIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+    ExclamationTriangleIcon,
+    LockClosedIcon,
+    ShieldCheckIcon
 } from '../Icons';
+import { FilePreprocessorModal } from '../modals/FilePreprocessorModal';
 
 export const AdminModelsTab: React.FC = () => {
     const { showToast } = useUI();
-    const [models, setModels] = useState<(FileModel & { user_email?: string })[]>([]);
+    const { fetchModels } = useContext(AppContext); // Contexto para atualizar estado global
+    const [models, setModels] = useState<(FileModel & { user_email?: string, isSystem?: boolean })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedModel, setSelectedModel] = useState<FileModel | null>(null);
+    const [modelToRefine, setModelToRefine] = useState<FileModel | null>(null);
+
+    // Estados de Ação Inline
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
     useEffect(() => {
         loadModels();
@@ -27,23 +42,119 @@ export const AdminModelsTab: React.FC = () => {
 
     const loadModels = async () => {
         setIsLoading(true);
-        const data = await modelService.getAllModelsAdmin();
-        setModels(data);
+        
+        // 1. Carregar Modelos do Banco de Dados
+        const dbModels = await modelService.getAllModelsAdmin();
+
+        // 2. Carregar Estratégias Nativas (Hardcoded no Core)
+        // Filtramos a DatabaseModelStrategy pois ela é apenas o "motor" que lê os dbModels
+        const systemStrategies = StrategyEngine.strategies
+            .filter(s => s !== DatabaseModelStrategy)
+            .map((s, index) => ({
+                id: `sys-strat-${index}`,
+                name: s.name,
+                user_id: 'system',
+                user_email: 'Sistema (Nativo)',
+                version: 1,
+                lineage_id: `sys-${s.name}`,
+                is_active: true,
+                fingerprint: { columnCount: 0, delimiter: 'Auto', headerHash: 'N/A', dataTopology: 'Dynamic' },
+                mapping: { dateColumnIndex: 0, descriptionColumnIndex: 0, amountColumnIndex: 0, skipRowsStart: 0, skipRowsEnd: 0, decimalSeparator: ',', thousandsSeparator: '.' },
+                parsingRules: { ignoredKeywords: [], rowFilters: [] },
+                createdAt: new Date().toISOString(),
+                isSystem: true // Flag para identificar visualmente
+            } as any));
+
+        // Combina Nativos + Banco
+        setModels([...systemStrategies, ...dbModels]);
         setIsLoading(false);
     };
 
-    const handleDelete = async (id: string, name: string) => {
-        if (confirm(`Tem certeza que deseja esquecer o modelo "${name}"? O sistema pedirá para treinar novamente no próximo upload.`)) {
+    // --- HANDLERS DE AÇÃO ---
+
+    const stopPropagation = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+    };
+
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        stopPropagation(e);
+        
+        if (deleteConfirmId === id) {
+            // Segundo clique: Confirma a exclusão
             const success = await modelService.deleteModel(id);
             if (success) {
                 showToast("Modelo excluído com sucesso.", "success");
+                
+                // Atualiza a tabela local
                 loadModels();
+                
+                // CRÍTICO: Atualiza o estado global da aplicação para "esquecer" o modelo imediatamente
+                await fetchModels();
+
                 if (selectedModel?.id === id) setSelectedModel(null);
             } else {
                 showToast("Erro ao excluir modelo.", "error");
             }
+            setDeleteConfirmId(null);
+        } else {
+            // Primeiro clique: Ativa modo de confirmação
+            setDeleteConfirmId(id);
+            // Auto-cancelar após 4 segundos se não confirmar
+            setTimeout(() => setDeleteConfirmId(prev => prev === id ? null : prev), 4000);
         }
     };
+
+    const handleStartRename = (e: React.MouseEvent, model: FileModel) => {
+        stopPropagation(e);
+        setDeleteConfirmId(null); // Reseta exclusão se estiver ativa
+        setEditingId(model.id);
+        setEditName(model.name);
+    };
+
+    const handleCancelRename = (e?: React.MouseEvent) => {
+        if (e) stopPropagation(e);
+        setEditingId(null);
+        setEditName('');
+    };
+
+    const handleSaveRename = async (e: React.MouseEvent, id: string) => {
+        stopPropagation(e);
+        
+        if (!editName.trim()) {
+            showToast("O nome não pode estar vazio.", "error");
+            return;
+        }
+
+        const success = await modelService.updateModelName(id, editName.trim());
+        if (success) {
+            showToast("Modelo renomeado.", "success");
+            loadModels();
+            fetchModels(); // Atualiza globalmente também
+            setEditingId(null);
+        } else {
+            showToast("Erro ao renomear.", "error");
+        }
+    };
+
+    const handleRefine = (e: React.MouseEvent, model: FileModel) => {
+        stopPropagation(e);
+        if (!model.snippet) {
+            showToast("Este modelo antigo não possui snippet salvo para edição.", "error");
+            return;
+        }
+        setModelToRefine(model);
+    };
+
+    const handleRefinementSuccess = async () => {
+        setModelToRefine(null);
+        showToast("Modelo refinado e atualizado!", "success");
+        loadModels();
+        await fetchModels(); // Garante que o refinamento se propague
+    };
+
+    // --- FILTROS & RENDER ---
 
     const filteredModels = models.filter(m => 
         m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -59,7 +170,7 @@ export const AdminModelsTab: React.FC = () => {
                         <BrainIcon className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Modelos Aprendidos</h3>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Modelos & Estratégias</h3>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Gestão de inteligência de layouts ({models.length})</p>
                     </div>
                 </div>
@@ -105,48 +216,130 @@ export const AdminModelsTab: React.FC = () => {
                                 ) : filteredModels.length === 0 ? (
                                     <tr><td colSpan={5} className="text-center py-8 text-slate-400">Nenhum modelo encontrado.</td></tr>
                                 ) : (
-                                    filteredModels.map(model => (
-                                        <tr 
-                                            key={model.id} 
-                                            onClick={() => setSelectedModel(model)}
-                                            className={`cursor-pointer transition-colors group ${selectedModel?.id === model.id ? 'bg-purple-50 dark:bg-purple-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}
-                                        >
-                                            <td className="px-4 py-3">
-                                                <div className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[200px]">{model.name}</div>
-                                                <div className="text-[9px] text-slate-400 font-mono mt-0.5">v{model.version} • {model.fingerprint?.columnCount || '?'} cols</div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {model.name.toLowerCase().includes('lista') || model.name.toLowerCase().includes('contributor') ? (
-                                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 rounded text-[9px] font-bold uppercase border border-indigo-100 dark:border-indigo-800">Lista</span>
-                                                ) : (
-                                                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 rounded text-[9px] font-bold uppercase border border-blue-100 dark:border-blue-800">Extrato</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="text-slate-600 dark:text-slate-300 truncate max-w-[150px]">{model.user_email}</div>
-                                            </td>
-                                            <td className="px-4 py-3 text-slate-500">
-                                                {new Date(model.createdAt).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                <button 
-                                                    onClick={() => handleDelete(model.id, model.name)}
-                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                                    title="Excluir Modelo"
-                                                >
-                                                    <TrashIcon className="w-3.5 h-3.5" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
+                                    filteredModels.map(model => {
+                                        const isEditing = editingId === model.id;
+                                        const isConfirmingDelete = deleteConfirmId === model.id;
+                                        const isSelected = selectedModel?.id === model.id;
+                                        const isSystem = !!model.isSystem;
+
+                                        return (
+                                            <tr 
+                                                key={model.id} 
+                                                onClick={() => !isEditing && !isSystem && setSelectedModel(model)}
+                                                className={`transition-colors group ${isSelected ? 'bg-purple-50 dark:bg-purple-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'} ${isSystem ? 'bg-slate-50/50 dark:bg-slate-900/20' : 'cursor-pointer'}`}
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {isEditing ? (
+                                                        <div className="flex items-center gap-2" onClick={stopPropagation}>
+                                                            <input 
+                                                                type="text" 
+                                                                value={editName}
+                                                                onChange={(e) => setEditName(e.target.value)}
+                                                                className="w-full bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-purple-500 outline-none shadow-sm"
+                                                                autoFocus
+                                                                onKeyDown={(e) => e.key === 'Enter' && handleSaveRename(e as any, model.id)}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            {isSystem && <ShieldCheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
+                                                            <div>
+                                                                <div className={`font-bold truncate max-w-[200px] ${isSystem ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>{model.name}</div>
+                                                                {!isSystem && <div className="text-[9px] text-slate-400 font-mono mt-0.5">v{model.version} • {model.fingerprint?.columnCount || '?'} cols</div>}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {isSystem ? (
+                                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300 rounded text-[9px] font-bold uppercase border border-emerald-100 dark:border-emerald-800">Hardcoded</span>
+                                                    ) : model.name.toLowerCase().includes('lista') || model.name.toLowerCase().includes('contributor') ? (
+                                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 rounded text-[9px] font-bold uppercase border border-indigo-100 dark:border-indigo-800">Lista</span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 rounded text-[9px] font-bold uppercase border border-blue-100 dark:border-blue-800">Extrato</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className={`truncate max-w-[150px] ${isSystem ? 'text-slate-400 italic' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                        {model.user_email}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-500">
+                                                    {isSystem ? '-' : new Date(model.createdAt).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {isSystem ? (
+                                                        <div className="flex justify-center text-slate-300 dark:text-slate-600">
+                                                            <LockClosedIcon className="w-3.5 h-3.5" title="Protegido pelo Sistema" />
+                                                        </div>
+                                                    ) : isEditing ? (
+                                                        <div className="flex items-center justify-center gap-1" onClick={stopPropagation}>
+                                                            <button 
+                                                                onClick={(e) => handleSaveRename(e, model.id)}
+                                                                className="p-1.5 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                                                title="Salvar"
+                                                            >
+                                                                <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={handleCancelRename}
+                                                                className="p-1.5 rounded-lg text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                                                                title="Cancelar"
+                                                            >
+                                                                <XCircleIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={stopPropagation}>
+                                                            
+                                                            {/* Botão Refinar */}
+                                                            <button 
+                                                                onClick={(e) => handleRefine(e, model)}
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                                                                title="Refinar Modelo (Editar)"
+                                                            >
+                                                                <WrenchScrewdriverIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            
+                                                            {/* Botão Renomear */}
+                                                            <button 
+                                                                onClick={(e) => handleStartRename(e, model)}
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                                                title="Renomear"
+                                                            >
+                                                                <PencilIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            
+                                                            {/* Botão Excluir (2 Etapas) */}
+                                                            <button 
+                                                                onClick={(e) => handleDelete(e, model.id)}
+                                                                className={`p-1.5 rounded-lg transition-all duration-200 ${
+                                                                    isConfirmingDelete 
+                                                                    ? 'bg-red-500 text-white hover:bg-red-600 shadow-md scale-110' 
+                                                                    : 'text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
+                                                                }`}
+                                                                title={isConfirmingDelete ? "Confirmar Exclusão?" : "Excluir Modelo"}
+                                                            >
+                                                                {isConfirmingDelete ? (
+                                                                    <ExclamationTriangleIcon className="w-3.5 h-3.5 animate-pulse" />
+                                                                ) : (
+                                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                {/* Painel de Visualização (Preview/Snippet) */}
-                {selectedModel && (
+                {/* Painel de Visualização (Preview/Snippet) - Apenas para DB Models */}
+                {selectedModel && !editingId && !selectedModel.isSystem && (
                     <div className="w-1/3 min-w-[300px] bg-slate-50 dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-scale-in">
                         <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
                             <h4 className="font-bold text-xs text-slate-700 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -204,6 +397,22 @@ export const AdminModelsTab: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modal de Refinamento */}
+            {modelToRefine && (
+                <FilePreprocessorModal 
+                    onClose={() => setModelToRefine(null)}
+                    initialFile={{
+                        content: modelToRefine.snippet || '',
+                        fileName: modelToRefine.name,
+                        type: modelToRefine.name.toLowerCase().includes('lista') ? 'contributor' : 'statement',
+                        id: 'refine-mode',
+                        rawFile: undefined // Snippet não tem rawFile binário, mas o Lab lida com isso
+                    }}
+                    initialModel={modelToRefine}
+                    onSuccess={handleRefinementSuccess}
+                />
+            )}
         </div>
     );
 };

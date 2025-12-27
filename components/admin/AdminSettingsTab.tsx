@@ -10,7 +10,10 @@ import {
     CircleStackIcon, 
     ClockIcon,
     ShieldCheckIcon,
-    InformationCircleIcon
+    InformationCircleIcon,
+    BrainIcon,
+    WrenchScrewdriverIcon,
+    XMarkIcon
 } from '../Icons';
 
 const InputGroup = ({ label, name, value, onChange, type = "text", placeholder = "", icon: Icon }: any) => (
@@ -46,6 +49,7 @@ export const AdminSettingsTab: React.FC = () => {
     const { systemSettings, updateSystemSettings } = useAuth();
     const { showToast } = useUI();
     const [formData, setFormData] = useState(systemSettings);
+    const [newKeyword, setNewKeyword] = useState('');
 
     useEffect(() => {
         setFormData(systemSettings);
@@ -56,6 +60,30 @@ export const AdminSettingsTab: React.FC = () => {
         setFormData(prev => ({
             ...prev,
             [name]: type === 'number' ? (value === '' ? 0 : parseFloat(value)) : value
+        }));
+    };
+
+    const handleAddKeyword = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newKeyword.trim()) return;
+        
+        const currentKeywords = formData.globalIgnoreKeywords || [];
+        if (currentKeywords.includes(newKeyword.trim().toUpperCase())) {
+            setNewKeyword('');
+            return;
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            globalIgnoreKeywords: [...(prev.globalIgnoreKeywords || []), newKeyword.trim().toUpperCase()]
+        }));
+        setNewKeyword('');
+    };
+
+    const handleRemoveKeyword = (keyword: string) => {
+        setFormData(prev => ({
+            ...prev,
+            globalIgnoreKeywords: (prev.globalIgnoreKeywords || []).filter(k => k !== keyword)
         }));
     };
 
@@ -107,6 +135,50 @@ export const AdminSettingsTab: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-4">
+                
+                {/* 0. Global Cleaning Rules (Novo) */}
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 border border-purple-100 dark:border-purple-800">
+                                <BrainIcon className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Regras de Limpeza Global</h3>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Termos removidos automaticamente de TODOS os arquivos de usuários.</p>
+                            </div>
+                        </div>
+                        <span className="text-[10px] font-bold bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300 px-2 py-1 rounded-md border border-purple-100 dark:border-purple-800">
+                            {(formData.globalIgnoreKeywords || []).length} regras
+                        </span>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-purple-50/50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-800 text-[10px] text-purple-700 dark:text-purple-300 leading-relaxed mb-4">
+                        <WrenchScrewdriverIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <p>Estas palavras-chave (ex: "PIX", "TED", "DOC") serão eliminadas das descrições antes mesmo do usuário criar suas próprias regras. Mantenha esta lista atualizada para garantir modelos limpos.</p>
+                    </div>
+
+                    <div className="flex gap-2 mb-3">
+                        <input
+                            type="text"
+                            value={newKeyword}
+                            onChange={(e) => setNewKeyword(e.target.value)}
+                            placeholder="Adicionar termo global (Ex: TRANSFERENCIA)..."
+                            className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
+                        />
+                        <button onClick={handleAddKeyword} className="px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold text-xs uppercase shadow-lg shadow-purple-500/20 transition-all active:scale-95">Adicionar</button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar bg-slate-50 dark:bg-black/20 rounded-xl border border-slate-100 dark:border-white/5">
+                        {(formData.globalIgnoreKeywords || []).map(keyword => (
+                            <div key={keyword} className="flex items-center gap-2 pl-3 pr-1 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold shadow-sm">
+                                <span>{keyword}</span>
+                                <button type="button" onClick={() => handleRemoveKeyword(keyword)} className="p-1 rounded hover:bg-red-50 hover:text-red-500 transition-colors"><XMarkIcon className="w-3 h-3" /></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
                 {/* 1. Base Plan Configuration */}
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 relative overflow-hidden">
                     <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
@@ -137,7 +209,7 @@ export const AdminSettingsTab: React.FC = () => {
                             icon={SparklesIcon} 
                         />
                         <InputGroup 
-                            label="Slots Base" 
+                            label="Cadastros Base (Slots)" 
                             name="baseSlots" 
                             type="number" 
                             value={formData.baseSlots}
@@ -168,14 +240,14 @@ export const AdminSettingsTab: React.FC = () => {
                             onChange={handleChange}
                         />
                         <InputGroup 
-                            label="Adicional por Slot (R$)" 
+                            label="Valor por Cadastro (R$)" 
                             name="pricePerExtra" 
                             type="number" 
                             value={formData.pricePerExtra}
                             onChange={handleChange}
                         />
                         <InputGroup 
-                            label="Pacote 1k IA (R$)" 
+                            label="Pacote de Tokens IA (R$)" 
                             name="pricePerAiBlock" 
                             type="number" 
                             value={formData.pricePerAiBlock}

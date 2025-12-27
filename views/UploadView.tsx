@@ -1,34 +1,28 @@
 
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState } from 'react';
 import { AppContext } from '../contexts/AppContext';
-import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 import { FileUploader } from '../components/FileUploader';
-import { WrenchScrewdriverIcon, BoltIcon } from '../components/Icons';
-import { FilePreprocessorModal } from '../components/modals/FilePreprocessorModal';
+import { WrenchScrewdriverIcon, BoltIcon, WhatsAppIcon, InformationCircleIcon } from '../components/Icons';
 import { InitialComparisonModal } from '../components/modals/InitialComparisonModal';
 
 export const UploadView: React.FC = () => {
     const { 
         banks, churches, bankStatementFile, contributorFiles, 
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
-        pendingTraining, setPendingTraining, openLabManually, handleTrainingSuccess
+        openLabManually
     } = useContext(AppContext);
     
+    const { user, systemSettings } = useAuth();
     const { t } = useTranslation();
-    const [isPreprocessorOpen, setIsPreprocessorOpen] = useState(false);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
-    // Monitora arquivos que precisam de treinamento
-    useEffect(() => {
-        if (pendingTraining) {
-            setIsPreprocessorOpen(true);
-        }
-    }, [pendingTraining]);
+    // ADMIN CHECK
+    const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
 
-    const handleClosePreprocessor = () => {
-        setIsPreprocessorOpen(false);
-        setPendingTraining(null);
+    const handleContactSupport = () => {
+        window.open(`https://wa.me/${systemSettings.supportNumber}?text=Olá, tenho um arquivo que o sistema não reconheceu. Poderiam criar um padrão para ele?`, '_blank');
     };
 
     const showProcessButton = !!(bankStatementFile && bankStatementFile.content);
@@ -41,19 +35,43 @@ export const UploadView: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400 text-[10px]">{t('upload.subtitle')}</p>
                 </div>
                 
-                {bankStatementFile && (
+                {/* BOTÃO DO LAB: APENAS PARA ADMIN */}
+                {isAdmin && bankStatementFile && (
                     <button 
                         onClick={() => openLabManually()}
                         className="flex items-center gap-1.5 px-4 py-1.5 text-white rounded-full text-[10px] font-bold uppercase tracking-wide transition-all shadow-md hover:shadow-violet-500/30 hover:-translate-y-0.5 active:translate-y-0 transform active:scale-[0.98] bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 border border-white/10"
                     >
                         <WrenchScrewdriverIcon className="w-3 h-3 text-white" />
-                        <span>Lab Arquivos</span>
+                        <span>Lab Arquivos (Admin)</span>
                     </button>
                 )}
             </div>
             
             <div className="flex-1 min-h-0 pb-16">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full">
+                
+                {/* NOTICE CARD: Arquivo não reconhecido */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-3 mb-4 flex items-center justify-between gap-4 shadow-sm animate-fade-in-up">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2 bg-white dark:bg-slate-800 rounded-lg text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 shrink-0">
+                            <InformationCircleIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h4 className="text-xs font-bold text-blue-800 dark:text-blue-200 uppercase tracking-tight mb-0.5">{t('upload.support.title')}</h4>
+                            <p className="text-[10px] text-blue-700/80 dark:text-blue-300 leading-snug max-w-2xl">
+                                {t('upload.support.desc')}
+                            </p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={handleContactSupport}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wide shadow-md shadow-emerald-500/20 hover:-translate-y-0.5 transition-all whitespace-nowrap"
+                    >
+                        <WhatsAppIcon className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">{t('upload.support.action')}</span>
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full max-h-[calc(100%-80px)]">
                     
                     {/* BANK STATEMENTS COLUMN */}
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up">
@@ -77,7 +95,8 @@ export const UploadView: React.FC = () => {
                                         </div>
                                         
                                         <div className="flex items-center gap-2">
-                                            {isThisUploaded && (
+                                            {/* Botão de Lab específico do Admin */}
+                                            {isAdmin && isThisUploaded && (
                                                 <button 
                                                     onClick={() => openLabManually({ 
                                                         content: bankStatementFile!.content, 
@@ -135,7 +154,7 @@ export const UploadView: React.FC = () => {
                                         </div>
                                         
                                         <div className="flex items-center gap-2">
-                                            {isThisUploaded && (
+                                            {isAdmin && isThisUploaded && (
                                                 <button 
                                                     onClick={() => openLabManually({ 
                                                         content: file!.content, 
@@ -178,13 +197,6 @@ export const UploadView: React.FC = () => {
                 </div>
             )}
 
-            {isPreprocessorOpen && (
-                <FilePreprocessorModal 
-                    onClose={handleClosePreprocessor} 
-                    initialFile={pendingTraining}
-                    onSuccess={handleTrainingSuccess}
-                />
-            )}
             {isConfigModalOpen && (
                 <InitialComparisonModal onClose={() => setIsConfigModalOpen(false)} />
             )}

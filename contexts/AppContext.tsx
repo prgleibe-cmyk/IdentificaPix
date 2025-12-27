@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -24,14 +23,15 @@ interface AppContextType {
     banks: Bank[];
     churches: Church[];
     fileModels: FileModel[];
-    fetchModels: () => Promise<void>;
+    // fetchModels REMOVIDO: Modelos agora são hardcoded no Core Engine
     setBanks: React.Dispatch<React.SetStateAction<Bank[]>>;
     setChurches: React.Dispatch<React.SetStateAction<Church[]>>;
     similarityLevel: number;
     setSimilarityLevel: React.Dispatch<React.SetStateAction<number>>;
     dayTolerance: number;
     setDayTolerance: React.Dispatch<React.SetStateAction<number>>;
-    customIgnoreKeywords: string[];
+    customIgnoreKeywords: string[]; 
+    effectiveIgnoreKeywords: string[]; 
     addIgnoreKeyword: (keyword: string) => void;
     removeIgnoreKeyword: (keyword: string) => void;
     contributionKeywords: string[];
@@ -95,6 +95,12 @@ interface AppContextType {
     closeManualMatchModal: () => void;
     confirmManualAssociation: (selectedTx: Transaction) => void;
     
+    // Smart Edit (NEW)
+    smartEditTarget: MatchResult | null;
+    openSmartEdit: (match: MatchResult) => void;
+    closeSmartEdit: () => void;
+    saveSmartEdit: (updatedMatch: MatchResult) => void;
+
     divergenceConfirmation: MatchResult | null;
     setDivergenceConfirmation: React.Dispatch<React.SetStateAction<MatchResult | null>>;
     openDivergenceModal: (match: MatchResult) => void;
@@ -158,20 +164,26 @@ interface AppContextType {
 export const AppContext = createContext<AppContextType>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user } = useAuth();
+    const { user, systemSettings } = useAuth();
     const { t } = useTranslation();
     const { showToast, setIsLoading, setActiveView } = useUI();
 
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
     
+    // ATUALIZAÇÃO CRÍTICA: Lógica de Palavras-chave Ignoradas agora é EXCLUSIVA do Admin.
+    // O sistema ignora quaisquer configurações locais do usuário e usa apenas as globais.
+    const effectiveIgnoreKeywords = useMemo(() => {
+        return systemSettings.globalIgnoreKeywords || [];
+    }, [systemSettings.globalIgnoreKeywords]);
+
     const reconciliation = useReconciliation({
         churches: referenceData.churches,
         banks: referenceData.banks,
-        fileModels: referenceData.fileModels,
+        fileModels: [], // Removido, agora é via StrategyEngine interno
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance,
-        customIgnoreKeywords: referenceData.customIgnoreKeywords,
+        customIgnoreKeywords: effectiveIgnoreKeywords, // Usa a lista global estrita
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
         showToast, setIsLoading, setActiveView
@@ -181,6 +193,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
+    
+    // Novo estado para edição inteligente
+    const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
 
     const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v6', {
         autoConfirmed: { count: 0, value: 0 },
@@ -300,7 +315,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const validResults = report.data.results.map(r => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
         reconciliation.setMatchResults(validResults);
         reconciliation.setReportPreviewData({
-            income: groupResultsByChurch(validResults.filter(r => r.transaction.amount > 0)),
+            // CORREÇÃO CRÍTICA: Incluir PENDENTE (mesmo com amount 0) na visualização de relatório salvo
+            income: groupResultsByChurch(validResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
             expenses: { 'all_expenses_group': validResults.filter(r => r.transaction.amount < 0) }
         });
         reconciliation.setHasActiveSession(true); setActiveView('reports'); 
@@ -351,14 +367,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`${transactionIds.length} transações identificadas.`, 'success');
     }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
 
+    // Smart Edit Handlers
+    const openSmartEdit = useCallback((match: MatchResult) => {
+        setSmartEditTarget(match);
+    }, []);
+
+    const closeSmartEdit = useCallback(() => {
+        setSmartEditTarget(null);
+    }, []);
+
+    const saveSmartEdit = useCallback((updatedMatch: MatchResult) => {
+        if (reconciliation.matchResults.some(r => r.transaction.id === updatedMatch.transaction.id)) {
+            reconciliation.updateReportData(updatedMatch, 'income'); // Assume income/contributor edit
+        } else {
+            // For historical reports
+            reportManager.updateSavedReportTransaction(updatedMatch.transaction.id, updatedMatch);
+        }
+        showToast("Edição salva com sucesso.", "success");
+        setSmartEditTarget(null);
+    }, [reconciliation, reportManager, showToast]);
+
     const value = useMemo(() => ({
         ...referenceData, ...reconciliation, isCompareDisabled: !reconciliation.bankStatementFile,
+        effectiveIgnoreKeywords, 
         openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult,
         ...reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation,
         closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen,
         openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false),
-        isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false)
-    }), [referenceData, reconciliation, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult]);
+        isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false),
+        smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit
+    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit]);
 
     return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };
