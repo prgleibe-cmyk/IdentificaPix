@@ -45,6 +45,10 @@ export interface Contributor {
   date?: string;
   originalAmount?: string;
   contributionType?: string;
+  // Auxiliary fields for UI/Processing
+  _churchName?: string;
+  _churchId?: string;
+  _internalId?: string;
 }
 
 export interface MatchResult {

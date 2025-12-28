@@ -32,7 +32,6 @@ interface EditableReportTableProps {
     reportType: 'income' | 'expenses';
     sortConfig: SortConfig | null;
     onSort: (key: string) => void;
-    onAnalyze: (id: string) => void; 
     loadingAiId: string | null; 
     onEdit?: (row: MatchResult) => void;
 }
@@ -285,7 +284,7 @@ const IncomeRow = memo(({
     );
 });
 
-export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort, onAnalyze, loadingAiId, onEdit }) => {
+export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort, loadingAiId, onEdit }) => {
     const { t, language } = useTranslation();
     const { 
         openDivergenceModal, 

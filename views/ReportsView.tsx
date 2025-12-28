@@ -99,7 +99,6 @@ const ReportGroup: React.FC<{
         openDeleteConfirmation,
         searchFilters,
         openBulkManualIdentify,
-        handleAnalyze, 
         loadingAiId,
         openManualIdentify
     } = useContext(AppContext);
@@ -374,7 +373,6 @@ const ReportGroup: React.FC<{
                         reportType={reportType} 
                         sortConfig={sortConfig} 
                         onSort={handleSort}
-                        onAnalyze={handleAnalyze} 
                         loadingAiId={loadingAiId} 
                         onEdit={churchId === 'unidentified' ? handleCustomEdit : undefined}
                     />
