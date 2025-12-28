@@ -74,7 +74,7 @@ interface AppContextType {
     removeContributorFile: (churchId: string) => void;
     handleCompare: () => void;
     handleBackToSettings: () => void;
-    updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses') => void;
+    updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => void;
     discardCurrentReport: () => void;
 
     // Manual Operations State & Handlers
@@ -226,7 +226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (banksRes.data) referenceData.setBanks(banksRes.data as any);
                 if (reportsRes.data) {
                     reportManager.setSavedReports((reportsRes.data || []).map(r => ({ 
-                        id: r.id, name: r.name, createdAt: r.created_at, recordCount: r.record_count, user_id: r.user_id, 
+                        id: r.id, name: r.name, createdAt: r.created_at, record_count: r.record_count, user_id: r.user_id, 
                         data: (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as any 
                     })));
                 }
@@ -386,14 +386,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const saveSmartEdit = useCallback((updatedMatch: MatchResult) => {
         if (reconciliation.matchResults.some(r => r.transaction.id === updatedMatch.transaction.id)) {
-            reconciliation.updateReportData(updatedMatch, 'income');
+            // Se for uma edição de match reverso, precisamos remover o ID fantasma
+            const ghostId = smartEditTarget?.status === 'PENDENTE' ? smartEditTarget.transaction.id : undefined;
+            reconciliation.updateReportData(updatedMatch, 'income', ghostId);
         } else {
             reportManager.updateSavedReportTransaction(updatedMatch.transaction.id, updatedMatch);
         }
         showToast("Edição salva com sucesso.", "success");
         setSmartEditTarget(null);
         reconciliation.setAiSuggestion(null);
-    }, [reconciliation, reportManager, showToast]);
+    }, [reconciliation, reportManager, showToast, smartEditTarget]);
 
     const handleAnalyze = useCallback(async (transaction: Transaction, candidates: Contributor[]) => {
         reconciliation.setLoadingAiId(transaction.id);

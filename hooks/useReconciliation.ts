@@ -279,24 +279,47 @@ export const useReconciliation = ({
         }
     }, [bankStatementFile, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, setBankStatementFile, fileModels]);
 
-    const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses') => {
-        setMatchResults(prev => prev.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r));
+    const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => {
+        // 1. Atualiza lista plana (MatchResults)
+        setMatchResults(prev => {
+            let next = prev;
+            // Se tiver ID para remover (Transação Fantasma Pendente), remove antes
+            if (idToRemove) {
+                next = next.filter(r => r.transaction.id !== idToRemove);
+            }
+            return next.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
+        });
+
+        // 2. Atualiza dados agrupados (ReportPreview)
         setReportPreviewData(prev => {
             if (!prev) return null;
             const newPreview = JSON.parse(JSON.stringify(prev));
             const targetGroup = reportType === 'expenses' ? newPreview.expenses : newPreview.income;
             
-            Object.keys(targetGroup).forEach(key => {
-                targetGroup[key] = targetGroup[key].map((r: MatchResult) => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
-            });
-            
             if (reportType === 'income') {
-                const currentChurchId = updatedRow.church.id || 'unidentified';
-                Object.keys(newPreview.income).forEach(key => {
-                    newPreview.income[key] = newPreview.income[key].filter((r: MatchResult) => r.transaction.id !== updatedRow.transaction.id);
+                // LÓGICA DE ENTRADAS (Income)
+                // Remove o item de qualquer grupo onde ele esteja (tanto o ID real quanto o ID fantasma)
+                // Isso evita duplicação ao mover de 'unidentified' ou 'pendente' para uma igreja específica
+                Object.keys(targetGroup).forEach(key => {
+                    targetGroup[key] = targetGroup[key].filter((r: MatchResult) => {
+                        const isTarget = r.transaction.id === updatedRow.transaction.id;
+                        const isGhost = idToRemove && r.transaction.id === idToRemove;
+                        return !isTarget && !isGhost;
+                    });
                 });
+
+                // Adiciona o item atualizado ao grupo correto
+                const currentChurchId = updatedRow.church.id || 'unidentified';
                 if (!newPreview.income[currentChurchId]) newPreview.income[currentChurchId] = [];
                 newPreview.income[currentChurchId].push(updatedRow);
+
+            } else {
+                // LÓGICA DE SAÍDAS (Expenses) - Mantém comportamento padrão de atualização in-place
+                Object.keys(targetGroup).forEach(key => {
+                    targetGroup[key] = targetGroup[key].map((r: MatchResult) => 
+                        r.transaction.id === updatedRow.transaction.id ? updatedRow : r
+                    );
+                });
             }
 
             return newPreview;
@@ -326,6 +349,10 @@ export const useReconciliation = ({
         if (!manualMatchState) return;
         const { record } = manualMatchState;
         
+        // Se o registro original era PENDENTE, significa que era uma transação fantasma da lista.
+        // Precisamos capturar esse ID para removê-lo, pois ele será substituído pela transação real do banco.
+        const ghostIdToRemove = record.status === 'PENDENTE' ? record.transaction.id : undefined;
+
         const updatedResult: MatchResult = {
             ...record,
             transaction: selectedTx,
@@ -333,7 +360,8 @@ export const useReconciliation = ({
             matchMethod: 'MANUAL',
             similarity: 100
         };
-        updateReportData(updatedResult, 'income');
+        
+        updateReportData(updatedResult, 'income', ghostIdToRemove);
         closeManualMatchModal();
         showToast("Associação manual confirmada.", "success");
     }, [manualMatchState, updateReportData, closeManualMatchModal, showToast]);
