@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const settings = settingsRef.current;
       try {
-          // Timeout de segurança para a chamada do Supabase
+          // Timeout de segurança para a chamada do Supabase AUMENTADO PARA 15s (Cold Start Protection)
           const fetchPromise = supabase
               .from('profiles')
               .select('*')
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .maybeSingle();
 
           const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error("Timeout")), 5000)
+              setTimeout(() => reject(new Error("Timeout")), 15000)
           );
 
           const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;

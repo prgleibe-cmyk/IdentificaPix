@@ -15,11 +15,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173, // Vite dev server port
       host: '0.0.0.0',
-      // Configuração de Proxy para Redirecionar chamadas /api para o Backend (server.js)
-      // Em produção (Coolify), isso não é usado, pois o server.js serve os arquivos estáticos.
+      // Configuração de Proxy apenas para APIs locais, não para o Supabase
       proxy: {
         '/api': {
-          target: 'http://localhost:3000', // Alinhado com o padrão do server.js
+          target: 'http://localhost:3000', 
           changeOrigin: true,
           secure: false,
         }

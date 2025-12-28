@@ -29,7 +29,12 @@ export const AuthView: React.FC = () => {
         });
         if (error) throw error;
     } catch (error: any) {
-        setError(error.message || 'Erro ao conectar com Google. Verifique se o provedor está habilitado no Supabase.');
+        console.error("Google login error:", error);
+        if (error.message === 'Failed to fetch') {
+            setError('O servidor está acordando. Aguarde alguns segundos e tente novamente.');
+        } else {
+            setError(error.message || 'Erro ao conectar com Google. Verifique se o provedor está habilitado no Supabase.');
+        }
         setLoading(false);
     }
   };
@@ -46,32 +51,56 @@ export const AuthView: React.FC = () => {
         return;
     }
 
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
-      
-      if (error) {
-        setError(error.message);
-      }
-    } else {
-      const { data, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-            data: {
-                full_name: name,
+    // Lógica de Retry: Tenta 3 vezes antes de desistir
+    let attempts = 0;
+    const maxAttempts = 3;
+    let success = false;
+
+    while (attempts < maxAttempts && !success) {
+        attempts++;
+        try {
+            if (isLogin) {
+                const { error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password,
+                });
+                
+                if (error) throw error;
+            } else {
+                const { data, error } = await supabase.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: {
+                            full_name: name,
+                        }
+                    }
+                });
+
+                if (error) throw error;
+                setMessage('Cadastro realizado! Verifique seu email para confirmação.');
+            }
+            success = true; // Sai do loop se der certo
+        } catch (error: any) {
+            console.error(`Auth attempt ${attempts} failed:`, error);
+            
+            // Se for a última tentativa, exibe o erro
+            if (attempts === maxAttempts) {
+                // Tratamento específico para "Failed to fetch" que é comum em problemas de CORS/Rede/Cold Start
+                if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+                    setError('O servidor está demorando para responder (Cold Start). Aguarde 10 segundos e tente novamente.');
+                } else if (error.message.includes('Invalid login credentials')) {
+                    setError('Email ou senha incorretos.');
+                } else {
+                    setError(error.message || 'Ocorreu um erro inesperado. Tente novamente.');
+                }
+            } else {
+                // Se não for a última, espera 2s e tenta de novo (Backoff simples)
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
-      });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setMessage('Cadastro realizado! Verifique seu email para confirmação.');
-      }
     }
+    
     setLoading(false);
   };
   
@@ -274,7 +303,7 @@ export const AuthView: React.FC = () => {
                             {loading ? (
                                 <span className="flex items-center justify-center gap-2">
                                     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                    Processando...
+                                    {isLogin ? 'Conectando...' : 'Criando...'}
                                 </span>
                             ) : (isLogin ? 'Entrar na Plataforma' : 'Criar Conta Grátis')}
                         </button>

@@ -212,28 +212,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         if (!user) return;
         const fetchData = async () => {
-            // MUDANÇA CRÍTICA: NÃO chamamos setIsLoading(true) aqui.
-            // Isso evita que o spinner global apareça e trave a tela.
             // Usamos isSyncing para dar feedback sutil (ex: na sidebar) se necessário.
             setIsSyncing(true);
             
             try {
+                // OTIMIZAÇÃO CRÍTICA (Resource Exhaustion Fix):
+                // NÃO selecionamos a coluna 'data' (JSON pesado) na listagem inicial.
+                // Isso evita o erro de "Exhausting multiple resources" no Supabase Nano.
                 const [churchesRes, banksRes, reportsRes] = await Promise.all([
                     supabase.from('churches').select('*').order('name'),
                     supabase.from('banks').select('*').order('name'),
-                    supabase.from('saved_reports').select('id, name, created_at, record_count, user_id, data').eq('user_id', user.id).order('created_at', { ascending: false }),
+                    supabase.from('saved_reports')
+                        .select('id, name, created_at, record_count, user_id') // SEM 'data'
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false }),
                 ]);
+
                 if (churchesRes.data) referenceData.setChurches(churchesRes.data as any);
                 if (banksRes.data) referenceData.setBanks(banksRes.data as any);
+                
                 if (reportsRes.data) {
                     reportManager.setSavedReports((reportsRes.data || []).map(r => ({ 
-                        id: r.id, name: r.name, createdAt: r.created_at, record_count: r.record_count, user_id: r.user_id, 
-                        data: (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as any 
+                        id: r.id, 
+                        name: r.name, 
+                        createdAt: r.created_at, 
+                        recordCount: r.record_count, 
+                        user_id: r.user_id, 
+                        data: null // Lazy Load: Iniciamos sem dados pesados
                     })));
                 }
             } catch (err) { console.error('Background sync failed', err); } 
             finally { 
-                setIsSyncing(false); // Fim do sync silencioso
+                setIsSyncing(false); 
                 setInitialDataLoaded(true); 
             }
         };
@@ -247,6 +257,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const timer = setTimeout(() => {
             let resultsToProcess = reconciliation.matchResults;
             let isHistorical = false;
+            // No modo Lazy Load, o Dashboard histórico fica limitado aos dados já carregados na memória
+            // ou apenas à sessão ativa, para evitar crash.
             if (resultsToProcess.length === 0 && reportManager.savedReports.length > 0) {
                 resultsToProcess = reportManager.savedReports.flatMap(report => report.data?.results || []);
                 isHistorical = true;
@@ -320,17 +332,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast("Ação realizada com sucesso.");
     }, [deletingItem, user, referenceData, reportManager, reconciliation, showToast, closeDeleteConfirmation]);
 
-    const viewSavedReport = useCallback((reportId: string) => {
-        const report = reportManager.savedReports.find(r => r.id === reportId);
-        if (!report || !report.data) return;
-        const validResults = report.data.results.map(r => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
-        reconciliation.setMatchResults(validResults);
-        reconciliation.setReportPreviewData({
-            income: groupResultsByChurch(validResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-            expenses: { 'all_expenses_group': validResults.filter(r => r.transaction.amount < 0) }
-        });
-        reconciliation.setHasActiveSession(true); setActiveView('reports'); 
-    }, [reportManager.savedReports, reconciliation, setActiveView]);
+    const viewSavedReport = useCallback(async (reportId: string) => {
+        setIsLoading(true);
+        try {
+            let report = reportManager.savedReports.find(r => r.id === reportId);
+            if (!report) return;
+
+            // LAZY LOAD LOGIC: Busca o conteúdo 'data' apenas se ele estiver vazio
+            if (!report.data) {
+                const { data: reportContent, error } = await supabase
+                    .from('saved_reports')
+                    .select('data')
+                    .eq('id', reportId)
+                    .single();
+
+                if (error) throw error;
+
+                if (reportContent) {
+                    const parsedData = typeof reportContent.data === 'string' 
+                        ? JSON.parse(reportContent.data) 
+                        : reportContent.data;
+                    
+                    report = { ...report, data: parsedData };
+                    // Atualiza cache local
+                    reportManager.setSavedReports(prev => prev.map(r => r.id === reportId ? report! : r));
+                }
+            }
+
+            if (!report.data) throw new Error("Conteúdo do relatório vazio.");
+
+            const validResults = report.data.results.map((r: any) => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
+            reconciliation.setMatchResults(validResults);
+            reconciliation.setReportPreviewData({
+                income: groupResultsByChurch(validResults.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                expenses: { 'all_expenses_group': validResults.filter((r: any) => r.transaction.amount < 0) }
+            });
+            reconciliation.setHasActiveSession(true); 
+            setActiveView('reports'); 
+        } catch (error: any) {
+            console.error(error);
+            showToast("Erro ao abrir relatório: " + error.message, "error");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [reportManager.savedReports, reconciliation, setActiveView, setIsLoading, showToast]);
 
     const findMatchResult = useCallback((transactionId: string) => reconciliation.matchResults.find(r => r.transaction.id === transactionId) || reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId), [reconciliation.matchResults, reportManager.allHistoricalResults]);
     
