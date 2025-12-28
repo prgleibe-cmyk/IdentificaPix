@@ -20,8 +20,10 @@ import {
     normalizeString,
     processFileContent
 } from '../services/processingService';
+import { User } from '@supabase/supabase-js';
 
 interface UseReconciliationProps {
+    user: User | null; // Adicionado User
     churches: Church[];
     banks: Bank[];
     fileModels: FileModel[];
@@ -36,6 +38,7 @@ interface UseReconciliationProps {
 }
 
 export const useReconciliation = ({
+    user,
     churches,
     banks,
     fileModels,
@@ -49,18 +52,21 @@ export const useReconciliation = ({
     setActiveView
 }: UseReconciliationProps) => {
     
+    // Cria um sufixo único baseado no ID do usuário para isolar os dados no LocalStorage/IndexedDB
+    const userSuffix = user ? `-${user.id}` : '-guest';
+
     const [bankStatementFile, setBankStatementFile] = usePersistentState<{ 
         bankId: string, 
         content: string, 
         fileName: string, 
         rawFile?: File,
         processedTransactions?: Transaction[]
-    } | null>('identificapix-statement-v7', null, true);
+    } | null>(`identificapix-statement-v7${userSuffix}`, null, true);
 
-    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string, contributors?: Contributor[] }[]>('identificapix-contributors-v6', [], true);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>('identificapix-results-v6', [], true);
-    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>('identificapix-report-preview-v6', null, true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>('identificapix-has-session-v6', false, false);
+    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string, contributors?: Contributor[] }[]>(`identificapix-contributors-v6${userSuffix}`, [], true);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-results-v6${userSuffix}`, [], true);
+    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(`identificapix-report-preview-v6${userSuffix}`, null, true);
+    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session-v6${userSuffix}`, false, false);
     const [comparisonType, setComparisonType] = useState<ComparisonType>('both');
     
     const [pendingTraining, setPendingTraining] = useState<{ content: string; fileName: string; type: 'statement' | 'contributor'; entityId: string, rawFile?: File } | null>(null);

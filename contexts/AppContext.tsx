@@ -23,7 +23,7 @@ interface AppContextType {
     banks: Bank[];
     churches: Church[];
     fileModels: FileModel[];
-    fetchModels: () => Promise<void>; // Adicionado para corrigir erro TS no AdminModelsTab
+    fetchModels: () => Promise<void>;
     setBanks: React.Dispatch<React.SetStateAction<Bank[]>>;
     setChurches: React.Dispatch<React.SetStateAction<Church[]>>;
     similarityLevel: number;
@@ -53,7 +53,6 @@ interface AppContextType {
 
     // Reconciliation State (from useReconciliation)
     bankStatementFile: { bankId: string, content: string, fileName: string, rawFile?: File } | null;
-    // Atualizado para incluir contributors opcionais para o SmartEditModal
     contributorFiles: { churchId: string; content: string; fileName: string; contributors?: Contributor[] }[];
     matchResults: MatchResult[];
     setMatchResults: React.Dispatch<React.SetStateAction<MatchResult[]>>;
@@ -115,7 +114,7 @@ interface AppContextType {
     // AI
     loadingAiId: string | null;
     aiSuggestion: { id: string, name: string } | null;
-    handleAnalyze: (transactionId: string) => void;
+    handleAnalyze: (transaction: Transaction, candidates: Contributor[]) => void;
 
     // Recompare Modal
     isRecompareModalOpen: boolean;
@@ -146,6 +145,7 @@ interface AppContextType {
     closeDeleteConfirmation: () => void;
     confirmDeletion: () => void;
     initialDataLoaded: boolean;
+    isSyncing: boolean; // NOVO: Estado para indicar sincronização em background
     summary: {
         autoConfirmed: { count: number; value: number; };
         manualConfirmed: { count: number; value: number; };
@@ -165,40 +165,41 @@ interface AppContextType {
 export const AppContext = createContext<AppContextType>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, systemSettings } = useAuth();
+    const { user, systemSettings, incrementAiUsage } = useAuth();
     const { t } = useTranslation();
     const { showToast, setIsLoading, setActiveView } = useUI();
 
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
     
-    // ATUALIZAÇÃO CRÍTICA: Lógica de Palavras-chave Ignoradas agora é EXCLUSIVA do Admin.
-    // O sistema ignora quaisquer configurações locais do usuário e usa apenas as globais.
     const effectiveIgnoreKeywords = useMemo(() => {
         return systemSettings.globalIgnoreKeywords || [];
     }, [systemSettings.globalIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
+        user, 
         churches: referenceData.churches,
         banks: referenceData.banks,
-        fileModels: [], // Removido, agora é via StrategyEngine interno
+        fileModels: [],
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance,
-        customIgnoreKeywords: effectiveIgnoreKeywords, // Usa a lista global estrita
+        customIgnoreKeywords: effectiveIgnoreKeywords,
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
         showToast, setIsLoading, setActiveView
     });
 
-    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+    const [initialDataLoaded, setInitialDataLoaded] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false); // Inicializa sem sync
+    
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
     
-    // Novo estado para edição inteligente
     const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
 
-    const [summary, setSummary] = usePersistentState('identificapix-dashboard-summary-v6', {
+    const userSuffix = user ? `-${user.id}` : '-guest';
+    const [summary, setSummary] = usePersistentState(`identificapix-dashboard-summary-v6${userSuffix}`, {
         autoConfirmed: { count: 0, value: 0 },
         manualConfirmed: { count: 0, value: 0 },
         pending: { count: 0, value: 0 },
@@ -206,9 +207,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         methodBreakdown: { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0, 'TEMPLATE': 0 }
     }, false);
 
+    // Fetch de Dados (Background Sync) - NÃO BLOQUEANTE
     useEffect(() => {
         if (!user) return;
         const fetchData = async () => {
+            // MUDANÇA CRÍTICA: NÃO chamamos setIsLoading(true) aqui.
+            // Isso evita que o spinner global apareça e trave a tela.
+            // Usamos isSyncing para dar feedback sutil (ex: na sidebar) se necessário.
+            setIsSyncing(true);
+            
             try {
                 const [churchesRes, banksRes, reportsRes] = await Promise.all([
                     supabase.from('churches').select('*').order('name'),
@@ -223,8 +230,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         data: (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as any 
                     })));
                 }
-            } catch (err) { console.error('Initial fetch failed', err); } // Using console.error directly instead of Logger
-            finally { setIsLoading(false); setInitialDataLoaded(true); }
+            } catch (err) { console.error('Background sync failed', err); } 
+            finally { 
+                setIsSyncing(false); // Fim do sync silencioso
+                setInitialDataLoaded(true); 
+            }
         };
         fetchData();
     }, [user?.id]);
@@ -234,7 +244,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (!initialDataLoaded) return;
             let resultsToProcess = reconciliation.matchResults;
             let isHistorical = false;
             if (resultsToProcess.length === 0 && reportManager.savedReports.length > 0) {
@@ -268,7 +277,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }));
         }, 300);
         return () => clearTimeout(timer);
-    }, [resultsHash, reportsHash, initialDataLoaded]);
+    }, [resultsHash, reportsHash]);
 
     const handleBackToSettings = useCallback(() => setActiveView('upload'), [setActiveView]);
     const openDeleteConfirmation = useCallback((item: DeletingItem) => setDeletingItem(item), []);
@@ -316,7 +325,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const validResults = report.data.results.map(r => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
         reconciliation.setMatchResults(validResults);
         reconciliation.setReportPreviewData({
-            // CORREÇÃO CRÍTICA: Incluir PENDENTE (mesmo com amount 0) na visualização de relatório salvo
             income: groupResultsByChurch(validResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
             expenses: { 'all_expenses_group': validResults.filter(r => r.transaction.amount < 0) }
         });
@@ -325,7 +333,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const findMatchResult = useCallback((transactionId: string) => reconciliation.matchResults.find(r => r.transaction.id === transactionId) || reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId), [reconciliation.matchResults, reportManager.allHistoricalResults]);
     
-    // Explicit manual identify handlers that wrap reconciliation setters
     const openManualIdentify = useCallback((transactionId: string) => {
         const result = findMatchResult(transactionId);
         if (result) reconciliation.setManualIdentificationTx(result.transaction);
@@ -368,36 +375,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`${transactionIds.length} transações identificadas.`, 'success');
     }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
 
-    // Smart Edit Handlers
     const openSmartEdit = useCallback((match: MatchResult) => {
         setSmartEditTarget(match);
     }, []);
 
     const closeSmartEdit = useCallback(() => {
         setSmartEditTarget(null);
-    }, []);
+        reconciliation.setAiSuggestion(null);
+    }, [reconciliation]);
 
     const saveSmartEdit = useCallback((updatedMatch: MatchResult) => {
         if (reconciliation.matchResults.some(r => r.transaction.id === updatedMatch.transaction.id)) {
-            reconciliation.updateReportData(updatedMatch, 'income'); // Assume income/contributor edit
+            reconciliation.updateReportData(updatedMatch, 'income');
         } else {
-            // For historical reports
             reportManager.updateSavedReportTransaction(updatedMatch.transaction.id, updatedMatch);
         }
         showToast("Edição salva com sucesso.", "success");
         setSmartEditTarget(null);
+        reconciliation.setAiSuggestion(null);
     }, [reconciliation, reportManager, showToast]);
+
+    const handleAnalyze = useCallback(async (transaction: Transaction, candidates: Contributor[]) => {
+        reconciliation.setLoadingAiId(transaction.id);
+        try {
+            const candidateNames = candidates.slice(0, 50).map(c => c.name);
+            const response = await fetch('/api/ai/suggestion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transactionDescription: transaction.description,
+                    contributorNames: candidateNames
+                })
+            });
+
+            if (!response.ok) throw new Error('Falha na API de IA');
+            const data = await response.json();
+            const suggestionText = data.text;
+
+            if (suggestionText && !suggestionText.includes("Nenhuma sugestão clara")) {
+                reconciliation.setAiSuggestion({ id: transaction.id, name: suggestionText });
+                incrementAiUsage(); 
+            } else {
+                reconciliation.setAiSuggestion(null);
+            }
+        } catch (error) {
+            console.error("Erro na análise IA:", error);
+            showToast("Não foi possível obter sugestão da IA.", "error");
+        } finally {
+            reconciliation.setLoadingAiId(null);
+        }
+    }, [incrementAiUsage, showToast, reconciliation]);
 
     const value = useMemo(() => ({
         ...referenceData, ...reconciliation, isCompareDisabled: !reconciliation.bankStatementFile,
         effectiveIgnoreKeywords, 
         openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult,
         ...reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation,
-        closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen,
+        closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen,
         openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false),
         isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false),
-        smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit
-    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit]);
+        smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze
+    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze]);
 
     return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };

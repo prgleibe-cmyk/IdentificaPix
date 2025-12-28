@@ -1,3 +1,4 @@
+
 import { Transaction, Contributor, MatchResult, Church, FileModel } from '../types';
 import { NameResolver } from '../core/processors/NameResolver';
 import { DateResolver } from '../core/processors/DateResolver';
@@ -119,13 +120,15 @@ export const matchTransactions = (
             }
 
             const score = calculateNameSimilarity(tx.description, contrib, customIgnoreKeywords);
-            if (score >= options.similarityThreshold && score > highestScore) {
+            
+            // Logica alterada: Captura o melhor score independente do threshold
+            if (score > highestScore) {
                 highestScore = score;
                 bestMatch = contrib;
             }
         });
 
-        if (bestMatch) {
+        if (bestMatch && highestScore >= options.similarityThreshold) {
             usedContributors.add(bestMatch._internalId);
             finalResults.push({ 
                 transaction: tx, contributor: bestMatch, status: 'IDENTIFICADO', 
@@ -134,10 +137,17 @@ export const matchTransactions = (
                 contributionType: bestMatch.contributionType || tx.contributionType
             });
         } else {
+            // Se tiver um score razoável (ex: > 40%), anexa como sugestão
+            const suggestion = (highestScore > 40 && bestMatch) ? bestMatch : undefined;
+            
             finalResults.push({ 
-                transaction: tx, contributor: null, status: 'NÃO IDENTIFICADO', 
+                transaction: tx, 
+                contributor: null, 
+                status: 'NÃO IDENTIFICADO', 
                 church: PLACEHOLDER_CHURCH,
-                contributionType: tx.contributionType
+                contributionType: tx.contributionType,
+                suggestion: suggestion, // Novo campo
+                similarity: highestScore // Score do best match
             });
         }
     });

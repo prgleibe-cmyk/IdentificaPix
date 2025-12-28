@@ -1,10 +1,23 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 
 export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
-    const [state, setState] = useState<T>(initialValue);
+    // Inicialização "Lazy": Se não for pesado (localStorage), lê imediatamente antes do primeiro render.
+    // Isso garante que os dados apareçam instantaneamente, sem efeito "pisca".
+    const [state, setState] = useState<T>(() => {
+        if (isHeavy) return initialValue; // Dados pesados (IndexedDB) ainda precisam ser assíncronos
+        try {
+            if (typeof window !== 'undefined') {
+                const item = window.localStorage.getItem(key);
+                return item ? JSON.parse(item) : initialValue;
+            }
+        } catch (error) {
+            console.warn(`Erro ao ler ${key} do localStorage:`, error);
+        }
+        return initialValue;
+    });
+
     const isHydrated = useRef(false);
     const isMounted = useRef(false);
     const timeoutRef = useRef<any>(null);
@@ -13,17 +26,17 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
         isMounted.current = true;
         
         const hydrate = async () => {
+            // Se não for pesado, já lemos no useState inicial, então marcamos como hidratado.
+            if (!isHeavy) {
+                isHydrated.current = true;
+                return;
+            }
+
             try {
-                let value: T | undefined;
-                if (isHeavy) {
-                    // Timeout de 2s para IndexedDB (evita travamento infinito)
-                    const idbPromise = get(key);
-                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("timeout"), 2000));
-                    value = await Promise.race([idbPromise, timeoutPromise]) as T | undefined;
-                } else {
-                    const item = window.localStorage.getItem(key);
-                    if (item) value = JSON.parse(item);
-                }
+                // Timeout de 2s para IndexedDB (evita travamento infinito)
+                const idbPromise = get(key);
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("timeout"), 2000));
+                const value = await Promise.race([idbPromise, timeoutPromise]) as T | undefined;
 
                 if (isMounted.current && value !== undefined && value !== null) {
                     setState(value);

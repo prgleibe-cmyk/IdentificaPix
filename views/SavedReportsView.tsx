@@ -4,32 +4,92 @@ import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { EmptyState } from '../components/EmptyState';
-import { DocumentDuplicateIcon, SearchIcon, TrashIcon, EyeIcon, CalendarIcon, CircleStackIcon, PencilIcon, FloppyDiskIcon, XCircleIcon, XMarkIcon } from '../components/Icons';
+import { 
+    DocumentDuplicateIcon, 
+    SearchIcon, 
+    TrashIcon, 
+    EyeIcon, 
+    PencilIcon, 
+    FloppyDiskIcon, 
+    XCircleIcon, 
+    XMarkIcon, 
+    ChevronUpIcon, 
+    ChevronDownIcon,
+    TableCellsIcon
+} from '../components/Icons';
 import { Language, SavedReport } from '../types';
 
 const formatDate = (isoString: string, language: Language) => {
     return new Date(isoString).toLocaleString(language, {
-        dateStyle: 'short',
-        timeStyle: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
     });
 };
+
+type SortKey = 'name' | 'createdAt' | 'recordCount';
+type SortDirection = 'asc' | 'desc';
 
 export const SavedReportsView: React.FC = () => {
     const { savedReports, viewSavedReport, openDeleteConfirmation, updateSavedReportName } = useContext(AppContext);
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
+    
+    // State
     const [searchQuery, setSearchQuery] = useState('');
     const [editingReportId, setEditingReportId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ 
+        key: 'createdAt', 
+        direction: 'desc' 
+    });
 
-    const filteredReports = useMemo(() => {
-        if (!searchQuery) {
-            return savedReports;
+    // Filter & Sort Logic
+    const processedReports = useMemo(() => {
+        let result = [...savedReports];
+
+        // 1. Filter
+        if (searchQuery) {
+            const lowerQ = searchQuery.toLowerCase();
+            result = result.filter(report =>
+                report.name.toLowerCase().includes(lowerQ)
+            );
         }
-        return savedReports.filter(report =>
-            report.name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [savedReports, searchQuery]);
+
+        // 2. Sort
+        result.sort((a, b) => {
+            let valA: any = a[sortConfig.key];
+            let valB: any = b[sortConfig.key];
+
+            // Special handling for dates
+            if (sortConfig.key === 'createdAt') {
+                valA = new Date(valA).getTime();
+                valB = new Date(valB).getTime();
+            }
+            
+            // String comparison for names
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase();
+                valB = valB.toLowerCase();
+            }
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return result;
+    }, [savedReports, searchQuery, sortConfig]);
+
+    // Handlers
+    const handleSort = (key: SortKey) => {
+        setSortConfig(current => ({
+            key,
+            direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc'
+        }));
+    };
 
     const handleStartEdit = (report: SavedReport) => {
         setEditingReportId(report.id);
@@ -49,11 +109,16 @@ export const SavedReportsView: React.FC = () => {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent, reportId: string) => {
-        if (e.key === 'Enter') {
-            handleSaveEdit(reportId);
-        } else if (e.key === 'Escape') {
-            handleCancelEdit();
-        }
+        if (e.key === 'Enter') handleSaveEdit(reportId);
+        else if (e.key === 'Escape') handleCancelEdit();
+    };
+
+    // Sort Icon Helper
+    const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
+        if (sortConfig.key !== columnKey) return <ChevronDownIcon className="w-3 h-3 opacity-30 group-hover:opacity-60" />;
+        return sortConfig.direction === 'asc' 
+            ? <ChevronUpIcon className="w-3 h-3 text-brand-blue" />
+            : <ChevronDownIcon className="w-3 h-3 text-brand-blue" />;
     };
 
     if (savedReports.length === 0) {
@@ -76,12 +141,19 @@ export const SavedReportsView: React.FC = () => {
         <div className="flex flex-col h-full animate-fade-in gap-4 pb-2">
             {/* Header Compacto */}
             <div className="flex-shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-3 px-1">
-                <div>
-                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('savedReports.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-1">{t('savedReports.subtitle')}</p>
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400">
+                        <TableCellsIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('savedReports.title')}</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-1 font-medium">
+                            {savedReports.length} {savedReports.length === 1 ? 'relatório salvo' : 'relatórios salvos'}
+                        </p>
+                    </div>
                 </div>
 
-                {/* Barra de Busca Compacta */}
+                {/* Barra de Busca */}
                 <div className="relative w-full md:w-64">
                     <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
                     <input
@@ -89,7 +161,7 @@ export const SavedReportsView: React.FC = () => {
                         placeholder={t('savedReports.search')}
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="pl-8 pr-8 py-1.5 block w-full rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-[11px] font-medium shadow-sm focus:border-brand-blue focus:ring-brand-blue transition-all outline-none placeholder:text-slate-400"
+                        className="pl-9 pr-8 py-2 block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-xs font-bold shadow-sm focus:border-brand-blue focus:ring-brand-blue transition-all outline-none placeholder:text-slate-400 placeholder:font-medium"
                     />
                     {searchQuery && (
                         <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -99,113 +171,136 @@ export const SavedReportsView: React.FC = () => {
                 </div>
             </div>
 
-            {/* Grid de Relatórios */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-2">
-                {filteredReports.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                        {filteredReports
-                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                            .map(report => {
-                                const isEditing = editingReportId === report.id;
-                                return (
-                                    <div key={report.id} className="group bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-all duration-300 relative flex flex-col justify-between hover:border-brand-blue/30 dark:hover:border-blue-500/30">
-                                        
-                                        <div>
-                                            <div className="flex justify-between items-start mb-2">
-                                                {/* Icon Box */}
-                                                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-brand-blue border border-blue-100 dark:border-blue-800 rounded-xl shadow-sm">
-                                                    <DocumentDuplicateIcon className="w-4 h-4 stroke-[2]" />
-                                                </div>
-                                                
-                                                {/* Actions */}
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Tabela estilo Planilha */}
+            <div className="flex-1 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50/80 dark:bg-slate-900/50 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-100 dark:border-slate-700">
+                            <tr>
+                                <th className="px-6 py-3 w-[45%]">
+                                    <button onClick={() => handleSort('name')} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group focus:outline-none">
+                                        Nome do Relatório
+                                        <SortIcon columnKey="name" />
+                                    </button>
+                                </th>
+                                <th className="px-6 py-3 w-[20%]">
+                                    <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group focus:outline-none">
+                                        Criado em
+                                        <SortIcon columnKey="createdAt" />
+                                    </button>
+                                </th>
+                                <th className="px-6 py-3 w-[15%] text-center">
+                                    <button onClick={() => handleSort('recordCount')} className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group focus:outline-none w-full">
+                                        Registros
+                                        <SortIcon columnKey="recordCount" />
+                                    </button>
+                                </th>
+                                <th className="px-6 py-3 w-[20%] text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                                    Ações
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                            {processedReports.length > 0 ? (
+                                processedReports.map((report) => {
+                                    const isEditing = editingReportId === report.id;
+                                    return (
+                                        <tr 
+                                            key={report.id} 
+                                            className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors"
+                                        >
+                                            <td className="px-6 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-brand-blue rounded-lg">
+                                                        <DocumentDuplicateIcon className="w-4 h-4" />
+                                                    </div>
+                                                    
                                                     {isEditing ? (
-                                                        <>
+                                                        <div className="flex items-center gap-2 flex-1">
+                                                            <input 
+                                                                type="text" 
+                                                                value={editName} 
+                                                                onChange={(e) => setEditName(e.target.value)}
+                                                                onKeyDown={(e) => handleKeyDown(e, report.id)}
+                                                                autoFocus
+                                                                className="w-full text-sm font-bold text-brand-graphite dark:text-white bg-white dark:bg-slate-900 border border-brand-blue rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-blue/20 outline-none shadow-sm"
+                                                            />
                                                             <button
                                                                 onClick={() => handleSaveEdit(report.id)}
-                                                                className="p-1.5 rounded-full text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-900/50 transition-colors shadow-sm"
-                                                                title={t('common.save')}
+                                                                className="p-1.5 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                                                title="Salvar"
                                                             >
-                                                                <FloppyDiskIcon className="w-3.5 h-3.5" />
+                                                                <FloppyDiskIcon className="w-4 h-4" />
                                                             </button>
                                                             <button
                                                                 onClick={handleCancelEdit}
-                                                                className="p-1.5 rounded-full text-slate-500 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 transition-colors shadow-sm"
-                                                                title={t('common.cancel')}
+                                                                className="p-1.5 rounded-lg text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                                                                title="Cancelar"
                                                             >
-                                                                <XCircleIcon className="w-3.5 h-3.5" />
+                                                                <XCircleIcon className="w-4 h-4" />
                                                             </button>
-                                                        </>
+                                                        </div>
                                                     ) : (
-                                                        <>
-                                                            <button
+                                                        <div className="flex items-center gap-2 group/edit relative max-w-full">
+                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-default">
+                                                                {report.name}
+                                                            </span>
+                                                            <button 
                                                                 onClick={() => handleStartEdit(report)}
-                                                                className="p-1.5 rounded-full text-brand-blue bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/50 transition-colors"
-                                                                title={t('common.edit')}
+                                                                className="opacity-0 group-hover/edit:opacity-100 p-1 text-slate-400 hover:text-brand-blue transition-opacity"
+                                                                title="Renomear"
                                                             >
-                                                                <PencilIcon className="w-3.5 h-3.5" />
+                                                                <PencilIcon className="w-3 h-3" />
                                                             </button>
-                                                            <button
-                                                                onClick={() => openDeleteConfirmation({ type: 'report-saved', id: report.id, name: report.name })}
-                                                                className="p-1.5 rounded-full text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:hover:bg-rose-900/50 transition-colors"
-                                                                title={t('common.delete')}
-                                                            >
-                                                                <TrashIcon className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            </div>
+                                            </td>
                                             
-                                            {isEditing ? (
-                                                <input 
-                                                    type="text" 
-                                                    value={editName} 
-                                                    onChange={(e) => setEditName(e.target.value)}
-                                                    onKeyDown={(e) => handleKeyDown(e, report.id)}
-                                                    autoFocus
-                                                    className="w-full text-sm font-bold text-brand-graphite dark:text-white bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 mb-2 focus:ring-2 focus:ring-brand-blue outline-none transition-all"
-                                                />
-                                            ) : (
-                                                <h3 className="font-bold text-brand-graphite dark:text-white text-sm leading-tight mb-2 line-clamp-1" title={report.name}>
-                                                    {report.name}
-                                                </h3>
-                                            )}
+                                            <td className="px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 font-mono">
+                                                {formatDate(report.createdAt, language)}
+                                            </td>
                                             
-                                            <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 font-medium mb-3">
-                                                <span className="flex items-center gap-1 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-700">
-                                                    <CalendarIcon className="w-3 h-3" />
-                                                    {formatDate(report.createdAt, language)}
+                                            <td className="px-6 py-3 text-center">
+                                                <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                                                    {report.recordCount}
                                                 </span>
-                                                <span className="flex items-center gap-1 bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-700">
-                                                    <CircleStackIcon className="w-3 h-3" />
-                                                    {report.recordCount} reg.
-                                                </span>
-                                            </div>
+                                            </td>
+                                            
+                                            <td className="px-6 py-3">
+                                                <div className="flex items-center justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => viewSavedReport(report.id)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-md shadow-blue-500/20 hover:-translate-y-0.5 transition-all active:scale-95"
+                                                    >
+                                                        <EyeIcon className="w-3 h-3" />
+                                                        Abrir
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openDeleteConfirmation({ type: 'report-saved', id: report.id, name: report.name })}
+                                                        className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                        title="Excluir"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
+                                <tr>
+                                    <td colSpan={4} className="py-20 text-center">
+                                        <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+                                            <SearchIcon className="w-10 h-10 mb-2 opacity-50" />
+                                            <p className="text-xs font-bold">{t('common.noResults')}</p>
                                         </div>
-
-                                        <button
-                                            onClick={() => viewSavedReport(report.id)}
-                                            disabled={isEditing}
-                                            className={`w-full flex items-center justify-center gap-2 px-4 py-2 text-[10px] font-bold rounded-full text-white shadow-md transition-all uppercase tracking-wide ${isEditing ? 'bg-slate-300 cursor-not-allowed' : 'bg-gradient-to-r from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] hover:-translate-y-0.5 active:scale-95'}`}
-                                        >
-                                            <EyeIcon className="w-3.5 h-3.5" />
-                                            <span>{t('savedReports.view')}</span>
-                                        </button>
-                                    </div>
-                                );
-                            })
-                        }
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-center rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
-                        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full mb-3">
-                            <SearchIcon className="w-6 h-6 text-slate-400 dark:text-slate-500" />
-                        </div>
-                        <p className="text-slate-500 dark:text-slate-400 font-bold text-xs">{t('common.noResults')}</p>
-                        <p className="text-slate-400 text-[10px] mt-1">Tente buscar por outro nome.</p>
-                    </div>
-                )}
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

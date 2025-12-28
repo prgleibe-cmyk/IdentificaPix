@@ -23,14 +23,15 @@ import {
     ExclamationTriangleIcon,
     WhatsAppIcon,
     PresentationChartLineIcon,
-    DocumentDuplicateIcon
+    DocumentDuplicateIcon,
+    ArrowPathIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
     const { activeView, setActiveView, theme, toggleTheme } = useUI();
     const { t, language, setLanguage } = useTranslation();
     const { signOut, user, subscription, systemSettings, loading: authLoading } = useAuth();
-    const { openPaymentModal } = useContext(AppContext);
+    const { openPaymentModal, isSyncing } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -103,6 +104,15 @@ export const Sidebar: React.FC = () => {
                 </nav>
 
                 <div className={`mt-auto border-t border-white/5 bg-[#050B14] p-4 flex flex-col gap-4`}>
+                    
+                    {/* Indicador de Sync */}
+                    {isSyncing && (
+                        <div className={`flex items-center justify-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 rounded-lg animate-pulse ${isCollapsed ? 'mx-auto' : ''}`}>
+                            <ArrowPathIcon className="w-3 h-3 text-blue-400 animate-spin" />
+                            {!isCollapsed && <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wide">Sincronizando...</span>}
+                        </div>
+                    )}
+
                     <div className={`flex items-center ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
                         <button onClick={toggleTheme} className="p-2 rounded-full text-slate-400 hover:text-white bg-white/5 border border-white/5 shadow-sm">
                             {theme === 'light' ? <MoonIcon className="w-3.5 h-3.5" /> : <SunIcon className="w-3.5 h-3.5" />}

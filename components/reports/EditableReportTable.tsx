@@ -6,8 +6,6 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { 
     PencilIcon, 
-    FloppyDiskIcon, 
-    XCircleIcon, 
     ChevronUpIcon, 
     ChevronDownIcon, 
     TrashIcon, 
@@ -18,8 +16,6 @@ import {
     UserPlusIcon,
     SparklesIcon,
     BrainIcon,
-    BuildingOfficeIcon,
-    ClipboardDocumentIcon,
     BanknotesIcon
 } from '../Icons';
 import { formatIncomeDescription } from '../../services/processingService';
@@ -36,6 +32,9 @@ interface EditableReportTableProps {
     reportType: 'income' | 'expenses';
     sortConfig: SortConfig | null;
     onSort: (key: string) => void;
+    onAnalyze: (id: string) => void; 
+    loadingAiId: string | null; 
+    onEdit?: (row: MatchResult) => void;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -50,7 +49,7 @@ const SortableHeader: React.FC<{
     const isSorted = sortConfig?.key === sortKey;
     return (
         <th scope="col" className={`px-4 py-3 text-left text-[10px] font-black text-white uppercase tracking-widest ${className}`}>
-            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-blue-100 transition-colors focus:outline-none">
+            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-blue-100 transition-colors focus:outline-none w-full justify-center">
                 <span>{title}</span>
                 <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-white' : 'opacity-50 group-hover:opacity-100'}`}>
                     {sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
@@ -85,17 +84,12 @@ const IncomeRow = memo(({
     language, 
     onEdit, 
     onDelete, 
-    openManualIdentify, // Nova prop restaurada 
     openDivergence, 
-    ignoreKeywords
+    ignoreKeywords,
 }: any) => {
-    const row = result;
+    const row = result as MatchResult;
     const isIdentified = row.status === 'IDENTIFICADO';
     const isPendingList = row.status === 'PENDENTE';
-    
-    // Define presença das origens
-    const hasBank = row.status !== 'PENDENTE';
-    const hasList = row.status !== 'NÃO IDENTIFICADO';
     
     // --- Lógica de Data com Divergência Visual ---
     const bankDateRaw = row.transaction.date;
@@ -104,7 +98,6 @@ const IncomeRow = memo(({
     const bankDisplay = formatDate(bankDateRaw);
     const listDisplay = listDateRaw ? formatDate(listDateRaw) : null;
     
-    // Detecta divergência apenas se ambos existirem e forem diferentes
     const datesDiverge = isIdentified && listDisplay && bankDisplay !== listDisplay;
 
     const txDescFormatted = formatIncomeDescription(row.transaction.description, ignoreKeywords);
@@ -174,9 +167,7 @@ const IncomeRow = memo(({
             {/* Coluna Nome/Descrição com Ícones Inline */}
             <td className="px-4 py-2.5">
                 <div className="flex flex-col gap-1">
-                    {/* Linha Principal (Preferência para Lista/Pessoa) */}
                     <div className="flex items-center gap-2">
-                        {/* Ícone Lógico: Se tem contribuinte (mesmo que venha da lista ou match), usa User. Se é só banco, usa Banknotes */}
                         {(row.contributor || isPendingList) ? (
                             <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" title="Origem: Lista de Contribuintes" />
                         ) : (
@@ -188,7 +179,6 @@ const IncomeRow = memo(({
                         </span>
                     </div>
 
-                    {/* Linha Secundária (Origem Banco - Exibida se houver Match e for diferente) */}
                     {isIdentified && displayName !== txDescFormatted && (
                         <div className="flex items-center gap-2 opacity-80">
                             <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
@@ -213,15 +203,13 @@ const IncomeRow = memo(({
                 </div>
             </td>
             <td className="px-4 py-2.5 text-center">
-                <span className={`text-[10px] font-bold ${row.similarity >= 90 ? 'text-emerald-600 dark:text-emerald-400' : row.similarity >= 70 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                <span className={`text-[10px] font-bold ${row.similarity && row.similarity >= 90 ? 'text-emerald-600 dark:text-emerald-400' : row.similarity && row.similarity >= 70 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
                     {row.similarity ? `${row.similarity.toFixed(0)}%` : '-'}
                 </span>
             </td>
             
-            {/* Coluna TIPO (Split em duas linhas) */}
             <td className="px-4 py-2.5">
                 <div className="flex flex-col gap-1.5 items-start">
-                    {/* Linha 1: Tipo da Lista (Se houver contribuidor ou for pendente de lista) */}
                     {(row.contributor || isPendingList) && (
                         <div className="flex items-center gap-1.5" title="Tipo na Lista">
                             <UserIcon className="w-3 h-3 text-indigo-400 shrink-0" />
@@ -231,7 +219,6 @@ const IncomeRow = memo(({
                         </div>
                     )}
 
-                    {/* Linha 2: Tipo do Banco (Se não for item exclusivo da lista) */}
                     {!isPendingList && (
                         <div className="flex items-center gap-1.5 opacity-80" title="Tipo no Extrato">
                             <BanknotesIcon className="w-3 h-3 text-slate-400 shrink-0" />
@@ -260,39 +247,59 @@ const IncomeRow = memo(({
                 )}
             </td>
             <td className="px-4 py-2.5 text-center">
-                <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isIdentified && !isPendingList && (
-                        <button onClick={() => openManualIdentify(row.transaction.id)} className="p-1.5 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 transition-all shadow-md hover:-translate-y-0.5" title="Identificar Manualmente">
-                            <UserPlusIcon className="w-3.5 h-3.5" />
-                        </button>
+                <div className="flex gap-1 justify-center transition-opacity">
+                    {!isIdentified && !isPendingList ? (
+                        /* Botão ÚNICO de Identificar - Visível e com Destaque de Sugestão */
+                        <div className="flex items-center justify-center gap-1">
+                            <button 
+                                onClick={() => onEdit(row)} 
+                                className={`p-1.5 rounded-lg text-white transition-all shadow-md hover:-translate-y-0.5 ${
+                                    row.suggestion 
+                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 ring-1 ring-purple-300 dark:ring-purple-700' 
+                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
+                                }`}
+                                title={row.suggestion ? "Identificar (Sugestão IA Disponível)" : "Identificar (IA + Manual)"}
+                            >
+                                {row.suggestion ? <SparklesIcon className="w-3.5 h-3.5 animate-pulse" /> : <UserPlusIcon className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 transition-colors shadow-sm opacity-0 group-hover:opacity-100" title="Excluir">
+                                <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                            <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm" title="Editar / Corrigir">
+                                <PencilIcon className="w-3.5 h-3.5" />
+                            </button>
+                            
+                            {row.divergence && <button onClick={() => openDivergence(row)} className="p-1.5 rounded-lg text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/50 transition-colors shadow-sm" title="Confirmar Divergência"><ExclamationTriangleIcon className="w-3.5 h-3.5" /></button>}
+                            
+                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 transition-colors shadow-sm" title="Excluir">
+                                <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
                     )}
-                    <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm" title="Editar / Corrigir Identificação">
-                        <PencilIcon className="w-3.5 h-3.5" />
-                    </button>
-                    {row.divergence && <button onClick={() => openDivergence(row)} className="p-1.5 rounded-lg text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/50 transition-colors shadow-sm" title="Confirmar Divergência"><ExclamationTriangleIcon className="w-3.5 h-3.5" /></button>}
-                    <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 transition-colors shadow-sm" title="Excluir">
-                        <TrashIcon className="w-3.5 h-3.5" />
-                    </button>
                 </div>
             </td>
         </tr>
     );
 });
 
-export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort }) => {
+export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort, onAnalyze, loadingAiId, onEdit }) => {
     const { t, language } = useTranslation();
     const { 
         openDivergenceModal, 
         openDeleteConfirmation,
-        openManualIdentify,
         openSmartEdit 
     } = useContext(AppContext);
     
-    // Inline editing state has been removed in favor of the modal
-
     const handleEdit = useCallback((row: MatchResult) => {
-        openSmartEdit(row);
-    }, [openSmartEdit]);
+        if (onEdit) {
+            onEdit(row);
+        } else {
+            openSmartEdit(row);
+        }
+    }, [openSmartEdit, onEdit]);
 
     const handleDelete = useCallback((row: MatchResult) => {
         openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } });
@@ -309,17 +316,15 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     return (
         <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
-                {/* Header com Gradiente Moderno */}
                 <thead className="bg-gradient-to-r from-[#2563EB] to-[#4F46E5] dark:from-blue-800 dark:to-indigo-900 border-b border-blue-700 dark:border-blue-900 sticky top-0 z-20 shadow-md">
                     <tr>
-                        {/* Coluna Origem removida */}
                         <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
                         <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[35%]" />
                         <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
                         <SortableHeader sortKey="similarity" title="Simil." sortConfig={sortConfig} onSort={onSort} className="text-center w-[8%]" />
                         <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
                         <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="text-right w-[13%]" />
-                        <th scope="col" className="px-4 py-3 text-center text-[10px] font-black text-white uppercase tracking-widest w-[10%]">{t('table.actions')}</th>
+                        <SortableHeader sortKey="hasSuggestion" title={t('table.actions')} sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -331,13 +336,8 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             language={language}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
-                            openManualIdentify={openManualIdentify} // Passando a função restaurada
                             openDivergence={openDivergenceModal}
-                            // effectiveIgnoreKeywords not passed as context is used in parent but NameResolver cleans inside the row helper or hook if refactored.
-                            // However, IncomeRow uses formatIncomeDescription which takes ignoreKeywords.
-                            // Passing empty array or hooking context inside row? Row is memoized.
-                            // Let's pass it from context in the parent render map
-                            ignoreKeywords={[]} // Placeholder - logic inside formatIncomeDescription handles defaults, or add context if strict needed.
+                            ignoreKeywords={[]}
                         />
                     ))}
                 </tbody>

@@ -1,5 +1,5 @@
 
-import React, { useContext, useMemo, useState, memo, useEffect } from 'react';
+import React, { useContext, useMemo, useState, memo, useEffect, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
@@ -98,7 +98,10 @@ const ReportGroup: React.FC<{
         updateReportData,
         openDeleteConfirmation,
         searchFilters,
-        openBulkManualIdentify
+        openBulkManualIdentify,
+        handleAnalyze, 
+        loadingAiId,
+        openManualIdentify
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
@@ -169,6 +172,14 @@ const ReportGroup: React.FC<{
 
         if (sortConfig !== null) {
             filteredData.sort((a, b) => {
+                // ORDENAÇÃO ESPECIAL: PENDENTES COM SUGESTÃO PRIMEIRO
+                if (sortConfig.key === 'hasSuggestion') {
+                    const valA = a.suggestion ? 1 : 0;
+                    const valB = b.suggestion ? 1 : 0;
+                    // Desc: Mostra os que TEM sugestão primeiro (1 > 0)
+                    return sortConfig.direction === 'desc' ? valB - valA : valA - valB;
+                }
+
                 const aValue = getNestedValue(a, sortConfig.key);
                 const bValue = getNestedValue(b, sortConfig.key);
                 if (sortConfig.key === 'date' || (sortConfig.key.includes('date'))) {
@@ -306,6 +317,10 @@ const ReportGroup: React.FC<{
         printWindow.document.close();
     };
 
+    const handleCustomEdit = useCallback((row: MatchResult) => {
+        openManualIdentify(row.transaction.id);
+    }, [openManualIdentify]);
+
     return (
         <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700" data-group-id={churchId}>
             {/* Header - Alterado para Azul Médio (Blue-100/Blue-200) para contraste */}
@@ -353,7 +368,16 @@ const ReportGroup: React.FC<{
             {/* Tabela (Ocupa o resto do espaço) */}
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {processedResults.length > 0 ? (
-                    <EditableReportTable data={processedResults} onRowChange={(updatedRow) => updateReportData(updatedRow, reportType)} reportType={reportType} sortConfig={sortConfig} onSort={handleSort} />
+                    <EditableReportTable 
+                        data={processedResults} 
+                        onRowChange={(updatedRow) => updateReportData(updatedRow, reportType)} 
+                        reportType={reportType} 
+                        sortConfig={sortConfig} 
+                        onSort={handleSort}
+                        onAnalyze={handleAnalyze} 
+                        loadingAiId={loadingAiId} 
+                        onEdit={churchId === 'unidentified' ? handleCustomEdit : undefined}
+                    />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50/20 dark:bg-slate-900/10">
                         <SearchIcon className="w-8 h-8 mb-2 opacity-30" />

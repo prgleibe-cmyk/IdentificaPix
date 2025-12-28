@@ -1,5 +1,4 @@
 
-
 export type Language = 'pt' | 'en' | 'es';
 export type Theme = 'light' | 'dark';
 export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis';
@@ -61,6 +60,7 @@ export interface MatchResult {
     expectedChurch: Church;
     actualChurch: Church;
   };
+  suggestion?: Contributor; // Sugestão de melhor match (mesmo abaixo do threshold)
 }
 
 export interface ContributorFile {

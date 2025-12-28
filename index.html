@@ -2,42 +2,50 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    
-    <!-- Configuração de Manifesto PWA (Corrige o ícone na área de trabalho/celular) -->
-    <link rel="manifest" href="/manifest.json" />
-
-    <!-- Favicon e Ícones de Atalho (Desktop/Android) - Adicionado ?v=2 para limpar cache -->
-    <link rel="icon" type="image/png" sizes="32x32" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=2" />
-    <link rel="icon" type="image/png" sizes="192x192" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=2" />
-    <link rel="shortcut icon" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=2" />
-    
-    <!-- Ícone para Apple (iOS Home Screen) -->
-    <link rel="apple-touch-icon" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=2" />
-    
-    <!-- Configuração de Viewport Estrita para Consistência Visual -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    
-    <!-- Configurações de Identidade Visual -->
-    <title>IdentificaPix - Sistema de Conciliação Inteligente</title>
-    <meta name="description" content="Conciliação bancária automatizada para igrejas e instituições com tecnologia Gemini AI." />
     <meta name="theme-color" content="#051024" />
 
-    <!-- Meta Tags para Compartilhamento (WhatsApp, Facebook, LinkedIn) -->
+    <!-- Título e Descrição -->
+    <title>IdentificaPix - Sistema de Conciliação Inteligente</title>
+    <meta name="description" content="Conciliação bancária automatizada para igrejas e instituições com tecnologia Gemini AI." />
+
+    <!-- Imagens Open Graph (WhatsApp, Facebook, LinkedIn) - Prioridade Máxima -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://identificapix.com.br/" />
     <meta property="og:title" content="IdentificaPix - Sistema de Conciliação" />
     <meta property="og:description" content="Automatize suas doações PIX e ofertas com precisão absoluta." />
-    <!-- O parâmetro ?v=2 força o WhatsApp a buscar a imagem novamente -->
-    <meta property="og:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=2" />
+    <meta property="og:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:url" content="https://identificapix.com.br" />
+    <meta property="og:image:alt" content="Logo IdentificaPix" />
     <meta property="og:site_name" content="IdentificaPix" />
+
+    <!-- Meta Tags Google / Schema.org (Fallback para Android/WhatsApp) -->
+    <meta itemprop="name" content="IdentificaPix - Sistema de Conciliação" />
+    <meta itemprop="description" content="Automatize suas doações PIX e ofertas com precisão absoluta." />
+    <meta itemprop="image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="IdentificaPix - Sistema de Conciliação" />
     <meta name="twitter:description" content="Automatize suas doações PIX e ofertas com precisão absoluta." />
-    <meta name="twitter:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=2" />
+    <meta name="twitter:image" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
+
+    <!-- PWA & Ícones de App -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Ícones de Atalho (Navegador) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
+    <link rel="icon" type="image/png" sizes="192x192" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
+    <link rel="shortcut icon" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
+    
+    <!-- Ícone para Apple (iOS) -->
+    <link rel="apple-touch-icon" href="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
+    
+    <!-- Configuração para Windows (Tiles) -->
+    <meta name="msapplication-TileColor" content="#051024" />
+    <meta name="msapplication-TileImage" content="https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=3" />
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -1,11 +1,10 @@
 
-
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { formatCurrency } from '../../utils/formatters';
-import { XMarkIcon, BanknotesIcon } from '../Icons';
+import { XMarkIcon, BanknotesIcon, SparklesIcon } from '../Icons';
 import { Contributor, MatchResult } from '../../types';
 
 export const ManualIdModal: React.FC = () => {
@@ -23,14 +22,45 @@ export const ManualIdModal: React.FC = () => {
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Estados para sugestão da IA
+    const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string } | null>(null);
 
     useEffect(() => {
-        if (churches.length === 1) {
+        // Resetar estados
+        setAiSuggestion(null);
+        let preSelectedId = '';
+
+        if (manualIdentificationTx) {
+            // Tenta encontrar o resultado completo para ver se tem sugestão
+            const result = findMatchResult(manualIdentificationTx.id);
+            
+            if (result?.suggestion) {
+                // A sugestão (Contributor) geralmente tem a propriedade .church anexada em tempo de execução
+                // ou podemos tentar inferir
+                const suggestion = result.suggestion as any;
+                const suggestedChurch = suggestion.church || churches.find(c => c.id === suggestion._churchId);
+
+                if (suggestedChurch) {
+                    preSelectedId = suggestedChurch.id;
+                    setAiSuggestion({
+                        churchName: suggestedChurch.name,
+                        contributorName: suggestion.name || suggestion.cleanedName
+                    });
+                }
+            }
+        }
+
+        // Lógica de Seleção Inicial
+        if (preSelectedId) {
+            setSelectedChurchId(preSelectedId);
+        } else if (churches.length === 1) {
             setSelectedChurchId(churches[0].id);
         } else {
             setSelectedChurchId('');
         }
-    }, [churches, manualIdentificationTx, bulkIdentificationTxs]);
+        
+    }, [churches, manualIdentificationTx, bulkIdentificationTxs, findMatchResult]);
 
 
     if (!manualIdentificationTx && !bulkIdentificationTxs) return null;
@@ -49,9 +79,17 @@ export const ManualIdModal: React.FC = () => {
             if (!originalResult || !church) {
                 confirmManualIdentification(manualIdentificationTx.id, selectedChurchId);
             } else {
+                // Se a seleção for igual à sugestão da IA, podemos usar o nome exato da sugestão
+                // Caso contrário, usa a descrição da transação como nome do contribuinte (modo manual padrão)
+                let finalContributorName = originalResult.transaction.cleanedDescription || originalResult.transaction.description;
+                
+                if (aiSuggestion && church.name === aiSuggestion.churchName) {
+                    finalContributorName = aiSuggestion.contributorName;
+                }
+
                 const newContributor: Contributor = {
                     id: `manual-${manualIdentificationTx.id}`,
-                    name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
+                    name: finalContributorName,
                     originalAmount: originalResult.transaction.originalAmount,
                     amount: originalResult.transaction.amount,
                 };
@@ -110,7 +148,22 @@ export const ManualIdModal: React.FC = () => {
                         </button>
                     </div>
                     
-                    <div className="mt-6">
+                    {/* Banner de Sugestão da IA */}
+                    {!isBulk && aiSuggestion && (
+                        <div className="mb-6 p-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-100 dark:border-purple-800 rounded-xl flex items-start gap-3 animate-fade-in-up">
+                            <div className="p-1.5 bg-white dark:bg-purple-900/40 rounded-full shadow-sm text-purple-600 dark:text-purple-300">
+                                <SparklesIcon className="w-4 h-4 animate-pulse" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase tracking-wide mb-0.5">Sugestão Inteligente</p>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 leading-snug">
+                                    Parece ser <span className="font-bold">{aiSuggestion.contributorName}</span> da igreja <span className="font-bold text-purple-700 dark:text-purple-400">{aiSuggestion.churchName}</span>.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="mt-2">
                         <label htmlFor="church-select" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                            {t('table.church')} <span className="text-red-500">*</span>
                         </label>
@@ -118,16 +171,22 @@ export const ManualIdModal: React.FC = () => {
                             id="church-select"
                             value={selectedChurchId}
                             onChange={e => setSelectedChurchId(e.target.value)}
-                            className="block w-full rounded-2xl border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-inner focus:border-brand-blue focus:ring-brand-blue py-3.5 px-4 transition-all outline-none text-sm"
+                            className={`block w-full rounded-2xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-inner focus:ring-brand-blue py-3.5 px-4 transition-all outline-none text-sm ${
+                                aiSuggestion && selectedChurchId === churches.find(c => c.name === aiSuggestion.churchName)?.id
+                                ? 'border-purple-300 ring-2 ring-purple-100 dark:border-purple-700 dark:ring-purple-900/30' 
+                                : 'border-slate-200 dark:border-slate-600 focus:border-brand-blue'
+                            }`}
                         >
                             <option value="" disabled>{churches.length > 1 ? 'Selecione a igreja destino' : 'Carregando...'}</option>
                             {churches.map(church => (
-                                <option key={church.id} value={church.id}>{church.name}</option>
+                                <option key={church.id} value={church.id}>
+                                    {church.name} {aiSuggestion && church.name === aiSuggestion.churchName ? '✨' : ''}
+                                </option>
                             ))}
                         </select>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-white/5">
+                <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
                     <button type="button" onClick={closeManualIdentify} className="px-5 py-2.5 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
                     <button type="button" onClick={handleConfirm} disabled={!selectedChurchId || isSaving} className="px-6 py-2.5 text-xs font-bold text-white rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288]">
                          {isSaving ? `${t('common.save')}...` : (isBulk ? 'Identificar Tudo' : t('common.save'))}

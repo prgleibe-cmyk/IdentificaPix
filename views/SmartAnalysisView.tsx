@@ -40,6 +40,25 @@ interface CalculatorState {
     mode: 'ranking' | 'manual'; // Track which state to update
 }
 
+// Helper para converter string BR (1.000,00) ou US (1000.00) para Float JS
+const parseBrValue = (val: string | number): number => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    
+    // Remove tudo que não for número, vírgula, ponto ou sinal de menos
+    let clean = val.replace(/[^0-9.,-]/g, '');
+    
+    // Se tiver vírgula, assume que é decimal BR
+    if (clean.includes(',')) {
+        // Remove pontos de milhar (1.000 -> 1000)
+        clean = clean.replace(/\./g, '');
+        // Troca vírgula por ponto decimal (1000,50 -> 1000.50)
+        clean = clean.replace(',', '.');
+    }
+    
+    return parseFloat(clean) || 0;
+};
+
 export const SmartAnalysisView: React.FC = () => {
     const { savedReports, matchResults, hasActiveSession, openSaveReportModal } = useContext(AppContext);
     const { t, language } = useTranslation();
@@ -127,15 +146,15 @@ export const SmartAnalysisView: React.FC = () => {
             const rows: EditableRow[] = Array.from(churchStats.entries()).map(([name, stats], index) => ({
                 id: `rank-${index}-${Date.now()}`,
                 churchName: name,
-                income: stats.income.toFixed(2),
-                expense: stats.expense.toFixed(2),
+                income: stats.income.toFixed(2).replace('.', ','), // Format inicial BR
+                expense: stats.expense.toFixed(2).replace('.', ','), // Format inicial BR
                 count: stats.count.toString()
             }));
 
             // Initial Sort by Balance
             rows.sort((a, b) => {
-                const balA = parseFloat(a.income) - parseFloat(a.expense);
-                const balB = parseFloat(b.income) - parseFloat(b.expense);
+                const balA = parseBrValue(a.income) - parseBrValue(a.expense);
+                const balB = parseBrValue(b.income) - parseBrValue(b.expense);
                 return balB - balA;
             });
 
@@ -173,8 +192,8 @@ export const SmartAnalysisView: React.FC = () => {
     const handleSortRows = () => {
         setActiveRows(prev => {
             const sorted = [...prev].sort((a, b) => {
-                const balanceA = (parseFloat(a.income) || 0) - (parseFloat(a.expense) || 0);
-                const balanceB = (parseFloat(b.income) || 0) - (parseFloat(b.expense) || 0);
+                const balanceA = parseBrValue(a.income) - parseBrValue(a.expense);
+                const balanceB = parseBrValue(b.income) - parseBrValue(b.expense);
                 return balanceB - balanceA; // Descending
             });
             return sorted;
@@ -187,7 +206,7 @@ export const SmartAnalysisView: React.FC = () => {
             isOpen: true,
             rowId,
             field,
-            currentTotal: parseFloat(currentValue) || 0,
+            currentTotal: parseBrValue(currentValue),
             mode: activeTemplate === 'ranking' ? 'ranking' : 'manual'
         });
         setValueToAdd('');
@@ -200,16 +219,18 @@ export const SmartAnalysisView: React.FC = () => {
 
     const confirmCalculation = (e: React.FormEvent) => {
         e.preventDefault();
-        const add = parseFloat(valueToAdd);
+        // Aceita vírgula no input do modal também
+        const add = parseBrValue(valueToAdd);
         if (isNaN(add) || !calculator.rowId || !calculator.field) return;
 
         const newTotal = calculator.currentTotal + add;
+        const formattedTotal = newTotal.toFixed(2).replace('.', ','); // Volta para BR para o input
         
         // Update the specific state based on mode captured when opening
         if (calculator.mode === 'ranking') {
-            setRankingRows(prev => prev.map(row => row.id === calculator.rowId ? { ...row, [calculator.field!]: newTotal.toString() } : row));
+            setRankingRows(prev => prev.map(row => row.id === calculator.rowId ? { ...row, [calculator.field!]: formattedTotal } : row));
         } else {
-            setManualRows(prev => prev.map(row => row.id === calculator.rowId ? { ...row, [calculator.field!]: newTotal.toString() } : row));
+            setManualRows(prev => prev.map(row => row.id === calculator.rowId ? { ...row, [calculator.field!]: formattedTotal } : row));
         }
         
         closeCalculator();
@@ -222,8 +243,8 @@ export const SmartAnalysisView: React.FC = () => {
         return rows
             .filter(row => row.churchName.trim() !== '')
             .map((row, index) => {
-                const income = parseFloat(row.income) || 0;
-                const expense = parseFloat(row.expense) || 0;
+                const income = parseBrValue(row.income);
+                const expense = parseBrValue(row.expense);
                 return {
                     pos: index + 1,
                     name: row.churchName,
@@ -248,9 +269,9 @@ export const SmartAnalysisView: React.FC = () => {
             wsData.push([
                 item.pos.toString(),
                 item.name,
-                item.income.toString(),
-                item.expense.toString(),
-                item.balance.toString(),
+                item.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                item.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                item.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
                 item.count.toString()
             ]);
         });
@@ -551,7 +572,7 @@ export const SmartAnalysisView: React.FC = () => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                                         {getActiveRows().map((row, index) => {
-                                            const balance = (parseFloat(row.income) || 0) - (parseFloat(row.expense) || 0);
+                                            const balance = parseBrValue(row.income) - parseBrValue(row.expense);
                                             return (
                                                 <tr key={row.id} className="group hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                                                     <td className="px-3 py-1.5 text-slate-400 dark:text-slate-600 font-mono text-center font-bold">
@@ -569,7 +590,8 @@ export const SmartAnalysisView: React.FC = () => {
                                                     <td className="px-3 py-1.5">
                                                         <div className="relative flex items-center">
                                                             <input 
-                                                                type="number" 
+                                                                type="text"
+                                                                inputMode="decimal" 
                                                                 value={row.income}
                                                                 onChange={(e) => handleRowChange(row.id, 'income', e.target.value)}
                                                                 placeholder="0,00"
@@ -587,7 +609,8 @@ export const SmartAnalysisView: React.FC = () => {
                                                     <td className="px-3 py-1.5">
                                                         <div className="relative flex items-center">
                                                             <input 
-                                                                type="number" 
+                                                                type="text"
+                                                                inputMode="decimal"
                                                                 value={row.expense}
                                                                 onChange={(e) => handleRowChange(row.id, 'expense', e.target.value)}
                                                                 placeholder="0,00"
@@ -702,8 +725,8 @@ export const SmartAnalysisView: React.FC = () => {
                                         <div className="relative">
                                             <PlusCircleIcon className="w-5 h-5 text-emerald-500 absolute left-4 top-1/2 -translate-y-1/2" />
                                             <input 
-                                                type="number" 
-                                                step="0.01"
+                                                type="text" 
+                                                inputMode="decimal"
                                                 value={valueToAdd} 
                                                 onChange={(e) => setValueToAdd(e.target.value)} 
                                                 className="block w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-lg font-bold text-slate-800 dark:text-white focus:border-indigo-500 focus:ring-0 outline-none transition-all placeholder:text-slate-300"
@@ -713,11 +736,11 @@ export const SmartAnalysisView: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {valueToAdd && !isNaN(parseFloat(valueToAdd)) && (
+                                    {valueToAdd && !isNaN(parseBrValue(valueToAdd)) && (
                                         <div className="flex justify-between items-center px-2 pt-1 text-xs font-medium">
                                             <span className="text-slate-400">Novo Total:</span>
                                             <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                                                {formatCurrency(calculator.currentTotal + parseFloat(valueToAdd), language)}
+                                                {formatCurrency(calculator.currentTotal + parseBrValue(valueToAdd), language)}
                                             </span>
                                         </div>
                                     )}
