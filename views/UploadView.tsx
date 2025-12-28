@@ -4,14 +4,14 @@ import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { FileUploader } from '../components/FileUploader';
-import { WrenchScrewdriverIcon, BoltIcon, WhatsAppIcon, InformationCircleIcon } from '../components/Icons';
+import { WrenchScrewdriverIcon, BoltIcon, WhatsAppIcon, InformationCircleIcon, TrashIcon } from '../components/Icons';
 import { InitialComparisonModal } from '../components/modals/InitialComparisonModal';
 
 export const UploadView: React.FC = () => {
     const { 
         banks, churches, bankStatementFile, contributorFiles, 
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
-        openLabManually
+        openLabManually, resetReconciliation
     } = useContext(AppContext);
     
     const { user, systemSettings } = useAuth();
@@ -26,6 +26,13 @@ export const UploadView: React.FC = () => {
     };
 
     const showProcessButton = !!(bankStatementFile && bankStatementFile.content);
+    const hasAnyFile = !!bankStatementFile || contributorFiles.length > 0;
+
+    const handleReset = () => {
+        if (window.confirm("Isso limpará todos os arquivos e resultados da sessão atual. Deseja iniciar uma nova conciliação?")) {
+            resetReconciliation();
+        }
+    };
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-2 pb-1 relative">
@@ -35,16 +42,29 @@ export const UploadView: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400 text-[10px]">{t('upload.subtitle')}</p>
                 </div>
                 
-                {/* BOTÃO DO LAB: APENAS PARA ADMIN */}
-                {isAdmin && bankStatementFile && (
-                    <button 
-                        onClick={() => openLabManually()}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-white rounded-full text-[10px] font-bold uppercase tracking-wide transition-all shadow-md hover:shadow-violet-500/30 hover:-translate-y-0.5 active:translate-y-0 transform active:scale-[0.98] bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 border border-white/10"
-                    >
-                        <WrenchScrewdriverIcon className="w-3 h-3 text-white" />
-                        <span>Lab Arquivos (Admin)</span>
-                    </button>
-                )}
+                <div className="flex items-center gap-2">
+                    {/* BOTÃO NOVA CONCILIAÇÃO (Limpar Tudo) */}
+                    {hasAnyFile && (
+                        <button
+                            onClick={handleReset}
+                            className="flex items-center gap-1.5 px-4 py-1.5 text-white rounded-full text-[10px] font-bold uppercase tracking-wide transition-all shadow-md hover:shadow-red-500/30 hover:-translate-y-0.5 active:translate-y-0 transform active:scale-[0.98] bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 border border-white/10"
+                        >
+                            <TrashIcon className="w-3 h-3 text-white" />
+                            <span>Nova Conciliação</span>
+                        </button>
+                    )}
+
+                    {/* BOTÃO DO LAB: APENAS PARA ADMIN */}
+                    {isAdmin && bankStatementFile && (
+                        <button 
+                            onClick={() => openLabManually()}
+                            className="flex items-center gap-1.5 px-4 py-1.5 text-white rounded-full text-[10px] font-bold uppercase tracking-wide transition-all shadow-md hover:shadow-violet-500/30 hover:-translate-y-0.5 active:translate-y-0 transform active:scale-[0.98] bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 border border-white/10"
+                        >
+                            <WrenchScrewdriverIcon className="w-3 h-3 text-white" />
+                            <span>Lab Arquivos (Admin)</span>
+                        </button>
+                    )}
+                </div>
             </div>
             
             <div className="flex-1 min-h-0 pb-16">

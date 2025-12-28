@@ -76,6 +76,7 @@ interface AppContextType {
     handleBackToSettings: () => void;
     updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => void;
     discardCurrentReport: () => void;
+    resetReconciliation: () => void; // NOVO
 
     // Manual Operations State & Handlers
     manualIdentificationTx: Transaction | null;

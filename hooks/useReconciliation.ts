@@ -209,6 +209,21 @@ export const useReconciliation = ({
         setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
     }, [setContributorFiles]);
 
+    // Função para limpar tudo e iniciar nova conciliação
+    const resetReconciliation = useCallback(() => {
+        setBankStatementFile(null);
+        setContributorFiles([]);
+        setMatchResults([]);
+        setReportPreviewData(null);
+        setHasActiveSession(false);
+        setManualIdentificationTx(null);
+        setBulkIdentificationTxs(null);
+        setManualMatchState(null);
+        setDivergenceConfirmation(null);
+        setAiSuggestion(null);
+        showToast("Ambiente limpo para nova conciliação.", "success");
+    }, [setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
+
     // --- RECONCILIATION ENGINE JIT (Just-In-Time) ---
     const handleCompare = useCallback(async () => {
         if (!bankStatementFile) return;
@@ -401,7 +416,7 @@ export const useReconciliation = ({
         pendingTraining, setPendingTraining, comparisonType, setComparisonType,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
         handleCompare, updateReportData, discardCurrentReport, openLabManually,
-        handleTrainingSuccess, 
+        handleTrainingSuccess, resetReconciliation,
         manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
         closeManualIdentify,
@@ -413,7 +428,7 @@ export const useReconciliation = ({
     }), [
         bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession, pendingTraining, comparisonType, 
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess,
-        setMatchResults, setReportPreviewData, setHasActiveSession,
+        setMatchResults, setReportPreviewData, setHasActiveSession, resetReconciliation,
         manualIdentificationTx, bulkIdentificationTxs, closeManualIdentify,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
