@@ -5,11 +5,12 @@
   "type": "module",
   "main": "server.js",
   "engines": {
-    "node": "20.x"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "type-check": "tsc",
     "start": "node server.js",
     "preview": "vite preview"
   },
