@@ -19,16 +19,26 @@ import {
     PlusCircleIcon,
     GlobeAltIcon,
     TrashIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    CalendarIcon
 } from '../components/Icons';
 
 const PreferencesTab: React.FC = () => {
-    const { openDeleteConfirmation } = useContext(AppContext);
+    const { openDeleteConfirmation, deleteOldReports, savedReports } = useContext(AppContext);
     const { theme, toggleTheme } = useUI();
     const { t, language, setLanguage } = useTranslation();
+    const [monthsToKeep, setMonthsToKeep] = useState(6);
 
     const handleLanguageChange = (lang: Language) => {
         setLanguage(lang);
+    };
+
+    const handleCleanOldReports = () => {
+        const date = new Date();
+        date.setMonth(date.getMonth() - monthsToKeep);
+        if (window.confirm(`Isso excluirá TODOS os relatórios anteriores a ${date.toLocaleDateString()}. Confirmar?`)) {
+            deleteOldReports(date);
+        }
     };
 
     const dataManagementItems = [
@@ -144,6 +154,39 @@ const PreferencesTab: React.FC = () => {
                                     </button>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Nova Seção: Manutenção de Relatórios Antigos */}
+                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Manutenção de Espaço</h4>
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Excluir Relatórios Antigos</span>
+                                    </div>
+                                    <span className="text-[9px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">
+                                        {savedReports.length} salvos
+                                    </span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <select 
+                                        value={monthsToKeep} 
+                                        onChange={(e) => setMonthsToKeep(parseInt(e.target.value))}
+                                        className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"
+                                    >
+                                        <option value="3">Anteriores a 3 meses</option>
+                                        <option value="6">Anteriores a 6 meses</option>
+                                        <option value="12">Anteriores a 1 ano</option>
+                                    </select>
+                                    <button 
+                                        onClick={handleCleanOldReports}
+                                        className="px-4 py-1.5 bg-white border border-slate-200 hover:border-red-200 hover:bg-red-50 hover:text-red-600 text-slate-500 rounded-xl text-[10px] font-bold uppercase transition-all shadow-sm"
+                                    >
+                                        Limpar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

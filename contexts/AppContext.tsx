@@ -124,6 +124,7 @@ interface AppContextType {
 
     // Reports & Search (from useReportManager)
     savedReports: SavedReport[];
+    maxSavedReports: number; // NOVO: Limite de relatórios
     searchFilters: SearchFilters;
     setSearchFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
     isSearchFiltersOpen: boolean;

@@ -16,6 +16,10 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
     reportId: null,
 };
 
+// LIMITE DE SEGURANÇA (Hard Limit)
+// Ajustado para 60 relatórios (Equivalente a 5 anos de histórico mensal).
+const MAX_REPORTS_PER_USER = 60;
+
 export const useReportManager = (user: User | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     
     // --- User Scoping for Local Storage ---
@@ -99,6 +103,13 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
     const confirmSaveReport = useCallback(async (name: string) => {
         if (!savingReportState || !user) return;
         
+        // CHECK DE LIMITE DE ARMAZENAMENTO
+        if (savedReports.length >= MAX_REPORTS_PER_USER) {
+            showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido. Exclua alguns antigos para salvar novos.`, 'error');
+            closeSaveReportModal();
+            return;
+        }
+
         const newReport: SavedReport = {
             id: `rep-${Date.now()}`,
             name: name,
@@ -129,7 +140,34 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
         } else {
             showToast('Relatório salvo com sucesso!', 'success');
         }
-    }, [savingReportState, user, showToast, closeSaveReportModal]);
+    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
+
+    // Função para deletar relatórios antigos em massa
+    const deleteOldReports = useCallback(async (dateThreshold: Date) => {
+        if (!user) return;
+
+        const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
+        if (reportsToDelete.length === 0) {
+            showToast("Nenhum relatório encontrado anterior a esta data.", "error");
+            return;
+        }
+
+        // Optimistic UI Update
+        setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
+
+        const { error } = await supabase
+            .from('saved_reports')
+            .delete()
+            .lt('created_at', dateThreshold.toISOString())
+            .eq('user_id', user.id);
+
+        if (error) {
+            // Revert state (complex, requires refetching usually, but simplified here)
+            showToast("Erro ao excluir relatórios no servidor.", "error");
+        } else {
+            showToast(`${reportsToDelete.length} relatórios antigos foram excluídos.`, "success");
+        }
+    }, [user, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         return savedReports
@@ -139,14 +177,17 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
 
     return useMemo(() => ({
         savedReports, setSavedReports,
+        maxSavedReports: MAX_REPORTS_PER_USER, // EXPOSED CONSTANT
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, updateSavedReportTransaction, saveFilteredReport,
+        deleteOldReports,
         allHistoricalResults
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
-        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, updateSavedReportTransaction, saveFilteredReport
+        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, updateSavedReportTransaction, saveFilteredReport,
+        deleteOldReports
     ]);
 };

@@ -15,7 +15,10 @@ import {
     XMarkIcon, 
     ChevronUpIcon, 
     ChevronDownIcon,
-    TableCellsIcon
+    TableCellsIcon,
+    CircleStackIcon,
+    CalendarIcon,
+    ChartBarIcon
 } from '../components/Icons';
 import { Language, SavedReport } from '../types';
 
@@ -33,7 +36,7 @@ type SortKey = 'name' | 'createdAt' | 'recordCount';
 type SortDirection = 'asc' | 'desc';
 
 export const SavedReportsView: React.FC = () => {
-    const { savedReports, viewSavedReport, openDeleteConfirmation, updateSavedReportName } = useContext(AppContext);
+    const { savedReports, viewSavedReport, openDeleteConfirmation, updateSavedReportName, maxSavedReports } = useContext(AppContext);
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     
@@ -121,6 +124,12 @@ export const SavedReportsView: React.FC = () => {
             : <ChevronDownIcon className="w-3 h-3 text-brand-blue" />;
     };
 
+    // Storage Calculation
+    const usagePercent = Math.min(100, (savedReports.length / maxSavedReports) * 100);
+    let storageColor = "bg-emerald-500";
+    if (usagePercent > 80) storageColor = "bg-red-500";
+    else if (usagePercent > 50) storageColor = "bg-amber-500";
+
     if (savedReports.length === 0) {
         return (
             <div className="flex-1 flex items-center justify-center">
@@ -148,54 +157,73 @@ export const SavedReportsView: React.FC = () => {
                     <div>
                         <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('savedReports.title')}</h2>
                         <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-1 font-medium">
-                            {savedReports.length} {savedReports.length === 1 ? 'relatório salvo' : 'relatórios salvos'}
+                            Histórico e backups de conciliações.
                         </p>
                     </div>
                 </div>
 
-                {/* Barra de Busca */}
-                <div className="relative w-full md:w-64">
-                    <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
-                    <input
-                        type="text"
-                        placeholder={t('savedReports.search')}
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="pl-9 pr-8 py-2 block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-xs font-bold shadow-sm focus:border-brand-blue focus:ring-brand-blue transition-all outline-none placeholder:text-slate-400 placeholder:font-medium"
-                    />
-                    {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                            <XMarkIcon className="h-3 w-3" />
-                        </button>
-                    )}
+                <div className="flex items-center gap-4 flex-1 justify-end">
+                    {/* Storage Meter - New Component */}
+                    <div className="hidden md:flex flex-col w-32 xl:w-40 mr-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                        <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                            <span className="flex items-center gap-1"><CircleStackIcon className="w-3 h-3" /> Espaço</span>
+                            <span className={usagePercent > 80 ? 'text-red-500' : 'text-emerald-500'}>{Math.round(usagePercent)}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-1000 ease-out ${storageColor}`}
+                                style={{ width: `${usagePercent}%` }}
+                            ></div>
+                        </div>
+                        <div className="text-[8px] text-right mt-1 text-slate-400 font-medium">
+                            {savedReports.length} / {maxSavedReports} usados
+                        </div>
+                    </div>
+
+                    {/* Barra de Busca */}
+                    <div className="relative w-full md:w-64">
+                        <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            placeholder={t('savedReports.search')}
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="pl-9 pr-8 py-2 block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-xs font-bold shadow-sm focus:border-brand-blue focus:ring-brand-blue transition-all outline-none placeholder:text-slate-400 placeholder:font-medium"
+                        />
+                        {searchQuery && (
+                            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                <XMarkIcon className="h-3 w-3" />
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Tabela estilo Planilha */}
+            {/* Tabela com Visual de Cards / Lançar Dados */}
             <div className="flex-1 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-50/80 dark:bg-slate-900/50 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-100 dark:border-slate-700">
                             <tr>
-                                <th className="px-6 py-3 w-[45%]">
+                                <th className="px-6 py-4 w-[45%]">
                                     <button onClick={() => handleSort('name')} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group focus:outline-none">
                                         Nome do Relatório
                                         <SortIcon columnKey="name" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-3 w-[20%]">
+                                <th className="px-6 py-4 w-[20%]">
                                     <button onClick={() => handleSort('createdAt')} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group focus:outline-none">
                                         Criado em
                                         <SortIcon columnKey="createdAt" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-3 w-[15%] text-center">
+                                <th className="px-6 py-4 w-[15%] text-center">
                                     <button onClick={() => handleSort('recordCount')} className="flex items-center justify-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group focus:outline-none w-full">
                                         Registros
                                         <SortIcon columnKey="recordCount" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-3 w-[20%] text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                                <th className="px-6 py-4 w-[20%] text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                                     Ações
                                 </th>
                             </tr>
@@ -207,12 +235,13 @@ export const SavedReportsView: React.FC = () => {
                                     return (
                                         <tr 
                                             key={report.id} 
-                                            className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors"
+                                            className="group hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all duration-300"
                                         >
                                             <td className="px-6 py-3">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-brand-blue rounded-lg">
-                                                        <DocumentDuplicateIcon className="w-4 h-4" />
+                                                    {/* Ícone Estilizado Igual ao Upload View */}
+                                                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-brand-blue border border-blue-100 dark:border-blue-800 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform duration-300">
+                                                        <DocumentDuplicateIcon className="w-5 h-5 stroke-[1.5]" />
                                                     </div>
                                                     
                                                     {isEditing ? (
@@ -223,65 +252,76 @@ export const SavedReportsView: React.FC = () => {
                                                                 onChange={(e) => setEditName(e.target.value)}
                                                                 onKeyDown={(e) => handleKeyDown(e, report.id)}
                                                                 autoFocus
-                                                                className="w-full text-sm font-bold text-brand-graphite dark:text-white bg-white dark:bg-slate-900 border border-brand-blue rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-blue/20 outline-none shadow-sm"
+                                                                className="w-full text-sm font-bold text-brand-graphite dark:text-white bg-white dark:bg-slate-900 border border-brand-blue rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-blue/20 outline-none shadow-sm"
                                                             />
                                                             <button
                                                                 onClick={() => handleSaveEdit(report.id)}
-                                                                className="p-1.5 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                                                className="p-2 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors"
                                                                 title="Salvar"
                                                             >
                                                                 <FloppyDiskIcon className="w-4 h-4" />
                                                             </button>
                                                             <button
                                                                 onClick={handleCancelEdit}
-                                                                className="p-1.5 rounded-lg text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                                                                className="p-2 rounded-lg text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
                                                                 title="Cancelar"
                                                             >
                                                                 <XCircleIcon className="w-4 h-4" />
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center gap-2 group/edit relative max-w-full">
-                                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate cursor-default">
-                                                                {report.name}
+                                                        <div className="flex flex-col min-w-0 group/edit relative pr-6">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate cursor-default group-hover:text-brand-blue transition-colors">
+                                                                    {report.name}
+                                                                </span>
+                                                                <button 
+                                                                    onClick={() => handleStartEdit(report)}
+                                                                    className="opacity-0 group-hover/edit:opacity-100 p-1 text-slate-400 hover:text-brand-blue transition-all"
+                                                                    title="Renomear"
+                                                                >
+                                                                    <PencilIcon className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">
+                                                                ID: {report.id.substring(0, 12)}...
                                                             </span>
-                                                            <button 
-                                                                onClick={() => handleStartEdit(report)}
-                                                                className="opacity-0 group-hover/edit:opacity-100 p-1 text-slate-400 hover:text-brand-blue transition-opacity"
-                                                                title="Renomear"
-                                                            >
-                                                                <PencilIcon className="w-3 h-3" />
-                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>
                                             </td>
                                             
-                                            <td className="px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 font-mono">
-                                                {formatDate(report.createdAt, language)}
+                                            <td className="px-6 py-3">
+                                                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                                    <CalendarIcon className="w-3.5 h-3.5" />
+                                                    <span className="text-xs font-bold font-mono">
+                                                        {formatDate(report.createdAt, language)}
+                                                    </span>
+                                                </div>
                                             </td>
                                             
                                             <td className="px-6 py-3 text-center">
-                                                <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                                                    <ChartBarIcon className="w-3 h-3 text-slate-400" />
                                                     {report.recordCount}
                                                 </span>
                                             </td>
                                             
                                             <td className="px-6 py-3">
-                                                <div className="flex items-center justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-center gap-3">
                                                     <button
                                                         onClick={() => viewSavedReport(report.id)}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-md shadow-blue-500/20 hover:-translate-y-0.5 transition-all active:scale-95"
+                                                        className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-md shadow-blue-500/20 hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide"
                                                     >
-                                                        <EyeIcon className="w-3 h-3" />
+                                                        <EyeIcon className="w-3.5 h-3.5" />
                                                         Abrir
                                                     </button>
                                                     <button
                                                         onClick={() => openDeleteConfirmation({ type: 'report-saved', id: report.id, name: report.name })}
-                                                        className="p-1.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                        className="p-2 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all hover:scale-110"
                                                         title="Excluir"
                                                     >
-                                                        <TrashIcon className="w-4 h-4" />
+                                                        <TrashIcon className="w-4 h-4 stroke-[2]" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -292,8 +332,9 @@ export const SavedReportsView: React.FC = () => {
                                 <tr>
                                     <td colSpan={4} className="py-20 text-center">
                                         <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-                                            <SearchIcon className="w-10 h-10 mb-2 opacity-50" />
-                                            <p className="text-xs font-bold">{t('common.noResults')}</p>
+                                            <SearchIcon className="w-12 h-12 mb-3 opacity-20" />
+                                            <p className="text-sm font-bold">{t('common.noResults')}</p>
+                                            <p className="text-xs mt-1 opacity-70">Tente ajustar sua busca.</p>
                                         </div>
                                     </td>
                                 </tr>
