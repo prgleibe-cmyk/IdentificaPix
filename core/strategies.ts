@@ -77,7 +77,8 @@ export const DatabaseModelStrategy: BankStrategy = {
             const amount = parseFloat(amountStr);
 
             if (isoDate && !isNaN(amount) && amount !== 0) {
-                if (NameResolver.isControlRow(rawDesc)) return;
+                // REMOVIDO FILTRO DE CONTROLE (SALDO/TOTAL) A PEDIDO DO USUÁRIO
+                // if (NameResolver.isControlRow(rawDesc)) return;
 
                 const cleanedDesc = NameResolver.clean(rawDesc, combinedKeywords);
                 // Se o tipo não vier do arquivo, tenta inferir
@@ -123,7 +124,7 @@ export const SicoobStrategy: BankStrategy = {
         const headerRegex = /^(\d{2}\/\d{2})\s+(.*?)\s+([\d.,]+[CD]?\*?)$/;
 
         // Regex de LIXO (Header de página repetido e Rodapé)
-        const noiseRegex = /SICOOB|SISTEMA DE COOPERATIVAS|PLATAFORMA DE SERVIÇOS|EXTRATO CONTA|DATA\s+HISTÓRICO\s+VALOR|SALDO ANTERIOR|SALDO BLOQ|SALDO ATUAL|TOTAL DE|OUVIDORIA|CENTRAL DE ATENDIMENTO|DEFICIENTES AUDITIVOS|CAPITAIS|REGIÕES|0800/i;
+        const noiseRegex = /SICOOB|SISTEMA DE COOPERATIVAS|PLATAFORMA DE SERVIÇOS|EXTRATO CONTA|DATA\s+HISTÓRICO\s+VALOR|TOTAL DE|OUVIDORIA|CENTRAL DE ATENDIMENTO|DEFICIENTES AUDITIVOS|CAPITAIS|REGIÕES|0800/i;
 
         let currentBlock: {
             date: string;
@@ -235,7 +236,8 @@ export const GenericStrategy: BankStrategy = {
             const amount = parseFloat(amountStr);
 
             if (isoDate && !isNaN(amount) && amount !== 0) {
-                if (NameResolver.isControlRow(rawDesc)) return;
+                // REMOVIDO FILTRO DE CONTROLE (SALDO/TOTAL) A PEDIDO DO USUÁRIO
+                // if (NameResolver.isControlRow(rawDesc)) return;
 
                 transactions.push({
                     id: `gen-${index}-${Date.now()}`,

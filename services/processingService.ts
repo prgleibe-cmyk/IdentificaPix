@@ -82,7 +82,8 @@ export const matchTransactions = (
     const usedContributors = new Set<string>();
 
     transactions.forEach(tx => {
-        if (NameResolver.isControlRow(tx.description)) return;
+        // REMOVIDO FILTRO DE CONTROLE (SALDO/TOTAL) A PEDIDO DO USUÁRIO
+        // if (NameResolver.isControlRow(tx.description)) return;
 
         const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
         
