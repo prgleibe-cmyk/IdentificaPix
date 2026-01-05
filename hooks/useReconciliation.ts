@@ -9,7 +9,7 @@ import {
     Bank, 
     FileModel, 
     GroupedReportData, 
-    ComparisonType, 
+    ComparisonType,
     ViewType,
     LearnedAssociation
 } from '../types';
@@ -236,26 +236,43 @@ export const useReconciliation = ({
 
     // --- RECONCILIATION ENGINE JIT (Just-In-Time) ---
     const handleCompare = useCallback(async () => {
-        if (!bankStatementFile) return;
+        if (!bankStatementFile && !activeReportId) return; // Bloqueio padrão
+        
         setIsLoading(true);
 
         try {
-            // 1. REPROCESSAMENTO AUTOMÁTICO DO EXTRATO
-            // Reprocessa para aplicar as configurações mais recentes (modelos e keywords)
-            const stmtResult = processFileContent(bankStatementFile.content, bankStatementFile.fileName, fileModels, cleaningKeywords);
-            const activeTransactions = stmtResult.transactions;
+            let activeTransactions: Transaction[] = [];
+            
+            // CENÁRIO A: Novo Extrato Carregado -> Processamento Completo do Zero
+            if (bankStatementFile) {
+                const stmtResult = processFileContent(bankStatementFile.content, bankStatementFile.fileName, fileModels, cleaningKeywords);
+                activeTransactions = stmtResult.transactions;
 
-            if (activeTransactions.length === 0) {
-                throw new Error("O extrato não gerou transações válidas. Verifique o arquivo.");
+                if (activeTransactions.length === 0) {
+                    throw new Error("O extrato não gerou transações válidas. Verifique o arquivo.");
+                }
+                setBankStatementFile(prev => prev ? { ...prev, processedTransactions: activeTransactions } : null);
+            } 
+            // CENÁRIO B: Modo Aditivo (Sem novo extrato, apenas novas listas para o relatório ativo)
+            else if (activeReportId && contributorFiles.length > 0) {
+                // Recupera as transações do banco que ainda não foram identificadas
+                // E também as que foram identificadas manualmente (para preservar)
+                // O objetivo é tentar identificar apenas os "buracos" usando as novas listas
+                activeTransactions = matchResults
+                    .filter(r => r.status === 'NÃO IDENTIFICADO')
+                    .map(r => r.transaction);
+                
+                if (activeTransactions.length === 0) {
+                    // Se não tiver pendências, talvez o usuário queira apenas adicionar listas para fins de registro (fantasmas)
+                    // Não lançamos erro, apenas prosseguimos com array vazio para gerar os PENDENTES da lista
+                }
             }
-
-            setBankStatementFile(prev => prev ? { ...prev, processedTransactions: activeTransactions } : null);
 
             let filteredTransactions = activeTransactions;
             if (comparisonType === 'income') filteredTransactions = activeTransactions.filter(t => t.amount > 0);
             else if (comparisonType === 'expenses') filteredTransactions = activeTransactions.filter(t => t.amount < 0);
 
-            // 2. REPROCESSAMENTO AUTOMÁTICO DAS LISTAS DE CONTRIBUINTES
+            // 2. Processamento das Listas de Contribuintes (Recém carregadas)
             const contributorData = contributorFiles.map(cf => {
                 const church = churches.find(c => c.id === cf.churchId) || PLACEHOLDER_CHURCH;
                 
@@ -277,28 +294,67 @@ export const useReconciliation = ({
             });
 
             // 3. EXECUTAR O MATCHING
-            const results = matchTransactions(
+            // Se estiver no modo aditivo, isso vai rodar apenas nas transações pendentes
+            const newResults = matchTransactions(
                 filteredTransactions, 
                 contributorData, 
                 { similarityThreshold: similarityLevel, dayTolerance }, 
                 learnedAssociations, 
                 churches, 
-                cleaningKeywords // Usa a lista combinada para matching também
+                cleaningKeywords
             );
 
-            setMatchResults(results);
-            setReportPreviewData({
-                // CORREÇÃO: Incluir itens PENDENTE (mesmo com valor 0) no relatório de entradas
-                income: groupResultsByChurch(results.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                expenses: { 'all_expenses_group': results.filter(r => r.transaction.amount < 0) }
-            });
+            // 4. MERGE DE RESULTADOS (Crucial para o modo aditivo)
+            if (!bankStatementFile && activeReportId) {
+                // Mescla os novos resultados com os antigos
+                // A prioridade é: Identificado Agora > Identificado Antes > Pendente
+                
+                setMatchResults(prevResults => {
+                    const finalResults = [...prevResults];
+                    
+                    newResults.forEach(newRes => {
+                        // Se for uma transação do banco que agora foi identificada
+                        if (newRes.transaction.id && !newRes.transaction.id.startsWith('ghost-')) {
+                            const index = finalResults.findIndex(r => r.transaction.id === newRes.transaction.id);
+                            if (index !== -1) {
+                                // Só atualiza se o novo resultado for um sucesso (IDENTIFICADO)
+                                if (newRes.status === 'IDENTIFICADO') {
+                                    finalResults[index] = newRes;
+                                } else if (newRes.suggestion && !finalResults[index].suggestion) {
+                                    // Se não identificou mas achou sugestão nova, atualiza sugestão
+                                    finalResults[index] = newRes;
+                                }
+                            }
+                        } 
+                        // Se for um item da lista que não bateu (Ghost/Pendente), adiciona
+                        else {
+                            finalResults.push(newRes);
+                        }
+                    });
+                    
+                    // Atualiza Preview
+                    setReportPreviewData({
+                        income: groupResultsByChurch(finalResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                        expenses: { 'all_expenses_group': finalResults.filter(r => r.transaction.amount < 0) }
+                    });
+                    
+                    return finalResults;
+                });
+                
+                showToast("Novas listas processadas e adicionadas ao relatório!", 'success');
+
+            } else {
+                // Modo Normal (Sobrescreve tudo)
+                setMatchResults(newResults);
+                setReportPreviewData({
+                    income: groupResultsByChurch(newResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                    expenses: { 'all_expenses_group': newResults.filter(r => r.transaction.amount < 0) }
+                });
+                showToast("Conciliação finalizada!", 'success');
+            }
+
             setHasActiveSession(true);
-            
-            // CORREÇÃO: NÃO resetar activeReportId aqui.
-            // setActiveReportId(null); 
-            
             setActiveView('reports');
-            showToast("Conciliação finalizada!", 'success');
 
         } catch (e: any) {
             console.error(e);
@@ -306,7 +362,7 @@ export const useReconciliation = ({
         } finally {
             setIsLoading(false);
         }
-    }, [bankStatementFile, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, setBankStatementFile, fileModels, setActiveReportId]);
+    }, [bankStatementFile, activeReportId, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, setBankStatementFile, fileModels, matchResults]);
 
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => {
         // 1. Atualiza lista plana (MatchResults)

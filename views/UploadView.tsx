@@ -11,7 +11,7 @@ export const UploadView: React.FC = () => {
     const { 
         banks, churches, bankStatementFile, contributorFiles, 
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
-        openLabManually, resetReconciliation
+        openLabManually, resetReconciliation, activeReportId
     } = useContext(AppContext);
     
     const { user, systemSettings } = useAuth();
@@ -25,7 +25,8 @@ export const UploadView: React.FC = () => {
         window.open(`https://wa.me/${systemSettings.supportNumber}?text=Olá, tenho um arquivo que o sistema não reconheceu. Poderiam criar um padrão para ele?`, '_blank');
     };
 
-    const showProcessButton = !!(bankStatementFile && bankStatementFile.content);
+    // CORREÇÃO: Mostra o botão se tiver extrato OU se estiver editando um relatório existente (adicionando lista)
+    const showProcessButton = !!(bankStatementFile && bankStatementFile.content) || (!!activeReportId && contributorFiles.length > 0);
     const hasAnyFile = !!bankStatementFile || contributorFiles.length > 0;
 
     const handleReset = () => {
@@ -217,7 +218,7 @@ export const UploadView: React.FC = () => {
                         className="flex items-center gap-2 px-8 py-3 bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] text-white rounded-full font-bold text-xs uppercase tracking-widest shadow-2xl transition-all transform hover:-translate-y-1 active:translate-y-0 border border-white/10"
                     >
                         <BoltIcon className="w-4 h-4" />
-                        <span>Configurar & Processar</span>
+                        <span>{activeReportId ? 'Atualizar Relatório' : 'Configurar & Processar'}</span>
                     </button>
                 </div>
             )}

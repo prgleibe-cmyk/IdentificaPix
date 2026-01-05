@@ -16,10 +16,19 @@ export const ComparisonSettingsForm: React.FC = () => {
         comparisonType,
         setComparisonType,
         bankStatementFile,
+        activeReportId // Adicionado para verificação
     } = useContext(AppContext);
     const { t, language } = useTranslation();
 
-    const finalIsCompareDisabled = comparisonType === 'income' ? isCompareDisabled : !bankStatementFile;
+    // LÓGICA CORRIGIDA:
+    // O botão habilita se:
+    // 1. Tiver arquivo de extrato carregado (Fluxo Normal)
+    // OU
+    // 2. Estiver editando um relatório salvo (activeReportId) - Fluxo Aditivo
+    const canProcess = !!bankStatementFile || !!activeReportId;
+    
+    // Mantém a lógica específica de 'income' se necessário, mas prioriza a regra acima
+    const finalIsCompareDisabled = comparisonType === 'income' ? (!canProcess && isCompareDisabled) : !canProcess;
 
     const ComparisonOption = ({ value, label, colorTheme, icon: Icon }: { value: ComparisonType, label: string, colorTheme: 'emerald' | 'rose' | 'blue', icon: any }) => {
         const isSelected = comparisonType === value;
@@ -143,7 +152,9 @@ export const ComparisonSettingsForm: React.FC = () => {
                     className="px-5 py-2 rounded-full font-bold text-xs text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] active:bg-blue-700 shadow-md shadow-brand-blue/30 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 group"
                 >
                     <ArrowsRightLeftIcon className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500"/>
-                    <span className="tracking-wide uppercase">Comparar</span>
+                    <span className="tracking-wide uppercase">
+                        {activeReportId ? 'Atualizar Dados' : 'Comparar'}
+                    </span>
                 </button>
             </div>
         </div>
