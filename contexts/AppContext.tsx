@@ -407,7 +407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const updated: MatchResult = { ...result, status: 'IDENTIFICADO', church, contributor: { id: `manual-${transactionId}`, name: result.transaction.cleanedDescription || result.transaction.description, amount: result.transaction.amount }, matchMethod: 'MANUAL', similarity: 100, contributorAmount: result.transaction.amount };
             if (reconciliation.matchResults.some(r => r.transaction.id === transactionId)) reconciliation.updateReportData(updated, 'income');
             else reportManager.updateSavedReportTransaction(transactionId, updated);
-            reconciliation.closeManualIdentify(); showToast('Identificação realizada.', 'success');
+            reconciliation.closeManualIdentify(); 
+            // Feedback modificado para não confundir com salvamento em banco
+            showToast('Identificação realizada.', 'success');
         }
     }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
 
@@ -452,7 +454,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
             reportManager.updateSavedReportTransaction(updatedMatch.transaction.id, updatedMatch);
         }
-        showToast("Edição salva com sucesso.", "success");
+        // Feedback modificado para não confundir com salvamento em banco
+        showToast("Edição aplicada na tabela.", "success");
         setSmartEditTarget(null);
         reconciliation.setAiSuggestion(null);
     }, [reconciliation, reportManager, showToast, smartEditTarget]);

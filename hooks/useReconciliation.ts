@@ -287,7 +287,11 @@ export const useReconciliation = ({
                 expenses: { 'all_expenses_group': results.filter(r => r.transaction.amount < 0) }
             });
             setHasActiveSession(true);
-            setActiveReportId(null); // Nova comparação reseta o ID salvo
+            
+            // CORREÇÃO: NÃO resetar activeReportId aqui. Se o usuário estiver adicionando arquivos
+            // a um relatório existente, queremos manter o ID para que ele possa "Salvar Alterações".
+            // setActiveReportId(null); 
+            
             setActiveView('reports');
             showToast("Conciliação finalizada!", 'success');
 
@@ -384,7 +388,7 @@ export const useReconciliation = ({
         
         updateReportData(updatedResult, 'income', ghostIdToRemove);
         closeManualMatchModal();
-        showToast("Associação manual confirmada.", "success");
+        showToast("Associação manual aplicada.", "success");
     }, [manualMatchState, updateReportData, closeManualMatchModal, showToast]);
 
     const openDivergenceModal = useCallback((match: MatchResult) => setDivergenceConfirmation(match), []);
