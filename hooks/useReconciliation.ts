@@ -67,6 +67,9 @@ export const useReconciliation = ({
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-results-v6${userSuffix}`, [], true);
     const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(`identificapix-report-preview-v6${userSuffix}`, null, true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session-v6${userSuffix}`, false, false);
+    // NOVO: Rastreia se estamos editando um relatório já salvo
+    const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null, false);
+
     const [comparisonType, setComparisonType] = useState<ComparisonType>('both');
     
     const [pendingTraining, setPendingTraining] = useState<{ content: string; fileName: string; type: 'statement' | 'contributor'; entityId: string, rawFile?: File } | null>(null);
@@ -216,13 +219,14 @@ export const useReconciliation = ({
         setMatchResults([]);
         setReportPreviewData(null);
         setHasActiveSession(false);
+        setActiveReportId(null); // Limpa o ID do relatório ativo
         setManualIdentificationTx(null);
         setBulkIdentificationTxs(null);
         setManualMatchState(null);
         setDivergenceConfirmation(null);
         setAiSuggestion(null);
         showToast("Ambiente limpo para nova conciliação.", "success");
-    }, [setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast]);
+    }, [setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast, setActiveReportId]);
 
     // --- RECONCILIATION ENGINE JIT (Just-In-Time) ---
     const handleCompare = useCallback(async () => {
@@ -283,6 +287,7 @@ export const useReconciliation = ({
                 expenses: { 'all_expenses_group': results.filter(r => r.transaction.amount < 0) }
             });
             setHasActiveSession(true);
+            setActiveReportId(null); // Nova comparação reseta o ID salvo
             setActiveView('reports');
             showToast("Conciliação finalizada!", 'success');
 
@@ -292,7 +297,7 @@ export const useReconciliation = ({
         } finally {
             setIsLoading(false);
         }
-    }, [bankStatementFile, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, setBankStatementFile, fileModels]);
+    }, [bankStatementFile, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, setBankStatementFile, fileModels, setActiveReportId]);
 
     const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => {
         // 1. Atualiza lista plana (MatchResults)
@@ -345,8 +350,9 @@ export const useReconciliation = ({
         setMatchResults([]);
         setReportPreviewData(null);
         setHasActiveSession(false);
+        setActiveReportId(null);
         setActiveView('upload');
-    }, [setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView]);
+    }, [setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, setActiveReportId]);
 
     const closeManualIdentify = useCallback(() => {
         setManualIdentificationTx(null);
@@ -413,6 +419,7 @@ export const useReconciliation = ({
 
     return useMemo(() => ({
         bankStatementFile, contributorFiles, matchResults, setMatchResults, reportPreviewData, setReportPreviewData, hasActiveSession, setHasActiveSession,
+        activeReportId, setActiveReportId, // EXPORTED
         pendingTraining, setPendingTraining, comparisonType, setComparisonType,
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
         handleCompare, updateReportData, discardCurrentReport, openLabManually,
@@ -426,9 +433,9 @@ export const useReconciliation = ({
         openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
         loadingAiId, setLoadingAiId, aiSuggestion, setAiSuggestion, handleAnalyze
     }), [
-        bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession, pendingTraining, comparisonType, 
+        bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession, activeReportId, pendingTraining, comparisonType, 
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess,
-        setMatchResults, setReportPreviewData, setHasActiveSession, resetReconciliation,
+        setMatchResults, setReportPreviewData, setHasActiveSession, setActiveReportId, resetReconciliation,
         manualIdentificationTx, bulkIdentificationTxs, closeManualIdentify,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,

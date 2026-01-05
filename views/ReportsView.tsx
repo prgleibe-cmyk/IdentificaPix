@@ -388,7 +388,7 @@ const ReportGroup: React.FC<{
 };
 
 export const ReportsView: React.FC = () => {
-    const { reportPreviewData, openSaveReportModal, matchResults } = useContext(AppContext);
+    const { reportPreviewData, openSaveReportModal, matchResults, activeReportId, saveCurrentReportChanges } = useContext(AppContext);
     const { t, language } = useTranslation();
     const { setActiveView } = useUI();
     const [activeTab, setActiveTab] = useState<'churches' | 'unidentified' | 'expenses'>('churches');
@@ -552,10 +552,21 @@ export const ReportsView: React.FC = () => {
                     </div>
                 </div>
                 
-                <button onClick={handleSaveReport} className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] text-white rounded-full font-bold text-[10px] uppercase shadow-md hover:-translate-y-0.5 transition-all active:scale-95">
-                    <FloppyDiskIcon className="w-3 h-3" />
-                    <span>{t('reports.saveReport')}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* BOTÃO SALVAR ALTERAÇÕES (SÓ APARECE SE ESTIVER EDITANDO UM RELATÓRIO EXISTENTE) */}
+                    {activeReportId && (
+                        <button onClick={saveCurrentReportChanges} className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 rounded-full font-bold text-[10px] uppercase shadow-sm hover:-translate-y-0.5 transition-all active:scale-95">
+                            <FloppyDiskIcon className="w-3 h-3" />
+                            <span>Salvar Alterações</span>
+                        </button>
+                    )}
+
+                    {/* BOTÃO SALVAR NOVO RELATÓRIO */}
+                    <button onClick={handleSaveReport} className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] text-white rounded-full font-bold text-[10px] uppercase shadow-md hover:-translate-y-0.5 transition-all active:scale-95">
+                        <FloppyDiskIcon className="w-3 h-3" />
+                        <span>{t('reports.saveReport')}</span>
+                    </button>
+                </div>
             </div>
 
             {/* SECONDARY NAVIGATION (SUB-TABS) FOR CHURCHES - DRAGGABLE */}

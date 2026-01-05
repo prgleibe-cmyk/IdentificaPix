@@ -64,6 +64,7 @@ interface AppContextType {
     isCompareDisabled: boolean;
     pendingTraining: any;
     setPendingTraining: (val: any) => void;
+    activeReportId: string | null;
 
     // Reconciliation Actions
     openLabManually: (targetFile?: { content: string, fileName: string, type: 'statement' | 'contributor', id: string, rawFile?: File }) => void;
@@ -140,6 +141,7 @@ interface AppContextType {
     viewSavedReport: (reportId: string) => void;
     updateSavedReportName: (reportId: string, newName: string) => void;
     saveFilteredReport: (results: MatchResult[]) => void;
+    saveCurrentReportChanges: () => void; // Nova função
 
     // Global
     deletingItem: DeletingItem | null;
@@ -369,6 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 expenses: { 'all_expenses_group': validResults.filter((r: any) => r.transaction.amount < 0) }
             });
             reconciliation.setHasActiveSession(true); 
+            reconciliation.setActiveReportId(reportId); // CRÍTICO: Define qual relatório está sendo editado
             setActiveView('reports'); 
         } catch (error: any) {
             console.error(error);
@@ -377,6 +380,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setIsLoading(false);
         }
     }, [reportManager.savedReports, reconciliation, setActiveView, setIsLoading, showToast]);
+
+    // Nova função para salvar as alterações do relatório ativo
+    const saveCurrentReportChanges = useCallback(() => {
+        const reportId = reconciliation.activeReportId;
+        if (!reportId) {
+            showToast("Nenhum relatório salvo ativo para atualizar.", "error");
+            return;
+        }
+        reportManager.overwriteSavedReport(reportId, reconciliation.matchResults);
+    }, [reconciliation.activeReportId, reconciliation.matchResults, reportManager, showToast]);
 
     const findMatchResult = useCallback((transactionId: string) => reconciliation.matchResults.find(r => r.transaction.id === transactionId) || reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId), [reconciliation.matchResults, reportManager.allHistoricalResults]);
     
@@ -483,8 +496,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen,
         openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false),
         isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false),
-        smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze
-    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze]);
+        smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze,
+        saveCurrentReportChanges
+    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze, saveCurrentReportChanges]);
 
     return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };

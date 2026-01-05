@@ -89,6 +89,48 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
         }
     }, [user, savedReports, setSavedReports, showToast]);
 
+    // NOVO: Sobrescreve um relatório inteiro (usado para salvar alterações da sessão)
+    const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[]) => {
+        if (!user) return;
+
+        const reportIndex = savedReports.findIndex(r => r.id === reportId);
+        if (reportIndex === -1) return;
+
+        const report = savedReports[reportIndex];
+        
+        const updatedReport: SavedReport = {
+            ...report,
+            recordCount: results.length,
+            data: {
+                results: results,
+                sourceFiles: [], // Mantém limpo ou preserva se necessário (simplificado)
+                bankStatementFile: null
+            }
+        };
+
+        // Update Local State
+        setSavedReports(prev => {
+            const newReports = [...prev];
+            newReports[reportIndex] = updatedReport;
+            return newReports;
+        });
+
+        // Update Supabase
+        const { error } = await supabase
+            .from('saved_reports')
+            .update({ 
+                data: updatedReport.data as any,
+                record_count: results.length 
+            })
+            .eq('id', reportId);
+
+        if (error) {
+            showToast('Erro ao salvar alterações.', 'error');
+        } else {
+            showToast('Alterações salvas com sucesso!', 'success');
+        }
+    }, [user, savedReports, setSavedReports, showToast]);
+
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
             type: 'search',
@@ -181,13 +223,13 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
-        updateSavedReportName, updateSavedReportTransaction, saveFilteredReport,
+        updateSavedReportName, updateSavedReportTransaction, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
         allHistoricalResults
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
-        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, updateSavedReportTransaction, saveFilteredReport,
+        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, updateSavedReportTransaction, saveFilteredReport, overwriteSavedReport,
         deleteOldReports
     ]);
 };
