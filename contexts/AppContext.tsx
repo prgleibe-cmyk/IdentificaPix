@@ -364,6 +364,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             if (!report.data) throw new Error("Conteúdo do relatório vazio.");
 
+            // LIMPEZA CRÍTICA: Reseta os arquivos de upload para evitar estado "preso"
+            // Isso garante que se o usuário for para a tela de Upload, ela estará limpa para novos arquivos
+            // e não bloqueada por arquivos da sessão anterior.
+            reconciliation.clearFiles();
+
             const validResults = report.data.results.map((r: any) => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
             reconciliation.setMatchResults(validResults);
             reconciliation.setReportPreviewData({

@@ -9,7 +9,7 @@ import {
     Bank, 
     FileModel, 
     GroupedReportData, 
-    ComparisonType,
+    ComparisonType, 
     ViewType,
     LearnedAssociation
 } from '../types';
@@ -212,6 +212,12 @@ export const useReconciliation = ({
         setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
     }, [setContributorFiles]);
 
+    // Limpa apenas os arquivos (usado ao abrir um relatório salvo para evitar estado sujo)
+    const clearFiles = useCallback(() => {
+        setBankStatementFile(null);
+        setContributorFiles([]);
+    }, [setBankStatementFile, setContributorFiles]);
+
     // Função para limpar tudo e iniciar nova conciliação
     const resetReconciliation = useCallback(() => {
         setBankStatementFile(null);
@@ -288,8 +294,7 @@ export const useReconciliation = ({
             });
             setHasActiveSession(true);
             
-            // CORREÇÃO: NÃO resetar activeReportId aqui. Se o usuário estiver adicionando arquivos
-            // a um relatório existente, queremos manter o ID para que ele possa "Salvar Alterações".
+            // CORREÇÃO: NÃO resetar activeReportId aqui.
             // setActiveReportId(null); 
             
             setActiveView('reports');
@@ -425,7 +430,7 @@ export const useReconciliation = ({
         bankStatementFile, contributorFiles, matchResults, setMatchResults, reportPreviewData, setReportPreviewData, hasActiveSession, setHasActiveSession,
         activeReportId, setActiveReportId, // EXPORTED
         pendingTraining, setPendingTraining, comparisonType, setComparisonType,
-        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile,
+        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearFiles, // EXPORTED
         handleCompare, updateReportData, discardCurrentReport, openLabManually,
         handleTrainingSuccess, resetReconciliation,
         manualIdentificationTx, setManualIdentificationTx,
@@ -438,7 +443,7 @@ export const useReconciliation = ({
         loadingAiId, setLoadingAiId, aiSuggestion, setAiSuggestion, handleAnalyze
     }), [
         bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession, activeReportId, pendingTraining, comparisonType, 
-        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess,
+        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearFiles, handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess,
         setMatchResults, setReportPreviewData, setHasActiveSession, setActiveReportId, resetReconciliation,
         manualIdentificationTx, bulkIdentificationTxs, closeManualIdentify,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
