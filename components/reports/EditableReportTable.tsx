@@ -47,10 +47,10 @@ const SortableHeader: React.FC<{
 }> = memo(({ sortKey, title, sortConfig, onSort, className = '' }) => {
     const isSorted = sortConfig?.key === sortKey;
     return (
-        <th scope="col" className={`px-4 py-3 text-left text-[10px] font-black text-white uppercase tracking-widest ${className}`}>
-            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-blue-100 transition-colors focus:outline-none w-full justify-center">
+        <th scope="col" className={`px-4 py-3 text-left text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider ${className}`}>
+            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-black dark:hover:text-white transition-colors focus:outline-none w-full justify-center">
                 <span>{title}</span>
-                <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-white' : 'opacity-50 group-hover:opacity-100'}`}>
+                <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-brand-blue dark:text-blue-400' : 'opacity-0 group-hover:opacity-50'}`}>
                     {sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
                 </span>
             </button>
@@ -150,7 +150,16 @@ const IncomeRow = memo(({
     };
 
     return (
-        <tr className={`group hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors border-b border-slate-50 dark:border-slate-700/50 ${isPendingList ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''}`}>
+        <tr className={`
+            group 
+            transition-colors 
+            border-b border-slate-200 dark:border-slate-700 
+            hover:bg-blue-50/60 dark:hover:bg-blue-900/20 
+            ${isPendingList 
+                ? 'bg-amber-50/50 dark:bg-amber-900/10' 
+                : 'odd:bg-white even:bg-slate-50 dark:odd:bg-slate-800 dark:even:bg-slate-800/40'
+            }
+        `}>
             {/* Coluna Data com Destaque de Divergência */}
             <td className="px-4 py-2.5 font-mono text-[11px]">
                 {datesDiverge ? (
@@ -248,7 +257,6 @@ const IncomeRow = memo(({
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1 justify-center transition-opacity">
                     {!isIdentified && !isPendingList ? (
-                        /* Botão ÚNICO de Identificar - Visível e com Destaque de Sugestão */
                         <div className="flex items-center justify-center gap-1">
                             <button 
                                 onClick={() => onEdit(row)} 
@@ -315,7 +323,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     return (
         <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
-                <thead className="bg-gradient-to-r from-[#2563EB] to-[#4F46E5] dark:from-blue-800 dark:to-indigo-900 border-b border-blue-700 dark:border-blue-900 sticky top-0 z-20 shadow-md">
+                <thead className="bg-slate-200 dark:bg-slate-950 border-b-2 border-slate-300 dark:border-slate-600 sticky top-0 z-20">
                     <tr>
                         <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
                         <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[35%]" />
@@ -326,7 +334,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         <SortableHeader sortKey="hasSuggestion" title={t('table.actions')} sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                     {paginatedData.map(result => (
                         <IncomeRow 
                             key={result.transaction.id}
@@ -342,11 +350,11 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                 </tbody>
             </table>
             {totalPages > 1 && (
-                <div className="flex justify-between items-center px-4 py-3 bg-slate-50/80 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Página {currentPage} de {totalPages}</span>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronLeftIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>
-                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronRightIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronLeftIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>
+                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronRightIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>
                     </div>
                 </div>
             )}

@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from 'react';
 
 // --- Contexts ---
@@ -168,20 +167,16 @@ const MainAppContent = () => {
         );
     }
 
-    // FIX: Using h-[100dvh] instead of h-screen ensures the layout fits perfectly 
-    // within the visible viewport on mobile/cloud environments, accounting for address bars.
     return (
-        <div className="flex h-[100dvh] bg-[#F8FAFC] dark:bg-[#0B1120] font-sans overflow-hidden">
+        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] font-sans overflow-hidden">
             {/* Sidebar is fixed height, main content scrolls */}
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 
-                <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth z-10 custom-scrollbar relative">
-                    {/* Header Gradient Decoration - Subtle ambient light */}
-                    <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-brand-blue/5 to-transparent pointer-events-none z-0"></div>
-                    
-                    <div className="max-w-[1600px] mx-auto h-full flex flex-col relative z-10">
+                {/* Alterado padding de p-6/p-8 para p-2/p-3 para maximizar espaço */}
+                <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
+                    <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
                         {isLoading ? (
                             <div className="flex-1 flex items-center justify-center">
                                 <LoadingSpinner />

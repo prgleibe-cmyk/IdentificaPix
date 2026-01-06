@@ -320,7 +320,7 @@ export const RegisterView: React.FC = () => {
                             </div>
                         </div>
                         {!bankLimitReached && (
-                            <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] rounded-full active:bg-blue-700 shadow-md shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
+                            <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-emerald-700 to-emerald-500 hover:from-emerald-800 hover:to-emerald-600 rounded-full active:bg-emerald-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
                                 <PlusCircleIcon className="w-3 h-3" /><span>{t('common.new')}</span>
                             </button>
                         )}
@@ -351,7 +351,7 @@ export const RegisterView: React.FC = () => {
                             </div>
                         </div>
                         {!churchLimitReached && (
-                             <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] rounded-full active:bg-blue-700 shadow-md shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
+                             <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-emerald-700 to-emerald-500 hover:from-emerald-800 hover:to-emerald-600 rounded-full active:bg-emerald-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
                                 <PlusCircleIcon className="w-3 h-3" /><span>{t('common.new')}</span>
                             </button>
                         )}

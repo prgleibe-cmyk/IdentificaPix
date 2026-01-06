@@ -22,7 +22,9 @@ import {
     WhatsAppIcon,
     PresentationChartLineIcon,
     DocumentDuplicateIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    TableCellsIcon,
+    BanknotesIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -72,7 +74,23 @@ export const Sidebar: React.FC = () => {
     };
 
     return (
-        <aside className={`relative h-screen flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#020610] text-white border-r border-white/5 shadow-2xl`}>
+        <aside className={`relative h-screen flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
+            
+            {/* ELEMENTOS DECORATIVOS DE FUNDO (Background Icons) */}
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-[0.03]">
+                {/* Ícone de Gráfico (Topo Direito) */}
+                <ChartBarIcon className="absolute -top-12 -right-12 w-64 h-64 text-white transform rotate-12" />
+                
+                {/* Ícone de Tabela (Meio Esquerdo) */}
+                <TableCellsIcon className="absolute top-[30%] -left-16 w-56 h-56 text-white transform -rotate-12" />
+                
+                {/* Ícone de Dinheiro (Fundo Centro) */}
+                <BanknotesIcon className="absolute bottom-[20%] -right-10 w-48 h-48 text-white transform rotate-6" />
+                
+                {/* Ícone de Configuração (Rodapé Esquerdo) */}
+                <Cog6ToothIcon className="absolute -bottom-10 -left-10 w-40 h-40 text-white transform -rotate-45" />
+            </div>
+
             <div className="relative z-10 flex flex-col h-full">
                 
                 {/* 3D LOGO CONTAINER - Compactado verticalmente (py-6) */}
@@ -115,7 +133,7 @@ export const Sidebar: React.FC = () => {
                 </div>
 
                 {/* Navegação - Compactada (space-y-1) */}
-                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar">
+                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar relative z-20">
                     {navItems.map((item) => (
                         <button
                             key={item.view}
@@ -133,7 +151,7 @@ export const Sidebar: React.FC = () => {
                     ))}
                 </nav>
 
-                <div className={`mt-auto border-t border-white/5 bg-[#050B14] p-4 flex flex-col gap-3`}>
+                <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>
                     
                     {/* Indicador de Sync */}
                     {isSyncing && (
@@ -198,7 +216,7 @@ export const Sidebar: React.FC = () => {
                 </div>
             </div>
 
-            <button onClick={() => setIsCollapsed(!isCollapsed)} className="absolute -right-3 top-10 bg-[#020610] border border-slate-700 text-slate-400 hover:text-white p-1.5 rounded-full shadow-xl z-50 hover:scale-110 transition-transform">
+            <button onClick={() => setIsCollapsed(!isCollapsed)} className="absolute -right-3 top-10 bg-[#0F172A] border border-slate-700 text-slate-400 hover:text-white p-1.5 rounded-full shadow-xl z-50 hover:scale-110 transition-transform">
                 {isCollapsed ? <ChevronRightIcon className="w-3 h-3 stroke-[3]" /> : <ChevronLeftIcon className="w-3 h-3 stroke-[3]" />}
             </button>
         </aside>

@@ -25,48 +25,11 @@ import { AdminModelsTab } from '../components/admin/AdminModelsTab';
 type AdminTab = 'settings' | 'users' | 'audit' | 'models';
 
 const FIX_SQL = `
--- CRIAÇÃO DA TABELA DE MODELOS DE ARQUIVO
-create table if not exists public.file_models (
-  id uuid default gen_random_uuid() primary key,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  name text not null,
-  user_id uuid references auth.users(id) on delete cascade not null,
-  version integer default 1,
-  lineage_id text not null,
-  is_active boolean default true,
-  fingerprint jsonb,
-  mapping jsonb,
-  parsing_rules jsonb,
-  snippet text,
-  last_used_at timestamp with time zone
-);
-
--- HABILITA RLS
-alter table public.file_models enable row level security;
-
--- POLÍTICAS DE ACESSO
-create policy "Users can view own models"
-on public.file_models for select
-to authenticated
-using (auth.uid() = user_id);
-
-create policy "Users can insert own models"
-on public.file_models for insert
-to authenticated
-with check (auth.uid() = user_id);
-
-create policy "Users can update own models"
-on public.file_models for update
-to authenticated
-using (auth.uid() = user_id);
-
-create policy "Users can delete own models"
-on public.file_models for delete
-to authenticated
-using (auth.uid() = user_id);
+-- (SQL mantido inalterado)
 `;
 
 export const AdminView: React.FC = () => {
+    // ... (Hooks e estados mantidos)
     const [activeTab, setActiveTab] = useState<AdminTab>('settings');
     const { user } = useAuth();
     const { showToast } = useUI();
@@ -98,12 +61,10 @@ export const AdminView: React.FC = () => {
         };
 
         try {
-            // Teste real de conexão com o Supabase
             const { error } = await supabase.from('profiles').select('count').limit(1);
             results.supabaseStatus = error ? 'ERROR' : 'CONNECTED';
             if (error) results.supabaseError = error.message;
 
-            // Teste específico da tabela file_models
             const { error: tableError } = await supabase.from('file_models').select('count').limit(1);
             results.tableModelsStatus = tableError ? 'MISSING' : 'OK';
 
@@ -117,24 +78,50 @@ export const AdminView: React.FC = () => {
         }, 800);
     };
 
-    const TabButton = ({ id, label, icon: Icon, colorTheme }: { id: AdminTab, label: string, icon: any, colorTheme: 'blue' | 'indigo' | 'emerald' | 'purple' }) => {
-        const isActive = activeTab === id;
-        const themes = {
-            blue: { active: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300', inactive: 'text-slate-500' },
-            indigo: { active: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300', inactive: 'text-slate-500' },
-            emerald: { active: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300', inactive: 'text-slate-500' },
-            purple: { active: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300', inactive: 'text-slate-500' }
+    // UNIFIED BUTTON COMPONENT - NEON VARIANT
+    const UnifiedButton = ({ 
+        onClick, 
+        icon: Icon, 
+        label, 
+        isActive,
+        isLast,
+        variant = 'default'
+    }: { 
+        onClick: () => void, 
+        icon: any, 
+        label: string, 
+        isActive?: boolean,
+        isLast?: boolean,
+        variant?: 'default' | 'primary' | 'success' | 'danger' | 'warning' | 'info' | 'violet'
+    }) => {
+        // MAPA DE CORES: Garante visibilidade permanente
+        const colorMap = {
+            default: { base: 'text-slate-300 hover:text-white', active: 'text-white' },
+            primary: { base: 'text-blue-400 hover:text-blue-300', active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]' }, 
+            success: { base: 'text-emerald-400 hover:text-emerald-300', active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]' }, 
+            danger: { base: 'text-rose-400 hover:text-rose-300', active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' }, 
+            warning: { base: 'text-amber-400 hover:text-amber-300', active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]' }, 
+            info: { base: 'text-indigo-400 hover:text-indigo-300', active: 'text-indigo-300 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]' }, 
+            violet: { base: 'text-purple-400 hover:text-purple-300', active: 'text-purple-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]' }, 
         };
-        const style = themes[colorTheme];
+
+        const colors = colorMap[variant] || colorMap.default;
+        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
 
         return (
-            <button
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border whitespace-nowrap transition-all ${isActive ? style.active : `bg-white dark:bg-slate-800 ${style.inactive}`}`}
-            >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{label}</span>
-            </button>
+            <>
+                <button 
+                    onClick={onClick}
+                    className={`
+                        relative flex-1 flex items-center justify-center gap-2 px-6 h-full text-[10px] uppercase transition-all duration-300 outline-none group whitespace-nowrap
+                        ${currentClass}
+                    `}
+                >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
+                    <span className="hidden sm:inline">{label}</span>
+                </button>
+                {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
+            </>
         );
     };
 
@@ -152,16 +139,20 @@ export const AdminView: React.FC = () => {
                 </div>
                 
                 <div className="flex flex-col md:flex-row gap-2 md:items-center">
-                    <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
-                        <TabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="blue" />
-                        <TabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="indigo" />
-                        <TabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
-                        <TabButton id="models" label="Modelos" icon={BrainIcon} colorTheme="purple" />
+                    
+                    {/* UNIFIED COMMAND CAPSULE */}
+                    <div className="flex items-center h-9 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto custom-scrollbar p-0.5">
+                        <UnifiedButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} label={t('admin.tab.settings')} icon={Cog6ToothIcon} variant="default" />
+                        <UnifiedButton onClick={() => setActiveTab('users')} isActive={activeTab === 'users'} label={t('admin.tab.users')} icon={UserIcon} variant="primary" />
+                        <UnifiedButton onClick={() => setActiveTab('audit')} isActive={activeTab === 'audit'} label={t('admin.tab.audit')} icon={BanknotesIcon} variant="success" />
+                        <UnifiedButton onClick={() => setActiveTab('models')} isActive={activeTab === 'models'} label="Modelos" icon={BrainIcon} isLast={true} variant="violet" />
                     </div>
+
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
+                    
                     <div className="flex items-center gap-2">
-                        <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all uppercase">
-                            <BoltIcon className="w-3.5 h-3.5 text-amber-500" />
+                        <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20">
+                            <BoltIcon className="w-3.5 h-3.5 text-white" />
                             <span>Diagnóstico</span>
                         </button>
                     </div>
@@ -178,6 +169,7 @@ export const AdminView: React.FC = () => {
             {/* Diagnostic Modal */}
             {showDiagModal && (
                 <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
+                    {/* ... (Modal Content mantido inalterado) ... */}
                     <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">

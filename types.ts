@@ -97,13 +97,15 @@ export interface SavedReport {
     results: MatchResult[];
     sourceFiles: any[];
     bankStatementFile: any;
+    spreadsheet?: any;
   } | null;
 }
 
 export interface SavingReportState {
-  type: 'global' | 'group' | 'search';
+  type: 'global' | 'group' | 'search' | 'spreadsheet';
   results: MatchResult[];
   groupName: string;
+  spreadsheetData?: any;
 }
 
 export interface LearnedAssociation {

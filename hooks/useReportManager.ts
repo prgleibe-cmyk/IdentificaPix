@@ -152,16 +152,22 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
             return;
         }
 
+        const isSpreadsheet = savingReportState.type === 'spreadsheet';
+        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
+            ? savingReportState.spreadsheetData.rows.length 
+            : savingReportState.results.length;
+
         const newReport: SavedReport = {
             id: `rep-${Date.now()}`,
             name: name,
             createdAt: new Date().toISOString(),
-            recordCount: savingReportState.results.length,
+            recordCount: recordCount,
             user_id: user.id,
             data: {
                 results: savingReportState.results,
                 sourceFiles: [],
-                bankStatementFile: null
+                bankStatementFile: null,
+                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
             }
         };
 

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { LogoIcon, EnvelopeIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, UserIcon, CheckBadgeIcon, GoogleIcon } from '../components/Icons';
+import { LogoIcon, EnvelopeIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, UserIcon, CheckBadgeIcon, GoogleIcon, TableCellsIcon, PresentationChartLineIcon, BanknotesIcon, DocumentDuplicateIcon, QrCodeIcon, ChartBarIcon } from '../components/Icons';
 
 export const AuthView: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -116,6 +116,27 @@ export const AuthView: React.FC = () => {
 
       <div className="absolute top-[-10%] left-[-10%] w-[800px] h-[800px] bg-blue-900/20 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[120px] pointer-events-none"></div>
+
+      {/* Decorative Background Icons (Subtle & Scattered) */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+          {/* Top Left - Spreadsheet */}
+          <TableCellsIcon className="absolute top-[10%] left-[5%] w-24 h-24 text-white opacity-[0.03] transform -rotate-12" />
+          
+          {/* Top Right - Chart */}
+          <PresentationChartLineIcon className="absolute top-[15%] right-[8%] w-32 h-32 text-blue-300 opacity-[0.04] transform rotate-6" />
+          
+          {/* Middle Left - Bank/Money */}
+          <BanknotesIcon className="absolute top-[45%] left-[-2%] w-40 h-40 text-white opacity-[0.03] transform rotate-45" />
+          
+          {/* Bottom Right - Document */}
+          <DocumentDuplicateIcon className="absolute bottom-[20%] right-[5%] w-28 h-28 text-cyan-300 opacity-[0.04] transform -rotate-12" />
+          
+          {/* Bottom Left - QR Code (PIX Context) */}
+          <QrCodeIcon className="absolute bottom-[5%] left-[15%] w-20 h-20 text-white opacity-[0.03] transform rotate-12" />
+          
+          {/* Center Right - Chart Bar */}
+          <ChartBarIcon className="absolute top-[40%] right-[20%] w-16 h-16 text-white opacity-[0.03] transform -rotate-6" />
+      </div>
 
       {/* Scrollable Content Container */}
       {/* FIX: Adicionado overflow-y-auto aqui para permitir scroll interno do conteúdo quando necessário */}

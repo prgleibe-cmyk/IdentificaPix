@@ -24,6 +24,7 @@ import {
 } from '../components/Icons';
 
 const PreferencesTab: React.FC = () => {
+    // ... (Mantém lógica interna)
     const { openDeleteConfirmation, deleteOldReports, savedReports } = useContext(AppContext);
     const { theme, toggleTheme } = useUI();
     const { t, language, setLanguage } = useTranslation();
@@ -221,10 +222,10 @@ const PreferencesTab: React.FC = () => {
 };
 
 const AutomationTab: React.FC = () => {
+    // ... (Mantém lógica interna)
     const { 
         contributionKeywords, addContributionKeyword, removeContributionKeyword
     } = useContext(AppContext);
-    const { t } = useTranslation();
     const [newType, setNewType] = useState('');
 
     const handleAddType = (e: React.FormEvent) => {
@@ -236,7 +237,6 @@ const AutomationTab: React.FC = () => {
     
     return (
         <div className="h-full flex flex-col pb-6 space-y-6 overflow-y-auto custom-scrollbar">
-            {/* Seção de Tipos de Contribuição */}
             <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col">
                 <div className="flex-shrink-0 flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
                     <div className="flex items-center space-x-3">
@@ -288,50 +288,88 @@ export const SettingsView: React.FC = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
 
-    const TabButton = ({ id, label, icon: Icon, colorTheme }: { id: SettingsTab, label: string, icon: any, colorTheme: 'blue' | 'purple' }) => {
-        const isActive = activeTab === id;
-        
-        const themes = {
-            blue: {
-                active: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30',
-                inactive: 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-300 dark:hover:bg-blue-500/10'
+    // UNIFIED BUTTON COMPONENT - NEON VARIANT
+    const UnifiedButton = ({ 
+        onClick, 
+        icon: Icon, 
+        label, 
+        isActive,
+        isLast,
+        variant = 'default'
+    }: { 
+        onClick: () => void, 
+        icon: any, 
+        label: string, 
+        isActive?: boolean,
+        isLast?: boolean,
+        variant?: 'default' | 'primary' | 'success' | 'danger' | 'warning'
+    }) => {
+        // MAPA DE CORES: Garante visibilidade permanente
+        const colorMap = {
+            default: { 
+                base: 'text-slate-400', 
+                active: 'text-slate-200' 
             },
-            purple: {
-                active: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-300 dark:border-purple-500/30',
-                inactive: 'text-slate-500 hover:text-purple-600 hover:bg-purple-50 dark:text-slate-400 dark:hover:text-purple-300 dark:hover:bg-purple-500/10'
-            }
+            primary: { 
+                base: 'text-blue-400/80 hover:text-blue-400', 
+                active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]' 
+            },
+            success: { 
+                base: 'text-emerald-400/80 hover:text-emerald-400', 
+                active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]' 
+            },
+            danger: { 
+                base: 'text-rose-400/80 hover:text-rose-400', 
+                active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' 
+            },
+            warning: { 
+                base: 'text-amber-400/80 hover:text-amber-400', 
+                active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]' 
+            },
         };
 
-        const style = themes[colorTheme];
+        const colors = colorMap[variant] || colorMap.default;
+        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
 
         return (
-            <button
-                onClick={() => setActiveTab(id)}
-                className={`
-                    flex items-center gap-2 px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all border
-                    ${isActive 
-                        ? `${style.active} shadow-sm` 
-                        : `bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 ${style.inactive}`
-                    }
-                `}
-            >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? '' : 'opacity-70'}`} />
-                <span>{label}</span>
-            </button>
+            <>
+                <button 
+                    onClick={onClick}
+                    className={`
+                        relative flex-1 flex items-center justify-center gap-2 px-6 h-full text-[10px] uppercase transition-all duration-300 outline-none group
+                        ${currentClass}
+                    `}
+                >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
+                    <span className="hidden sm:inline">{label}</span>
+                </button>
+                {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
+            </>
         );
     };
 
     return (
-        <div className="flex flex-col h-full lg:h-[calc(100vh-5.5rem)] animate-fade-in gap-4 pb-2">
-            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
-                <div>
-                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('settings.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-1">{t('settings.subtitle')}</p>
-                </div>
+        <div className="flex flex-col h-full lg:h-[calc(100vh-1rem)] animate-fade-in gap-2 pb-1">
+            <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
+                <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{t('settings.title')}</h2>
                 
-                <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
-                     <TabButton id="preferences" label={t('settings.tabPreferences')} icon={WrenchScrewdriverIcon} colorTheme="blue" />
-                     <TabButton id="automation" label={t('settings.tabAutomation')} icon={BrainIcon} colorTheme="purple" />
+                {/* UNIFIED COMMAND CAPSULE */}
+                <div className="flex items-center h-9 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto custom-scrollbar p-0.5">
+                     <UnifiedButton 
+                        onClick={() => setActiveTab('preferences')}
+                        isActive={activeTab === 'preferences'}
+                        label={t('settings.tabPreferences')} 
+                        icon={WrenchScrewdriverIcon} 
+                        variant="primary"
+                     />
+                     <UnifiedButton 
+                        onClick={() => setActiveTab('automation')}
+                        isActive={activeTab === 'automation'}
+                        label={t('settings.tabAutomation')} 
+                        icon={BrainIcon} 
+                        isLast={true}
+                        variant="warning"
+                     />
                 </div>
             </div>
 

@@ -94,3 +94,22 @@ body {
 .animate-scale-in {
   animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+@media print {
+  @page {
+    margin: 1cm;
+  }
+  body, #root, main, .h-screen, .h-full, .max-h-\[90vh\], .overflow-hidden, .overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  
+  aside, .print\:hidden {
+    display: none !important;
+  }
+
+  .custom-scrollbar {
+    overflow: visible !important;
+  }
+}

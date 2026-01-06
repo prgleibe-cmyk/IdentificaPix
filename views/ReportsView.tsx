@@ -11,23 +11,23 @@ import {
     DocumentDuplicateIcon, 
     PrinterIcon, 
     DocumentArrowDownIcon, 
-    TrashIcon,
-    SearchIcon,
-    XMarkIcon,
-    UserPlusIcon,
-    SparklesIcon,
-    ChevronDownIcon,
-    ChevronRightIcon,
-    ChevronLeftIcon,
-    FloppyDiskIcon,
-    ChartBarIcon,
-    UploadIcon,
-    ArrowLeftOnRectangleIcon,
-    AdjustmentsHorizontalIcon,
-    BuildingOfficeIcon,
-    ExclamationTriangleIcon,
-    ArrowPathIcon,
-    CheckBadgeIcon,
+    TrashIcon, 
+    SearchIcon, 
+    XMarkIcon, 
+    UserPlusIcon, 
+    SparklesIcon, 
+    ChevronDownIcon, 
+    ChevronRightIcon, 
+    ChevronLeftIcon, 
+    FloppyDiskIcon, 
+    ChartBarIcon, 
+    UploadIcon, 
+    ArrowLeftOnRectangleIcon, 
+    AdjustmentsHorizontalIcon, 
+    BuildingOfficeIcon, 
+    ExclamationTriangleIcon, 
+    ArrowPathIcon, 
+    CheckBadgeIcon, 
     BanknotesIcon
 } from '../components/Icons';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -47,37 +47,38 @@ const getNestedValue = (obj: any, path: string) => {
     return path.split('.').reduce((o, key) => (o && o[key] != null ? o[key] : null), obj);
 };
 
-// Componente Compacto de Métricas (Design High Contrast)
+// Componente Compacto de Métricas (Design Clean) - Versão Protegida
 const CompactMetricsBar: React.FC<{ metrics: any, language: Language, isExpense: boolean }> = ({ metrics, language, isExpense }) => {
-    if (isExpense) return null;
+    // PROTEÇÃO CONTRA ERRO: Verifica se metrics e metrics.total existem antes de renderizar
+    if (isExpense || !metrics || !metrics.total) return null;
 
     return (
-        <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-300 overflow-x-auto custom-scrollbar pb-1">
-            {/* Total Geral - White Pill */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white dark:bg-slate-800 border border-blue-200 dark:border-slate-600 whitespace-nowrap shadow-sm">
+        <div className="flex items-center gap-2 text-[9px] font-medium text-slate-600 dark:text-slate-300 overflow-x-auto custom-scrollbar pb-0.5">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
                 <span className="font-bold text-slate-700 dark:text-slate-200">Total:</span>
                 <span className="text-slate-600 dark:text-slate-400">{metrics.total.quantity}</span>
                 <span className="text-slate-300 dark:text-slate-600 mx-0.5">|</span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white">{formatCurrency(metrics.total.value, language)}</span>
             </div>
             
-            {/* Auto (Verde) - White Pill with Green Accent */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-800 whitespace-nowrap shadow-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                <span className="text-emerald-700 dark:text-emerald-400">Auto: {metrics.auto.quantity}</span>
-                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-500">({metrics.auto.percentage.toFixed(0)}%)</span>
-            </div>
+            {metrics.auto && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 whitespace-nowrap">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                    <span className="text-emerald-700 dark:text-emerald-400">Auto: {metrics.auto.quantity}</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-500">({metrics.auto.percentage.toFixed(0)}%)</span>
+                </div>
+            )}
 
-            {/* Manual (Azul) - White Pill with Blue Accent */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white dark:bg-blue-900/20 border border-blue-200/60 dark:border-blue-800 whitespace-nowrap shadow-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                <span className="text-blue-700 dark:text-blue-400">Manual: {metrics.manual.quantity}</span>
-                <span className="font-mono font-bold text-blue-600 dark:text-blue-500">({metrics.manual.percentage.toFixed(0)}%)</span>
-            </div>
+            {metrics.manual && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 whitespace-nowrap">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                    <span className="text-blue-700 dark:text-blue-400">Manual: {metrics.manual.quantity}</span>
+                    <span className="font-mono font-bold text-blue-600 dark:text-blue-500">({metrics.manual.percentage.toFixed(0)}%)</span>
+                </div>
+            )}
 
-            {/* Pendente (Amarelo) - White Pill with Amber Accent */}
-            {metrics.pending.quantity > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white dark:bg-amber-900/20 border border-amber-200/60 dark:border-amber-800 whitespace-nowrap shadow-sm">
+            {metrics.pending && metrics.pending.quantity > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 whitespace-nowrap">
                     <ExclamationTriangleIcon className="w-3 h-3 text-amber-500" />
                     <span className="text-amber-700 dark:text-amber-400 font-bold">Pend: {metrics.pending.quantity}</span>
                     <span className="font-mono font-bold text-amber-600 dark:text-amber-500">({formatCurrency(metrics.pending.value, language)})</span>
@@ -106,9 +107,7 @@ const ReportGroup: React.FC<{
     const [searchQuery, setSearchQuery] = useState('');
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'transaction.date', direction: 'desc' });
     
-    // Always open in this new layout
     const isCollapsed = false;
-
     const safeResults = useMemo(() => Array.isArray(results) ? results : [], [results]);
 
     const processedResults = useMemo(() => {
@@ -171,11 +170,9 @@ const ReportGroup: React.FC<{
 
         if (sortConfig !== null) {
             filteredData.sort((a, b) => {
-                // ORDENAÇÃO ESPECIAL: PENDENTES COM SUGESTÃO PRIMEIRO
                 if (sortConfig.key === 'hasSuggestion') {
                     const valA = a.suggestion ? 1 : 0;
                     const valB = b.suggestion ? 1 : 0;
-                    // Desc: Mostra os que TEM sugestão primeiro (1 > 0)
                     return sortConfig.direction === 'desc' ? valB - valA : valA - valB;
                 }
 
@@ -221,13 +218,14 @@ const ReportGroup: React.FC<{
         const totalCount = processedResults.length;
         
         const getRowValue = (r: MatchResult) => {
-            if (Math.abs(r.transaction.amount) > 0) return r.transaction.amount;
+            if (!r) return 0;
+            if (r.transaction && Math.abs(r.transaction.amount) > 0) return r.transaction.amount;
             return r.contributorAmount || 0;
         };
 
         const valAuto = autoConfirmed.reduce((sum, r) => sum + getRowValue(r), 0);
         const valManual = manualConfirmed.reduce((sum, r) => sum + getRowValue(r), 0);
-        const valBankPending = bankPendingRows.reduce((sum, r) => sum + r.transaction.amount, 0);
+        const valBankPending = bankPendingRows.reduce((sum, r) => sum + (r.transaction?.amount || 0), 0);
         const valListPending = listPendingRows.reduce((sum, r) => sum + (r.contributorAmount || 0), 0);
         const totalPendingValue = valBankPending + valListPending;
         const totalValue = valAuto + valManual + totalPendingValue;
@@ -243,9 +241,9 @@ const ReportGroup: React.FC<{
     
     const simpleTotalValue = summaryMetrics ? summaryMetrics.total.value : processedResults.reduce((sum, r) => {
          if (reportType === 'income') {
-             return sum + (Math.abs(r.transaction.amount) > 0 ? r.transaction.amount : (r.contributorAmount || 0));
+             return sum + (Math.abs(r.transaction?.amount || 0) > 0 ? (r.transaction?.amount || 0) : (r.contributorAmount || 0));
          }
-         return sum + r.transaction.amount;
+         return sum + (r.transaction?.amount || 0);
     }, 0);
 
     const getGroupName = (id: string): string => {
@@ -321,28 +319,37 @@ const ReportGroup: React.FC<{
     }, [openManualIdentify]);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700" data-group-id={churchId}>
-            {/* Header - Alterado para Azul Médio (Blue-100/Blue-200) para contraste */}
-            <div className="flex-shrink-0 px-4 py-2 border-b border-blue-200 dark:border-slate-700 flex items-center justify-between gap-4 bg-[#DBEAFE]/80 dark:bg-slate-900 z-10 backdrop-blur-sm">
+        <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800 rounded-2xl shadow-card border border-slate-200 dark:border-slate-700" data-group-id={churchId}>
+            {/* Header Clean - Integrado ao Card e Ultra Compacto - GRADIENTE APLICADO AQUI */}
+            <div className="flex-shrink-0 px-3 py-2 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3 bg-gradient-to-b from-slate-100 to-white dark:from-slate-900 dark:to-slate-800 z-10 rounded-t-2xl">
+                
                 {/* Lado Esquerdo: Identificação em Massa e Métricas */}
-                <div className="flex items-center gap-4 flex-1 min-w-0 overflow-hidden">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-brand-blue"></div>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate max-w-[200px]">
+                            {groupName}
+                        </span>
+                    </div>
+
                     {isUnidentifiedIncome && processedResults.length > 0 && (
-                        <button onClick={handleBulkIdentify} className="flex items-center gap-1.5 px-3 py-1 bg-brand-blue hover:bg-blue-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm hover:-translate-y-0.5 transition-all whitespace-nowrap">
+                        <button onClick={handleBulkIdentify} className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-blue hover:bg-blue-600 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide shadow-sm hover:-translate-y-0.5 transition-all whitespace-nowrap">
                             <CheckBadgeIcon className="w-3.5 h-3.5" />
                             <span>Resolver ({processedResults.filter(r => r.status !== 'PENDENTE').length})</span>
                         </button>
                     )}
                     
-                    {summaryMetrics && <CompactMetricsBar metrics={summaryMetrics} language={language} isExpense={reportType === 'expenses'} />}
+                    {/* Proteção na renderização da barra de métricas */}
+                    {summaryMetrics && summaryMetrics.total && <CompactMetricsBar metrics={summaryMetrics} language={language} isExpense={reportType === 'expenses'} />}
                 </div>
 
                 {/* Lado Direito: Busca e Ações - Visual Clean */}
                 <div className="flex items-center gap-2">
-                    <div className="relative w-48 transition-all focus-within:w-64">
-                        <SearchIcon className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <div className="relative w-32 md:w-48 transition-all">
+                        <SearchIcon className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                         <input 
                             type="text" 
-                            className="block w-full pl-9 pr-7 py-1 bg-white dark:bg-slate-800 border border-blue-200 dark:border-slate-700 rounded-full text-[11px] font-medium text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all placeholder:text-slate-400 shadow-sm" 
+                            className="block w-full pl-8 pr-6 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-medium text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all placeholder:text-slate-400 shadow-sm" 
                             placeholder={t('common.search')} 
                             value={searchQuery} 
                             onChange={(e) => setSearchQuery(e.target.value)} 
@@ -350,22 +357,24 @@ const ReportGroup: React.FC<{
                         {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><XMarkIcon className="h-3 w-3" /></button>}
                     </div>
 
-                    <div className="h-4 w-px bg-blue-300 dark:bg-slate-700 mx-1"></div>
+                    <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5 hidden md:block"></div>
 
-                    <button onClick={() => handleDownload('xlsx')} className="p-1.5 rounded-lg bg-white/50 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 dark:text-emerald-400 transition-colors shadow-sm" title="Baixar Excel">
-                        <DocumentArrowDownIcon className="w-4 h-4"/>
-                    </button>
-                    <button onClick={handlePrint} className="p-1.5 rounded-lg bg-white/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:text-blue-400 transition-colors shadow-sm" title="Imprimir">
-                        <PrinterIcon className="w-4 h-4"/>
-                    </button>
-                    <button onClick={() => openDeleteConfirmation({ type: 'report-group', id: churchId, name: `relatório de ${groupName}`, meta: { reportType }})} className="p-1.5 rounded-lg bg-white/50 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 dark:text-rose-400 transition-colors shadow-sm" title="Excluir Grupo">
-                        <TrashIcon className="w-4 h-4"/>
-                    </button>
+                    <div className="flex gap-1">
+                        <button onClick={() => handleDownload('xlsx')} className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 hover:border-emerald-200 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 transition-colors shadow-sm" title="Baixar Excel">
+                            <DocumentArrowDownIcon className="w-3.5 h-3.5"/>
+                        </button>
+                        <button onClick={handlePrint} className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-200 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-colors shadow-sm" title="Imprimir">
+                            <PrinterIcon className="w-3.5 h-3.5"/>
+                        </button>
+                        <button onClick={() => openDeleteConfirmation({ type: 'report-group', id: churchId, name: `relatório de ${groupName}`, meta: { reportType }})} className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-red-50 hover:border-red-200 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700 text-rose-500 transition-colors shadow-sm" title="Excluir Grupo">
+                            <TrashIcon className="w-3.5 h-3.5"/>
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* Tabela (Ocupa o resto do espaço) */}
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-white dark:bg-slate-800 rounded-b-2xl">
                 {processedResults.length > 0 ? (
                     <EditableReportTable 
                         data={processedResults} 
@@ -378,7 +387,7 @@ const ReportGroup: React.FC<{
                     />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50/20 dark:bg-slate-900/10">
-                        <SearchIcon className="w-8 h-8 mb-2 opacity-30" />
+                        <SearchIcon className="w-8 h-8 mb-2 opacity-20" />
                         <p className="text-xs font-medium">Nenhum resultado encontrado.</p>
                     </div>
                 )}
@@ -388,190 +397,226 @@ const ReportGroup: React.FC<{
 };
 
 export const ReportsView: React.FC = () => {
-    const { reportPreviewData, openSaveReportModal, matchResults, activeReportId, saveCurrentReportChanges } = useContext(AppContext);
-    const { t, language } = useTranslation();
-    const { setActiveView } = useUI();
-    const [activeTab, setActiveTab] = useState<'churches' | 'unidentified' | 'expenses'>('churches');
-    const [selectedChurchId, setSelectedChurchId] = useState<string | null>(null);
+    const { 
+        reportPreviewData, 
+        churches, 
+        activeReportId, 
+        matchResults, 
+        openSaveReportModal,
+        saveCurrentReportChanges
+    } = useContext(AppContext);
     
-    // DRAG AND DROP STATE
-    const [churchOrder, setChurchOrder] = usePersistentState<string[]>('report-tab-order', []);
+    const { t } = useTranslation();
+    
+    const [activeTab, setActiveTab] = useState<'churches' | 'unidentified' | 'expenses'>('churches');
+    const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [draggedId, setDraggedId] = useState<string | null>(null);
 
-    if (!reportPreviewData) {
-        return (
-            <div className="flex-1 flex items-center justify-center">
-                <EmptyState icon={<ChartBarIcon className="w-12 h-12 text-brand-blue dark:text-blue-400" />} title={t('empty.reports.title')} message={t('empty.reports.message')} action={{ text: t('empty.dashboard.action'), onClick: () => setActiveView('upload') }} />
-            </div>
-        );
-    }
-
-    const { income, expenses } = reportPreviewData;
-    
-    const unidentifiedData = (income['unidentified'] || []) as MatchResult[];
-    
-    // Sorted Church Groups with Drag & Drop Logic
+    // Derived Data
     const churchGroups = useMemo(() => {
-        let groups = Object.entries(income).filter(([key]) => key !== 'unidentified');
-
-        // 1. Default Sort (Alphabetical)
-        groups.sort((a, b) => {
-            const nameA = (a[1] as MatchResult[])?.[0]?.church?.name || '';
-            const nameB = (b[1] as MatchResult[])?.[0]?.church?.name || '';
-            return nameA.localeCompare(nameB);
-        });
-
-        // 2. Custom Sort Override based on persisted order
-        if (churchOrder.length > 0) {
-            groups.sort((a, b) => {
-                const indexA = churchOrder.indexOf(a[0]);
-                const indexB = churchOrder.indexOf(b[0]);
-
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB; // Both in list, preserve order
-                if (indexA !== -1) return -1; // A in list, B not -> A first
-                if (indexB !== -1) return 1;  // B in list, A not -> B first
-                return 0; // Neither in list -> alphabetical wins
+        if (!reportPreviewData?.income) return [];
+        return Object.entries(reportPreviewData.income)
+            .filter(([id]) => id !== 'unidentified')
+            .sort((a, b) => {
+                const nameA = churches.find(c => c.id === a[0])?.name || '';
+                const nameB = churches.find(c => c.id === b[0])?.name || '';
+                return nameA.localeCompare(nameB);
             });
-        }
-        return groups;
-    }, [income, churchOrder]);
-    
-    const expenseGroups = Object.entries(expenses) as [string, MatchResult[]][];
+    }, [reportPreviewData, churches]);
 
-    // Metrics
+    const unidentifiedData = useMemo(() => {
+        return reportPreviewData?.income?.['unidentified'] || [];
+    }, [reportPreviewData]);
+
+    const expenseGroups = useMemo(() => {
+        return Object.entries(reportPreviewData?.expenses || {});
+    }, [reportPreviewData]);
+
+    // Counts
     const churchCount = churchGroups.length;
     const unidentifiedCount = unidentifiedData.length;
-    const expensesCount = expenseGroups.reduce((acc, curr) => acc + curr[1].length, 0);
+    const expensesCount = expenseGroups.reduce((acc, [, items]) => acc + items.length, 0);
 
-    // Initial load logic: Select the first church if available
+    // Initial Selection
     useEffect(() => {
-        if (activeTab === 'churches' && !selectedChurchId && churchGroups.length > 0) {
-            setSelectedChurchId(churchGroups[0][0]);
+        if (activeTab === 'churches' && churchGroups.length > 0) {
+            if (!selectedChurchId || !churchGroups.some(([id]) => id === selectedChurchId)) {
+                setSelectedChurchId(churchGroups[0][0]);
+            }
         }
     }, [activeTab, churchGroups, selectedChurchId]);
 
     const handleSaveReport = () => {
+        const allResults = [
+            ...Object.values(reportPreviewData?.income || {}).flat(),
+            ...Object.values(reportPreviewData?.expenses || {}).flat()
+        ];
+        
         openSaveReportModal({
             type: 'global',
-            groupName: 'Relatório Geral',
-            results: matchResults
+            results: allResults as MatchResult[],
+            groupName: 'Relatório Geral'
         });
     };
 
-    // --- Drag & Drop Handlers ---
     const handleDragStart = (e: React.DragEvent, id: string) => {
         setDraggedId(id);
-        e.dataTransfer.setData('text/plain', id);
-        e.dataTransfer.effectAllowed = 'move';
-        // Optional: Custom Drag Image could be set here
+        e.dataTransfer.effectAllowed = "move";
     };
 
     const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault(); // Necessary to allow dropping
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
     };
 
     const handleDrop = (e: React.DragEvent, targetId: string) => {
         e.preventDefault();
-        const sourceId = e.dataTransfer.getData('text/plain');
-        if (!sourceId || sourceId === targetId) return;
-
-        // Get current visual order IDs
-        const currentIds = churchGroups.map(g => g[0]);
-        const fromIndex = currentIds.indexOf(sourceId);
-        const toIndex = currentIds.indexOf(targetId);
-
-        if (fromIndex === -1 || toIndex === -1) return;
-
-        // Move item in a copy of the ID list
-        const newOrder = [...currentIds];
-        const [removed] = newOrder.splice(fromIndex, 1);
-        newOrder.splice(toIndex, 0, removed);
-
-        // Update persistent state
-        setChurchOrder(newOrder);
         setDraggedId(null);
     };
 
-    const TabButton = ({ id, label, icon: Icon, count, colorClass, activeColorClass }: { id: typeof activeTab, label: string, icon: any, count: number, colorClass: string, activeColorClass: string }) => {
-        const isActive = activeTab === id;
+    // UNIFIED BUTTON COMPONENT - NEON VARIANT
+    const UnifiedButton = ({ 
+        onClick, 
+        icon: Icon, 
+        label, 
+        count,
+        isActive,
+        isLast,
+        variant = 'default'
+    }: { 
+        onClick: () => void, 
+        icon: any, 
+        label: string, 
+        count?: number,
+        isActive?: boolean,
+        isLast?: boolean,
+        variant?: 'default' | 'primary' | 'success' | 'danger' | 'warning'
+    }) => {
+        // MAPA DE CORES: Garante visibilidade permanente
+        const colorMap = {
+            default: { 
+                base: 'text-slate-300 hover:text-white', 
+                active: 'text-white' 
+            },
+            primary: { 
+                base: 'text-blue-400 hover:text-blue-300', 
+                active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]' 
+            },
+            success: { 
+                base: 'text-emerald-400 hover:text-emerald-300', 
+                active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]' 
+            },
+            danger: { 
+                base: 'text-rose-400 hover:text-rose-300', 
+                active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' 
+            },
+            warning: { 
+                base: 'text-amber-400 hover:text-amber-300', 
+                active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]' 
+            },
+        };
+
+        const colors = colorMap[variant] || colorMap.default;
+        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
+
         return (
-            <button
-                onClick={() => setActiveTab(id)}
-                className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all duration-200 border text-[10px] font-bold uppercase tracking-wide
-                    ${isActive 
-                        ? `${activeColorClass} shadow-sm` 
-                        : `bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700`
-                    }
-                `}
-            >
-                <Icon className={`w-3 h-3 ${isActive ? 'text-current' : 'text-slate-400'}`} />
-                <span>{label}</span>
-                {count > 0 && (
-                    <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] ${isActive ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400'}`}>
-                        {count}
-                    </span>
-                )}
-            </button>
+            <>
+                <button 
+                    onClick={onClick}
+                    className={`
+                        relative flex-1 flex items-center justify-center gap-2 px-4 h-full text-[10px] uppercase transition-all duration-300 outline-none group
+                        ${currentClass}
+                    `}
+                >
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
+                    <span className="hidden sm:inline">{label}</span>
+                    {count !== undefined && count > 0 && (
+                        <span className={`
+                            ml-1 px-1.5 py-0.5 rounded-full text-[9px] leading-none transition-colors
+                            ${isActive 
+                                ? 'bg-white/20 text-white' 
+                                : 'bg-slate-800 text-slate-500 group-hover:text-slate-300'
+                            }
+                        `}>
+                            {count}
+                        </span>
+                    )}
+                </button>
+                {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
+            </>
         );
     };
 
-    return (
-        <div className="flex flex-col h-full animate-fade-in gap-2 pb-2">
-            {/* Header Ultra Compacto */}
-            <div className="flex-shrink-0 flex items-center justify-between px-1 h-10">
-                <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
-                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-600"></div>
-                    {/* MAIN TAB NAVIGATION BAR (Inline with Title) */}
-                    <div className="flex items-center gap-2">
-                        <TabButton 
-                            id="churches" 
-                            label="Igrejas" 
-                            icon={BuildingOfficeIcon} 
-                            count={churchCount} 
-                            colorClass="text-brand-blue"
-                            activeColorClass="bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md shadow-blue-500/20"
-                        />
-                        <TabButton 
-                            id="unidentified" 
-                            label="Pendentes" 
-                            icon={ExclamationTriangleIcon} 
-                            count={unidentifiedCount} 
-                            colorClass="text-amber-500"
-                            activeColorClass="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-md shadow-amber-500/20"
-                        />
-                        <TabButton 
-                            id="expenses" 
-                            label="Saídas" 
-                            icon={BanknotesIcon} 
-                            count={expensesCount} 
-                            colorClass="text-red-500"
-                            activeColorClass="bg-gradient-to-r from-red-500 to-rose-600 text-white border-transparent shadow-md shadow-red-500/20"
-                        />
-                    </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    {/* BOTÃO SALVAR ALTERAÇÕES (SÓ APARECE SE ESTIVER EDITANDO UM RELATÓRIO EXISTENTE) */}
-                    {activeReportId && (
-                        <button onClick={saveCurrentReportChanges} className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 rounded-full font-bold text-[10px] uppercase shadow-sm hover:-translate-y-0.5 transition-all active:scale-95">
-                            <FloppyDiskIcon className="w-3 h-3" />
-                            <span>Salvar Alterações</span>
-                        </button>
-                    )}
+    if (!reportPreviewData) {
+        return (
+            <div className="flex-1 flex items-center justify-center">
+                <EmptyState 
+                    icon={<ChartBarIcon className="w-12 h-12 text-brand-blue dark:text-blue-400" />} 
+                    title={t('empty.reports.title')} 
+                    message={t('empty.reports.message')} 
+                    action={{ text: t('empty.dashboard.action'), onClick: () => {} }} 
+                />
+            </div>
+        );
+    }
 
-                    {/* BOTÃO SALVAR NOVO RELATÓRIO */}
-                    <button onClick={handleSaveReport} className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] text-white rounded-full font-bold text-[10px] uppercase shadow-md hover:-translate-y-0.5 transition-all active:scale-95">
-                        <FloppyDiskIcon className="w-3 h-3" />
-                        <span>{t('reports.saveReport')}</span>
-                    </button>
+    return (
+        <div className="flex flex-col h-full animate-fade-in gap-2 pb-1">
+            
+            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1 bg-transparent min-h-[40px]">
+                
+                <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none whitespace-nowrap hidden md:block">{t('reports.title')}</h2>
+                
+                {/* UNIFIED COMMAND CAPSULE */}
+                <div className="flex items-center h-9 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto custom-scrollbar p-0.5 w-full md:w-auto">
+                    
+                    <UnifiedButton 
+                        label="Igrejas" 
+                        icon={BuildingOfficeIcon} 
+                        count={churchCount} 
+                        isActive={activeTab === 'churches'}
+                        onClick={() => setActiveTab('churches')}
+                        variant="primary"
+                    />
+                    <UnifiedButton 
+                        label="Pendentes" 
+                        icon={ExclamationTriangleIcon} 
+                        count={unidentifiedCount} 
+                        isActive={activeTab === 'unidentified'}
+                        onClick={() => setActiveTab('unidentified')}
+                        variant="warning"
+                    />
+                    <UnifiedButton 
+                        label="Saídas" 
+                        icon={BanknotesIcon} 
+                        count={expensesCount} 
+                        isActive={activeTab === 'expenses'}
+                        onClick={() => setActiveTab('expenses')}
+                        variant="danger"
+                    />
+
+                    {activeReportId && (
+                        <UnifiedButton 
+                            label="Salvar Alt." 
+                            icon={FloppyDiskIcon} 
+                            isActive={true} 
+                            onClick={saveCurrentReportChanges}
+                            variant="success"
+                        />
+                    )}
+                    
+                    <UnifiedButton 
+                        label={t('reports.saveReport')} 
+                        icon={DocumentDuplicateIcon} 
+                        isLast={true}
+                        onClick={handleSaveReport}
+                        variant="success"
+                    />
                 </div>
             </div>
 
-            {/* SECONDARY NAVIGATION (SUB-TABS) FOR CHURCHES - DRAGGABLE */}
             {activeTab === 'churches' && churchGroups.length > 0 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar border-b border-slate-100 dark:border-slate-800/50 min-h-[28px]">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 custom-scrollbar min-h-[28px] px-1">
                     {churchGroups.map(([churchId, results]) => {
                         const resultsArray = results as MatchResult[];
                         const isActive = selectedChurchId === churchId;
@@ -587,18 +632,19 @@ export const ReportsView: React.FC = () => {
                                 onDragOver={handleDragOver}
                                 onDrop={(e) => handleDrop(e, churchId)}
                                 className={`
-                                    flex-shrink-0 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-all text-[9px] font-bold uppercase cursor-move
-                                    active:cursor-grabbing hover:scale-105
+                                    flex-shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all text-[9px] font-bold uppercase cursor-move shadow-sm
+                                    active:cursor-grabbing hover:scale-105 whitespace-nowrap
                                     ${isActive 
-                                        ? 'bg-blue-50 dark:bg-blue-900/20 text-brand-blue dark:text-blue-400 border-brand-blue/30 dark:border-blue-800 shadow-sm' 
-                                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                        ? 'bg-white text-brand-blue border-brand-blue ring-1 ring-brand-blue/20 z-10' 
+                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
                                     }
+                                    dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300
                                     ${isDraggingSelf ? 'opacity-50 scale-95 border-dashed border-slate-400' : ''}
                                 `}
                                 title="Arraste para reordenar"
                             >
                                 <span className="truncate max-w-[120px]">{churchName}</span>
-                                <span className={`px-1 py-0 rounded-full text-[8px] ${isActive ? 'bg-white dark:bg-slate-900 text-brand-blue dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'}`}>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[8px] leading-none ${isActive ? 'bg-blue-50 text-brand-blue' : 'bg-slate-100 text-slate-500'}`}>
                                     {resultsArray.length}
                                 </span>
                             </button>
@@ -607,13 +653,10 @@ export const ReportsView: React.FC = () => {
                 </div>
             )}
 
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                
-                {/* IGREJAS TAB */}
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-1 pb-1">
                 {activeTab === 'churches' && (
                     <div className="flex-1 min-h-0 flex flex-col animate-fade-in">
                         {churchGroups.length > 0 ? (
-                            // Renderiza APENAS o grupo selecionado
                             churchGroups
                                 .filter(([id]) => id === selectedChurchId)
                                 .map(([churchId, results]) => (
@@ -621,39 +664,37 @@ export const ReportsView: React.FC = () => {
                                 ))
                         ) : (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 dark:bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                                <BuildingOfficeIcon className="w-12 h-12 mb-3 opacity-20" />
-                                <p className="text-sm font-medium">Nenhum relatório de igreja disponível.</p>
+                                <BuildingOfficeIcon className="w-10 h-10 mb-2 opacity-20" />
+                                <p className="text-xs font-medium">Nenhum relatório disponível.</p>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* PENDENTES TAB */}
                 {activeTab === 'unidentified' && (
                     <div className="flex-1 min-h-0 flex flex-col animate-fade-in">
                         {unidentifiedData.length > 0 ? (
                             <ReportGroup churchId="unidentified" results={unidentifiedData} reportType="income" defaultOpen={true} />
                         ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10 rounded-2xl border-2 border-dashed border-emerald-100 dark:border-emerald-800/30 h-full">
-                                <CheckBadgeIcon className="w-12 h-12 mb-3 opacity-50" />
-                                <p className="text-sm font-bold">Tudo certo!</p>
-                                <p className="text-xs opacity-70">Não há itens pendentes de identificação.</p>
+                            <div className="flex flex-col items-center justify-center py-20 text-emerald-500 bg-white/50 dark:bg-slate-800/30 rounded-2xl border-2 border-dashed border-emerald-100 dark:border-emerald-800/30 h-full">
+                                <CheckBadgeIcon className="w-10 h-10 mb-2 opacity-50" />
+                                <p className="text-xs font-bold">Tudo certo!</p>
+                                <p className="text-[10px] opacity-70">Não há itens pendentes.</p>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* SAIDAS TAB */}
                 {activeTab === 'expenses' && (
                     <div className="flex-1 min-h-0 flex flex-col animate-fade-in">
                         {expenseGroups.length > 0 ? (
                             expenseGroups.map(([groupId, results]) => (
-                                <ReportGroup key={groupId} churchId={groupId} results={results} reportType="expenses" defaultOpen={true} />
+                                <ReportGroup key={groupId} churchId={groupId} results={results as MatchResult[]} reportType="expenses" defaultOpen={true} />
                             ))
                         ) : (
                             <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 dark:bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 h-full">
-                                <BanknotesIcon className="w-12 h-12 mb-3 opacity-20" />
-                                <p className="text-sm font-medium">Nenhum relatório de saídas disponível.</p>
+                                <BanknotesIcon className="w-10 h-10 mb-2 opacity-20" />
+                                <p className="text-xs font-medium">Nenhum relatório de saídas.</p>
                             </div>
                         )}
                     </div>

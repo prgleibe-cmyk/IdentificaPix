@@ -15,6 +15,8 @@ export const SaveReportModal: React.FC = () => {
             let defaultName = '';
             if (savingReportState.type === 'global') {
                 defaultName = `${t('reports.previewTitle')} - ${new Date().toLocaleString(language)}`;
+            } else if (savingReportState.type === 'spreadsheet') {
+                defaultName = `${savingReportState.groupName} - ${new Date().toLocaleDateString(language)}`;
             } else {
                 defaultName = `${t('reports.previewSubtitle')} - ${savingReportState.groupName} - ${new Date().toLocaleDateString(language)}`;
             }

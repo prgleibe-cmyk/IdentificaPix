@@ -1,758 +1,712 @@
 
-import React, { useContext, useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useContext, useMemo, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { 
-    PresentationChartLineIcon, 
-    CircleStackIcon, 
-    TrophyIcon, 
-    RectangleStackIcon, 
-    DocumentArrowDownIcon,
-    TableCellsIcon,
-    PlusCircleIcon,
-    TrashIcon,
-    PrinterIcon,
-    FloppyDiskIcon,
-    ArrowPathIcon,
-    PhotoIcon,
-    XMarkIcon,
-    BanknotesIcon
-} from '../components/Icons';
+import { useUI } from '../contexts/UIContext';
 import { formatCurrency } from '../utils/formatters';
-import * as XLSX from 'xlsx';
-import { MatchResult, Church, Transaction } from '../types';
+import { supabase } from '../services/supabaseClient'; 
+import { 
+    TrophyIcon, 
+    TableCellsIcon, 
+    PrinterIcon, 
+    PlusCircleIcon, 
+    PhotoIcon, 
+    TrashIcon, 
+    XMarkIcon, 
+    ChevronUpIcon, 
+    ChevronDownIcon, 
+    ArrowsRightLeftIcon,
+    DocumentDuplicateIcon,
+    ArrowPathIcon,
+    FloppyDiskIcon
+} from '../components/Icons';
+import { MatchResult } from '../types';
 
-// Shared Row Interface for both modes
-interface EditableRow {
+interface ManualRow {
     id: string;
-    churchName: string;
-    income: string;  // String for input handling
-    expense: string; // String for input handling
-    count: string;
+    description: string;
+    income: number;
+    expense: number;
+    qty: number;
+    // Support for dynamic columns
+    [key: string]: any; 
 }
 
-// Calculator State Interface
-interface CalculatorState {
-    isOpen: boolean;
-    rowId: string | null;
-    field: 'income' | 'expense' | null;
-    currentTotal: number;
-    mode: 'ranking' | 'manual'; // Track which state to update
+interface ColumnDef {
+    id: string;
+    label: string;
+    type: 'text' | 'currency' | 'number' | 'computed' | 'index';
+    editable: boolean;
+    removable: boolean;
+    visible: boolean;
 }
 
-// Helper para converter string BR (1.000,00) ou US (1000.00) para Float JS
-const parseBrValue = (val: string | number): number => {
-    if (!val) return 0;
-    if (typeof val === 'number') return val;
-    
-    // Remove tudo que não for número, vírgula, ponto ou sinal de menos
-    let clean = val.replace(/[^0-9.,-]/g, '');
-    
-    // Se tiver vírgula, assume que é decimal BR
-    if (clean.includes(',')) {
-        // Remove pontos de milhar (1.000 -> 1000)
-        clean = clean.replace(/\./g, '');
-        // Troca vírgula por ponto decimal (1000,50 -> 1000.50)
-        clean = clean.replace(',', '.');
-    }
-    
-    return parseFloat(clean) || 0;
+// --- Helper: Format BRL Input ---
+const formatBRLInput = (value: number | undefined): string => {
+    if (value === undefined || value === null) return '0,00';
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// --- Helper: Parse BRL Input ---
+const parseBRLInput = (value: string): number => {
+    const digits = value.replace(/\D/g, '');
+    return parseInt(digits || '0') / 100;
 };
 
 export const SmartAnalysisView: React.FC = () => {
-    const { savedReports, matchResults, hasActiveSession, openSaveReportModal } = useContext(AppContext);
     const { t, language } = useTranslation();
-    
-    // Configuration State
-    const [selectedReportId, setSelectedReportId] = useState<string>('current');
-    const [activeTemplate, setActiveTemplate] = useState<string | null>('ranking'); // Default to ranking for immediate view
-    
-    // Data States
-    const [manualRows, setManualRows] = useState<EditableRow[]>([]);
-    const [rankingRows, setRankingRows] = useState<EditableRow[]>([]);
-    
-    // Report Customization State
+    const { matchResults, savedReports, openSaveReportModal } = useContext(AppContext);
+    const { showToast, setIsLoading } = useUI();
+    const [activeTemplate, setActiveTemplate] = useState<'ranking' | 'manual_structure'>('ranking');
+
+    // --- State for Report Builder ---
     const [reportTitle, setReportTitle] = useState('Relatório Financeiro');
     const [reportLogo, setReportLogo] = useState<string | null>(null);
     const [signatures, setSignatures] = useState<string[]>(['Tesoureiro', 'Pastor Responsável']);
+    const [manualRows, setManualRows] = useState<ManualRow[]>([]);
+    const [isRankingLoading, setIsRankingLoading] = useState(false);
+    
+    // --- Table Configuration State ---
+    const [columns, setColumns] = useState<ColumnDef[]>([
+        { id: 'index', label: 'Pos', type: 'index', editable: false, removable: false, visible: true },
+        { id: 'description', label: 'Igreja / Congregação', type: 'text', editable: true, removable: false, visible: true },
+        { id: 'income', label: 'Entradas', type: 'currency', editable: true, removable: false, visible: true },
+        { id: 'expense', label: 'Saídas', type: 'currency', editable: true, removable: false, visible: true },
+        { id: 'balance', label: 'Saldo', type: 'computed', editable: false, removable: false, visible: true },
+        { id: 'qty', label: 'Qtd', type: 'number', editable: true, removable: false, visible: true },
+    ]);
+    
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+    
+    // Summation Modal State
+    const [sumModal, setSumModal] = useState<{ isOpen: boolean, rowId: string, colId: string, currentValue: number } | null>(null);
+    const [sumValue, setSumValue] = useState('');
 
-    // Calculator Modal State
-    const [calculator, setCalculator] = useState<CalculatorState>({
-        isOpen: false,
-        rowId: null,
-        field: null,
-        currentTotal: 0,
-        mode: 'manual'
-    });
-    const [valueToAdd, setValueToAdd] = useState('');
+    // --- Ranking Feature State ---
+    const [showReportSelector, setShowReportSelector] = useState(false);
+    const [targetReportData, setTargetReportData] = useState<MatchResult[] | null>(null);
+    const [selectedReportName, setSelectedReportName] = useState<string>('');
 
-    // --- INITIALIZATION EFFECTS ---
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 1. Initialize Manual Rows (Empty Template)
-    useEffect(() => {
-        if (activeTemplate === 'manual_structure' && manualRows.length === 0) {
-            setManualRows([
-                { id: '1', churchName: '', income: '', expense: '', count: '' },
-                { id: '2', churchName: '', income: '', expense: '', count: '' },
-                { id: '3', churchName: '', income: '', expense: '', count: '' },
-            ]);
-            setReportTitle('Planilha Manual');
-        } else if (activeTemplate === 'ranking') {
-             // Keep title consistent if switching back, unless user changed it manually (simple check)
-             if (reportTitle === 'Planilha Manual') setReportTitle('Ranking Financeiro');
-        }
-    }, [activeTemplate]);
+    // --- Processor: Ranking Logic (Optimized & Async) ---
+    const processRanking = useCallback((data: MatchResult[], reportName: string) => {
+        setIsRankingLoading(true);
+        // Atualiza referências para reprocessamentos futuros
+        setTargetReportData(data);
+        setSelectedReportName(reportName);
 
-    // 2. Initialize Ranking Rows (From Data)
-    const sourceOptions = useMemo(() => {
-        const options = [];
-        if (hasActiveSession && matchResults.length > 0) {
-            options.push({ id: 'current', label: 'Sessão Atual (Não salvo)', count: matchResults.length });
-        }
-        savedReports.forEach(rep => {
-            options.push({ 
-                id: rep.id, 
-                label: `${rep.name} (${new Date(rep.createdAt).toLocaleDateString()})`, 
-                count: rep.recordCount 
-            });
-        });
-        return options;
-    }, [hasActiveSession, matchResults, savedReports]);
-
-    const selectedData = useMemo(() => {
-        if (selectedReportId === 'current') return matchResults;
-        const report = savedReports.find(r => r.id === selectedReportId);
-        return report?.data?.results || [];
-    }, [selectedReportId, matchResults, savedReports]);
-
-    // Effect to populate Ranking Rows when template is 'ranking' or source changes
-    useEffect(() => {
-        if (activeTemplate === 'ranking') {
+        // setTimeout garante que a UI atualize para o estado de loading antes de travar no processamento
+        setTimeout(() => {
+            const stats = new Map<string, { id: string, name: string, income: number, expense: number, count: number }>();
             
-            // Aggregate Data
-            const churchStats = new Map<string, { income: number, expense: number, count: number }>();
-            selectedData.forEach(result => {
-                const churchName = result.church?.name || 'Não Identificado';
-                const amount = result.transaction.amount; 
-                const current = churchStats.get(churchName) || { income: 0, expense: 0, count: 0 };
+            // Loop otimizado (for-of) ao invés de map/reduce aninhados
+            for (const row of data) {
+                // Filtro rápido de status
+                if (row.status !== 'IDENTIFICADO' && row.status !== 'PENDENTE') continue;
+
+                const church = row.church || (row.contributor as any)?.church;
+                let cId = church?.id || (row.contributor as any)?._churchId;
+                let cName = church?.name || (row.contributor as any)?._churchName;
+
+                // Ignora grupos inválidos
+                if (!cId || cId === 'unidentified' || cId === 'placeholder') continue;
+
+                cName = cName || 'Igreja Desconhecida';
+
+                if(!stats.has(cId)) {
+                    stats.set(cId, {
+                        id: cId,
+                        name: cName,
+                        income: 0,
+                        expense: 0,
+                        count: 0
+                    });
+                }
                 
-                if (amount > 0) current.income += amount;
-                else current.expense += Math.abs(amount);
+                const entry = stats.get(cId)!;
+                entry.count++;
                 
-                current.count += 1;
-                churchStats.set(churchName, current);
-            });
+                let amount = 0;
+                if (row.transaction && Math.abs(row.transaction.amount) > 0) {
+                    amount = row.transaction.amount;
+                } else if (row.contributorAmount) {
+                    amount = row.contributorAmount;
+                } else if (row.contributor && row.contributor.amount) {
+                    amount = row.contributor.amount;
+                }
+                
+                const safeAmount = Number(amount) || 0;
 
-            const rows: EditableRow[] = Array.from(churchStats.entries()).map(([name, stats], index) => ({
-                id: `rank-${index}-${Date.now()}`,
-                churchName: name,
-                income: stats.income.toFixed(2).replace('.', ','), // Format inicial BR
-                expense: stats.expense.toFixed(2).replace('.', ','), // Format inicial BR
-                count: stats.count.toString()
-            }));
+                if (safeAmount > 0) {
+                    entry.income += safeAmount;
+                } else {
+                    entry.expense += Math.abs(safeAmount);
+                }
+            }
+            
+            // Consolidação e Ordenação
+            const result = Array.from(stats.values())
+                .map(item => ({...item, balance: item.income - item.expense}))
+                .sort((a,b) => b.balance - a.balance);
+                
+            // Configuração da Tabela para Ranking
+            setColumns([
+                { id: 'index', label: 'Pos', type: 'index', editable: false, removable: false, visible: true },
+                { id: 'description', label: 'Igreja / Congregação', type: 'text', editable: true, removable: false, visible: true },
+                { id: 'income', label: 'Entradas', type: 'currency', editable: true, removable: false, visible: true },
+                { id: 'expense', label: 'Saídas', type: 'currency', editable: true, removable: false, visible: true },
+                { id: 'balance', label: 'Saldo', type: 'computed', editable: false, removable: false, visible: true },
+                { id: 'qty', label: 'Qtd', type: 'number', editable: true, removable: false, visible: true },
+            ]);
 
-            // Initial Sort by Balance
-            rows.sort((a, b) => {
-                const balA = parseBrValue(a.income) - parseBrValue(a.expense);
-                const balB = parseBrValue(b.income) - parseBrValue(b.expense);
-                return balB - balA;
-            });
+            // Popula linhas
+            setManualRows(result.map(r => ({
+                id: r.id,
+                description: r.name,
+                income: r.income,
+                expense: r.expense,
+                qty: r.count
+            })));
 
-            setRankingRows(rows);
+            // Ajusta Título
+            setReportTitle(reportName ? `Ranking: ${reportName}` : 'Ranking Geral (Sessão Atual)');
+            setActiveTemplate('ranking');
+            setIsRankingLoading(false);
+        }, 50); // Delay mínimo para render
+    }, []);
+
+    // --- Ranking Button Handler ---
+    const handleRankingClick = () => {
+        if (savedReports.length === 0 && matchResults.length === 0) {
+            showToast("Necessário ter dados ativos ou relatórios salvos para gerar o Ranking.", "error");
+            return;
         }
-    }, [activeTemplate, selectedData, selectedReportId]);
-
-
-    // --- GENERIC ROW HANDLERS ---
-
-    const getActiveRows = () => activeTemplate === 'ranking' ? rankingRows : manualRows;
-    const setActiveRows = (newRows: EditableRow[] | ((prev: EditableRow[]) => EditableRow[])) => {
-        if (activeTemplate === 'ranking') setRankingRows(newRows);
-        else setManualRows(newRows);
+        
+        // Se já tem dados carregados ou sessão ativa, ativa o modo Ranking
+        if (matchResults.length > 0 && !targetReportData) {
+             processRanking(matchResults, '');
+             showToast("Processando dados da sessão atual...", "success");
+        } else if (targetReportData) {
+             processRanking(targetReportData, selectedReportName);
+        } else {
+             setShowReportSelector(true);
+        }
     };
 
-    const handleRowChange = (id: string, field: keyof EditableRow, value: string) => {
-        setActiveRows(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
+    // --- Reset / Manual Button Handler ---
+    const handleManualClick = () => {
+        setActiveTemplate('manual_structure');
+        // Reset to blank slate
+        setManualRows([]);
+        setReportTitle("Nova Planilha Manual");
+        setColumns([
+            { id: 'index', label: 'Item', type: 'index', editable: false, removable: false, visible: true },
+            { id: 'description', label: 'Descrição', type: 'text', editable: true, removable: false, visible: true },
+            { id: 'income', label: 'Valor', type: 'currency', editable: true, removable: false, visible: true },
+        ]);
+        setTargetReportData(null);
+        setSelectedReportName('');
+        showToast("Nova planilha em branco criada.", "success");
+    };
+
+    const handleSelectReport = async (report: any) => {
+        setIsLoading(true);
+        try {
+            let results: MatchResult[] | undefined = report.data?.results;
+
+            // LAZY LOAD
+            if (!results) {
+                const { data, error } = await supabase
+                    .from('saved_reports')
+                    .select('data')
+                    .eq('id', report.id)
+                    .single();
+                
+                if (error) throw error;
+                
+                if (data) {
+                    const parsedData = typeof data.data === 'string' 
+                        ? JSON.parse(data.data) 
+                        : data.data;
+                    results = parsedData?.results;
+                }
+            }
+
+            if (results && Array.isArray(results)) {
+                setShowReportSelector(false);
+                processRanking(results, report.name);
+                showToast(`Relatório "${report.name}" carregado.`, "success");
+            } else {
+                showToast("Este relatório não contém dados válidos.", "error");
+            }
+        } catch (error: any) {
+            console.error("Erro ao carregar relatório:", error);
+            showToast("Erro ao processar relatório: " + error.message, "error");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // --- Core Handlers ---
+    const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => setReportLogo(e.target?.result as string);
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleAddRow = () => {
-        setActiveRows(prev => [...prev, { 
-            id: `new-${Date.now()}`, 
-            churchName: '', 
-            income: '', 
-            expense: '', 
-            count: '' 
-        }]);
+        const newRow: ManualRow = {
+            id: `row-${Date.now()}`,
+            description: '',
+            income: 0,
+            expense: 0,
+            qty: 0,
+            ...columns.reduce((acc, col) => {
+                if (col.removable) acc[col.id] = ''; 
+                return acc;
+            }, {} as any)
+        };
+        setManualRows([...manualRows, newRow]);
+    };
+
+    const updateRow = (id: string, field: string, value: any) => {
+        setManualRows(prev => prev.map(row => {
+            if (row.id !== id) return row;
+            return { ...row, [field]: value };
+        }));
     };
 
     const handleDeleteRow = (id: string) => {
-        setActiveRows(prev => prev.filter(row => row.id !== id));
+        setManualRows(prev => prev.filter(r => r.id !== id));
     };
 
-    const handleSortRows = () => {
-        setActiveRows(prev => {
-            const sorted = [...prev].sort((a, b) => {
-                const balanceA = parseBrValue(a.income) - parseBrValue(a.expense);
-                const balanceB = parseBrValue(b.income) - parseBrValue(b.expense);
-                return balanceB - balanceA; // Descending
-            });
-            return sorted;
+    // --- Column Management ---
+    const handleSort = (columnId: string) => {
+        setSortConfig(current => {
+            if (current?.key === columnId) {
+                return { key: columnId, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key: columnId, direction: 'desc' };
         });
     };
 
-    // --- CALCULATOR LOGIC ---
-    const openCalculator = (rowId: string, field: 'income' | 'expense', currentValue: string) => {
-        setCalculator({
-            isOpen: true,
-            rowId,
-            field,
-            currentTotal: parseBrValue(currentValue),
-            mode: activeTemplate === 'ranking' ? 'ranking' : 'manual'
-        });
-        setValueToAdd('');
+    const handleAddColumn = () => {
+        const newId = `custom_${Date.now()}`;
+        const newCol: ColumnDef = {
+            id: newId,
+            label: 'Nova Coluna',
+            type: 'text',
+            editable: true,
+            removable: true,
+            visible: true
+        };
+        setColumns(prev => [...prev, newCol]);
     };
 
-    const closeCalculator = () => {
-        setCalculator(prev => ({ ...prev, isOpen: false }));
-        setValueToAdd('');
+    const handleRemoveColumn = (colId: string) => {
+        setColumns(prev => prev.filter(c => c.id !== colId));
     };
 
-    const confirmCalculation = (e: React.FormEvent) => {
+    const updateColumnLabel = (colId: string, newLabel: string) => {
+        setColumns(prev => prev.map(c => c.id === colId ? { ...c, label: newLabel } : c));
+    };
+
+    // --- Summation Modal ---
+    const openSumModal = (rowId: string, colId: string, currentValue: number) => {
+        setSumModal({ isOpen: true, rowId, colId, currentValue });
+        setSumValue('');
+    };
+
+    const closeSumModal = () => {
+        setSumModal(null);
+        setSumValue('');
+    };
+
+    const confirmSum = (e: React.FormEvent) => {
         e.preventDefault();
-        // Aceita vírgula no input do modal também
-        const add = parseBrValue(valueToAdd);
-        if (isNaN(add) || !calculator.rowId || !calculator.field) return;
-
-        const newTotal = calculator.currentTotal + add;
-        const formattedTotal = newTotal.toFixed(2).replace('.', ','); // Volta para BR para o input
+        if (!sumModal) return;
         
-        // Update the specific state based on mode captured when opening
-        if (calculator.mode === 'ranking') {
-            setRankingRows(prev => prev.map(row => row.id === calculator.rowId ? { ...row, [calculator.field!]: formattedTotal } : row));
-        } else {
-            setManualRows(prev => prev.map(row => row.id === calculator.rowId ? { ...row, [calculator.field!]: formattedTotal } : row));
-        }
+        const addedAmount = parseBRLInput(sumValue);
+        const newValue = sumModal.currentValue + addedAmount;
         
-        closeCalculator();
+        updateRow(sumModal.rowId, sumModal.colId, newValue);
+        closeSumModal();
     };
 
-    // --- EXPORT & PRINT HELPERS ---
+    // --- Derived Sorted Rows ---
+    const sortedRows = useMemo(() => {
+        let rows = [...manualRows];
+        if (sortConfig) {
+            rows.sort((a, b) => {
+                let valA = a[sortConfig.key];
+                let valB = b[sortConfig.key];
+                
+                if (sortConfig.key === 'balance') {
+                    valA = a.income - a.expense;
+                    valB = b.income - b.expense;
+                }
 
-    const getExportData = () => {
-        const rows = getActiveRows();
-        return rows
-            .filter(row => row.churchName.trim() !== '')
-            .map((row, index) => {
-                const income = parseBrValue(row.income);
-                const expense = parseBrValue(row.expense);
-                return {
-                    pos: index + 1,
-                    name: row.churchName,
-                    income,
-                    expense,
-                    balance: income - expense,
-                    count: parseInt(row.count) || 0
-                };
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
             });
-    };
-
-    const handleDownload = () => {
-        const wb = XLSX.utils.book_new();
-        const wsData = [
-            [reportTitle],
-            ['Gerado em: ' + new Date().toLocaleDateString()],
-            [''], 
-            ["Pos", "Igreja / Congregação", "Entradas (R$)", "Saídas (R$)", "Saldo Final (R$)", "Qtd"]
-        ];
-
-        getExportData().forEach(item => {
-            wsData.push([
-                item.pos.toString(),
-                item.name,
-                item.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                item.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                item.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                item.count.toString()
-            ]);
-        });
-
-        // Signatures
-        wsData.push(['']);
-        wsData.push(['']);
-        wsData.push(['Assinaturas:']);
-        signatures.forEach(sig => {
-            wsData.push(['__________________________']);
-            wsData.push([sig]);
-            wsData.push(['']);
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
-        ws['!cols'] = [{ wch: 5 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
-        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
-
-        XLSX.utils.book_append_sheet(wb, ws, "Relatório");
-        XLSX.writeFile(wb, `${reportTitle.replace(/[^a-z0-9]/gi, '_')}.xlsx`);
-    };
-
-    const handlePrint = () => {
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) return;
-
-        const rowsHtml = getExportData().map(r => `
-            <tr>
-                <td style="text-align:center">${r.pos}</td>
-                <td>${r.name}</td>
-                <td style="text-align:right">${formatCurrency(r.income, language)}</td>
-                <td style="text-align:right">${formatCurrency(r.expense, language)}</td>
-                <td style="text-align:right; font-weight:bold; color: ${r.balance < 0 ? 'red' : 'inherit'};">${formatCurrency(r.balance, language)}</td>
-                <td style="text-align:center">${r.count}</td>
-            </tr>
-        `).join('');
-
-        const logoHtml = reportLogo ? `<img src="${reportLogo}" class="logo" />` : '';
-        const signaturesHtml = signatures.map(sig => `
-            <div class="signature-box">
-                <div class="line"></div>
-                <div class="role">${sig}</div>
-            </div>
-        `).join('');
-
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>${reportTitle}</title>
-                    <style>
-                        body { font-family: sans-serif; padding: 40px; color: #1f2937; }
-                        .header { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 40px; text-align: center; }
-                        .logo { max-height: 80px; max-width: 150px; object-fit: contain; }
-                        h1 { font-size: 24px; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
-                        .date { font-size: 12px; color: #6b7280; margin-top: 5px; }
-                        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 40px; }
-                        th { background: #f3f4f6; text-align: left; padding: 10px; border-bottom: 2px solid #e5e7eb; font-weight: bold; text-transform: uppercase; font-size: 10px; color: #4b5563; }
-                        td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
-                        tr:nth-child(even) { background-color: #f9fafb; }
-                        .footer { margin-top: 60px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 40px; page-break-inside: avoid; }
-                        .signature-box { text-align: center; min-width: 200px; }
-                        .line { border-top: 1px solid #000; margin-bottom: 8px; width: 100%; }
-                        .role { font-size: 12px; font-weight: bold; text-transform: uppercase; }
-                        @media print { body { padding: 0; } th { -webkit-print-color-adjust: exact; } }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        ${logoHtml}
-                        <div>
-                            <h1>${reportTitle}</h1>
-                            <div class="date">Gerado em ${new Date().toLocaleDateString()}</div>
-                        </div>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="text-align:center">Pos</th>
-                                <th>Igreja / Congregação</th>
-                                <th style="text-align:right">Entradas</th>
-                                <th style="text-align:right">Saídas</th>
-                                <th style="text-align:right">Saldo</th>
-                                <th style="text-align:center">Qtd</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rowsHtml}</tbody>
-                    </table>
-                    <div class="footer">${signaturesHtml}</div>
-                    <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
-    };
-
-    const handleSave = () => {
-        const data = getExportData();
-        const mockResults: MatchResult[] = data.map(item => ({
-            transaction: {
-                id: `smart-${Math.random()}`,
-                date: new Date().toLocaleDateString('pt-BR'),
-                description: 'Lançamento Smart',
-                amount: item.balance,
-                cleanedDescription: 'Lançamento Smart',
-                originalAmount: String(item.balance)
-            },
-            contributor: null,
-            status: 'IDENTIFICADO',
-            church: {
-                id: `smart-church-${Math.random()}`,
-                name: item.name,
-                address: '',
-                logoUrl: '',
-                pastor: ''
-            },
-            matchMethod: 'MANUAL',
-            similarity: 100,
-            contributorAmount: item.income
-        }));
-
-        openSaveReportModal({
-            type: 'global',
-            groupName: activeTemplate === 'ranking' ? 'Ranking' : 'Manual',
-            results: mockResults
-        });
-    };
-
-    // --- OTHER HANDLERS ---
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const reader = new FileReader();
-            reader.onload = (event) => setReportLogo(event.target?.result as string);
-            reader.readAsDataURL(e.target.files[0]);
         }
+        return rows;
+    }, [manualRows, sortConfig]);
+
+    // --- Signature Handlers ---
+    const handleAddSignature = () => setSignatures(prev => [...prev, 'Nova Assinatura']);
+    const handleUpdateSignature = (index: number, value: string) => {
+        const newSigs = [...signatures];
+        newSigs[index] = value;
+        setSignatures(newSigs);
+    };
+    const handleDeleteSignature = (index: number) => setSignatures(prev => prev.filter((_, i) => i !== index));
+    
+    // --- Save Handler ---
+    const handleSave = () => {
+        openSaveReportModal({
+            type: 'spreadsheet',
+            groupName: reportTitle,
+            spreadsheetData: {
+                title: reportTitle,
+                logo: reportLogo,
+                columns,
+                rows: manualRows,
+                signatures
+            },
+            results: [] // Satisfy type check, though unused for spreadsheet type
+        });
     };
 
-    const handleSignatureChange = (index: number, value: string) => {
-        const newSignatures = [...signatures];
-        newSignatures[index] = value;
-        setSignatures(newSignatures);
-    };
+    const handlePrint = () => window.print();
 
-    const handleAddSignature = () => setSignatures([...signatures, 'Nova Assinatura']);
-    const handleRemoveSignature = (index: number) => setSignatures(signatures.filter((_, i) => i !== index));
+    // UNIFIED BUTTON COMPONENT
+    const UnifiedButton = ({ onClick, icon: Icon, label, isActive, isLast, variant = 'default' }: any) => {
+        const colorMap: any = {
+            default: { base: 'text-white', active: 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' },
+            primary: { base: 'text-blue-400', active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]' }, 
+            success: { base: 'text-emerald-400', active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]' }, 
+            danger: { base: 'text-rose-400', active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]' }, 
+            warning: { base: 'text-amber-400', active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]' }, 
+            info: { base: 'text-cyan-400', active: 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' }, 
+            violet: { base: 'text-purple-400', active: 'text-purple-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]' }, 
+        };
+        const colors = colorMap[variant] || colorMap.default;
+        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
+
+        return (
+            <>
+                <button onClick={onClick} className={`relative flex-1 flex items-center justify-center gap-2 px-6 h-full text-[10px] uppercase transition-all duration-300 outline-none group whitespace-nowrap ${currentClass}`}>
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
+                    <span className="hidden sm:inline">{label}</span>
+                </button>
+                {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
+            </>
+        );
+    };
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
             
-            {/* Header & Controls Combined */}
-            <div className="flex-shrink-0 flex flex-col xl:flex-row xl:items-end justify-between gap-4 px-1">
+            {/* Top Bar / Navigation */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 flex-shrink-0 px-1 print:hidden">
                 <div>
-                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">
-                        {t('smart_analysis.title')}
-                    </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-1 max-w-2xl">
-                        {t('smart_analysis.subtitle')}
-                    </p>
+                    <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('smart_analysis.title')}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-0.5">{t('smart_analysis.subtitle')}</p>
                 </div>
 
-                {/* Right Side Controls */}
-                <div className="flex flex-wrap items-center gap-2">
-                    
-                    {/* Source Selector (Pill) */}
-                    <div className={`relative ${activeTemplate === 'manual_structure' ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <CircleStackIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                        </div>
-                        <select 
-                            value={selectedReportId}
-                            onChange={(e) => setSelectedReportId(e.target.value)}
-                            className="pl-8 pr-8 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[10px] font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-violet-500 outline-none cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
-                        >
-                            {sourceOptions.length === 0 && <option disabled>Nenhum dado</option>}
-                            {sourceOptions.map(opt => (
-                                <option key={opt.id} value={opt.id}>{opt.label}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Mode Toggle (Segmented Pill) */}
-                    <div className="flex bg-white dark:bg-slate-800 p-0.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <button
-                            onClick={() => setActiveTemplate('ranking')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all ${activeTemplate === 'ranking' ? 'bg-slate-100 dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
-                        >
-                            <TrophyIcon className="w-3 h-3" />
-                            <span>Ranking</span>
-                        </button>
-                        <button
-                            onClick={() => setActiveTemplate('manual_structure')}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all ${activeTemplate === 'manual_structure' ? 'bg-slate-100 dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
-                        >
-                            <TableCellsIcon className="w-3 h-3" />
-                            <span>Manual</span>
-                        </button>
-                    </div>
-
-                    <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden sm:block mx-1"></div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-1.5">
-                        <button 
-                            onClick={handleSortRows}
-                            className="p-1.5 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/30 rounded-full text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all shadow-sm"
-                            title="Classificar por Saldo"
-                        >
-                            <ArrowPathIcon className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                            onClick={handleSave}
-                            className="p-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/30 rounded-full text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all shadow-sm"
-                            title="Salvar no Sistema"
-                        >
-                            <FloppyDiskIcon className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                            onClick={handlePrint}
-                            className="p-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-full text-brand-blue dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all shadow-sm"
-                            title="Imprimir"
-                        >
-                            <PrinterIcon className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                            onClick={handleDownload}
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-full font-bold text-[10px] uppercase shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 transition-all"
-                        >
-                            <DocumentArrowDownIcon className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Excel</span>
-                        </button>
-                    </div>
+                <div className="flex items-center h-9 bg-gradient-to-r from-slate-900 via-teal-900 to-slate-900 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-0.5">
+                    <UnifiedButton 
+                        onClick={handleRankingClick} 
+                        isActive={activeTemplate === 'ranking'}
+                        icon={TrophyIcon}
+                        label="Gerar Ranking"
+                        variant="violet"
+                    />
+                    <UnifiedButton 
+                        onClick={handleManualClick}
+                        isActive={activeTemplate === 'manual_structure'}
+                        icon={TableCellsIcon}
+                        label="Nova Planilha"
+                        variant="default"
+                    />
+                    <UnifiedButton 
+                        onClick={handleSave}
+                        icon={FloppyDiskIcon}
+                        label="Salvar"
+                        variant="success"
+                    />
+                    <UnifiedButton 
+                        onClick={handlePrint}
+                        icon={PrinterIcon}
+                        label="Imprimir"
+                        variant="info"
+                        isLast={true}
+                    />
                 </div>
             </div>
 
-            {/* Main Content Area - Full Width */}
-            <div className="flex-1 flex flex-col bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-[1.5rem] shadow-xl border border-white/50 dark:border-white/5 overflow-hidden relative min-h-0">
+            {/* --- UNIFIED MANUAL REPORT BUILDER --- */}
+            {/* This block is ALWAYS rendered. Data is injected via state. */}
+            <div className="flex-1 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col p-8 relative animate-fade-in-up print:shadow-none print:border-none print:rounded-none">
                 
-                {/* Decorative Background */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/5 rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20"></div>
-
-                {activeTemplate ? (
-                    <div className="flex-1 flex flex-col p-4 relative z-10 overflow-hidden">
-                        
-                        {/* --- CUSTOMIZATION HEADER (Logo/Title/Add Button) --- */}
-                        <div className="flex-shrink-0 mb-3 p-3 bg-slate-50/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 flex flex-col md:flex-row gap-3 items-center justify-between">
-                            <div className="flex items-center gap-3 w-full md:w-auto flex-1">
-                                {/* Logo Upload */}
-                                <div className="relative group cursor-pointer w-12 h-12 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center hover:border-violet-500 transition-colors overflow-hidden bg-white dark:bg-slate-900 shadow-sm shrink-0">
-                                    {reportLogo ? (
-                                        <>
-                                            <img src={reportLogo} alt="Logo" className="w-full h-full object-contain" />
-                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                                <PhotoIcon className="w-5 h-5" />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <PhotoIcon className="w-5 h-5 text-slate-400 group-hover:text-violet-500" />
-                                    )}
-                                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                </div>
-                                
-                                {/* Title Input */}
-                                <div className="flex-1 w-full">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 block">Título do Relatório</label>
-                                    <input 
-                                        type="text" 
-                                        value={reportTitle}
-                                        onChange={(e) => setReportTitle(e.target.value)}
-                                        className="w-full text-lg font-black text-slate-800 dark:text-white bg-transparent border-b border-transparent hover:border-slate-200 focus:border-violet-500 outline-none transition-colors placeholder:text-slate-300 pb-0.5"
-                                        placeholder="Digite o título do relatório..."
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Add Row Button - Moved to Top Right */}
-                            <button 
-                                onClick={handleAddRow}
-                                className="flex items-center gap-1.5 px-4 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] rounded-full shadow-md shadow-blue-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide transform active:scale-[0.98]"
-                            >
-                                <PlusCircleIcon className="w-3 h-3" />
-                                <span>Adicionar Linha</span>
-                            </button>
+                {/* REPORT HEADER SECTION */}
+                <div className="flex items-start justify-between mb-8">
+                    <div className="flex items-center gap-6">
+                        {/* Logo Placeholder */}
+                        <div 
+                            className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center cursor-pointer hover:border-brand-blue group relative overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors print:border-none"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            {reportLogo ? (
+                                <img src={reportLogo} alt="Logo" className="w-full h-full object-contain" />
+                            ) : (
+                                <PhotoIcon className="w-8 h-8 text-slate-300 group-hover:text-brand-blue transition-colors print:hidden" />
+                            )}
+                            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
                         </div>
 
-                        {/* --- UNIFIED EDITABLE TABLE --- */}
-                        <div className="flex-1 min-h-0 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm overflow-hidden flex flex-col mb-3">
-                            <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-                                <table className="w-full text-xs relative">
-                                    <thead className="sticky top-0 z-10 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-700">
-                                        <tr>
-                                            <th className="px-3 py-2 text-left w-12">Pos</th>
-                                            <th className="px-3 py-2 text-left">Igreja / Congregação</th>
-                                            <th className="px-3 py-2 text-right w-24">Entradas</th>
-                                            <th className="px-3 py-2 text-right w-24">Saídas</th>
-                                            <th className="px-3 py-2 text-right w-24 bg-slate-100/50 dark:bg-slate-700/30">Saldo</th>
-                                            <th className="px-3 py-2 text-center w-16">Qtd</th>
-                                            <th className="px-3 py-2 w-8"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                                        {getActiveRows().map((row, index) => {
-                                            const balance = parseBrValue(row.income) - parseBrValue(row.expense);
-                                            return (
-                                                <tr key={row.id} className="group hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
-                                                    <td className="px-3 py-1.5 text-slate-400 dark:text-slate-600 font-mono text-center font-bold">
-                                                        {index + 1}
-                                                    </td>
-                                                    <td className="px-3 py-1.5">
-                                                        <input 
-                                                            type="text" 
-                                                            value={row.churchName}
-                                                            onChange={(e) => handleRowChange(row.id, 'churchName', e.target.value)}
-                                                            placeholder="Nome da Igreja..."
-                                                            className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-violet-500 outline-none transition-colors py-1 font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-300"
-                                                        />
-                                                    </td>
-                                                    <td className="px-3 py-1.5">
-                                                        <div className="relative flex items-center">
-                                                            <input 
-                                                                type="text"
-                                                                inputMode="decimal" 
-                                                                value={row.income}
-                                                                onChange={(e) => handleRowChange(row.id, 'income', e.target.value)}
-                                                                placeholder="0,00"
-                                                                className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-violet-500 outline-none transition-colors py-1 text-right font-mono text-emerald-600 dark:text-emerald-400 placeholder:text-slate-300 pr-6"
-                                                            />
-                                                            <button 
-                                                                onClick={() => openCalculator(row.id, 'income', row.income)}
-                                                                className="absolute right-0 p-0.5 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                                                                title="Adicionar valor (Soma)"
-                                                            >
-                                                                <PlusCircleIcon className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-3 py-1.5">
-                                                        <div className="relative flex items-center">
-                                                            <input 
-                                                                type="text"
-                                                                inputMode="decimal"
-                                                                value={row.expense}
-                                                                onChange={(e) => handleRowChange(row.id, 'expense', e.target.value)}
-                                                                placeholder="0,00"
-                                                                className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-violet-500 outline-none transition-colors py-1 text-right font-mono text-red-500 placeholder:text-slate-300 pr-6"
-                                                            />
-                                                            <button 
-                                                                onClick={() => openCalculator(row.id, 'expense', row.expense)}
-                                                                className="absolute right-0 p-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                                                                title="Adicionar valor (Soma)"
-                                                            >
-                                                                <PlusCircleIcon className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    <td className={`px-3 py-1.5 text-right font-mono font-bold bg-slate-50/50 dark:bg-slate-700/30 ${balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white'}`}>
-                                                        {formatCurrency(balance, language)}
-                                                    </td>
-                                                    <td className="px-3 py-1.5">
-                                                        <input 
-                                                            type="number" 
-                                                            value={row.count}
-                                                            onChange={(e) => handleRowChange(row.id, 'count', e.target.value)}
-                                                            placeholder="0"
-                                                            className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-violet-500 outline-none transition-colors py-1 text-center font-mono text-slate-600 dark:text-slate-400 placeholder:text-slate-300"
-                                                        />
-                                                    </td>
-                                                    <td className="px-3 py-1.5 text-center">
-                                                        <button 
-                                                            onClick={() => handleDeleteRow(row.id)}
-                                                            className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                                            title="Remover linha"
-                                                        >
-                                                            <TrashIcon className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* --- SHARED FOOTER: Signatures --- */}
-                        <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-700 pt-4">
-                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Assinaturas (Rodapé)</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                {signatures.map((sig, idx) => (
-                                    <div key={idx} className="relative group">
-                                        <input 
-                                            type="text"
-                                            value={sig}
-                                            onChange={(e) => handleSignatureChange(idx, e.target.value)}
-                                            className="w-full p-2 text-xs text-center border-t border-slate-300 dark:border-slate-600 bg-transparent focus:border-violet-500 outline-none transition-colors font-medium text-slate-700 dark:text-slate-200"
-                                            placeholder="Cargo / Nome"
-                                        />
-                                        <button 
-                                            onClick={() => handleRemoveSignature(idx)}
-                                            className="absolute -top-1.5 -right-1.5 p-0.5 bg-red-100 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 shadow-sm"
-                                        >
-                                            <XMarkIcon className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
-                                <button 
-                                    onClick={handleAddSignature}
-                                    className="h-8 border border-dashed border-slate-300 dark:border-slate-700 rounded-full flex items-center justify-center text-slate-400 hover:text-violet-500 hover:border-violet-500 transition-all text-[10px] font-bold uppercase tracking-wide hover:bg-slate-50 dark:hover:bg-slate-800"
-                                >
-                                    + Adicionar
-                                </button>
-                            </div>
+                        {/* Title Editable */}
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1 print:hidden">
+                                TÍTULO DO RELATÓRIO
+                            </label>
+                            <input 
+                                type="text" 
+                                value={reportTitle}
+                                onChange={(e) => setReportTitle(e.target.value)}
+                                className="text-3xl font-black text-slate-800 dark:text-white bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300 w-full outline-none print:text-black"
+                                placeholder="DIGITE UM TÍTULO"
+                            />
                         </div>
                     </div>
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-12 opacity-60">
-                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-                            <PresentationChartLineIcon className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+
+                    {/* TABLE CONTROLS */}
+                    <div className="flex gap-2 print:hidden">
+                        <button onClick={handleAddColumn} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:from-slate-500 hover:via-slate-600 hover:to-slate-700 border border-slate-500 text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-slate-500/20 transition-all hover:shadow-xl active:scale-95">
+                            <ArrowsRightLeftIcon className="w-3.5 h-3.5" /> <span>Nova Coluna</span>
+                        </button>
+                        <button onClick={handleAddRow} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] hover:from-[#165D8C] hover:to-[#4FA2D6] border border-[#0F4C75] text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-cyan-900/20 transition-all hover:shadow-xl active:scale-95">
+                            <PlusCircleIcon className="w-4 h-4" /> <span>Adicionar Linha</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* TABLE AREA */}
+                <div className="flex-1 overflow-auto custom-scrollbar border border-slate-100 dark:border-slate-700 rounded-2xl mb-8 bg-white dark:bg-slate-900/50 relative print:overflow-visible print:border-none print:h-auto">
+                    {/* LOADING OVERLAY */}
+                    {isRankingLoading && (
+                        <div className="absolute inset-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 print:hidden">
+                            <ArrowPathIcon className="w-10 h-10 animate-spin mb-3 text-brand-blue" />
+                            <p className="text-xs font-bold uppercase tracking-widest animate-pulse">Processando Ranking...</p>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-400 dark:text-slate-500">Selecione um Modelo na Barra Superior</h3>
+                    )}
+
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50 dark:bg-slate-900/80 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700 print:static print:bg-transparent print:border-black">
+                            <tr>
+                                {columns.map(col => (
+                                    <th key={col.id} className={`px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest group ${['income','expense','balance'].includes(col.id) ? 'text-right' : col.id === 'index' ? 'text-center w-16' : ''} print:text-black print:border-b print:border-black`}>
+                                        <div className={`flex items-center gap-2 ${['income','expense','balance'].includes(col.id) ? 'justify-end' : col.id === 'index' ? 'justify-center' : 'justify-start'}`}>
+                                            {col.removable ? (
+                                                <input 
+                                                    type="text" 
+                                                    value={col.label} 
+                                                    onChange={(e) => updateColumnLabel(col.id, e.target.value)}
+                                                    className="bg-transparent outline-none w-24 text-center border-b border-transparent focus:border-brand-blue print:border-none"
+                                                />
+                                            ) : (
+                                                <span className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-200 transition-colors print:cursor-default" onClick={() => handleSort(col.id)}>
+                                                    {col.label}
+                                                </span>
+                                            )}
+                                            <button onClick={() => handleSort(col.id)} className={`transition-colors print:hidden ${sortConfig?.key === col.id ? 'text-brand-blue' : 'text-slate-300 opacity-0 group-hover:opacity-100'}`}>
+                                                {sortConfig?.key === col.id && sortConfig.direction === 'desc' ? <ChevronDownIcon className="w-3 h-3" /> : <ChevronUpIcon className="w-3 h-3" />}
+                                            </button>
+                                            {col.removable && (
+                                                <button onClick={() => handleRemoveColumn(col.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
+                                                    <XMarkIcon className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </th>
+                                ))}
+                                <th className="w-10 print:hidden"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50 print:divide-slate-300">
+                            {manualRows.length > 0 ? (
+                                sortedRows.map((row, index) => (
+                                    <tr key={row.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors print:hover:bg-transparent">
+                                        {columns.map(col => {
+                                            if (col.id === 'index') {
+                                                return <td key={col.id} className="px-6 py-4 text-center text-xs font-bold text-slate-500 print:text-black">{index + 1}</td>;
+                                            }
+                                            if (col.type === 'computed' && col.id === 'balance') {
+                                                return (
+                                                    <td key={col.id} className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white font-mono print:text-black">
+                                                        {formatCurrency(row.income - row.expense, language)}
+                                                    </td>
+                                                );
+                                            }
+                                            if (col.type === 'currency') {
+                                                const isIncome = col.id === 'income';
+                                                const isExpense = col.id === 'expense';
+                                                const val = row[col.id] as number;
+                                                const colorClass = isIncome ? 'text-emerald-600 dark:text-emerald-400' : isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-700';
+                                                const printColorClass = isIncome || isExpense ? '' : ''; // Use default black for print or keep colors? Keeping colors is usually fine but let's ensure readability.
+                                                
+                                                return (
+                                                    <td key={col.id} className="px-6 py-4 text-right relative group/cell">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button 
+                                                                onClick={() => openSumModal(row.id, col.id, val)}
+                                                                className="opacity-0 group-hover/cell:opacity-100 p-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-brand-blue hover:bg-blue-50 transition-all shadow-sm print:hidden"
+                                                                title="Somar valor"
+                                                                tabIndex={-1}
+                                                            >
+                                                                <PlusCircleIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <input 
+                                                                type="text"
+                                                                value={formatBRLInput(val)}
+                                                                onChange={(e) => updateRow(row.id, col.id, parseBRLInput(e.target.value))}
+                                                                className={`w-28 bg-transparent font-bold text-xs text-right focus:outline-none font-mono ${colorClass} print:text-black`}
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                );
+                                            }
+                                            return (
+                                                <td key={col.id} className="px-6 py-4">
+                                                    <input 
+                                                        value={row[col.id] || ''} 
+                                                        onChange={(e) => updateRow(row.id, col.id, col.type === 'number' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value)}
+                                                        className={`w-full bg-transparent font-bold text-slate-700 dark:text-slate-200 text-xs focus:outline-none ${col.id === 'qty' ? 'text-center' : 'uppercase'} print:text-black`}
+                                                        placeholder={col.label.toUpperCase()}
+                                                    />
+                                                </td>
+                                            );
+                                        })}
+                                        <td className="px-2 py-4 text-center print:hidden">
+                                            <button onClick={() => handleDeleteRow(row.id)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all" title="Remover Linha">
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                !isRankingLoading && (
+                                    <tr>
+                                        <td colSpan={columns.length + 1} className="py-12 text-center text-slate-400 text-xs italic">
+                                            Nenhuma linha adicionada. Clique em "Adicionar Linha" ou "Gerar Ranking" para começar.
+                                        </td>
+                                    </tr>
+                                )
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* FOOTER / SIGNATURES SECTION */}
+                <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-700 print:border-black">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 print:hidden">ASSINATURAS (RODAPÉ)</p>
+                    <div className="flex flex-wrap items-end gap-8">
+                        {signatures.map((sig, index) => (
+                            <div key={index} className="flex-1 min-w-[200px] max-w-xs group relative">
+                                <div className="w-full border-t border-slate-800 dark:border-slate-400 mb-3 print:border-black"></div>
+                                <input 
+                                    value={sig}
+                                    onChange={(e) => handleUpdateSignature(index, e.target.value)}
+                                    className="w-full text-center font-bold text-xs text-slate-600 dark:text-slate-300 bg-transparent focus:outline-none uppercase print:text-black"
+                                    placeholder="CARGO / NOME"
+                                />
+                                <button onClick={() => handleDeleteSignature(index)} className="absolute -top-6 right-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all p-1 print:hidden">
+                                    <XMarkIcon className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ))}
+                        <button onClick={handleAddSignature} className="h-10 px-6 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-[10px] font-bold text-slate-400 hover:text-brand-blue hover:border-brand-blue hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all uppercase tracking-wide flex items-center gap-2 mb-1 print:hidden">
+                            <PlusCircleIcon className="w-3.5 h-3.5" /> <span>Adicionar</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* SUMMATION MODAL OVERLAY */}
+                {sumModal && (
+                    <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 animate-fade-in print:hidden">
+                        <form onSubmit={confirmSum} className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-80 animate-scale-in">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                    <PlusCircleIcon className="w-4 h-4 text-brand-blue" />
+                                    Adicionar Valor
+                                </h4>
+                                <button type="button" onClick={closeSumModal} className="text-slate-400 hover:text-slate-600"><XMarkIcon className="w-4 h-4" /></button>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl text-center">
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold">Valor Atual</p>
+                                    <p className="text-xl font-mono font-black text-slate-700 dark:text-slate-300">{formatCurrency(sumModal.currentValue, language)}</p>
+                                </div>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">+</span>
+                                    <input autoFocus type="text" value={formatBRLInput(parseBRLInput(sumValue))} onChange={(e) => setSumValue(e.target.value)} className="w-full pl-8 pr-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-lg font-bold text-emerald-600 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all" placeholder="0,00" />
+                                </div>
+                                <button type="submit" className="w-full py-3 bg-brand-blue hover:bg-blue-600 text-white rounded-xl font-bold uppercase text-xs tracking-wide shadow-lg transition-all active:scale-95">Confirmar Soma</button>
+                            </div>
+                        </form>
                     </div>
                 )}
             </div>
 
-            {/* Calculator Modal */}
-            {calculator.isOpen && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-sm border border-slate-200 dark:border-slate-700 animate-scale-in">
-                        <form onSubmit={confirmCalculation}>
-                            <div className="p-6">
-                                <div className="flex items-center justify-between mb-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
-                                            <BanknotesIcon className="w-5 h-5" />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight">Adicionar Valor</h3>
-                                    </div>
-                                    <button type="button" onClick={closeCalculator} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                                        <XMarkIcon className="w-5 h-5" />
-                                    </button>
-                                </div>
-                                
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Atual</p>
-                                        <p className="text-2xl font-black text-slate-700 dark:text-slate-200 font-mono">
-                                            {formatCurrency(calculator.currentTotal, language)}
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1">Valor a Somar</label>
-                                        <div className="relative">
-                                            <PlusCircleIcon className="w-5 h-5 text-emerald-500 absolute left-4 top-1/2 -translate-y-1/2" />
-                                            <input 
-                                                type="text" 
-                                                inputMode="decimal"
-                                                value={valueToAdd} 
-                                                onChange={(e) => setValueToAdd(e.target.value)} 
-                                                className="block w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-lg font-bold text-slate-800 dark:text-white focus:border-indigo-500 focus:ring-0 outline-none transition-all placeholder:text-slate-300"
-                                                placeholder="0,00"
-                                                autoFocus
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {valueToAdd && !isNaN(parseBrValue(valueToAdd)) && (
-                                        <div className="flex justify-between items-center px-2 pt-1 text-xs font-medium">
-                                            <span className="text-slate-400">Novo Total:</span>
-                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                                                {formatCurrency(calculator.currentTotal + parseBrValue(valueToAdd), language)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
+            {/* --- Report Selector Modal --- */}
+            {showReportSelector && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in print:hidden">
+                    <div className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 flex flex-col max-h-[80vh] overflow-hidden animate-scale-in">
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800 dark:text-white">Selecionar Relatório</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Escolha a base de dados para o ranking.</p>
                             </div>
-                            <div className="bg-slate-50 dark:bg-slate-900/30 px-6 py-4 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
-                                <button type="button" onClick={closeCalculator} className="px-5 py-2.5 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
-                                <button type="submit" disabled={!valueToAdd} className="px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide">
-                                    Somar
-                                </button>
-                            </div>
-                        </form>
+                            <button onClick={() => setShowReportSelector(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-400">
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/30 dark:bg-slate-900/20">
+                            {savedReports.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">Nenhum relatório salvo encontrado.</div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {savedReports.map(report => (
+                                        <button 
+                                            key={report.id}
+                                            onClick={() => handleSelectReport(report)}
+                                            className="w-full text-left p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-brand-blue dark:hover:border-brand-blue hover:shadow-md transition-all group flex items-center justify-between"
+                                        >
+                                            <div>
+                                                <h4 className="font-bold text-sm text-slate-700 dark:text-white group-hover:text-brand-blue transition-colors">{report.name}</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                                                    <span>{new Date(report.createdAt).toLocaleDateString()}</span>
+                                                    <span>•</span>
+                                                    <span>{report.recordCount} registros</span>
+                                                </p>
+                                            </div>
+                                            <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-400 group-hover:bg-blue-50 group-hover:text-brand-blue transition-colors">
+                                                <DocumentDuplicateIcon className="w-5 h-5" />
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

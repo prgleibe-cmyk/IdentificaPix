@@ -1,4 +1,3 @@
-
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
@@ -180,20 +179,17 @@ export const DashboardView: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-full gap-6 animate-fade-in pb-4 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-col h-full gap-4 animate-fade-in pb-4 overflow-y-auto custom-scrollbar">
             
-            {/* Header Section */}
-            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
+            {/* Header Section Compacto */}
+            <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
                         Dashboard
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1.5 font-medium flex items-center gap-2">
-                        Visão geral da conciliação e métricas financeiras.
-                    </p>
                 </div>
                 {summary.isHistorical && (
-                    <span className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm animate-fade-in-down">
+                    <span className="flex items-center gap-2 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm animate-fade-in-down">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -204,7 +200,7 @@ export const DashboardView: React.FC = () => {
             </div>
 
             {/* KPI Cards Section */}
-            <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-4 xl:gap-6">
+            <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3 xl:gap-4">
                 {/* 1. Identified (Left) */}
                 <SummaryCard
                     title={t('dashboard.identifiedContributions')}
@@ -280,14 +276,14 @@ export const DashboardView: React.FC = () => {
             </div>
 
             {/* Charts & Lists Section */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 xl:gap-6">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-3 xl:gap-4">
                 
                 {/* Donut Chart - Analysis */}
                 <div 
                     className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
                     style={{ animationDelay: '300ms' }}
                 >
-                     <div className="px-5 py-4 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center shrink-0">
+                     <div className="px-5 py-3 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center shrink-0">
                         <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t('dashboard.matchMethodBreakdown')}</h3>
                         <div className="p-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-slate-400 border border-slate-100 dark:border-slate-700">
                             <ChartPieIcon className="w-3.5 h-3.5" />
@@ -303,7 +299,7 @@ export const DashboardView: React.FC = () => {
                     className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up fill-mode-backwards"
                     style={{ animationDelay: '400ms' }}
                 >
-                     <div className="px-5 py-4 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm z-10 shrink-0">
+                     <div className="px-5 py-3 border-b border-slate-50 dark:border-slate-700/50 flex justify-between items-center bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm z-10 shrink-0">
                         <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             {t('dashboard.identifiedValuesByChurch')}
                         </h3>
@@ -325,20 +321,20 @@ export const DashboardView: React.FC = () => {
                                 if (index === 2) rankStyle = "bg-gradient-to-br from-orange-200 to-orange-300 text-orange-800 border-orange-300 shadow-orange-200/50";
 
                                 return (
-                                    <div key={name} className="relative group px-4 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-all duration-300 border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50 hover:shadow-sm">
-                                        <div className="flex justify-between items-center mb-2 relative z-10">
+                                    <div key={name} className="relative group px-4 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-all duration-300 border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50 hover:shadow-sm">
+                                        <div className="flex justify-between items-center mb-1.5 relative z-10">
                                             <div className="flex items-center gap-3">
-                                                <div className={`flex items-center justify-center w-6 h-6 rounded-lg text-[9px] font-bold border shadow-sm shrink-0 ${rankStyle}`}>
+                                                <div className={`flex items-center justify-center w-5 h-5 rounded-md text-[9px] font-bold border shadow-sm shrink-0 ${rankStyle}`}>
                                                     {index + 1}
                                                 </div>
                                                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[180px] sm:max-w-xs">{name}</span>
                                             </div>
-                                            <span className="text-[11px] font-bold text-brand-graphite dark:text-white font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                                            <span className="text-[10px] font-bold text-brand-graphite dark:text-white font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-700">
                                                 {formatCurrency(value, language)}
                                             </span>
                                         </div>
                                         
-                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
+                                        <div className="h-1 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
                                             <div 
                                                 className="h-full rounded-full transition-all duration-1000 ease-out relative group-hover:brightness-110"
                                                 style={{ 

@@ -394,16 +394,16 @@ export const SmartEditModal: React.FC = () => {
     );
 
     return (
-        <div className="glass-overlay animate-fade-in" style={{ display: 'block', backgroundColor: 'transparent' }}>
+        <div className="glass-overlay animate-fade-in">
             <div 
                 ref={modalRef}
                 style={{
-                    position: 'fixed',
-                    left: position ? position.x : '50%',
-                    top: position ? position.y : '50%',
-                    transform: position ? 'none' : 'translate(-50%, -50%)',
+                    position: position ? 'fixed' : 'relative',
+                    left: position ? position.x : 'auto',
+                    top: position ? position.y : 'auto',
                     margin: 0,
-                    zIndex: 100
+                    zIndex: 100,
+                    transform: position ? 'none' : undefined 
                 }}
                 className="glass-modal w-[320px] flex flex-col max-h-[500px] animate-scale-in rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/50 bg-white/95 dark:bg-slate-900/95"
             >
