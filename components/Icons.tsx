@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React from 'react';
 
 // --- Base Icon Props ---
@@ -32,6 +31,8 @@ const BaseIcon: React.FC<IconProps & { children: React.ReactNode, viewBox?: stri
         {children}
     </svg>
 );
+
+// ... (Outros ícones mantidos inalterados, exportando apenas o LogoIcon modificado e o resto do arquivo) ...
 
 export const CreditCardIcon: React.FC<IconProps> = (props) => (
     <BaseIcon {...props}>
@@ -77,18 +78,54 @@ export const CodeBracketSquareIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-// ... rest of the file ...
-// (Re-exporting all previous icons to ensure no breaking changes)
+// --- 3D ENHANCED LOGO ---
 export const LogoIcon: React.FC<IconProps> = ({ className = "w-10 h-10", ...props }) => (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
-        <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M9 11L11 13L15 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} {...props} style={{ overflow: 'visible' }}>
         <defs>
-            <linearGradient id="logo_grad" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
-                <stop stopColor="currentColor" stopOpacity="0.8"/>
-                <stop offset="1" stopColor="currentColor"/>
+            {/* Gradiente Metálico/Neon */}
+            <linearGradient id="logo_grad_3d" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#22d3ee" />   {/* Cyan 400 */}
+                <stop offset="50%" stopColor="#3b82f6" />   {/* Blue 500 */}
+                <stop offset="100%" stopColor="#6366f1" />  {/* Indigo 500 */}
             </linearGradient>
+            
+            {/* Filtro de Relevo e Iluminação 3D */}
+            <filter id="3d-relief" x="-50%" y="-50%" width="200%" height="200%">
+                {/* 1. Blur para suavizar */}
+                <feGaussianBlur in="SourceAlpha" stdDeviation="0.5" result="blur"/>
+                
+                {/* 2. Luz Especular (Brilho) */}
+                <feSpecularLighting in="blur" surfaceScale="5" specularConstant="1" specularExponent="20" lightingColor="#ffffff" result="specularOut">
+                    <fePointLight x="-5000" y="-10000" z="20000"/>
+                </feSpecularLighting>
+                
+                {/* 3. Compor Brilho sobre o Objeto */}
+                <feComposite in="specularOut" in2="SourceAlpha" operator="in" result="specularComposite"/>
+                
+                {/* 4. Sombra Projetada (Drop Shadow) */}
+                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.5" />
+                
+                {/* 5. Juntar tudo */}
+                <feComposite in="SourceGraphic" in2="specularComposite" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
+            </filter>
         </defs>
+
+        <g filter="url(#3d-relief)">
+            <path 
+                d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" 
+                stroke="url(#logo_grad_3d)" 
+                strokeWidth="3" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+            />
+            <path 
+                d="M9 11L11 13L15 9" 
+                stroke="url(#logo_grad_3d)" 
+                strokeWidth="3" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+            />
+        </g>
     </svg>
 );
 

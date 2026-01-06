@@ -10,7 +10,8 @@ import {
     CheckCircleIcon, 
     ExclamationTriangleIcon, 
     GoogleIcon,
-    ShieldCheckIcon
+    ShieldCheckIcon,
+    BoltIcon
 } from '../../components/Icons';
 
 interface GmailModalProps {
@@ -42,7 +43,7 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
                     redirectTo: window.location.origin, // Retorna para a mesma página
                     queryParams: { 
                         access_type: 'offline', // Importante para refresh token
-                        prompt: 'consent'       // Força a tela de consentimento para garantir o provider_token
+                        prompt: 'consent'       // Força a tela de consentimento
                     }
                 }
             });
@@ -55,6 +56,31 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
             setMessage('Não foi possível iniciar.');
             setDetail(e.message);
         }
+    };
+
+    // MODO SIMULAÇÃO (Para contornar erro 403 em desenvolvimento)
+    const runSimulation = () => {
+        setStatus('processing');
+        setMessage('Simulando conexão segura...');
+        setDetail('Gerando dados de exemplo para teste do sistema...');
+
+        setTimeout(() => {
+            const mockCsv = `Data;Descrição;Valor;Tipo
+${new Date().toLocaleDateString('pt-BR')};PIX RECEBIDO MARIA SILVA;150.00;PIX
+${new Date().toLocaleDateString('pt-BR')};OFERTA JOAO SOUZA;200.00;OFERTA
+${new Date().toLocaleDateString('pt-BR')};PAGAMENTO FORNECEDOR;-50.00;PAGTO
+${new Date().toLocaleDateString('pt-BR')};TRANSFERENCIA RECEBIDA;-1200.00;TED`;
+            
+            setCount(4);
+            setStatus('success');
+            setMessage('Simulação Concluída!');
+            setDetail('4 transações de teste foram geradas.');
+            
+            setTimeout(() => {
+                onSuccess(mockCsv);
+                onClose();
+            }, 2000);
+        }, 2000);
     };
 
     // RECUPERAÇÃO PÓS-REDIRECT
@@ -83,8 +109,6 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
                 const providerToken = session.provider_token;
 
                 if (!providerToken) {
-                    // Se não tiver token, pode ser que o login já existisse mas sem o escopo ou token expirado.
-                    // Forçamos o usuário a tentar novamente.
                     throw new Error("Token de acesso do Google não encontrado. Por favor, reconecte.");
                 }
 
@@ -120,7 +144,7 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
         };
         
         checkAndProcess();
-    }, []); // Executa uma vez na montagem
+    }, []); 
 
     // Renderizadores de Estado (UI)
     const renderIcon = () => {
@@ -140,9 +164,13 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
                 {/* Decorative Background */}
                 <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-slate-50 to-transparent dark:from-slate-800/50 pointer-events-none"></div>
                 
-                {/* Close Button (Disabled during processing) */}
+                {/* Close Button (FIX: Z-Index 50 to ensure clickability over decorations) */}
                 {status !== 'processing' && status !== 'auth' && (
-                    <button onClick={onClose} className="absolute top-5 right-5 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors z-10">
+                    <button 
+                        onClick={onClose} 
+                        className="absolute top-5 right-5 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors z-50 cursor-pointer"
+                        title="Fechar"
+                    >
                         <XMarkIcon className="w-5 h-5" />
                     </button>
                 )}
@@ -161,7 +189,7 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
                     </p>
                 </div>
 
-                <div className="w-full p-8 pt-2">
+                <div className="w-full p-8 pt-2 relative z-10">
                     {status === 'idle' && (
                         <div className="space-y-4">
                             <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 p-4 rounded-2xl text-left flex gap-3 items-start">
@@ -183,6 +211,18 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
                                 </div>
                                 Conectar Gmail
                             </button>
+
+                            <button 
+                                onClick={runSimulation}
+                                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl font-bold uppercase text-[10px] tracking-wide hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <BoltIcon className="w-3 h-3" />
+                                Modo Simulação (Teste Rápido)
+                            </button>
+                            
+                            <p className="text-[9px] text-slate-400">
+                                * Se ocorrer erro 403, seu e-mail não está na lista de testadores do Google Cloud. Use o Modo Simulação.
+                            </p>
                         </div>
                     )}
 
@@ -191,8 +231,15 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
                             <button onClick={() => setStatus('idle')} className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold uppercase text-xs tracking-wide hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                                 Tentar Novamente
                             </button>
+                            <button 
+                                onClick={runSimulation}
+                                className="w-full py-3 bg-white border-2 border-slate-100 dark:bg-slate-800 dark:border-slate-700 text-brand-blue dark:text-blue-400 rounded-xl font-bold uppercase text-xs tracking-wide hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <BoltIcon className="w-3.5 h-3.5" />
+                                Usar Modo Simulação
+                            </button>
                             <p className="text-[10px] text-slate-400 leading-tight px-4">
-                                Se o erro persistir, verifique sua conexão ou tente mais tarde.
+                                Dica: Habilite a "Gmail API" no Google Cloud Console se este erro persistir.
                             </p>
                         </div>
                     )}

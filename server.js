@@ -39,7 +39,12 @@ async function fetchGmailMessages(accessToken, query, maxResults = 15) {
     const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
     const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
     
-    if (!listRes.ok) throw new Error(`Gmail API Error: ${listRes.statusText}`);
+    if (!listRes.ok) {
+        // Tenta ler o corpo do erro para dar feedback preciso (ex: "API not enabled")
+        const errorText = await listRes.text();
+        console.error(`Gmail API Error (${listRes.status}):`, errorText);
+        throw new Error(`Gmail API Error: ${listRes.status} - Verifique se a Gmail API está ativada no Google Cloud Console.`);
+    }
     
     const listData = await listRes.json();
     if (!listData.messages || listData.messages.length === 0) return [];
