@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
-import { ViewType, Language } from '../../types';
+import { ViewType } from '../../types';
 import { 
     LogoIcon, 
     HomeIcon, 
@@ -17,8 +17,6 @@ import {
     ChevronRightIcon,
     ShieldCheckIcon,
     SparklesIcon,
-    MoonIcon,
-    SunIcon,
     CheckBadgeIcon,
     ExclamationTriangleIcon,
     WhatsAppIcon,
@@ -28,8 +26,8 @@ import {
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
-    const { activeView, setActiveView, theme, toggleTheme } = useUI();
-    const { t, language, setLanguage } = useTranslation();
+    const { activeView, setActiveView } = useUI();
+    const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings, loading: authLoading } = useAuth();
     const { openPaymentModal, isSyncing } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -50,12 +48,6 @@ export const Sidebar: React.FC = () => {
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <ShieldCheckIcon className="w-5 h-5"/>, special: true });
         return items;
     }, [isAdmin]);
-
-    const handleLanguageCycle = () => {
-        const langs: Language[] = ['pt', 'en', 'es'];
-        const next = langs[(langs.indexOf(language) + 1) % langs.length];
-        setLanguage(next);
-    };
 
     const getStatusStyle = () => {
         if (subscription.isExpired) return 'border-red-500/30 text-red-400 bg-red-500/10';
@@ -83,8 +75,8 @@ export const Sidebar: React.FC = () => {
         <aside className={`relative h-screen flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#020610] text-white border-r border-white/5 shadow-2xl`}>
             <div className="relative z-10 flex flex-col h-full">
                 
-                {/* 3D LOGO CONTAINER - FLOATING GLASS CUBE EFFECT */}
-                <div className={`flex flex-col items-center justify-center py-10 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
+                {/* 3D LOGO CONTAINER - Compactado verticalmente (py-6) */}
+                <div className={`flex flex-col items-center justify-center py-6 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
                     <div 
                         className="relative group cursor-pointer perspective-[1000px] z-50" 
                         onClick={() => !isCollapsed && setActiveView('dashboard')}
@@ -113,7 +105,7 @@ export const Sidebar: React.FC = () => {
                     </div>
                     
                     {!isCollapsed && (
-                        <div className="mt-5 text-center transform translate-z-0">
+                        <div className="mt-4 text-center transform translate-z-0">
                             <span className="font-display font-black text-2xl tracking-tight text-white block leading-none drop-shadow-md">
                                 Identifica<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Pix</span>
                             </span>
@@ -122,12 +114,13 @@ export const Sidebar: React.FC = () => {
                     )}
                 </div>
 
-                <nav className="flex-1 px-4 space-y-1.5 py-2 overflow-y-auto custom-scrollbar">
+                {/* Navegação - Compactada (space-y-1) */}
+                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar">
                     {navItems.map((item) => (
                         <button
                             key={item.view}
                             onClick={() => setActiveView(item.view)}
-                            className={`relative w-full flex items-center px-4 py-3 rounded-xl transition-all duration-300 group mb-1 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg shadow-black/20 border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg shadow-black/20 border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                             title={isCollapsed ? t(item.labelKey) : ''}
                         >
                             {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform duration-300 ${activeView === item.view ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}` })}
@@ -140,41 +133,44 @@ export const Sidebar: React.FC = () => {
                     ))}
                 </nav>
 
-                <div className={`mt-auto border-t border-white/5 bg-[#050B14] p-5 flex flex-col gap-5`}>
+                <div className={`mt-auto border-t border-white/5 bg-[#050B14] p-4 flex flex-col gap-3`}>
                     
                     {/* Indicador de Sync */}
                     {isSyncing && (
-                        <div className={`flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-xl animate-pulse ${isCollapsed ? 'mx-auto' : ''}`}>
+                        <div className={`flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-full animate-pulse ${isCollapsed ? 'mx-auto' : ''}`}>
                             <ArrowPathIcon className="w-3.5 h-3.5 text-blue-400 animate-spin" />
                             {!isCollapsed && <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wide">Sincronizando...</span>}
                         </div>
                     )}
 
-                    <div className={`flex items-center ${isCollapsed ? 'flex-col gap-3' : 'gap-2 justify-between'}`}>
-                        <div className="flex gap-2">
-                            <button onClick={toggleTheme} className="p-2.5 rounded-xl text-slate-400 hover:text-white bg-white/5 border border-white/5 hover:bg-white/10 transition-colors shadow-sm">
-                                {theme === 'light' ? <MoonIcon className="w-4 h-4" /> : <SunIcon className="w-4 h-4" />}
-                            </button>
-                            <button onClick={handleLanguageCycle} className="p-2.5 rounded-xl text-slate-400 hover:text-white uppercase text-[10px] font-black w-10 h-10 text-center bg-white/5 border border-white/5 hover:bg-white/10 transition-colors shadow-sm flex items-center justify-center">
-                                {language}
-                            </button>
-                        </div>
-                        <button onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} className="p-2.5 rounded-xl text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors shadow-sm">
+                    <div className={`flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
+                        {/* Botão de Suporte WhatsApp */}
+                        <button 
+                            onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
+                            className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}
+                            title="Suporte WhatsApp"
+                        >
                             <WhatsAppIcon className="w-4 h-4" />
+                            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
+                        </button>
+                        
+                        {/* Botão de Status/Pagamento */}
+                        <button 
+                            onClick={openPaymentModal} 
+                            className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
+                            title={isCollapsed ? `${subscription.daysRemaining} dias restantes` : ''}
+                        >
+                            <StatusIcon className="w-4 h-4" />
+                            {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
                         </button>
                     </div>
-                    
-                    <button onClick={openPaymentModal} className={`flex items-center justify-center rounded-xl transition-all border shadow-lg ${isCollapsed ? 'p-2.5' : 'w-full py-2.5 gap-2.5'} ${getStatusStyle()}`}>
-                        <StatusIcon className="w-4 h-4" />
-                        {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
-                    </button>
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/5">
                         <div 
                             className={`flex items-center gap-3 min-w-0 group cursor-pointer ${isCollapsed ? 'mx-auto' : ''}`} 
                             onClick={() => !isCollapsed && setActiveView('settings')}
                         >
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-blue to-indigo-600 flex items-center justify-center text-xs font-black text-white shadow-lg border border-white/10 group-hover:ring-2 group-hover:ring-brand-blue/50 transition-all">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-blue to-indigo-600 flex items-center justify-center text-xs font-black text-white shadow-lg border border-white/10 group-hover:ring-2 group-hover:ring-brand-blue/50 transition-all">
                                 {user?.email?.charAt(0).toUpperCase()}
                             </div>
                             {!isCollapsed && (
@@ -189,7 +185,7 @@ export const Sidebar: React.FC = () => {
                             type="button"
                             onClick={handleLogout}
                             disabled={isLoggingOut}
-                            className={`p-2.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`p-2.5 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
                             title="Sair da Conta"
                         >
                             {isLoggingOut ? (
