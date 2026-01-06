@@ -563,13 +563,13 @@ export const ReportsView: React.FC = () => {
     return (
         <div className="flex flex-col h-full animate-fade-in gap-2 pb-1">
             
-            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1 bg-transparent min-h-[40px]">
+            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1 bg-transparent min-h-[40px] relative">
                 
+                {/* Title */}
                 <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight leading-none whitespace-nowrap hidden md:block">{t('reports.title')}</h2>
                 
-                {/* UNIFIED COMMAND CAPSULE */}
-                <div className="flex items-center h-9 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto custom-scrollbar p-0.5 w-full md:w-auto">
-                    
+                {/* CENTER GROUP: Navigation Views (Dark/Slate Gradient) */}
+                <div className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center h-9 bg-gradient-to-r from-[#0F172A] to-[#334155] rounded-full shadow-lg border border-white/10 overflow-hidden overflow-x-auto custom-scrollbar p-0.5 w-full md:w-auto justify-center">
                     <UnifiedButton 
                         label="Igrejas" 
                         icon={BuildingOfficeIcon} 
@@ -593,15 +593,19 @@ export const ReportsView: React.FC = () => {
                         isActive={activeTab === 'expenses'}
                         onClick={() => setActiveTab('expenses')}
                         variant="danger"
+                        isLast={true}
                     />
+                </div>
 
+                {/* RIGHT GROUP: Actions (Green/Emerald Gradient) */}
+                <div className="flex items-center h-9 bg-gradient-to-r from-[#064E3B] to-[#10B981] rounded-full shadow-lg border border-emerald-500/30 overflow-hidden overflow-x-auto custom-scrollbar p-0.5 w-full md:w-auto ml-auto">
                     {activeReportId && (
                         <UnifiedButton 
                             label="Salvar Alt." 
                             icon={FloppyDiskIcon} 
                             isActive={true} 
                             onClick={saveCurrentReportChanges}
-                            variant="success"
+                            variant="default"
                         />
                     )}
                     
@@ -610,7 +614,7 @@ export const ReportsView: React.FC = () => {
                         icon={DocumentDuplicateIcon} 
                         isLast={true}
                         onClick={handleSaveReport}
-                        variant="success"
+                        variant="default"
                     />
                 </div>
             </div>

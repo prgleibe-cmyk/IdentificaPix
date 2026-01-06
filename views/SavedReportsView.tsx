@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
@@ -301,10 +302,10 @@ export const SavedReportsView: React.FC = () => {
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button
                                                         onClick={() => viewSavedReport(report.id)}
-                                                        className="flex items-center gap-1 px-3 py-1.5 text-[9px] font-bold text-white bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-md shadow-blue-500/20 hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide"
+                                                        className="flex items-center gap-1.5 px-4 py-1.5 text-[9px] font-bold text-white bg-gradient-to-r from-sky-700 to-cyan-500 hover:from-sky-600 hover:to-cyan-400 rounded-full shadow-lg shadow-sky-500/30 hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide border border-white/10"
                                                     >
-                                                        <EyeIcon className="w-3 h-3" />
-                                                        Abrir
+                                                        <EyeIcon className="w-3.5 h-3.5" />
+                                                        Visualizar
                                                     </button>
                                                     <button
                                                         onClick={() => openDeleteConfirmation({ type: 'report-saved', id: report.id, name: report.name })}

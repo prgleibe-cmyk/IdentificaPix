@@ -199,15 +199,19 @@ export const SmartAnalysisView: React.FC = () => {
         setActiveTemplate('manual_structure');
         // Reset to blank slate
         setManualRows([]);
-        setReportTitle("Nova Planilha Manual");
+        setReportTitle("Relatório Manual");
+        // RESTORED FULL COLUMN STRUCTURE
         setColumns([
             { id: 'index', label: 'Item', type: 'index', editable: false, removable: false, visible: true },
             { id: 'description', label: 'Descrição', type: 'text', editable: true, removable: false, visible: true },
-            { id: 'income', label: 'Valor', type: 'currency', editable: true, removable: false, visible: true },
+            { id: 'income', label: 'Entradas', type: 'currency', editable: true, removable: false, visible: true },
+            { id: 'expense', label: 'Saídas', type: 'currency', editable: true, removable: false, visible: true },
+            { id: 'balance', label: 'Saldo', type: 'computed', editable: false, removable: false, visible: true },
+            { id: 'qty', label: 'Qtd', type: 'number', editable: true, removable: false, visible: true },
         ]);
         setTargetReportData(null);
         setSelectedReportName('');
-        showToast("Nova planilha em branco criada.", "success");
+        showToast("Nova planilha criada.", "success");
     };
 
     const handleSelectReport = async (report: any) => {
@@ -389,18 +393,11 @@ export const SmartAnalysisView: React.FC = () => {
     const handlePrint = () => window.print();
 
     // UNIFIED BUTTON COMPONENT
-    const UnifiedButton = ({ onClick, icon: Icon, label, isActive, isLast, variant = 'default' }: any) => {
-        const colorMap: any = {
-            default: { base: 'text-white', active: 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' },
-            primary: { base: 'text-blue-400', active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]' }, 
-            success: { base: 'text-emerald-400', active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]' }, 
-            danger: { base: 'text-rose-400', active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]' }, 
-            warning: { base: 'text-amber-400', active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]' }, 
-            info: { base: 'text-cyan-400', active: 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]' }, 
-            violet: { base: 'text-purple-400', active: 'text-purple-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]' }, 
-        };
-        const colors = colorMap[variant] || colorMap.default;
-        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
+    const UnifiedButton = ({ onClick, icon: Icon, label, isActive, isLast, customTextColor }: any) => {
+        // Cor base definida por prop ou default branca
+        // Quando ativo, aumenta brilho/escala
+        const baseColorClass = customTextColor || 'text-white';
+        const currentClass = isActive ? `${baseColorClass} font-black scale-105 drop-shadow-md` : `${baseColorClass} font-bold hover:scale-105 hover:brightness-125`;
 
         return (
             <>
@@ -417,38 +414,44 @@ export const SmartAnalysisView: React.FC = () => {
         <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
             
             {/* Top Bar / Navigation */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 flex-shrink-0 px-1 print:hidden">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 flex-shrink-0 px-1 print:hidden relative">
                 <div>
                     <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('smart_analysis.title')}</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-0.5">{t('smart_analysis.subtitle')}</p>
                 </div>
 
-                <div className="flex items-center h-9 bg-gradient-to-r from-slate-900 via-teal-900 to-slate-900 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-0.5">
+                {/* GRUPO CENTRAL: Ações de Criação (Roxo/Violeta) */}
+                <div className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center h-9 bg-gradient-to-r from-[#2E1065] to-[#7C3AED] rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-0.5 justify-center">
                     <UnifiedButton 
                         onClick={handleRankingClick} 
                         isActive={activeTemplate === 'ranking'}
                         icon={TrophyIcon}
                         label="Gerar Ranking"
-                        variant="violet"
+                        customTextColor="text-amber-300" // Ouro/Troféu
                     />
                     <UnifiedButton 
                         onClick={handleManualClick}
                         isActive={activeTemplate === 'manual_structure'}
                         icon={TableCellsIcon}
                         label="Nova Planilha"
-                        variant="default"
+                        customTextColor="text-cyan-300" // Ciano/Dados
+                        isLast={true}
                     />
+                </div>
+
+                {/* GRUPO DIREITO: Ações de Persistência (Verde/Esmeralda) */}
+                <div className="flex items-center h-9 bg-gradient-to-r from-[#064E3B] to-[#10B981] rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-0.5 ml-auto">
                     <UnifiedButton 
                         onClick={handleSave}
                         icon={FloppyDiskIcon}
                         label="Salvar"
-                        variant="success"
+                        customTextColor="text-white" // Branco/Segurança
                     />
                     <UnifiedButton 
                         onClick={handlePrint}
                         icon={PrinterIcon}
                         label="Imprimir"
-                        variant="info"
+                        customTextColor="text-slate-200" // Cinza/Papel
                         isLast={true}
                     />
                 </div>
@@ -562,7 +565,6 @@ export const SmartAnalysisView: React.FC = () => {
                                                 const isExpense = col.id === 'expense';
                                                 const val = row[col.id] as number;
                                                 const colorClass = isIncome ? 'text-emerald-600 dark:text-emerald-400' : isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-700';
-                                                const printColorClass = isIncome || isExpense ? '' : ''; // Use default black for print or keep colors? Keeping colors is usually fine but let's ensure readability.
                                                 
                                                 return (
                                                     <td key={col.id} className="px-6 py-4 text-right relative group/cell">
