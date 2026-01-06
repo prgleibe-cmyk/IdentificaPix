@@ -496,7 +496,8 @@ export const useReconciliation = ({
         openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, setDivergenceConfirmation,
         openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
-        loadingAiId, setLoadingAiId, aiSuggestion, setAiSuggestion, handleAnalyze
+        loadingAiId, setLoadingAiId, aiSuggestion, setAiSuggestion, handleAnalyze,
+        setBankStatementFile // EXPORTED
     }), [
         bankStatementFile, contributorFiles, matchResults, reportPreviewData, hasActiveSession, activeReportId, pendingTraining, comparisonType, 
         handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearFiles, handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess,
@@ -504,6 +505,6 @@ export const useReconciliation = ({
         manualIdentificationTx, bulkIdentificationTxs, closeManualIdentify,
         manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
         divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
-        loadingAiId, aiSuggestion, handleAnalyze
+        loadingAiId, aiSuggestion, handleAnalyze, setBankStatementFile
     ]);
 };

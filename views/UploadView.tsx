@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { FileUploader } from '../components/FileUploader';
 import { WrenchScrewdriverIcon, BoltIcon, WhatsAppIcon, InformationCircleIcon, TrashIcon } from '../components/Icons';
 import { InitialComparisonModal } from '../components/modals/InitialComparisonModal';
+// IMPORTAÇÃO MODULAR
+import { GmailButton } from '../features/gmail/GmailButton';
 
 export const UploadView: React.FC = () => {
     const { 
@@ -25,7 +27,6 @@ export const UploadView: React.FC = () => {
         window.open(`https://wa.me/${systemSettings.supportNumber}?text=Olá, tenho um arquivo que o sistema não reconheceu. Poderiam criar um padrão para ele?`, '_blank');
     };
 
-    // CORREÇÃO: Mostra o botão se tiver extrato OU se estiver editando um relatório existente (adicionando lista)
     const showProcessButton = !!(bankStatementFile && bankStatementFile.content) || (!!activeReportId && contributorFiles.length > 0);
     const hasAnyFile = !!bankStatementFile || contributorFiles.length > 0;
 
@@ -44,7 +45,6 @@ export const UploadView: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                    {/* BOTÃO NOVA CONCILIAÇÃO (Limpar Tudo) */}
                     {hasAnyFile && (
                         <button
                             onClick={handleReset}
@@ -55,7 +55,6 @@ export const UploadView: React.FC = () => {
                         </button>
                     )}
 
-                    {/* BOTÃO DO LAB: APENAS PARA ADMIN */}
                     {isAdmin && bankStatementFile && (
                         <button 
                             onClick={() => openLabManually()}
@@ -70,9 +69,7 @@ export const UploadView: React.FC = () => {
             
             <div className="flex-1 min-h-0 pb-16">
                 
-                {/* NOTICE CARD: Arquivo não reconhecido (Highlight Colors) */}
                 <div className="bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-200 dark:border-amber-700/60 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4 shadow-lg shadow-amber-500/5 animate-fade-in-up relative overflow-hidden group">
-                    {/* Decorative Blob */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/10 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10 group-hover:bg-amber-400/20 transition-colors"></div>
 
                     <div className="flex items-start gap-4 relative z-10">
@@ -101,12 +98,17 @@ export const UploadView: React.FC = () => {
                     
                     {/* BANK STATEMENTS COLUMN */}
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up">
-                        <div className="flex-shrink-0 mb-3 relative z-10">
-                            <div className="flex items-center gap-2 mb-0.5">
-                                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50 text-blue-600 font-bold text-[10px] border border-blue-100">1</span>
-                                <h3 className="font-bold text-sm text-slate-800 dark:text-white tracking-tight">{t('upload.statementTitle')}</h3>
+                        <div className="flex-shrink-0 mb-3 relative z-10 flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-50 text-blue-600 font-bold text-[10px] border border-blue-100">1</span>
+                                    <h3 className="font-bold text-sm text-slate-800 dark:text-white tracking-tight">{t('upload.statementTitle')}</h3>
+                                </div>
+                                <p className="text-[9px] text-slate-500 dark:text-slate-400 pl-7">{t('upload.statementSubtitle')}</p>
                             </div>
-                            <p className="text-[9px] text-slate-500 dark:text-slate-400 pl-7">{t('upload.statementSubtitle')}</p>
+                            
+                            {/* NOVA FUNCIONALIDADE MODULAR */}
+                            <GmailButton />
                         </div>
                         <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar z-10 space-y-1.5">
                             {banks.map(bank => {
@@ -153,7 +155,6 @@ export const UploadView: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* CONTRIBUTORS LIST COLUMN */}
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col overflow-hidden animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                         <div className="flex-shrink-0 mb-3 relative z-10">
                             <div className="flex items-center gap-2 mb-0.5">

@@ -78,6 +78,7 @@ interface AppContextType {
     updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => void;
     discardCurrentReport: () => void;
     resetReconciliation: () => void; // NOVO
+    handleGmailSyncSuccess: (transactions: Transaction[]) => void; // NOVO: Integração Gmail
 
     // Manual Operations State & Handlers
     manualIdentificationTx: Transaction | null;
@@ -142,6 +143,7 @@ interface AppContextType {
     updateSavedReportName: (reportId: string, newName: string) => void;
     saveFilteredReport: (results: MatchResult[]) => void;
     saveCurrentReportChanges: () => void; // Nova função
+    deleteOldReports: (dateThreshold: Date) => Promise<void>;
 
     // Global
     deletingItem: DeletingItem | null;
@@ -496,6 +498,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [incrementAiUsage, showToast, reconciliation]);
 
+    // --- NOVA FUNÇÃO GMAIL SYNC ---
+    // Injeta transações do Gmail como se fossem um novo extrato, mantendo o fluxo existente
+    const handleGmailSyncSuccess = useCallback((transactions: Transaction[]) => {
+        if (transactions.length === 0) return;
+
+        // Cria uma estrutura compatível com bankStatementFile
+        const virtualContent = JSON.stringify(transactions); // Placeholder content
+        const virtualFileName = `Importação Gmail - ${new Date().toLocaleDateString()}`;
+        
+        // Se já existe um extrato, mesclamos as transações
+        // Se não, definimos como novo extrato
+        // Como o hook useReconciliation espera um 'content' cru para processar novamente, 
+        // aqui vamos setar diretamente o processedTransactions no estado do hook se possível,
+        // mas como o hook não expõe o setter direto do array de transações, vamos simular o upload.
+        // POREM: useReconciliation expõe setBankStatementFile que aceita processedTransactions!
+        
+        reconciliation.setBankStatementFile(prev => {
+            const existingTxs = prev?.processedTransactions || [];
+            // Remove duplicatas por ID ou conteúdo
+            const newTxs = transactions.filter(nt => !existingTxs.some(et => et.id === nt.id || (et.amount === nt.amount && et.date === nt.date && et.description === nt.description)));
+            
+            const merged = [...existingTxs, ...newTxs];
+            
+            return {
+                bankId: prev?.bankId || 'gmail-bank',
+                content: prev?.content || 'GMAIL_VIRTUAL_CONTENT',
+                fileName: prev?.fileName || virtualFileName,
+                processedTransactions: merged
+            };
+        });
+
+        showToast(`${transactions.length} transações do Gmail importadas com sucesso!`, 'success');
+        
+    }, [reconciliation, showToast]);
+
     const value = useMemo(() => ({
         ...referenceData, ...reconciliation, isCompareDisabled: !reconciliation.bankStatementFile,
         effectiveIgnoreKeywords, 
@@ -505,8 +542,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false),
         isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false),
         smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze,
-        saveCurrentReportChanges
-    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze, saveCurrentReportChanges]);
+        saveCurrentReportChanges,
+        handleGmailSyncSuccess // Exported
+    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze, saveCurrentReportChanges, handleGmailSyncSuccess]);
 
     return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };

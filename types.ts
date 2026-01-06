@@ -180,3 +180,13 @@ export interface FileModel {
   createdAt: string;
   lastUsedAt?: string;
 }
+
+// Novos tipos para integração Gmail
+export interface GmailSyncStatus {
+  isSyncing: boolean;
+  totalEmails: number;
+  processedEmails: number;
+  foundTransactions: number;
+  status: 'idle' | 'authenticating' | 'fetching' | 'analyzing' | 'complete' | 'error';
+  error?: string;
+}

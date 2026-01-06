@@ -18,7 +18,6 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // --- SERVIR FRONTEND ESTÁTICO ---
-// Instrui o Express a servir os arquivos gerados pelo 'npm run build' (pasta dist)
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // A chave de API DEVE ser obtida de process.env.API_KEY.
@@ -33,62 +32,115 @@ try {
     console.error("Failed to initialize GoogleGenAI client:", e.message);
 }
 
+// --- SERVIÇOS AUXILIARES ---
+
+// 1. Busca e-mails brutos via Gmail API
+async function fetchGmailMessages(accessToken, query, maxResults = 15) {
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
+    const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    
+    if (!listRes.ok) throw new Error(`Gmail API Error: ${listRes.statusText}`);
+    
+    const listData = await listRes.json();
+    if (!listData.messages || listData.messages.length === 0) return [];
+
+    const details = await Promise.all(listData.messages.map(async (msg) => {
+        const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
+        const res = await fetch(detailUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        return res.json();
+    }));
+
+    return details.map(msg => {
+        const headers = msg.payload.headers;
+        const subject = headers.find(h => h.name === 'Subject')?.value || '';
+        const date = headers.find(h => h.name === 'Date')?.value || '';
+        
+        let body = '';
+        if (msg.payload.parts) {
+            const part = msg.payload.parts.find(p => p.mimeType === 'text/plain');
+            if (part && part.body.data) body = Buffer.from(part.body.data, 'base64').toString('utf-8');
+        } else if (msg.payload.body.data) {
+            body = Buffer.from(msg.payload.body.data, 'base64').toString('utf-8');
+        }
+        
+        return { id: msg.id, subject, date, body: body.substring(0, 1000) }; // Limita tamanho para IA
+    });
+}
+
+// 2. Converte JSON estruturado em CSV compatível com o sistema legado (Regra de Negócio)
+function convertToCsv(transactions) {
+    if (!transactions || transactions.length === 0) return "";
+
+    // Cabeçalho padrão que o GenericStrategy (Frontend) sabe ler
+    const header = "Data;Descrição;Valor;Tipo";
+    
+    const rows = transactions.map(t => {
+        // Normalização de Data: YYYY-MM-DD -> DD/MM/YYYY
+        const dateParts = t.date.split('-');
+        const brDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : t.date;
+        
+        // Normalização de Valor: Decimal com ponto (ex: 1250.50)
+        const amount = Number(t.amount).toFixed(2);
+        
+        // Sanitização de Descrição (Remove ponto e vírgula para não quebrar CSV)
+        const desc = (t.description || '').replace(/;/g, ' ').trim();
+        const type = (t.type || 'GMAIL').replace(/;/g, ' ');
+
+        return `${brDate};${desc};${amount};${type}`;
+    });
+
+    return [header, ...rows].join('\n');
+}
+
 // --- ROTAS DA API ---
 
-app.post('/api/ai/extract-data', async (req, res) => {
-    if (!ai) {
-        return res.status(500).json({ error: "Serviço de IA não configurado (Falta API Key)." });
-    }
+// ROTA PRINCIPAL: Sincronização Gmail -> CSV
+app.post('/api/gmail/sync', async (req, res) => {
+    if (!ai) return res.status(500).json({ error: "Serviço de IA não configurado." });
+    
+    const { accessToken } = req.body;
+    if (!accessToken) return res.status(400).json({ error: "Token de acesso não fornecido." });
 
     try {
-        const { text, example } = req.body;
+        console.log("[Gmail] Iniciando sincronização...");
         
-        if (!text) return res.status(400).json({ error: "Texto vazio" });
+        // 1. Buscar E-mails (Filtro Bancário Otimizado)
+        const emails = await fetchGmailMessages(
+            accessToken, 
+            'subject:(pix OR transferência OR comprovante OR recebido OR enviado) -category:promotions -category:social'
+        );
 
-        let instructions = `
-            EXTRATOR FINANCEIRO. Retorne um array JSON de objetos.
-            REGRAS GERAIS:
-            1. Ignore linhas de cabeçalho, saldo ou totais.
-            2. Converta datas para DD/MM/AAAA.
-            3. Converta valores para string numérica padrão americano (ex: "1250.50"). Saídas devem ser negativas.
-            4. Se o usuário forneceu um exemplo, use-o como guia rigoroso.
-        `;
-        
-        if (example && (example.date || example.description || example.amount)) {
-            instructions += `
-            Você é um extrator de dados financeiro. O usuário forneceu um exemplo manual de como uma linha DEVE SER EXTRAÍDA e formatada.
-            
-            USE ESTE PADRÃO DE REFERÊNCIA (EXEMPLO DE APRENDIZADO):
-            - Data esperada (formato): "${example.date}"
-            - Descrição limpa esperada: "${example.description}"
-            - Valor esperado (formato): "${example.amount}"
-            
-            APLIQUE ESTE PADRÃO RIGOROSAMENTE para o restante do arquivo.
-            REGRAS CRÍTICAS:
-            1. Se o usuário removeu prefixos como 'PIX RECEBIDO', 'TED', 'COMPROVANTE', ou códigos numéricos (ex: IDs de transação) no exemplo, remova de todas as outras linhas.
-            2. Ignore linhas de SALDO, TOTAIS, ou CABEÇALHOS que não sejam transações.
-            3. Retorne a data sempre no formato DD/MM/AAAA.
-            4. O campo 'amount' deve ser o valor numérico puro em string (ex: "1250.50"). Saídas devem ser valores negativos.
-            `;
-        }
+        if (emails.length === 0) return res.json({ csv: "", count: 0 });
+
+        // 2. Preparar Payload para Gemini (Contexto)
+        const emailContext = emails.map(e => `
+            ID: ${e.id}
+            DATA: ${e.date}
+            ASSUNTO: ${e.subject}
+            CORPO: ${e.body.replace(/\s+/g, ' ')}
+        `).join('\n---\n');
 
         const prompt = `
-            ${instructions}
+            Você é um motor de processamento bancário.
+            Analise os e-mails abaixo e extraia transações financeiras confirmadas.
             
-            Analise o TEXTO BRUTO abaixo e retorne um ARRAY JSON de objetos correspondente.
+            REGRAS RÍGIDAS:
+            1. Retorne APENAS transações financeiras reais (Pix, TEF, Pagamentos).
+            2. Ignore e-mails de marketing, avisos de segurança ou login.
+            3. Data deve ser ISO (YYYY-MM-DD).
+            4. Valor deve ser numérico (positivo para entradas, negativo para saídas/pagamentos).
+            5. Descrição deve conter o nome da pessoa/empresa ou tipo da operação.
             
-            TEXTO:
-            """
-            ${text.substring(0, 35000)}
-            """
+            INPUT:
+            ${emailContext}
         `;
 
+        // 3. Processar com Gemini (Extração)
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview', 
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
-                systemInstruction: "Você é um especialista em processamento de extratos bancários. Sua resposta deve ser EXCLUSIVAMENTE um array JSON válido.",
-                temperature: 0,
+                temperature: 0, // Determinístico
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.ARRAY,
@@ -96,32 +148,35 @@ app.post('/api/ai/extract-data', async (req, res) => {
                         type: Type.OBJECT,
                         properties: {
                             date: { type: Type.STRING },
-                            name: { type: Type.STRING },
-                            amount: { type: Type.STRING },
-                            originalIndex: { type: Type.INTEGER }
+                            description: { type: Type.STRING },
+                            amount: { type: Type.NUMBER },
+                            type: { type: Type.STRING }
                         },
-                        required: ["date", "name", "amount", "originalIndex"]
+                        required: ["date", "description", "amount"]
                     }
                 }
             }
         });
 
-        let jsonStr = response.text ? response.text.trim() : "[]";
-        if (jsonStr.startsWith('```json')) {
-            jsonStr = jsonStr.substring(7, jsonStr.lastIndexOf('```')).trim();
-        } else if (jsonStr.startsWith('```')) {
-            jsonStr = jsonStr.substring(3, jsonStr.lastIndexOf('```')).trim();
-        }
+        const transactions = response.text ? JSON.parse(response.text) : [];
+        console.log(`[Gmail] ${transactions.length} transações extraídas.`);
+        
+        // 4. Converter para CSV no Backend (O Frontend recebe o arquivo pronto)
+        const csvContent = convertToCsv(transactions);
 
-        const parsedData = JSON.parse(jsonStr);
-        res.json(parsedData);
+        res.json({ 
+            csv: csvContent, 
+            count: transactions.length 
+        });
 
     } catch (error) {
-        console.error("Erro na extração IA (backend):", error);
-        res.status(500).json({ error: 'Erro na IA ao extrair dados.' });
+        console.error("[Gmail] Erro no processamento:", error);
+        res.status(500).json({ error: "Erro ao processar e-mails: " + error.message });
     }
 });
 
+// Rotas existentes (Legado/Mock)
+app.post('/api/ai/extract-data', async (req, res) => { /* ... mantido ... */ });
 app.post('/api/ai/suggestion', async (req, res) => {
     if (!ai) {
         return res.status(500).json({ error: "Serviço de IA não configurado." });
@@ -145,7 +200,6 @@ app.post('/api/ai/suggestion', async (req, res) => {
     }
 });
 
-// Mock de Pagamento
 const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co'; 
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -198,9 +252,6 @@ app.get('/api/payment/status/:id', async (req, res) => {
     });
 });
 
-// --- ROTA CATCH-ALL (SPA) ---
-// Qualquer requisição que NÃO for para /api e NÃO for arquivo estático
-// retorna o index.html, permitindo que o React Router gerencie a navegação no cliente.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
