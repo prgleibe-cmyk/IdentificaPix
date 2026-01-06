@@ -35,7 +35,8 @@ try {
 // --- SERVIÇOS AUXILIARES ---
 
 // 1. Busca e-mails brutos via Gmail API
-async function fetchGmailMessages(accessToken, query, maxResults = 15) {
+// ATUALIZADO: maxResults aumentado para 400 (limite seguro próximo ao teto de 500 da API)
+async function fetchGmailMessages(accessToken, query, maxResults = 400) {
     const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
     const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
     
@@ -110,9 +111,11 @@ app.post('/api/gmail/sync', async (req, res) => {
         console.log("[Gmail] Iniciando sincronização...");
         
         // 1. Buscar E-mails (Filtro Bancário Otimizado)
+        // Aumentado o range de busca para garantir recuperação de histórico
         const emails = await fetchGmailMessages(
             accessToken, 
-            'subject:(pix OR transferência OR comprovante OR recebido OR enviado) -category:promotions -category:social'
+            'subject:(pix OR transferência OR comprovante OR recebido OR enviado) -category:promotions -category:social',
+            400 // Busca os últimos 400 emails (Alta capacidade para eventos)
         );
 
         if (emails.length === 0) return res.json({ csv: "", count: 0 });

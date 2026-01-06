@@ -44,7 +44,8 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
 
             setStatus('fetching');
             addLog("Buscando e-mails bancários recentes...");
-            const emails = await gmailService.fetchBankEmails(token, 15); // Limite de 15 para teste rápido
+            // Busca os últimos 400 e-mails para garantir que cobre o período desconectado e grandes eventos
+            const emails = await gmailService.fetchBankEmails(token, 400); 
             
             if (emails.length === 0) {
                 addLog("Nenhum e-mail relevante encontrado.");

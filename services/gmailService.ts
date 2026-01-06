@@ -29,8 +29,9 @@ export const gmailService = {
     /**
      * Busca e-mails bancários recentes.
      * Requer que o usuário já tenha feito login com o escopo correto.
+     * Aumentado para 400 para garantir recuperação pós-período desconectado ou eventos grandes.
      */
-    fetchBankEmails: async (accessToken: string, maxResults = 20) => {
+    fetchBankEmails: async (accessToken: string, maxResults = 400) => {
         try {
             // 1. Listar Mensagens (Filtro por keywords bancárias comuns)
             const query = 'subject:(pix OR transferência OR comprovante OR recebido OR enviado) -category:promotions -category:social';
