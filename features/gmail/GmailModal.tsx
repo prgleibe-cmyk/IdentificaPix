@@ -11,7 +11,8 @@ import {
     ExclamationTriangleIcon, 
     GoogleIcon,
     ShieldCheckIcon,
-    BoltIcon
+    BoltIcon,
+    InformationCircleIcon
 } from '../../components/Icons';
 
 interface GmailModalProps {
@@ -137,8 +138,13 @@ ${new Date().toLocaleDateString('pt-BR')};TRANSFERENCIA RECEBIDA;-1200.00;TED`;
             } catch (err: any) {
                 console.error("Erro no fluxo Gmail:", err);
                 setStatus('error');
-                setMessage('Falha na Sincronização.');
-                setDetail(err.message || 'Erro desconhecido ao processar.');
+                setMessage('Falha na Conexão');
+                // Mensagem de erro amigável caso seja problema de permissão do Google Cloud
+                if (err.message && (err.message.includes('403') || err.message.includes('access_denied'))) {
+                    setDetail('Acesso negado pelo Google. Verifique se seu e-mail foi autorizado pelo administrador.');
+                } else {
+                    setDetail(err.message || 'Erro desconhecido ao processar.');
+                }
                 localStorage.removeItem('identificapix_gmail_pending');
             }
         };
@@ -192,6 +198,17 @@ ${new Date().toLocaleDateString('pt-BR')};TRANSFERENCIA RECEBIDA;-1200.00;TED`;
                 <div className="w-full p-8 pt-2 relative z-10">
                     {status === 'idle' && (
                         <div className="space-y-4">
+                            {/* Warning Box - User Protection */}
+                            <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 p-3 rounded-2xl text-left flex gap-3 items-start">
+                                <InformationCircleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-1">Acesso Restrito (Beta)</p>
+                                    <p className="text-xs text-amber-600/90 dark:text-amber-200/80 leading-snug">
+                                        Seu e-mail precisa ser autorizado pelo suporte antes de conectar. Caso contrário, o Google bloqueará o acesso.
+                                    </p>
+                                </div>
+                            </div>
+
                             <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 p-4 rounded-2xl text-left flex gap-3 items-start">
                                 <ShieldCheckIcon className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
                                 <div>
@@ -219,10 +236,6 @@ ${new Date().toLocaleDateString('pt-BR')};TRANSFERENCIA RECEBIDA;-1200.00;TED`;
                                 <BoltIcon className="w-3 h-3" />
                                 Modo Simulação (Teste Rápido)
                             </button>
-                            
-                            <p className="text-[9px] text-slate-400">
-                                * Se ocorrer erro 403, seu e-mail não está na lista de testadores do Google Cloud. Use o Modo Simulação.
-                            </p>
                         </div>
                     )}
 
@@ -239,7 +252,7 @@ ${new Date().toLocaleDateString('pt-BR')};TRANSFERENCIA RECEBIDA;-1200.00;TED`;
                                 Usar Modo Simulação
                             </button>
                             <p className="text-[10px] text-slate-400 leading-tight px-4">
-                                Dica: Habilite a "Gmail API" no Google Cloud Console se este erro persistir.
+                                Dica: Se o erro for de permissão (403), solicite a liberação do seu e-mail ao suporte.
                             </p>
                         </div>
                     )}

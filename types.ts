@@ -65,6 +65,7 @@ export interface MatchResult {
     actualChurch: Church;
   };
   suggestion?: Contributor; // Sugestão de melhor match (mesmo abaixo do threshold)
+  _injectedId?: string; // Usado para hidratação no Smart Analysis
 }
 
 export interface ContributorFile {
@@ -87,6 +88,32 @@ export interface SearchFilters {
   reportId: string | null;
 }
 
+export interface ManualRow {
+    id: string;
+    description: string;
+    income: number;
+    expense: number;
+    qty: number;
+    [key: string]: any; 
+}
+
+export interface ColumnDef {
+    id: string;
+    label: string;
+    type: 'text' | 'currency' | 'number' | 'computed' | 'index';
+    editable: boolean;
+    removable: boolean;
+    visible: boolean;
+}
+
+export interface SpreadsheetData {
+  title: string;
+  logo: string | null;
+  columns: ColumnDef[];
+  rows: ManualRow[];
+  signatures: string[];
+}
+
 export interface SavedReport {
   id: string;
   name: string;
@@ -97,7 +124,7 @@ export interface SavedReport {
     results: MatchResult[];
     sourceFiles: any[];
     bankStatementFile: any;
-    spreadsheet?: any;
+    spreadsheet?: SpreadsheetData;
   } | null;
 }
 
@@ -105,7 +132,7 @@ export interface SavingReportState {
   type: 'global' | 'group' | 'search' | 'spreadsheet';
   results: MatchResult[];
   groupName: string;
-  spreadsheetData?: any;
+  spreadsheetData?: SpreadsheetData;
 }
 
 export interface LearnedAssociation {

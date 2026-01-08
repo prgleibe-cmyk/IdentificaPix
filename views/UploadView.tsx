@@ -46,37 +46,29 @@ export const UploadView: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">{t('upload.subtitle')}</p>
                 </div>
                 
-                {/* UNIFIED COMMAND CAPSULE - LILAC GRADIENT */}
-                <div className="flex items-center h-9 bg-gradient-to-r from-purple-500 via-[#2E1065] to-purple-500 rounded-full shadow-lg border border-white/20 overflow-hidden p-0.5">
+                {/* BOTÕES DE AÇÃO PADRONIZADOS */}
+                <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
                     
                     <button 
                         onClick={resetReconciliation}
-                        className="relative flex items-center justify-center gap-2 px-4 h-full text-[10px] uppercase font-bold transition-all duration-300 outline-none group whitespace-nowrap text-rose-300 hover:text-white hover:scale-105"
+                        className="relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-lg shadow-rose-500/20 hover:-translate-y-0.5 transition-all active:scale-95 group border border-white/10"
                     >
-                        <TrashIcon className="w-3.5 h-3.5 stroke-[1.5]" />
+                        <TrashIcon className="w-3.5 h-3.5 stroke-[2]" />
                         <span className="hidden sm:inline">Nova Conciliação</span>
                     </button>
 
-                    <div className="w-px h-3 bg-white/10 self-center"></div>
-
                     {isAdmin && (
-                        <>
-                            <button 
-                                onClick={() => openLabManually()}
-                                className="relative flex items-center justify-center gap-2 px-4 h-full text-[10px] uppercase font-bold transition-all duration-300 outline-none group whitespace-nowrap text-cyan-300 hover:text-white hover:scale-105"
-                            >
-                                <WrenchScrewdriverIcon className="w-3.5 h-3.5 stroke-[1.5]" />
-                                <span className="hidden sm:inline">Lab (Admin)</span>
-                            </button>
-
-                            <div className="w-px h-3 bg-white/10 self-center"></div>
-                        </>
+                        <button 
+                            onClick={() => openLabManually()}
+                            className="relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 transition-all active:scale-95 group border border-white/10"
+                        >
+                            <WrenchScrewdriverIcon className="w-3.5 h-3.5 stroke-[2]" />
+                            <span className="hidden sm:inline">Lab (Admin)</span>
+                        </button>
                     )}
 
-                    {/* CSS Override wrapper for GmailButton to match the style without editing the component file */}
-                    <div className="h-full flex items-center [&>button]:!bg-transparent [&>button]:!shadow-none [&>button]:!border-none [&>button]:!text-white [&>button]:hover:!text-slate-200 [&>button]:!px-4 [&>button]:!py-0 [&>button]:!h-full [&>button]:!text-[10px] [&>button]:!font-bold [&>button]:!uppercase [&>button]:transition-all [&>button]:duration-300 [&>button]:!rounded-none [&>button]:hover:!scale-105 [&>button]:hover:!translate-y-0">
-                        <GmailButton />
-                    </div>
+                    {/* Botão do Gmail (Componente Próprio) */}
+                    <GmailButton />
                 </div>
             </div>
 
@@ -263,9 +255,9 @@ export const UploadView: React.FC = () => {
                 <button
                     onClick={() => setShowConfig(true)}
                     disabled={!bankStatementFile}
-                    className="flex items-center gap-3 px-8 py-4 bg-[#0A1F44] hover:bg-[#152C59] text-white rounded-[1.5rem] shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs font-black uppercase tracking-widest group"
+                    className="flex items-center gap-3 px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-full shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs font-bold uppercase tracking-widest group border border-white/10"
                 >
-                    <BoltIcon className="w-5 h-5 group-hover:text-brand-teal transition-colors" />
+                    <BoltIcon className="w-5 h-5 group-hover:text-white transition-colors" />
                     Configurar & Processar
                 </button>
             </div>

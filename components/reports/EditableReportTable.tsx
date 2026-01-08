@@ -321,36 +321,38 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     }, [data, currentPage]);
 
     return (
-        <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-200 dark:bg-slate-950 border-b-2 border-slate-300 dark:border-slate-600 sticky top-0 z-20">
-                    <tr>
-                        <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
-                        <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[35%]" />
-                        <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
-                        <SortableHeader sortKey="similarity" title="Simil." sortConfig={sortConfig} onSort={onSort} className="text-center w-[8%]" />
-                        <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
-                        <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="text-right w-[13%]" />
-                        <SortableHeader sortKey="hasSuggestion" title={t('table.actions')} sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {paginatedData.map(result => (
-                        <IncomeRow 
-                            key={result.transaction.id}
-                            result={result}
-                            t={t}
-                            language={language}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                            openDivergence={openDivergenceModal}
-                            ignoreKeywords={[]}
-                        />
-                    ))}
-                </tbody>
-            </table>
+        <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900">
+            <div className="flex-1 w-full overflow-auto custom-scrollbar relative">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-200 dark:bg-slate-950 border-b-2 border-slate-300 dark:border-slate-600 sticky top-0 z-20 shadow-sm">
+                        <tr>
+                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
+                            <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[35%]" />
+                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
+                            <SortableHeader sortKey="similarity" title="Simil." sortConfig={sortConfig} onSort={onSort} className="text-center w-[8%]" />
+                            <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
+                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="text-right w-[13%]" />
+                            <SortableHeader sortKey="hasSuggestion" title={t('table.actions')} sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                        {paginatedData.map(result => (
+                            <IncomeRow 
+                                key={result.transaction.id}
+                                result={result}
+                                t={t}
+                                language={language}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
+                                openDivergence={openDivergenceModal}
+                                ignoreKeywords={[]}
+                            />
+                        ))}
+                    </tbody>
+                </table>
+            </div>
             {totalPages > 1 && (
-                <div className="flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 z-30">
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Página {currentPage} de {totalPages}</span>
                     <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronLeftIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>

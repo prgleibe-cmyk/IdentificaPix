@@ -78,50 +78,56 @@ export const AdminView: React.FC = () => {
         }, 800);
     };
 
-    // UNIFIED BUTTON COMPONENT - NEON VARIANT
-    const UnifiedButton = ({ 
-        onClick, 
-        icon: Icon, 
+    // TAB BUTTON COMPONENT - PILL STYLE
+    const AdminTabButton = ({ 
+        id, 
         label, 
-        isActive,
-        isLast,
-        variant = 'default'
+        icon: Icon, 
+        colorTheme 
     }: { 
-        onClick: () => void, 
-        icon: any, 
+        id: AdminTab, 
         label: string, 
-        isActive?: boolean,
-        isLast?: boolean,
-        variant?: 'default' | 'primary' | 'success' | 'danger' | 'warning' | 'info' | 'violet'
+        icon: any, 
+        colorTheme: 'slate' | 'blue' | 'emerald' | 'violet' 
     }) => {
-        // MAPA DE CORES: Garante visibilidade permanente
-        const colorMap = {
-            default: { base: 'text-slate-300 hover:text-white', active: 'text-white' },
-            primary: { base: 'text-blue-400 hover:text-blue-300', active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]' }, 
-            success: { base: 'text-emerald-400 hover:text-emerald-300', active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]' }, 
-            danger: { base: 'text-rose-400 hover:text-rose-300', active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' }, 
-            warning: { base: 'text-amber-400 hover:text-amber-300', active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]' }, 
-            info: { base: 'text-indigo-400 hover:text-indigo-300', active: 'text-indigo-300 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]' }, 
-            violet: { base: 'text-purple-400 hover:text-purple-300', active: 'text-purple-300 drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]' }, 
-        };
+        const isActive = activeTab === id;
+        
+        let activeClass = "";
+        let iconClass = "";
 
-        const colors = colorMap[variant] || colorMap.default;
-        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
+        switch (colorTheme) {
+            case 'blue':
+                activeClass = "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30";
+                iconClass = isActive ? "text-white" : "text-blue-500";
+                break;
+            case 'emerald':
+                activeClass = "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30";
+                iconClass = isActive ? "text-white" : "text-emerald-500";
+                break;
+            case 'violet':
+                activeClass = "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-500/30";
+                iconClass = isActive ? "text-white" : "text-violet-500";
+                break;
+            case 'slate':
+            default:
+                activeClass = "bg-gradient-to-r from-slate-600 to-slate-800 text-white shadow-md shadow-slate-500/30";
+                iconClass = isActive ? "text-white" : "text-slate-500";
+                break;
+        }
+
+        const baseClass = "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700";
 
         return (
-            <>
-                <button 
-                    onClick={onClick}
-                    className={`
-                        relative flex-1 flex items-center justify-center gap-2 px-6 h-full text-[10px] uppercase transition-all duration-300 outline-none group whitespace-nowrap
-                        ${currentClass}
-                    `}
-                >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
-                    <span className="hidden sm:inline">{label}</span>
-                </button>
-                {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
-            </>
+            <button
+                onClick={() => setActiveTab(id)}
+                className={`
+                    relative flex items-center gap-2 px-4 py-1.5 rounded-full transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
+                    ${isActive ? `${activeClass} transform scale-105 z-10 border-transparent` : baseClass}
+                `}
+            >
+                <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
+                <span>{label}</span>
+            </button>
         );
     };
 
@@ -138,20 +144,20 @@ export const AdminView: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="flex flex-col md:flex-row gap-2 md:items-center">
+                <div className="flex flex-col md:flex-row gap-3 md:items-center">
                     
-                    {/* UNIFIED COMMAND CAPSULE */}
-                    <div className="flex items-center h-9 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto custom-scrollbar p-0.5">
-                        <UnifiedButton onClick={() => setActiveTab('settings')} isActive={activeTab === 'settings'} label={t('admin.tab.settings')} icon={Cog6ToothIcon} variant="default" />
-                        <UnifiedButton onClick={() => setActiveTab('users')} isActive={activeTab === 'users'} label={t('admin.tab.users')} icon={UserIcon} variant="primary" />
-                        <UnifiedButton onClick={() => setActiveTab('audit')} isActive={activeTab === 'audit'} label={t('admin.tab.audit')} icon={BanknotesIcon} variant="success" />
-                        <UnifiedButton onClick={() => setActiveTab('models')} isActive={activeTab === 'models'} label="Modelos" icon={BrainIcon} isLast={true} variant="violet" />
+                    {/* TABS CONTAINER - PILL STYLE */}
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
+                        <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
+                        <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="blue" />
+                        <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
+                        <AdminTabButton id="models" label="Modelos" icon={BrainIcon} colorTheme="violet" />
                     </div>
 
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
                     
                     <div className="flex items-center gap-2">
-                        <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20">
+                        <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20 hover:-translate-y-0.5 transition-all">
                             <BoltIcon className="w-3.5 h-3.5 text-white" />
                             <span>Diagnóstico</span>
                         </button>
@@ -169,7 +175,6 @@ export const AdminView: React.FC = () => {
             {/* Diagnostic Modal */}
             {showDiagModal && (
                 <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
-                    {/* ... (Modal Content mantido inalterado) ... */}
                     <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">

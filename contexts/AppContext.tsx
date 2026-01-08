@@ -9,7 +9,7 @@ import { usePersistentState } from '../hooks/usePersistentState';
 import {
     Transaction, Contributor, MatchResult, Bank, Church, ChurchFormData,
     DeletingItem, ComparisonType, GroupedReportData, SearchFilters, SavedReport,
-    SavingReportState, LearnedAssociation, MatchMethod, FileModel
+    SavingReportState, LearnedAssociation, MatchMethod, FileModel, SpreadsheetData
 } from '../types';
 import { groupResultsByChurch, PLACEHOLDER_CHURCH } from '../services/processingService';
 
@@ -61,15 +61,18 @@ interface AppContextType {
     comparisonType: ComparisonType;
     setComparisonType: React.Dispatch<React.SetStateAction<ComparisonType>>;
     hasActiveSession: boolean;
+    setHasActiveSession: React.Dispatch<React.SetStateAction<boolean>>;
     isCompareDisabled: boolean;
     pendingTraining: any;
     setPendingTraining: (val: any) => void;
     activeReportId: string | null;
+    setActiveReportId: React.Dispatch<React.SetStateAction<string | null>>;
+    activeSpreadsheetData: SpreadsheetData | null; // NOVO: Dados da planilha ativa
 
     // Reconciliation Actions
     openLabManually: (targetFile?: { content: string, fileName: string, type: 'statement' | 'contributor', id: string, rawFile?: File }) => void;
     handleStatementUpload: (content: string, fileName: string, bankId: string, rawFile: File) => void;
-    handleContributorsUpload: (content: string, fileName: string, churchId: string) => void;
+    handleContributorsUpload: (content: string, fileName: string, churchId: string, rawFile?: File) => void;
     handleTrainingSuccess: (model: FileModel, data: Transaction[]) => void;
     removeBankStatementFile: () => void;
     removeContributorFile: (churchId: string) => void;
@@ -77,8 +80,8 @@ interface AppContextType {
     handleBackToSettings: () => void;
     updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => void;
     discardCurrentReport: () => void;
-    resetReconciliation: () => void; // NOVO
-    handleGmailSyncSuccess: (transactions: Transaction[]) => void; // NOVO: Integração Gmail
+    resetReconciliation: () => void; 
+    handleGmailSyncSuccess: (transactions: Transaction[]) => void; 
 
     // Manual Operations State & Handlers
     manualIdentificationTx: Transaction | null;
@@ -98,7 +101,7 @@ interface AppContextType {
     closeManualMatchModal: () => void;
     confirmManualAssociation: (selectedTx: Transaction) => void;
     
-    // Smart Edit (NEW)
+    // Smart Edit
     smartEditTarget: MatchResult | null;
     openSmartEdit: (match: MatchResult) => void;
     closeSmartEdit: () => void;
@@ -124,9 +127,14 @@ interface AppContextType {
     openRecompareModal: () => void;
     closeRecompareModal: () => void;
 
+    // Update Files Modal (NEW)
+    isUpdateFilesModalOpen: boolean;
+    openUpdateFilesModal: () => void;
+    closeUpdateFilesModal: () => void;
+
     // Reports & Search (from useReportManager)
     savedReports: SavedReport[];
-    maxSavedReports: number; // NOVO: Limite de relatórios
+    maxSavedReports: number;
     searchFilters: SearchFilters;
     setSearchFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
     isSearchFiltersOpen: boolean;
@@ -142,7 +150,8 @@ interface AppContextType {
     viewSavedReport: (reportId: string) => void;
     updateSavedReportName: (reportId: string, newName: string) => void;
     saveFilteredReport: (results: MatchResult[]) => void;
-    saveCurrentReportChanges: () => void; // Nova função
+    saveCurrentReportChanges: () => void;
+    overwriteSavedReport: (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => Promise<void>; // NOVO
     deleteOldReports: (dateThreshold: Date) => Promise<void>;
 
     // Global
@@ -151,7 +160,7 @@ interface AppContextType {
     closeDeleteConfirmation: () => void;
     confirmDeletion: () => void;
     initialDataLoaded: boolean;
-    isSyncing: boolean; // NOVO: Estado para indicar sincronização em background
+    isSyncing: boolean;
     summary: {
         autoConfirmed: { count: number; value: number; };
         manualConfirmed: { count: number; value: number; };
@@ -196,13 +205,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const [initialDataLoaded, setInitialDataLoaded] = useState(true);
-    const [isSyncing, setIsSyncing] = useState(false); // Inicializa sem sync
+    const [isSyncing, setIsSyncing] = useState(false); 
     
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
+    const [isUpdateFilesModalOpen, setIsUpdateFilesModalOpen] = useState(false);
     
     const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
+    
+    // Novo estado para planilha ativa
+    const [activeSpreadsheetData, setActiveSpreadsheetData] = useState<SpreadsheetData | null>(null);
 
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [summary, setSummary] = usePersistentState(`identificapix-dashboard-summary-v6${userSuffix}`, {
@@ -217,18 +230,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         if (!user) return;
         const fetchData = async () => {
-            // Usamos isSyncing para dar feedback sutil (ex: na sidebar) se necessário.
             setIsSyncing(true);
-            
             try {
-                // OTIMIZAÇÃO CRÍTICA (Resource Exhaustion Fix):
-                // NÃO selecionamos a coluna 'data' (JSON pesado) na listagem inicial.
-                // Isso evita o erro de "Exhausting multiple resources" no Supabase Nano.
                 const [churchesRes, banksRes, reportsRes] = await Promise.all([
                     supabase.from('churches').select('*').order('name'),
                     supabase.from('banks').select('*').order('name'),
                     supabase.from('saved_reports')
-                        .select('id, name, created_at, record_count, user_id') // SEM 'data'
+                        .select('id, name, created_at, record_count, user_id') 
                         .eq('user_id', user.id)
                         .order('created_at', { ascending: false }),
                 ]);
@@ -243,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         createdAt: r.created_at, 
                         recordCount: r.record_count, 
                         user_id: r.user_id, 
-                        data: null // Lazy Load: Iniciamos sem dados pesados
+                        data: null 
                     })));
                 }
             } catch (err) { console.error('Background sync failed', err); } 
@@ -262,8 +270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const timer = setTimeout(() => {
             let resultsToProcess = reconciliation.matchResults;
             let isHistorical = false;
-            // No modo Lazy Load, o Dashboard histórico fica limitado aos dados já carregados na memória
-            // ou apenas à sessão ativa, para evitar crash.
+            
             if (resultsToProcess.length === 0 && reportManager.savedReports.length > 0) {
                 resultsToProcess = reportManager.savedReports.flatMap(report => report.data?.results || []);
                 isHistorical = true;
@@ -300,6 +307,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const handleBackToSettings = useCallback(() => setActiveView('upload'), [setActiveView]);
     const openDeleteConfirmation = useCallback((item: DeletingItem) => setDeletingItem(item), []);
     const closeDeleteConfirmation = useCallback(() => setDeletingItem(null), []);
+    
+    // --- RESET FUNCTION UNIFIED ---
+    const unifiedResetReconciliation = useCallback(() => {
+        reconciliation.resetReconciliation();
+        setActiveSpreadsheetData(null); // Limpa também a planilha ativa
+    }, [reconciliation]);
+
     const confirmDeletion = useCallback(async () => {
         if (!deletingItem) return;
         if (deletingItem.type === 'report-row') {
@@ -343,7 +357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             let report = reportManager.savedReports.find(r => r.id === reportId);
             if (!report) return;
 
-            // LAZY LOAD LOGIC: Busca o conteúdo 'data' apenas se ele estiver vazio
+            // LAZY LOAD LOGIC
             if (!report.data) {
                 const { data: reportContent, error } = await supabase
                     .from('saved_reports')
@@ -366,20 +380,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             if (!report.data) throw new Error("Conteúdo do relatório vazio.");
 
-            // LIMPEZA CRÍTICA: Reseta os arquivos de upload para evitar estado "preso"
-            // Isso garante que se o usuário for para a tela de Upload, ela estará limpa para novos arquivos
-            // e não bloqueada por arquivos da sessão anterior.
+            // Resetar estados antes de carregar novo relatório
             reconciliation.clearFiles();
+            setActiveSpreadsheetData(null);
 
-            const validResults = report.data.results.map((r: any) => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
-            reconciliation.setMatchResults(validResults);
-            reconciliation.setReportPreviewData({
-                income: groupResultsByChurch(validResults.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                expenses: { 'all_expenses_group': validResults.filter((r: any) => r.transaction.amount < 0) }
-            });
-            reconciliation.setHasActiveSession(true); 
-            reconciliation.setActiveReportId(reportId); // CRÍTICO: Define qual relatório está sendo editado
-            setActiveView('reports'); 
+            // --- BRANCH DE DECISÃO: PLANILHA OU CONCILIAÇÃO ---
+            if (report.data.spreadsheet) {
+                // Carrega Planilha
+                setActiveSpreadsheetData(report.data.spreadsheet);
+                reconciliation.setActiveReportId(reportId);
+                setActiveView('smart_analysis');
+                showToast(`Planilha "${report.name}" carregada.`, "success");
+            } else {
+                // Carrega Conciliação Padrão
+                const validResults = report.data.results.map((r: any) => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
+                reconciliation.setMatchResults(validResults);
+                reconciliation.setReportPreviewData({
+                    income: groupResultsByChurch(validResults.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                    expenses: { 'all_expenses_group': validResults.filter((r: any) => r.transaction.amount < 0) }
+                });
+                reconciliation.setHasActiveSession(true); 
+                reconciliation.setActiveReportId(reportId); 
+                setActiveView('reports'); 
+                showToast(`Relatório "${report.name}" carregado.`, "success");
+            }
+
         } catch (error: any) {
             console.error(error);
             showToast("Erro ao abrir relatório: " + error.message, "error");
@@ -415,7 +440,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (reconciliation.matchResults.some(r => r.transaction.id === transactionId)) reconciliation.updateReportData(updated, 'income');
             else reportManager.updateSavedReportTransaction(transactionId, updated);
             reconciliation.closeManualIdentify(); 
-            // Feedback modificado para não confundir com salvamento em banco
             showToast('Identificação realizada.', 'success');
         }
     }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
@@ -455,13 +479,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const saveSmartEdit = useCallback((updatedMatch: MatchResult) => {
         if (reconciliation.matchResults.some(r => r.transaction.id === updatedMatch.transaction.id)) {
-            // Se for uma edição de match reverso, precisamos remover o ID fantasma
             const ghostId = smartEditTarget?.status === 'PENDENTE' ? smartEditTarget.transaction.id : undefined;
             reconciliation.updateReportData(updatedMatch, 'income', ghostId);
         } else {
             reportManager.updateSavedReportTransaction(updatedMatch.transaction.id, updatedMatch);
         }
-        // Feedback modificado para não confundir com salvamento em banco
         showToast("Edição aplicada na tabela.", "success");
         setSmartEditTarget(null);
         reconciliation.setAiSuggestion(null);
@@ -499,26 +521,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [incrementAiUsage, showToast, reconciliation]);
 
     // --- NOVA FUNÇÃO GMAIL SYNC ---
-    // Injeta transações do Gmail como se fossem um novo extrato, mantendo o fluxo existente
     const handleGmailSyncSuccess = useCallback((transactions: Transaction[]) => {
         if (transactions.length === 0) return;
 
-        // Cria uma estrutura compatível com bankStatementFile
-        const virtualContent = JSON.stringify(transactions); // Placeholder content
         const virtualFileName = `Importação Gmail - ${new Date().toLocaleDateString()}`;
-        
-        // Se já existe um extrato, mesclamos as transações
-        // Se não, definimos como novo extrato
-        // Como o hook useReconciliation espera um 'content' cru para processar novamente, 
-        // aqui vamos setar diretamente o processedTransactions no estado do hook se possível,
-        // mas como o hook não expõe o setter direto do array de transações, vamos simular o upload.
-        // POREM: useReconciliation expõe setBankStatementFile que aceita processedTransactions!
         
         reconciliation.setBankStatementFile(prev => {
             const existingTxs = prev?.processedTransactions || [];
-            // Remove duplicatas por ID ou conteúdo
             const newTxs = transactions.filter(nt => !existingTxs.some(et => et.id === nt.id || (et.amount === nt.amount && et.date === nt.date && et.description === nt.description)));
-            
             const merged = [...existingTxs, ...newTxs];
             
             return {
@@ -543,8 +553,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false),
         smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze,
         saveCurrentReportChanges,
-        handleGmailSyncSuccess // Exported
-    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze, saveCurrentReportChanges, handleGmailSyncSuccess]);
+        handleGmailSyncSuccess,
+        resetReconciliation: unifiedResetReconciliation,
+        activeSpreadsheetData,
+        isUpdateFilesModalOpen, 
+        openUpdateFilesModal: () => setIsUpdateFilesModalOpen(true), 
+        closeUpdateFilesModal: () => setIsUpdateFilesModalOpen(false)
+    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze, saveCurrentReportChanges, handleGmailSyncSuccess, unifiedResetReconciliation, activeSpreadsheetData, isUpdateFilesModalOpen]);
 
     return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
 };

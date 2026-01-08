@@ -1,3 +1,4 @@
+
 import React, { ReactNode } from 'react';
 
 // --- Contexts ---
@@ -24,6 +25,7 @@ import { DivergenceConfirmationModal } from './components/modals/DivergenceConfi
 import { PaymentModal } from './components/modals/PaymentModal';
 import { FilePreprocessorModal } from './components/modals/FilePreprocessorModal';
 import { SmartEditModal } from './components/modals/SmartEditModal';
+import { UpdateReportFilesModal } from './components/modals/UpdateReportFilesModal'; // Added
 
 // --- Views ---
 import { AuthView } from './views/AuthView';
@@ -98,10 +100,11 @@ const ModalsRenderer = () => {
         pendingTraining,
         setPendingTraining,
         handleTrainingSuccess,
-        smartEditTarget
+        smartEditTarget,
+        isUpdateFilesModalOpen // Added
     } = context;
 
-    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget) {
+    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget && !isUpdateFilesModalOpen) {
         return null;
     }
 
@@ -116,6 +119,7 @@ const ModalsRenderer = () => {
             {isSearchFiltersOpen && <SearchFiltersModal />}
             {divergenceConfirmation && <DivergenceConfirmationModal />}
             {isPaymentModalOpen && <PaymentModal />}
+            {isUpdateFilesModalOpen && <UpdateReportFilesModal />} 
             {pendingTraining && (
                 <FilePreprocessorModal 
                     onClose={() => setPendingTraining(null)}
@@ -168,7 +172,7 @@ const MainAppContent = () => {
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] font-sans overflow-hidden">
+        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] bg-noise font-sans overflow-hidden">
             {/* Sidebar is fixed height, main content scrolls */}
             <Sidebar />
 

@@ -2,7 +2,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
-import { SavedReport, SearchFilters, SavingReportState, MatchResult } from '../types';
+import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 import { User } from '@supabase/supabase-js';
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
@@ -90,7 +90,8 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
     }, [user, savedReports, setSavedReports, showToast]);
 
     // NOVO: Sobrescreve um relatório inteiro (usado para salvar alterações da sessão)
-    const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[]) => {
+    // Agora aceita spreadsheetData opcional para atualizar planilhas
+    const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user) return;
 
         const reportIndex = savedReports.findIndex(r => r.id === reportId);
@@ -98,13 +99,17 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
 
         const report = savedReports[reportIndex];
         
+        // Determina a contagem de registros (planilha vs conciliação)
+        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : results.length;
+
         const updatedReport: SavedReport = {
             ...report,
-            recordCount: results.length,
+            recordCount: recordCount,
             data: {
                 results: results,
                 sourceFiles: [], // Mantém limpo ou preserva se necessário (simplificado)
-                bankStatementFile: null
+                bankStatementFile: null,
+                spreadsheet: spreadsheetData || report.data?.spreadsheet
             }
         };
 
@@ -115,19 +120,21 @@ export const useReportManager = (user: User | null, showToast: (msg: string, typ
             return newReports;
         });
 
-        // Update Supabase
+        // OPTIMISTIC UI: Feedback Imediato
+        showToast('Alterações salvas com sucesso!', 'success');
+
+        // Update Supabase (Background)
         const { error } = await supabase
             .from('saved_reports')
             .update({ 
                 data: updatedReport.data as any,
-                record_count: results.length 
+                record_count: recordCount 
             })
             .eq('id', reportId);
 
         if (error) {
-            showToast('Erro ao salvar alterações.', 'error');
-        } else {
-            showToast('Alterações salvas com sucesso!', 'success');
+            console.error("Erro ao persistir:", error);
+            showToast('Aviso: Falha ao sincronizar com a nuvem. Verifique sua conexão.', 'error');
         }
     }, [user, savedReports, setSavedReports, showToast]);
 

@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
@@ -288,63 +287,47 @@ export const SettingsView: React.FC = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
 
-    // UNIFIED BUTTON COMPONENT - NEON VARIANT
-    const UnifiedButton = ({ 
-        onClick, 
-        icon: Icon, 
+    // TAB BUTTON COMPONENT - PILL STYLE
+    const SettingsTabButton = ({ 
+        id, 
         label, 
-        isActive,
-        isLast,
-        variant = 'default'
+        icon: Icon, 
+        colorTheme 
     }: { 
-        onClick: () => void, 
-        icon: any, 
+        id: SettingsTab, 
         label: string, 
-        isActive?: boolean,
-        isLast?: boolean,
-        variant?: 'default' | 'primary' | 'success' | 'danger' | 'warning'
+        icon: any, 
+        colorTheme: 'blue' | 'violet' 
     }) => {
-        // MAPA DE CORES: Garante visibilidade permanente
-        const colorMap = {
-            default: { 
-                base: 'text-slate-400', 
-                active: 'text-slate-200' 
-            },
-            primary: { 
-                base: 'text-blue-400/80 hover:text-blue-400', 
-                active: 'text-blue-300 drop-shadow-[0_0_8px_rgba(59,130,246,0.6)]' 
-            },
-            success: { 
-                base: 'text-emerald-400/80 hover:text-emerald-400', 
-                active: 'text-emerald-300 drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]' 
-            },
-            danger: { 
-                base: 'text-rose-400/80 hover:text-rose-400', 
-                active: 'text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]' 
-            },
-            warning: { 
-                base: 'text-amber-400/80 hover:text-amber-400', 
-                active: 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]' 
-            },
-        };
+        const isActive = activeTab === id;
+        
+        let activeClass = "";
+        let iconClass = "";
 
-        const colors = colorMap[variant] || colorMap.default;
-        const currentClass = isActive ? `${colors.active} font-black scale-105` : `${colors.base} font-bold hover:scale-105`;
+        switch (colorTheme) {
+            case 'blue':
+                activeClass = "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30";
+                iconClass = isActive ? "text-white" : "text-blue-500";
+                break;
+            case 'violet':
+                activeClass = "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-500/30";
+                iconClass = isActive ? "text-white" : "text-violet-500";
+                break;
+        }
+
+        const baseClass = "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700";
 
         return (
-            <>
-                <button 
-                    onClick={onClick}
-                    className={`
-                        relative flex-1 flex items-center justify-center gap-2 px-6 h-full text-[10px] uppercase transition-all duration-300 outline-none group
-                        ${currentClass}
-                    `}
-                >
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
-                    <span className="hidden sm:inline">{label}</span>
-                </button>
-                {!isLast && <div className="w-px h-3 bg-white/10 self-center"></div>}
-            </>
+            <button
+                onClick={() => setActiveTab(id)}
+                className={`
+                    relative flex items-center gap-2 px-4 py-1.5 rounded-full transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
+                    ${isActive ? `${activeClass} transform scale-105 z-10 border-transparent` : baseClass}
+                `}
+            >
+                <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
+                <span>{label}</span>
+            </button>
         );
     };
 
@@ -353,22 +336,19 @@ export const SettingsView: React.FC = () => {
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{t('settings.title')}</h2>
                 
-                {/* UNIFIED COMMAND CAPSULE */}
-                <div className="flex items-center h-9 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 rounded-full shadow-lg border border-white/20 overflow-hidden overflow-x-auto custom-scrollbar p-0.5">
-                     <UnifiedButton 
-                        onClick={() => setActiveTab('preferences')}
-                        isActive={activeTab === 'preferences'}
+                {/* TABS CONTAINER - PILL STYLE */}
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
+                     <SettingsTabButton 
+                        id="preferences"
                         label={t('settings.tabPreferences')} 
                         icon={WrenchScrewdriverIcon} 
-                        variant="primary"
+                        colorTheme="blue"
                      />
-                     <UnifiedButton 
-                        onClick={() => setActiveTab('automation')}
-                        isActive={activeTab === 'automation'}
+                     <SettingsTabButton 
+                        id="automation"
                         label={t('settings.tabAutomation')} 
                         icon={BrainIcon} 
-                        isLast={true}
-                        variant="warning"
+                        colorTheme="violet"
                      />
                 </div>
             </div>

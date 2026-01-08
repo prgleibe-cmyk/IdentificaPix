@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 
 interface EmptyStateProps {
@@ -47,12 +46,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, message, ac
           <button
             type="button"
             onClick={action.onClick}
-            className="relative inline-flex items-center justify-center px-10 py-4 text-xs md:text-sm font-bold uppercase tracking-widest text-white transition-all duration-300 bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] rounded-full shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 active:scale-[0.98] overflow-hidden group/btn border-t border-white/20"
+            className="relative inline-flex items-center justify-center px-10 py-3 text-xs font-bold uppercase tracking-widest text-white transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-full shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 active:scale-[0.98] group/btn border border-white/10"
           >
             <span className="relative z-10 flex items-center gap-3">
                 {action.text}
             </span>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 ease-in-out"></div>
           </button>
         )}
       </div>
