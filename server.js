@@ -111,11 +111,10 @@ app.post('/api/gmail/sync', async (req, res) => {
         console.log("[Gmail] Iniciando sincronização...");
         
         // 1. Buscar E-mails (Filtro Bancário Otimizado)
-        // ATUALIZAÇÃO: Removido filtros de categoria (-category:promotions) pois muitos bancos caem lá erroneamente
-        // Adicionados termos mais amplos (pagamento, débito) para garantir captura
+        // ATUALIZAÇÃO: Busca abrangente incluindo 'extrato', 'aviso', 'notificação'
         const emails = await fetchGmailMessages(
             accessToken, 
-            'subject:(pix OR transferência OR comprovante OR recebido OR enviado OR pagamento OR débito OR crédito)',
+            'subject:(pix OR transferência OR comprovante OR recebido OR enviado OR pagamento OR débito OR crédito OR extrato OR aviso OR notificação)',
             400 // Busca os últimos 400 emails (Alta capacidade para eventos)
         );
 
