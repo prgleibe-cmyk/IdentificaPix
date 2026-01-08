@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -35,7 +34,7 @@ try {
 // --- SERVIÇOS AUXILIARES ---
 
 // 1. Busca e-mails brutos via Gmail API
-// ATUALIZADO: maxResults aumentado para 400 (limite seguro próximo ao teto de 500 da API)
+// ATUALIZADO: maxResults aumentado para 400 e tratamento de erros individuais
 async function fetchGmailMessages(accessToken, query, maxResults = 400) {
     const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
     const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -51,26 +50,35 @@ async function fetchGmailMessages(accessToken, query, maxResults = 400) {
     if (!listData.messages || listData.messages.length === 0) return [];
 
     const details = await Promise.all(listData.messages.map(async (msg) => {
-        const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
-        const res = await fetch(detailUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
-        return res.json();
+        try {
+            const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
+            const res = await fetch(detailUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+            if (!res.ok) return null; // Ignora mensagens que falharam individualmente
+            return res.json();
+        } catch (e) {
+            console.error(`Erro ao buscar detalhe da mensagem ${msg.id}:`, e);
+            return null;
+        }
     }));
 
-    return details.map(msg => {
-        const headers = msg.payload.headers;
-        const subject = headers.find(h => h.name === 'Subject')?.value || '';
-        const date = headers.find(h => h.name === 'Date')?.value || '';
-        
-        let body = '';
-        if (msg.payload.parts) {
-            const part = msg.payload.parts.find(p => p.mimeType === 'text/plain');
-            if (part && part.body.data) body = Buffer.from(part.body.data, 'base64').toString('utf-8');
-        } else if (msg.payload.body.data) {
-            body = Buffer.from(msg.payload.body.data, 'base64').toString('utf-8');
-        }
-        
-        return { id: msg.id, subject, date, body: body.substring(0, 1000) }; // Limita tamanho para IA
-    });
+    // Filtra mensagens nulas ou sem payload (estrutura inválida) antes de processar
+    return details
+        .filter(msg => msg && msg.payload && msg.payload.headers)
+        .map(msg => {
+            const headers = msg.payload.headers;
+            const subject = headers.find(h => h.name === 'Subject')?.value || '';
+            const date = headers.find(h => h.name === 'Date')?.value || '';
+            
+            let body = '';
+            if (msg.payload.parts) {
+                const part = msg.payload.parts.find(p => p.mimeType === 'text/plain');
+                if (part && part.body.data) body = Buffer.from(part.body.data, 'base64').toString('utf-8');
+            } else if (msg.payload.body.data) {
+                body = Buffer.from(msg.payload.body.data, 'base64').toString('utf-8');
+            }
+            
+            return { id: msg.id, subject, date, body: body.substring(0, 1000) }; // Limita tamanho para IA
+        });
 }
 
 // 2. Converte JSON estruturado em CSV compatível com o sistema legado (Regra de Negócio)
@@ -111,7 +119,6 @@ app.post('/api/gmail/sync', async (req, res) => {
         console.log("[Gmail] Iniciando sincronização...");
         
         // 1. Buscar E-mails (Filtro Bancário Otimizado)
-        // ATUALIZAÇÃO: Busca abrangente incluindo 'extrato', 'aviso', 'notificação'
         const emails = await fetchGmailMessages(
             accessToken, 
             'subject:(pix OR transferência OR comprovante OR recebido OR enviado OR pagamento OR débito OR crédito OR extrato OR aviso OR notificação)',
