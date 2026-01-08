@@ -111,10 +111,11 @@ app.post('/api/gmail/sync', async (req, res) => {
         console.log("[Gmail] Iniciando sincronização...");
         
         // 1. Buscar E-mails (Filtro Bancário Otimizado)
-        // Aumentado o range de busca para garantir recuperação de histórico
+        // ATUALIZAÇÃO: Removido filtros de categoria (-category:promotions) pois muitos bancos caem lá erroneamente
+        // Adicionados termos mais amplos (pagamento, débito) para garantir captura
         const emails = await fetchGmailMessages(
             accessToken, 
-            'subject:(pix OR transferência OR comprovante OR recebido OR enviado) -category:promotions -category:social',
+            'subject:(pix OR transferência OR comprovante OR recebido OR enviado OR pagamento OR débito OR crédito)',
             400 // Busca os últimos 400 emails (Alta capacidade para eventos)
         );
 
@@ -134,9 +135,9 @@ app.post('/api/gmail/sync', async (req, res) => {
             
             REGRAS RÍGIDAS:
             1. Retorne APENAS transações financeiras reais (Pix, TEF, Pagamentos).
-            2. Ignore e-mails de marketing, avisos de segurança ou login.
+            2. Ignore e-mails de marketing puro (ex: "Peça seu cartão", "Oferta de empréstimo").
             3. Data deve ser ISO (YYYY-MM-DD).
-            4. Valor deve ser numérico (positivo para entradas, negativo para saídas/pagamentos).
+            4. Valor deve ser numérico (positivo para entradas/recebimentos, negativo para saídas/pagamentos).
             5. Descrição deve conter o nome da pessoa/empresa ou tipo da operação.
             
             INPUT:
