@@ -20,22 +20,26 @@ export const AdminConfigService = {
         }
 
         try {
+            // FIX: Alterado de maybeSingle() para select com limit(1) e order
+            // Isso evita erro 406 (Not Acceptable) caso existam chaves duplicadas no banco
+            // e garante que sempre pegamos a configuração mais recente.
             const { data, error } = await supabase
                 .from('admin_config')
                 .select('value')
                 .eq('key', key)
-                .maybeSingle(); // Usa maybeSingle para evitar erro se não existir (retorna null)
+                .order('updated_at', { ascending: false })
+                .limit(1);
 
             if (error) {
                 console.warn(`[AdminConfig] Erro na consulta de '${key}':`, error);
                 return null;
             }
 
-            if (!data) {
+            if (!data || data.length === 0) {
                 return null;
             }
 
-            const value = data.value as T;
+            const value = data[0].value as T;
             this.cache.set(key, value);
             return value;
         } catch (e) {
@@ -53,14 +57,16 @@ export const AdminConfigService = {
         this.cache.set(key, value);
 
         try {
-            // 1. Verifica se o registro já existe
-            const { data: existing, error: fetchError } = await supabase
+            // 1. Verifica se o registro já existe (Robusto a duplicatas)
+            const { data: existingList, error: fetchError } = await supabase
                 .from('admin_config')
                 .select('id')
                 .eq('key', key)
-                .maybeSingle();
+                .limit(1);
 
             if (fetchError) throw fetchError;
+
+            const existing = existingList && existingList.length > 0 ? existingList[0] : null;
 
             if (existing) {
                 // 2A. Se existe, faz UPDATE pelo ID (Mais seguro que upsert por chave)
