@@ -52,7 +52,20 @@ export const matchTransactions = (
                 (normalizeString(c.name, customIgnoreKeywords) === learned.contributorNormalizedName) && 
                 (c.church.id === learned.churchId)
             );
-            if (matchedContrib) {
+
+            // FIX: Aplicar validação de Tolerância de Data também para Associações Aprendidas
+            // Isso garante que as configurações do modal sejam respeitadas mesmo para matches "conhecidos".
+            let isDateValid = true;
+            if (matchedContrib && options.dayTolerance !== undefined && matchedContrib.date && tx.date) {
+                const tDate = parseDate(tx.date);
+                const cDate = parseDate(matchedContrib.date);
+                if (tDate && cDate) {
+                    const diffDays = Math.ceil(Math.abs(tDate.getTime() - cDate.getTime()) / (1000 * 3600 * 24));
+                    if (diffDays > options.dayTolerance) isDateValid = false;
+                }
+            }
+
+            if (matchedContrib && isDateValid) {
                 usedContributors.add(matchedContrib._internalId);
                 finalResults.push({ 
                     transaction: tx, contributor: matchedContrib, status: 'IDENTIFICADO', 
