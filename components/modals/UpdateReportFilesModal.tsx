@@ -156,9 +156,17 @@ const BankRow: React.FC<{
                 const currentFile = prevFiles[existingIndex];
                 const currentTransactions = currentFile.processedTransactions || [];
                 
-                // Deduplicação visual simples para evitar duplicação imediata na tela
-                const existingSignatures = new Set(currentTransactions.map((t: any) => `${t.date}|${t.amount}|${t.description}`));
-                const uniqueNewTransactions = newTransactions.filter(t => !existingSignatures.has(`${t.date}|${t.amount}|${t.description}`));
+                // Deduplicação Lógica Rigorosa (Data + Valor + Nome Limpo)
+                // Garante unicidade contra a lista existente e internamente na nova lista
+                const getSignature = (t: any) => `${t.date}|${t.amount}|${t.cleanedDescription}`;
+                const existingSignatures = new Set(currentTransactions.map((t: any) => getSignature(t)));
+                
+                const uniqueNewTransactions = newTransactions.filter(t => {
+                    const sig = getSignature(t);
+                    if (existingSignatures.has(sig)) return false;
+                    existingSignatures.add(sig); // Bloqueia duplicatas subsequentes na mesma importação
+                    return true;
+                });
 
                 if (uniqueNewTransactions.length === 0) {
                     showToast("Todas as transações deste arquivo já existem na lista.", "error");
