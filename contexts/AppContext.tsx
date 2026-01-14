@@ -557,7 +557,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             reconciliation.updateReportData({
                 ...result,
                 status: 'NÃO IDENTIFICADO',
-                church: PLACEHOLDER_CHURCH,
+                church: result.church, // Keep in current group to prevent disappearing
                 contributor: null,
                 matchMethod: undefined,
                 similarity: 0
