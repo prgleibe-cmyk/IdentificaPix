@@ -237,7 +237,7 @@ const SpreadsheetRenderer: React.FC<{ data: string[][], isLoading?: boolean, det
         <div className="absolute inset-0 overflow-auto custom-scrollbar bg-[#f8f9fa] dark:bg-[#1e1e1e] select-text">
             {isAiProcessed && (
                 <div className="sticky left-0 top-0 z-40 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-3 py-1 text-[9px] font-bold uppercase tracking-wide border-b border-purple-200 dark:border-purple-800 flex items-center gap-2">
-                    <SparklesIcon className="w-3 h-3" /> Conteúdo Interpretado por IA (Visual -> Texto)
+                    <SparklesIcon className="w-3 h-3" /> Conteúdo Interpretado por IA (Visual &rarr; Texto)
                 </div>
             )}
             <table className="border-collapse table-fixed min-w-full">
