@@ -3,11 +3,9 @@
  * ESPECIALISTA EM INTELIGÊNCIA MONETÁRIA (Core Engine v3)
  * Identifica a coluna correta por magnitude e limpa ruídos alfanuméricos com fidelidade absoluta.
  * 
- * ATUALIZAÇÃO (BR STRICT MODE):
- * Prioriza formatação brasileira para evitar perdas de magnitude.
- * Regra de Ouro:
- * 1. Remove separadores de milhar (.)
- * 2. Converte decimal (,) para ponto
+ * ATUALIZAÇÃO (BR STRICT MODE + US SUPPORT):
+ * Detecta automaticamente o formato (BR vs US) baseado na presença e ordem dos separadores.
+ * Corrige bug onde 1,340 (milhar US) era lido como 1,34 (decimal BR).
  */
 export class AmountResolver {
   /**
@@ -51,8 +49,7 @@ export class AmountResolver {
 
   /**
    * Limpa letras e símbolos, padronizando para string numérica pura (ponto decimal).
-   * PADRÃO BRASILEIRO ESTRITO (1.000,00 -> 1000.00).
-   * HARDENED: Aceita tipos inesperados (number, null, undefined) para evitar crashes.
+   * Suporta formatos BR (1.000,00) e US (1,000.00) inteligentemente.
    */
   static clean(rawAmount: any): string {
     // 1. Hardening: Proteção contra nulos/undefined
@@ -77,36 +74,60 @@ export class AmountResolver {
     // Remove tudo que não é número, ponto ou vírgula
     cleaned = cleaned.replace(/[^0-9.,]/g, '');
 
-    // 4. LÓGICA DE NORMALIZAÇÃO BRASILEIRA (STRICT MODE)
+    // 4. LÓGICA DE NORMALIZAÇÃO INTELIGENTE (BR/US HÍBRIDO)
     const hasComma = cleaned.includes(',');
     const hasDot = cleaned.includes('.');
 
     if (hasComma && hasDot) {
-        // Híbrido: Assume padrão BR (1.000,00)
-        // Regra: Remove pontos (milhar) e troca vírgula por ponto (decimal)
-        cleaned = cleaned.replace(/\./g, ''); 
-        cleaned = cleaned.replace(',', '.');  
+        const lastDot = cleaned.lastIndexOf('.');
+        const lastComma = cleaned.lastIndexOf(',');
+
+        // Se o Ponto vem ANTES da Vírgula -> Padrão BR (1.000,00)
+        if (lastDot < lastComma) {
+            cleaned = cleaned.replace(/\./g, ''); 
+            cleaned = cleaned.replace(',', '.');  
+        } 
+        // Se a Vírgula vem ANTES do Ponto -> Padrão US (1,000.00)
+        else {
+            cleaned = cleaned.replace(/,/g, ''); 
+            // O ponto já é decimal, mantém
+        }
     } 
     else if (hasComma) {
-        // Apenas vírgula: Assume decimal BR (100,00) ou sem milhar (1000,00)
-        cleaned = cleaned.replace(',', '.');
+        const parts = cleaned.split(',');
+        
+        // Se houver múltiplas vírgulas (1,234,567), é milhar US
+        if (parts.length > 2) {
+            cleaned = cleaned.replace(/,/g, '');
+        } 
+        else if (parts.length === 2) {
+            const decimalPart = parts[1];
+            // HEURÍSTICA DE CONTEXTO: 
+            // Se exatamente 3 dígitos após a vírgula (ex: 1,340), assume milhar US -> 1340
+            // Isso corrige o bug de valores > 1000 vindos de CSV/Excel mal formatados
+            if (decimalPart.length === 3) {
+                cleaned = cleaned.replace(/,/g, '');
+            } else {
+                // Caso contrário (10,5 ou 10,50), assume decimal BR -> 10.5
+                cleaned = cleaned.replace(',', '.');
+            }
+        }
     } 
     else if (hasDot) {
-        // Apenas ponto: Ambiguidade (1.000 BR vs 10.50 US/Prog)
         const parts = cleaned.split('.');
         
-        // Se houver múltiplos pontos (1.234.567), é milhar BR com certeza
+        // Se houver múltiplos pontos (1.234.567), é milhar BR
         if (parts.length > 2) {
             cleaned = cleaned.replace(/\./g, '');
         } 
         else if (parts.length === 2) {
             const decimalPart = parts[1];
-            // HEURÍSTICA DE CONTEXTO: 
+            // HEURÍSTICA DE CONTEXTO:
             // Se exatamente 3 dígitos após o ponto (ex: 1.000), assume milhar BR -> 1000
             if (decimalPart.length === 3) {
                 cleaned = cleaned.replace(/\./g, '');
             }
-            // Caso contrário (10.5, 10.50), assume decimal US/Prog e mantém o ponto
+            // Caso contrário (10.50), assume decimal US/Prog e mantém o ponto
         }
     }
 
@@ -118,7 +139,7 @@ export class AmountResolver {
   }
 
   /**
-   * Versão ultra-leve para detecção de coluna (com mesma lógica BR).
+   * Versão ultra-leve para detecção de coluna (Usa a mesma lógica principal).
    */
   private static simpleParse(val: any): number | null {
     if (val === null || val === undefined) return null;
@@ -126,21 +147,10 @@ export class AmountResolver {
     if (s.length < 1) return null;
     if (s.includes(':')) return null;
 
-    // Normalização rápida usando a mesma lógica do clean
-    let c = s.replace(/[R$\s]/g, '');
+    // Reutiliza a lógica robusta do clean, mas retorna float direto
+    const cleanedStr = this.clean(s);
+    const parsed = parseFloat(cleanedStr);
     
-    if (c.includes(',') && c.includes('.')) {
-        c = c.replace(/\./g, '').replace(',', '.');
-    } else if (c.includes(',')) {
-        c = c.replace(',', '.');
-    } else if (c.includes('.')) {
-        const parts = c.split('.');
-        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
-            c = c.replace(/\./g, '');
-        }
-    }
-
-    const parsed = parseFloat(c);
     return isNaN(parsed) ? null : parsed;
   }
 }
