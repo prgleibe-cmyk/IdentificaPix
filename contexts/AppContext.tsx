@@ -43,7 +43,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
-    // --- Summary Calculation (Fix for Dashboard Crash) ---
+    // --- Summary Calculation (RESTAURADO) ---
     const summary = useMemo(() => {
         const results = reconciliation.matchResults || [];
         
@@ -185,6 +185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const result = reconciliation.matchResults.find(r => r.transaction.id === transactionId);
         if (result && result.status === 'IDENTIFICADO') {
             
+            // Lógica de Reversão com Respeito à Origem (List vs Bank)
             const isGhost = result.transaction.id.startsWith('ghost-');
             
             const targetStatus = isGhost ? 'PENDENTE' : 'NÃO IDENTIFICADO';
@@ -412,7 +413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeSmartEdit,
         saveSmartEdit,
         
-        summary, // <--- ADDED SUMMARY HERE
+        summary, // <--- RESTAURADO AQUI
         
         initialDataLoaded: true,
         findMatchResult: (id: string) => reconciliation.matchResults.find(r => r.transaction.id === id)

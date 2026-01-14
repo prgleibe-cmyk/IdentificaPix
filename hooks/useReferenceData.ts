@@ -53,6 +53,49 @@ export const useReferenceData = (user: User | null, showToast: (msg: string, typ
 
     const removeContributionKeyword = useCallback((k: string) => setContributionKeywords(prev => prev.filter(i => i !== k)), [setContributionKeywords]);
 
+    // --- Sincronização de Dados (Recuperação do Banco) ---
+    useEffect(() => {
+        if (!user) return;
+
+        const syncData = async () => {
+            try {
+                // Sincroniza Bancos
+                const { data: banksData } = await supabase
+                    .from('banks')
+                    .select('*')
+                    .eq('user_id', user.id);
+                
+                if (banksData) {
+                    setBanks(prev => {
+                        // Merge para evitar perder temporários, mas prioriza DB
+                        const dbIds = new Set(banksData.map(b => b.id));
+                        const localOnly = prev.filter(b => b.id.startsWith('temp-') || !dbIds.has(b.id));
+                        // Se o DB retornou dados, usamos eles como fonte de verdade + locais temporários
+                        return banksData.length > 0 ? [...banksData, ...localOnly.filter(l => l.id.startsWith('temp-'))] : prev;
+                    });
+                }
+
+                // Sincroniza Igrejas
+                const { data: churchesData } = await supabase
+                    .from('churches')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                if (churchesData) {
+                    setChurches(prev => {
+                        const dbIds = new Set(churchesData.map(c => c.id));
+                        const localOnly = prev.filter(c => c.id.startsWith('temp-') || !dbIds.has(c.id));
+                        return churchesData.length > 0 ? [...churchesData, ...localOnly.filter(l => l.id.startsWith('temp-'))] : prev;
+                    });
+                }
+            } catch (e) {
+                console.error("Erro ao sincronizar cadastros:", e);
+            }
+        };
+
+        syncData();
+    }, [user, setBanks, setChurches]);
+
     // --- Fetch Models ---
     const fetchModels = useCallback(async () => {
         if (!user) return;
