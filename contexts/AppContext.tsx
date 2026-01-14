@@ -43,6 +43,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
+    // --- Summary Calculation (Fix for Dashboard Crash) ---
+    const summary = useMemo(() => {
+        const results = reconciliation.matchResults || [];
+        
+        // Calculate stats
+        const identified = results.filter(r => r.status === 'IDENTIFICADO');
+        const unidentified = results.filter(r => r.status !== 'IDENTIFICADO'); // 'NÃO IDENTIFICADO' or 'PENDENTE'
+        
+        const identifiedCount = identified.length;
+        const unidentifiedCount = unidentified.length;
+        
+        const autoConfirmed = identified.filter(r => !r.matchMethod || r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED');
+        const manualConfirmed = identified.filter(r => r.matchMethod === 'MANUAL' || r.matchMethod === 'AI');
+        const pending = unidentified;
+
+        const totalValue = results.reduce((acc, r) => acc + (r.transaction.amount || 0), 0);
+        
+        const autoValue = autoConfirmed.reduce((acc, r) => acc + (r.transaction.amount || 0), 0);
+        const manualValue = manualConfirmed.reduce((acc, r) => acc + (r.transaction.amount || 0), 0);
+        const pendingValue = pending.reduce((acc, r) => acc + (r.transaction.amount || 0), 0);
+
+        const methodBreakdown = {
+            AUTOMATIC: identified.filter(r => r.matchMethod === 'AUTOMATIC' || !r.matchMethod).length,
+            MANUAL: identified.filter(r => r.matchMethod === 'MANUAL').length,
+            LEARNED: identified.filter(r => r.matchMethod === 'LEARNED').length,
+            AI: identified.filter(r => r.matchMethod === 'AI').length,
+        };
+
+        // Value per church
+        const churchMap = new Map<string, number>();
+        identified.forEach(r => {
+            if (r.church) {
+                const current = churchMap.get(r.church.name) || 0;
+                churchMap.set(r.church.name, current + (r.transaction.amount || 0));
+            }
+        });
+        const valuePerChurch = Array.from(churchMap.entries()).sort((a, b) => b[1] - a[1]);
+
+        return {
+            identifiedCount,
+            unidentifiedCount,
+            totalValue,
+            autoConfirmed: { value: autoValue, count: autoConfirmed.length },
+            manualConfirmed: { value: manualValue, count: manualConfirmed.length },
+            pending: { value: pendingValue, count: pending.length },
+            methodBreakdown,
+            valuePerChurch,
+            isHistorical: !!reconciliation.activeReportId
+        };
+    }, [reconciliation.matchResults, reconciliation.activeReportId]);
+
     // --- Modal States ---
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -99,9 +150,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 reconciliation.setReportPreviewData(prev => {
                     if (!prev) return null;
                     // Simple refresh of preview data structure
-                    // For a proper update, we should call groupResultsByChurch again, 
-                    // but for deletion we can let the next render or manual update handle it
-                    // Or implement specific removal logic in updateReportData
                     return prev; 
                 });
                 showToast("Linha removida.", "success");
@@ -363,6 +411,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openSmartEdit,
         closeSmartEdit,
         saveSmartEdit,
+        
+        summary, // <--- ADDED SUMMARY HERE
         
         initialDataLoaded: true,
         findMatchResult: (id: string) => reconciliation.matchResults.find(r => r.transaction.id === id)
