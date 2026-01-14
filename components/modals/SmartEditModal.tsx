@@ -40,6 +40,7 @@ export const SmartEditModal: React.FC = () => {
     // States for Manual Override
     const [manualName, setManualName] = useState('');
     const [manualAmount, setManualAmount] = useState('');
+    const [manualChurchId, setManualChurchId] = useState('');
     const [isManualMode, setIsManualMode] = useState(false);
 
     // Draggable State
@@ -59,10 +60,22 @@ export const SmartEditModal: React.FC = () => {
             
             setManualName(nameToEdit);
             setManualAmount(amountToEdit);
+            
+            // Initialize Church ID
+            if (isReverseMode && smartEditTarget.church) {
+                setManualChurchId(smartEditTarget.church.id);
+            } else if (smartEditTarget.church && smartEditTarget.church.id !== 'unidentified' && smartEditTarget.church.id !== 'placeholder') {
+                setManualChurchId(smartEditTarget.church.id);
+            } else if (churches.length === 1) {
+                setManualChurchId(churches[0].id);
+            } else {
+                setManualChurchId('');
+            }
+
             setIsManualMode(false);
             setPosition(null);
         }
-    }, [smartEditTarget]);
+    }, [smartEditTarget, isReverseMode, churches]);
 
     // Drag Logic
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -337,6 +350,14 @@ export const SmartEditModal: React.FC = () => {
         e.preventDefault();
         const amount = parseFloat(manualAmount);
         if (!manualName.trim() || isNaN(amount)) return;
+        
+        // Força seleção de igreja se não for modo reverso
+        if (!isReverseMode && !manualChurchId) {
+            // Em tese o botão deve estar desabilitado, mas por segurança
+            return;
+        }
+
+        const selectedChurch = churches.find(c => c.id === manualChurchId) || smartEditTarget.church;
 
         const manualContributor: Contributor = {
             id: `manual-edit-${smartEditTarget.transaction.id}-${Date.now()}`,
@@ -349,7 +370,7 @@ export const SmartEditModal: React.FC = () => {
         const updated: MatchResult = {
             ...smartEditTarget,
             contributor: manualContributor,
-            church: smartEditTarget.church, 
+            church: selectedChurch, 
             status: 'IDENTIFICADO',
             matchMethod: 'MANUAL',
             similarity: 100,
@@ -490,6 +511,21 @@ export const SmartEditModal: React.FC = () => {
                                 {isManualMode && <button onClick={() => setIsManualMode(false)} className="text-[9px] text-brand-blue hover:underline">Voltar</button>}
                             </div>
                             <form onSubmit={handleSaveManual} className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-2">
+                                {!isReverseMode && (
+                                    <div>
+                                        <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Igreja</label>
+                                        <select
+                                            value={manualChurchId}
+                                            onChange={(e) => setManualChurchId(e.target.value)}
+                                            className="w-full p-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold focus:ring-1 focus:ring-brand-blue outline-none"
+                                        >
+                                            <option value="" disabled>Selecione a igreja</option>
+                                            {churches.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">Nome / Descrição</label>
                                     <input 
@@ -509,7 +545,11 @@ export const SmartEditModal: React.FC = () => {
                                         className="w-full p-1.5 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-bold focus:ring-1 focus:ring-brand-blue outline-none"
                                     />
                                 </div>
-                                <button type="submit" className="w-full py-1.5 bg-brand-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wide hover:bg-blue-600 transition-colors shadow-sm flex items-center justify-center gap-1.5 mt-2">
+                                <button 
+                                    type="submit" 
+                                    disabled={!isReverseMode && !manualChurchId}
+                                    className="w-full py-1.5 bg-brand-blue text-white rounded-lg text-[10px] font-bold uppercase tracking-wide hover:bg-blue-600 transition-colors shadow-sm flex items-center justify-center gap-1.5 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
                                     <FloppyDiskIcon className="w-3 h-3" /> Salvar
                                 </button>
                             </form>

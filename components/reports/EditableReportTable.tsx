@@ -16,7 +16,8 @@ import {
     UserPlusIcon,
     SparklesIcon,
     BrainIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    ArrowUturnLeftIcon
 } from '../Icons';
 import { formatIncomeDescription } from '../../services/processingService';
 
@@ -83,6 +84,7 @@ const IncomeRow = memo(({
     language, 
     onEdit, 
     onDelete, 
+    onUndo,
     openDivergence, 
     ignoreKeywords,
 }: any) => {
@@ -279,6 +281,13 @@ const IncomeRow = memo(({
                                 <PencilIcon className="w-3.5 h-3.5" />
                             </button>
                             
+                            {/* UNDO BUTTON */}
+                            {isIdentified && (
+                                <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors shadow-sm" title="Desfazer Identificação">
+                                    <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                            
                             {row.divergence && <button onClick={() => openDivergence(row)} className="p-1.5 rounded-lg text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/50 transition-colors shadow-sm" title="Confirmar Divergência"><ExclamationTriangleIcon className="w-3.5 h-3.5" /></button>}
                             
                             <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 transition-colors shadow-sm" title="Excluir">
@@ -297,7 +306,8 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const { 
         openDivergenceModal, 
         openDeleteConfirmation,
-        openSmartEdit 
+        openSmartEdit,
+        undoIdentification // NEW
     } = useContext(AppContext);
     
     const handleEdit = useCallback((row: MatchResult) => {
@@ -344,6 +354,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 language={language}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                onUndo={undoIdentification}
                                 openDivergence={openDivergenceModal}
                                 ignoreKeywords={[]}
                             />

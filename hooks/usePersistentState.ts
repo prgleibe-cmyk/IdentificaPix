@@ -3,10 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 
 export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
-    // Inicialização "Lazy": Se não for pesado (localStorage), lê imediatamente antes do primeiro render.
-    // Isso garante que os dados apareçam instantaneamente, sem efeito "pisca".
     const [state, setState] = useState<T>(() => {
-        if (isHeavy) return initialValue; // Dados pesados (IndexedDB) ainda precisam ser assíncronos
+        if (isHeavy) return initialValue;
         try {
             if (typeof window !== 'undefined') {
                 const item = window.localStorage.getItem(key);
@@ -21,25 +19,25 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     const isHydrated = useRef(false);
     const isMounted = useRef(false);
     const timeoutRef = useRef<any>(null);
+    const lastSavedValue = useRef<string>('');
 
     useEffect(() => {
         isMounted.current = true;
         
         const hydrate = async () => {
-            // Se não for pesado, já lemos no useState inicial, então marcamos como hidratado.
             if (!isHeavy) {
                 isHydrated.current = true;
                 return;
             }
 
             try {
-                // Timeout de 2s para IndexedDB (evita travamento infinito)
                 const idbPromise = get(key);
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("timeout"), 2000));
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("timeout"), 2500));
                 const value = await Promise.race([idbPromise, timeoutPromise]) as T | undefined;
 
                 if (isMounted.current && value !== undefined && value !== null) {
                     setState(value);
+                    lastSavedValue.current = JSON.stringify(value);
                 }
             } catch (error) {
                 console.warn(`Erro hidratação ${key}:`, error);
@@ -53,23 +51,40 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     }, [key, isHeavy]);
 
     useEffect(() => {
-        // Só salva se já estiver hidratado e montado
         if (!isHydrated.current || !isMounted.current) return;
 
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-        // Debounce de salvamento para evitar loops agressivos
-        timeoutRef.current = setTimeout(async () => {
-            try {
-                if (isHeavy) {
-                    await set(key, state);
-                } else {
-                    window.localStorage.setItem(key, JSON.stringify(state));
+        // Otimização: Aumenta o delay para dados pesados (2s) vs leves (500ms)
+        const delay = isHeavy ? 2000 : 500;
+
+        timeoutRef.current = setTimeout(() => {
+            // Executa em idle para não bloquear a UI
+            const performSave = async () => {
+                try {
+                    const serialized = JSON.stringify(state);
+                    // Evita escritas desnecessárias se o dado não mudou
+                    if (serialized === lastSavedValue.current) return;
+
+                    if (isHeavy) {
+                        await set(key, state);
+                    } else {
+                        window.localStorage.setItem(key, serialized);
+                    }
+                    lastSavedValue.current = serialized;
+                } catch (error) {
+                    console.error(`Erro salvamento ${key}:`, error);
                 }
-            } catch (error) {
-                console.error(`Erro salvamento ${key}:`, error);
+            };
+
+            // Fallback para requestIdleCallback
+            if (typeof window !== 'undefined' && (window as any).requestIdleCallback) {
+                (window as any).requestIdleCallback(performSave, { timeout: 1000 });
+            } else {
+                setTimeout(performSave, 0);
             }
-        }, 1000);
+
+        }, delay);
 
         return () => clearTimeout(timeoutRef.current);
     }, [key, state, isHeavy]);

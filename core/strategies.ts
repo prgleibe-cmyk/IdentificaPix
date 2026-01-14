@@ -7,6 +7,23 @@ import { TypeResolver } from './processors/TypeResolver';
 import { generateFingerprint } from './processors/Fingerprinter';
 
 /**
+ * 🛡️ CORE_ESTAVEL - MOTOR DE ESTRATÉGIAS (SYSTEM HEART)
+ * --------------------------------------------------------------------------
+ * 🧱 REGRA DE OURO:
+ * “Qualquer ajuste futuro só pode acontecer em UM módulo isolado por vez, 
+ *  sem tocar no CORE_ESTAVEL.”
+ * --------------------------------------------------------------------------
+ * 
+ * ESTE ARQUIVO É A ÚNICA FONTE DE VERDADE PARA O PROCESSAMENTO DE ARQUIVOS.
+ * 
+ * - NÃO ALTERE a lógica das estratégias existentes (Generic, Sicoob, Database).
+ * - NÃO ADICIONE dependências de UI ou React aqui.
+ * - NÃO MODIFIQUE os parsers auxiliares sem rodar a suíte de testes completa.
+ * 
+ * Status: CONGELADO (v3.0 Stable)
+ */
+
+/**
  * Interface que todo Parser de Banco deve implementar.
  */
 export interface BankStrategy {
@@ -18,6 +35,7 @@ export interface BankStrategy {
 /**
  * ESTRATÉGIA: MODELO APRENDIDO (DatabaseModelStrategy)
  * Verifica se o arquivo corresponde a um modelo salvo no banco/local.
+ * CORE_ESTAVEL: NÃO MODIFICAR.
  */
 export const DatabaseModelStrategy: BankStrategy = {
     name: 'Modelo Aprendido',
@@ -36,10 +54,11 @@ export const DatabaseModelStrategy: BankStrategy = {
     },
 
     parse: (content, yearAnchor, models, globalKeywords = []) => {
-        if (!models) return [];
+        if (!models || models.length === 0) return [];
         const fingerprint = generateFingerprint(content);
         if (!fingerprint) return [];
 
+        // Tenta encontrar o modelo correspondente na lista fornecida
         const matchingModel = models.find(m => 
             m.fingerprint.delimiter === fingerprint.delimiter &&
             m.fingerprint.columnCount === fingerprint.columnCount
@@ -97,6 +116,7 @@ export const DatabaseModelStrategy: BankStrategy = {
         });
 
         // Atualiza o nome da estratégia para exibir qual modelo foi usado
+        // (Nota: Isso é um efeito colateral no objeto singleton, útil para debug)
         DatabaseModelStrategy.name = `Modelo: ${matchingModel.name}`;
         
         return transactions;
@@ -106,6 +126,7 @@ export const DatabaseModelStrategy: BankStrategy = {
 /**
  * ESTRATÉGIA: SICOOB (PDF/Texto)
  * Ajustada para leitura em blocos com filtro agressivo de Cabeçalho/Rodapé
+ * CORE_ESTAVEL: NÃO MODIFICAR.
  */
 export const SicoobStrategy: BankStrategy = {
     name: 'Sicoob (Extrato PDF)',
@@ -196,6 +217,7 @@ export const SicoobStrategy: BankStrategy = {
 
 /**
  * ESTRATÉGIA: GENÉRICA (Fallback Inteligente)
+ * CORE_ESTAVEL: NÃO MODIFICAR.
  */
 export const GenericStrategy: BankStrategy = {
     name: 'Genérico (CSV/Excel)',
@@ -255,13 +277,40 @@ export const GenericStrategy: BankStrategy = {
     }
 };
 
+/**
+ * Strategy Engine (Orquestrador)
+ * CORE_ESTAVEL: NÃO MODIFICAR A ORDEM OU A LÓGICA DE SELEÇÃO.
+ */
 export const StrategyEngine = {
     // A ordem importa: Modelos Salvos -> Estratégias Específicas -> Genérico
     strategies: [DatabaseModelStrategy, SicoobStrategy, GenericStrategy],
 
-    process: (filename: string, content: string, models: FileModel[] = [], globalKeywords: string[] = []): { transactions: Transaction[], strategyName: string } => {
+    process: (filename: string, content: string, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): { transactions: Transaction[], strategyName: string } => {
         const yearAnchor = DateResolver.discoverAnchorYear(content);
         
+        // 1. PRIORIDADE ABSOLUTA: Modelo Específico (Se aprovado e passado)
+        if (overrideModel) {
+            try {
+                // Força o uso do modelo específico passando apenas ele para a estratégia de banco de dados
+                // O canHandle ou verificação interna pode ser ignorado pois assumimos que o caller já validou
+                const specificResults = DatabaseModelStrategy.parse(content, yearAnchor, [overrideModel], globalKeywords);
+                
+                if (specificResults.length > 0) {
+                    console.log(`[Engine] Modelo Específico Aplicado: ${overrideModel.name}`);
+                    return { 
+                        transactions: specificResults, 
+                        strategyName: `Modelo Aprovado: ${overrideModel.name}` 
+                    };
+                } else {
+                    console.warn(`[Engine] Modelo específico ${overrideModel.name} falhou em gerar transações. Caindo para fallback.`);
+                }
+            } catch (e) {
+                console.error(`[Engine] Erro crítico ao aplicar modelo específico:`, e);
+                // Continua para o fallback padrão em caso de erro
+            }
+        }
+
+        // 2. Fluxo Padrão (Auto-detecção)
         for (const strategy of StrategyEngine.strategies) {
             // Se for a estratégia genérica, deixa por último
             if (strategy.name === GenericStrategy.name) continue;

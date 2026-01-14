@@ -25,7 +25,7 @@ import { DivergenceConfirmationModal } from './components/modals/DivergenceConfi
 import { PaymentModal } from './components/modals/PaymentModal';
 import { FilePreprocessorModal } from './components/modals/FilePreprocessorModal';
 import { SmartEditModal } from './components/modals/SmartEditModal';
-import { UpdateReportFilesModal } from './components/modals/UpdateReportFilesModal'; // Added
+// UpdateReportFilesModal removed as per user request to simplify flow
 
 // --- Views ---
 import { AuthView } from './views/AuthView';
@@ -100,11 +100,10 @@ const ModalsRenderer = () => {
         pendingTraining,
         setPendingTraining,
         handleTrainingSuccess,
-        smartEditTarget,
-        isUpdateFilesModalOpen // Added
+        smartEditTarget
     } = context;
 
-    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget && !isUpdateFilesModalOpen) {
+    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget) {
         return null;
     }
 
@@ -119,7 +118,6 @@ const ModalsRenderer = () => {
             {isSearchFiltersOpen && <SearchFiltersModal />}
             {divergenceConfirmation && <DivergenceConfirmationModal />}
             {isPaymentModalOpen && <PaymentModal />}
-            {isUpdateFilesModalOpen && <UpdateReportFilesModal />} 
             {pendingTraining && (
                 <FilePreprocessorModal 
                     onClose={() => setPendingTraining(null)}

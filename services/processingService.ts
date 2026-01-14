@@ -1,213 +1,204 @@
 
 import { Transaction, Contributor, MatchResult, Church, FileModel } from '../types';
-import { NameResolver } from '../core/processors/NameResolver';
-import { DateResolver } from '../core/processors/DateResolver';
-import { AmountResolver } from '../core/processors/AmountResolver';
 import { StrategyEngine } from '../core/strategies';
 import { detectDelimiter, generateFingerprint } from '../core/processors/Fingerprinter';
+import { observationService } from './observationService';
+import { 
+    PLACEHOLDER_CHURCH, 
+    DEFAULT_CONTRIBUTION_KEYWORDS, 
+    extractSnippet, 
+    normalizeString, 
+    parseDate, 
+    cleanTransactionDescriptionForDisplay, 
+    formatIncomeDescription, 
+    formatExpenseDescription 
+} from './utils/parsingUtils';
+import { 
+    calculateNameSimilarity, 
+    matchTransactions, 
+    groupResultsByChurch 
+} from './logic/matchingLogic';
+import { 
+    filterTransactionByUniversalQuery, 
+    filterByUniversalQuery 
+} from './logic/filteringLogic';
 
-export { detectDelimiter, generateFingerprint };
-
-export const PLACEHOLDER_CHURCH: Church = {
-    id: 'unidentified',
-    name: '---', 
-    address: '',
-    logoUrl: '',
-    pastor: '',
-};
-
-export const DEFAULT_CONTRIBUTION_KEYWORDS = [
-    'DÍZIMO', 'DÍZIMOS', 'OFERTA', 'OFERTAS', 'COLETA', 'COLETAS', 'MISSÃO', 'MISSÕES', 'VOTOS', 'CAMPANHA'
-];
-
-export const extractSnippet = (content: string): string => {
-    if (!content) return '';
-    return content.split(/\r?\n/).slice(0, 20).join('\n');
+// Re-export everything to maintain backward compatibility
+export { 
+    detectDelimiter, 
+    generateFingerprint,
+    PLACEHOLDER_CHURCH, 
+    DEFAULT_CONTRIBUTION_KEYWORDS, 
+    extractSnippet, 
+    normalizeString, 
+    parseDate, 
+    cleanTransactionDescriptionForDisplay, 
+    formatIncomeDescription, 
+    formatExpenseDescription,
+    calculateNameSimilarity,
+    matchTransactions,
+    groupResultsByChurch,
+    filterTransactionByUniversalQuery,
+    filterByUniversalQuery
 };
 
 /**
- * Nova função principal de processamento que usa o Motor de Estratégias.
- * Agora aceita modelos aprendidos (FileModel[]) e keywords globais.
+ * 🛡️ CORE_ESTAVEL - PIPELINE DE PRODUÇÃO
+ * --------------------------------------------------------------------------
+ * ESTE ARQUIVO É O GATEKEEPER DO PROCESSAMENTO REAL.
+ * 
+ * Funções aqui (especialmente `processFileContent`) são usadas pelo usuário final
+ * nas telas de Lançar Dados e Conciliação.
+ * 
+ * - NÃO FAÇA ALTERAÇÕES EXPERIMENTAIS AQUI.
+ * - Teste qualquer mudança no Admin/Laboratório antes de trazer para cá.
+ * --------------------------------------------------------------------------
  */
-export const processFileContent = (content: string, fileName: string, models: FileModel[] = [], globalKeywords: string[] = []): { transactions: Transaction[], method: string } => {
-    const result = StrategyEngine.process(fileName, content, models, globalKeywords);
-    return {
-        transactions: result.transactions,
-        method: result.strategyName
-    };
-};
 
-export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
-    if (!str) return '';
-    let cleaned = NameResolver.clean(str, ignoreKeywords);
-    if (!cleaned || cleaned.trim().length === 0) cleaned = str;
-    return NameResolver.normalize(cleaned).toLowerCase();
-};
-
-export const calculateNameSimilarity = (description: string, contributor: Contributor, ignoreKeywords: string[] = []): number => {
-    const txNorm = normalizeString(description, ignoreKeywords);
-    const contribNorm = contributor.normalizedName || normalizeString(contributor.name, ignoreKeywords);
+/**
+ * Lógica de Identificação de Modelos (Modo Observação)
+ * Compara o fingerprint do arquivo atual com os modelos salvos.
+ * Retorna o modelo e o score de confiança.
+ */
+export const findMatchingModel = (content: string, models: FileModel[]): { model: FileModel, score: number } | null => {
+    if (!models || models.length === 0) return null;
     
-    if (!txNorm || !contribNorm) return 0;
+    // Gera o DNA do arquivo atual
+    const fileFp = generateFingerprint(content);
+    if (!fileFp) return null;
 
-    const txTokens = txNorm.split(/\s+/).filter(t => t.length > 0);
-    const contribTokens = contribNorm.split(/\s+/).filter(t => t.length > 0);
-    
-    if (txTokens.length === 0 || contribTokens.length === 0) return 0;
-    
-    const txSet = new Set(txTokens);
-    const contribSet = new Set(contribTokens);
-    const intersection = [...txSet].filter(w => contribSet.has(w)).length;
-    return (2 * intersection) / (txSet.size + contribSet.size) * 100;
-};
+    let bestMatch: FileModel | null = null;
+    let bestScore = 0;
 
-export const matchTransactions = (
-    transactions: Transaction[],
-    contributorFiles: any[],
-    options: { similarityThreshold: number; dayTolerance: number; },
-    learnedAssociations: any[],
-    churches: Church[],
-    customIgnoreKeywords: string[] = []
-): MatchResult[] => {
-    // Flatten contributors and assign internal IDs if missing
-    const allContributors = contributorFiles.flatMap(file => 
-        file.contributors.map((c: any, idx: number) => ({ 
-            ...c, 
-            church: file.church,
-            _internalId: `${file.church.id}-${idx}-${c.name}` // Unique key for tracking usage
-        }))
-    );
-    
-    const finalResults: MatchResult[] = [];
-    const usedContributors = new Set<string>();
-
-    transactions.forEach(tx => {
-        // REMOVIDO FILTRO DE CONTROLE (SALDO/TOTAL) A PEDIDO DO USUÁRIO
-        // if (NameResolver.isControlRow(tx.description)) return;
-
-        const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
+    for (const model of models) {
+        if (!model.is_active || !model.fingerprint) continue;
         
-        // 1. Check Learned Associations
-        const learned = learnedAssociations.find(la => la.normalizedDescription === txDescNormalized);
-        if (learned) {
-            const matchedContrib = allContributors.find(c => 
-                (normalizeString(c.name, customIgnoreKeywords) === learned.contributorNormalizedName) && 
-                (c.church.id === learned.churchId)
-            );
-            if (matchedContrib) {
-                usedContributors.add(matchedContrib._internalId);
-                finalResults.push({ 
-                    transaction: tx, contributor: matchedContrib, status: 'IDENTIFICADO', 
-                    church: matchedContrib.church, matchMethod: 'LEARNED', similarity: 100, 
-                    contributorAmount: matchedContrib.amount,
-                    contributionType: matchedContrib.contributionType || tx.contributionType
-                });
-                return;
-            }
+        const modelFp = model.fingerprint;
+        let score = 0;
+
+        // --- NIVEL 1: PADRÃO ESTRUTURAL LÓGICO (CDS) - PESO MÁXIMO ---
+        // Se a sequência lógica de entidades (ex: "DT-TX-NM") for idêntica,
+        // é o mesmo documento funcionalmente, independente se veio de PDF, Imagem ou Excel.
+        // Isso resolve o problema de quebras de linha e colunas fantasmas no OCR.
+        if (modelFp.structuralPattern && fileFp.structuralPattern && 
+            modelFp.structuralPattern !== 'UNKNOWN' &&
+            modelFp.structuralPattern === fileFp.structuralPattern) {
+            score = 95; // Confiança Altíssima (Estrutura Lógica Idêntica)
         }
 
-        // 2. Check Automatic Match
-        let bestMatch: any = null;
-        let highestScore = 0;
-
-        allContributors.forEach(contrib => {
-            if (options.dayTolerance !== undefined && contrib.date && tx.date) {
-                const tDate = parseDate(tx.date);
-                const cDate = parseDate(contrib.date);
-                if (tDate && cDate) {
-                    const diffDays = Math.ceil(Math.abs(tDate.getTime() - cDate.getTime()) / (1000 * 3600 * 24));
-                    if (diffDays > options.dayTolerance) return;
-                }
-            }
-
-            const score = calculateNameSimilarity(tx.description, contrib, customIgnoreKeywords);
+        // --- NIVEL 2: ASSINATURA CANÔNICA (Conteúdo Exato) ---
+        // Se o conteúdo das primeiras linhas for idêntico (após normalização), é um match perfeito.
+        else if (modelFp.canonicalSignature && fileFp.canonicalSignature && 
+                 modelFp.canonicalSignature === fileFp.canonicalSignature) {
+            score = 90; 
+        } 
+        
+        // --- NIVEL 3: HEURÍSTICAS LEGADAS (Fallback) ---
+        else {
+            // 1. Filtros Estruturais Básicos
+            const colDiff = Math.abs(modelFp.columnCount - fileFp.columnCount);
+            if (colDiff > 1) continue; 
             
-            // Logica alterada: Captura o melhor score independente do threshold
-            if (score > highestScore) {
-                highestScore = score;
-                bestMatch = contrib;
+            score += 20;
+            if (colDiff === 0) score += 10;
+
+            // 2. Hash do Cabeçalho Normalizado (High Confidence se houver)
+            if (modelFp.headerHash && fileFp.headerHash && modelFp.headerHash === fileFp.headerHash) {
+                score += 40;
             }
-        });
 
-        if (bestMatch && highestScore >= options.similarityThreshold) {
-            usedContributors.add(bestMatch._internalId);
-            finalResults.push({ 
-                transaction: tx, contributor: bestMatch, status: 'IDENTIFICADO', 
-                church: bestMatch.church, similarity: highestScore, 
-                matchMethod: 'AUTOMATIC', contributorAmount: bestMatch.amount,
-                contributionType: bestMatch.contributionType || tx.contributionType
-            });
-        } else {
-            // Se tiver um score razoável (ex: > 40%), anexa como sugestão
-            const suggestion = (highestScore > 40 && bestMatch) ? bestMatch : undefined;
-            
-            finalResults.push({ 
-                transaction: tx, 
-                contributor: null, 
-                status: 'NÃO IDENTIFICADO', 
-                church: PLACEHOLDER_CHURCH,
-                contributionType: tx.contributionType,
-                suggestion: suggestion, // Novo campo
-                similarity: highestScore // Score do best match
-            });
+            // 3. Topologia de Dados Simples (Medium Confidence)
+            if (modelFp.dataTopology && fileFp.dataTopology && modelFp.dataTopology === fileFp.dataTopology) {
+                score += 20;
+            }
         }
-    });
 
-    // 3. Add Unmatched Contributors (Ghost Transactions for Reporting)
-    allContributors.forEach(contrib => {
-        if (!usedContributors.has(contrib._internalId)) {
-            finalResults.push({
-                transaction: {
-                    id: `ghost-${contrib._internalId}-${Date.now()}`,
-                    date: contrib.date || new Date().toISOString().split('T')[0],
-                    description: contrib.name, // Nome do contribuinte vira descrição
-                    amount: 0, // Valor zero pois não caiu no banco
-                    cleanedDescription: contrib.name,
-                    contributionType: contrib.contributionType,
-                    originalAmount: "0.00"
-                },
-                contributor: contrib,
-                status: 'PENDENTE', // Novo Status: Estava na lista, não no banco
-                church: contrib.church,
-                matchMethod: 'MANUAL', // Placeholder para indicar que veio da lista manual
-                similarity: 0,
-                contributorAmount: contrib.amount, // Valor esperado
-                contributionType: contrib.contributionType
-            });
+        // Critério de escolha: Maior score e acima de um limiar mínimo
+        if (score > bestScore && score >= 75) {
+            bestScore = score;
+            bestMatch = model;
         }
-    });
-
-    return finalResults;
-};
-
-export const groupResultsByChurch = (results: MatchResult[]): Record<string, MatchResult[]> => {
-    const grouped: Record<string, MatchResult[]> = {};
-    results.forEach(r => {
-        const key = r.church?.id || 'unidentified';
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(r);
-    });
-    return grouped;
-};
-
-export const parseDate = (dateString: string): Date | null => {
-    if (!dateString) return null;
-    const clean = dateString.trim().replace(/\//g, '-');
-    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return new Date(clean);
-
-    const parts = clean.split('-');
-    if (parts.length === 3) {
-        if (parts[0].length === 4) return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        else return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
     }
-    return null;
+
+    return bestMatch ? { model: bestMatch, score: bestScore } : null;
+};
+
+/**
+ * Função PRINCIPAL de processamento.
+ * CORE_ESTAVEL - NÃO ALTERAR FLUXO.
+ * 
+ * Agora aceita modelos aprendidos (FileModel[]) e keywords globais.
+ * 
+ * NOTA DE ARQUITETURA:
+ * Esta função implementa o GATEKEEPER DE GOVERNANÇA.
+ * Modelos identificados só são aplicados se estiverem com status 'approved'.
+ */
+export const processFileContent = (content: string, fileName: string, models: FileModel[] = [], globalKeywords: string[] = []): { transactions: Transaction[], method: string, appliedModel?: any } => {
+    
+    let targetModel: FileModel | undefined;
+    let appliedModelMeta: any = undefined;
+
+    // --- MODO OBSERVAÇÃO & SELEÇÃO DE MODELO ---
+    // Tenta identificar se este arquivo corresponde a um modelo conhecido.
+    try {
+        const matchResult = findMatchingModel(content, models);
+        
+        if (matchResult) {
+            // Log para Observação (Passivo) - Sempre ocorre para fins de auditoria/aprendizado
+            console.log(`[Observation Mode] O arquivo "${fileName}" foi identificado como modelo: "${matchResult.model.name}" (Score: ${matchResult.score})`);
+            observationService.addLog(fileName, matchResult.model, matchResult.score);
+
+            // REGRA DE APLICAÇÃO ATIVA (Gatekeeper):
+            // Só aplica automaticamente se for APROVADO e tiver altíssima confiança.
+            if (matchResult.model.status === 'approved' && matchResult.score >= 85) {
+                targetModel = matchResult.model;
+                console.log(`[Processing] Modelo APROVADO e compatível detectado. Aplicando override: "${targetModel.name}"`);
+            } else if (matchResult.model.status !== 'approved') {
+                console.log(`[Processing] Modelo compatível encontrado ("${matchResult.model.name}"), mas ignorado pois status é "${matchResult.model.status}". Usando estratégia genérica.`);
+            }
+        }
+    } catch (e) {
+        console.warn("[Observation Mode] Erro na verificação passiva de modelos:", e);
+    }
+    // ----------------------------------
+
+    // Executa o motor, passando o modelo alvo (se houver e tiver passado pelo gatekeeper)
+    const result = StrategyEngine.process(fileName, content, models, globalKeywords, targetModel);
+    
+    // Se o modelo foi efetivamente usado pela estratégia, preenche os metadados de retorno
+    // Isso sinaliza para a UI exibir o feedback de sucesso
+    if (targetModel && result.strategyName.includes(targetModel.name)) {
+        appliedModelMeta = {
+            id: targetModel.id,
+            name: targetModel.name,
+            confidenceScore: 100
+        };
+    }
+
+    // REGRA DE NEGÓCIO (CORREÇÃO): 
+    // Garante que a descrição final da transação seja a versão LIMPA (sem as palavras ignoradas).
+    // Se a limpeza resultar em vazio (tudo removido), mantém o original por segurança.
+    const transactions = result.transactions.map(t => ({
+        ...t,
+        description: t.cleanedDescription || t.description
+    }));
+
+    return {
+        transactions: transactions,
+        method: result.strategyName,
+        appliedModel: appliedModelMeta
+    };
 };
 
 // Mantido para compatibilidade
 export const parseContributors = (content: string, ignoreKeywords: string[] = [], contributionKeywords: string[] = DEFAULT_CONTRIBUTION_KEYWORDS): Contributor[] => {
-    const result = StrategyEngine.process("contributors.csv", content, [], ignoreKeywords);
+    // Combina palavras ignoradas com tipos de contribuição para limpeza profunda (ex: "Dízimo Maria" -> "Maria")
+    const allKeywords = [...ignoreKeywords, ...contributionKeywords];
+    const result = StrategyEngine.process("contributors.csv", content, [], allKeywords);
+    
     return result.transactions.map(t => ({
-        name: t.description,
+        // REGRA DE NEGÓCIO (CORREÇÃO): O nome do contribuinte deve ser a versão limpa
+        name: t.cleanedDescription || t.description,
         cleanedName: t.cleanedDescription,
         normalizedName: normalizeString(t.description, ignoreKeywords),
         amount: t.amount,
@@ -217,134 +208,15 @@ export const parseContributors = (content: string, ignoreKeywords: string[] = []
     }));
 };
 
-export const cleanTransactionDescriptionForDisplay = (description: string, ignoreKeywords: string[] = []): string => {
-    const cleaned = NameResolver.clean(description, ignoreKeywords);
-    if (!cleaned || cleaned.trim().length === 0) return description;
-    return cleaned;
-};
-
-export const formatIncomeDescription = (description: string, ignoreKeywords: string[] = []): string => {
-    return cleanTransactionDescriptionForDisplay(description, ignoreKeywords);
-};
-
-export const formatExpenseDescription = (description: string): string => {
-    return NameResolver.clean(description);
-};
-
-/**
- * Lógica de filtragem UNIVERSAL e ROBUSTA (Idêntica ao SmartEditModal).
- * Suporta busca por partes de data (10/05, 10-05), valores flexíveis (100.50, 100,50) e texto.
- */
-export const filterTransactionByUniversalQuery = (tx: Transaction, query: string): boolean => {
-    if (!query || !query.trim()) return true;
-    const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
-
-    // Prepare data for matching
-    const dateIso = tx.date ? tx.date.toLowerCase() : '';
-    let dateBr = '';
-    let dateShort = '';
-    
-    if (tx.date) {
-        const parts = tx.date.split('-'); // ISO YYYY-MM-DD
-        if (parts.length === 3) {
-            dateBr = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/AAAA
-            dateShort = `${parts[2]}/${parts[1]}`; // DD/MM
-        }
-    }
-
-    const descStr = (tx.cleanedDescription || tx.description || '').toLowerCase();
-    const typeStr = (tx.contributionType || '').toLowerCase();
-    
-    // Flexible Amount Matching
-    const amount = Math.abs(tx.amount);
-    const amountStrFixed = amount.toFixed(2); // "100.50"
-    const amountStrComma = amountStrFixed.replace('.', ','); // "100,50"
-    const amountStrRaw = String(amount); // "100.5"
-
-    return terms.every(term => {
-        // 1. Text Match
-        if (descStr.includes(term)) return true;
-        if (typeStr.includes(term)) return true;
-
-        // 2. Amount Match
-        if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term)) return true;
-        if (amountStrRaw.includes(term)) return true;
-
-        // 3. Date Match (Robust)
-        // Normalize term for date matching (allow 10-10 or 10.10 to match 10/10)
-        const dateTerm = term.replace(/[-.]/g, '/');
-        
-        if (dateIso.includes(term)) return true;
-        if (dateBr.includes(dateTerm)) return true;
-        if (dateShort.includes(dateTerm)) return true;
-
-        return false;
-    });
-};
-
-/**
- * Lógica de filtragem UNIVERSAL e ROBUSTA para Resultados de Conciliação.
- */
-export const filterByUniversalQuery = (result: MatchResult, query: string): boolean => {
-    if (!query || !query.trim()) return true;
-    const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
-    
-    const tx = result.transaction;
-    
-    // Dates (Prefer Contributor Date if matched, else Tx Date)
-    const rawDate = result.contributor?.date || tx.date;
-    const dateIso = rawDate ? rawDate.toLowerCase() : '';
-    let dateBr = '';
-    let dateShort = '';
-    
-    if (rawDate) {
-        const parts = rawDate.split('-'); // ISO YYYY-MM-DD
-        if (parts.length === 3) {
-            dateBr = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/AAAA
-            dateShort = `${parts[2]}/${parts[1]}`; // DD/MM
-        }
-    }
-
-    // Text Fields
-    const descStr = (tx.cleanedDescription || tx.description || '').toLowerCase();
-    const contribName = (result.contributor?.name || '').toLowerCase();
-    const contribCleanedName = (result.contributor?.cleanedName || '').toLowerCase();
-    const churchName = (result.church?.name || '').toLowerCase();
-    const typeStr = (result.contributor?.contributionType || result.contributionType || '').toLowerCase();
-    
-    // Amount Fields
-    const amount = Math.abs(result.contributorAmount ?? tx.amount);
-    const amountStrFixed = amount.toFixed(2);
-    const amountStrComma = amountStrFixed.replace('.', ',');
-    const amountStrRaw = String(amount);
-
-    return terms.every(term => {
-        // 1. Text Match
-        if (descStr.includes(term)) return true;
-        if (contribName.includes(term)) return true;
-        if (contribCleanedName.includes(term)) return true;
-        if (churchName.includes(term)) return true;
-        if (typeStr.includes(term)) return true;
-
-        // 2. Amount Match
-        if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term)) return true;
-        if (amountStrRaw.includes(term)) return true;
-
-        // 3. Date Match (Robust)
-        const dateTerm = term.replace(/[-.]/g, '/');
-        
-        if (dateIso.includes(term)) return true;
-        if (dateBr.includes(dateTerm)) return true;
-        if (dateShort.includes(dateTerm)) return true;
-
-        return false;
-    });
-};
-
-// Funções LEGADO mantidas como stub
-export const findMatchingModel = (content: string, models: FileModel[]) => null;
+// Validação de segurança para aplicação de modelos (Stub mantido e exportado)
 export const isModelSafeToApply = (content: string, model: FileModel) => ({ safe: true });
-export const parseWithModel = (content: string, model: FileModel, userKeywords: string[]) => StrategyEngine.process("file", content, [model], userKeywords).transactions;
-export const parseBankStatement = (content: string, kw: string[], ck: string[]) => StrategyEngine.process("file", content, []).transactions;
+
+// Aplicação forçada de modelo (Stub mantido e exportado)
+export const parseWithModel = (content: string, model: FileModel, userKeywords: string[]) => StrategyEngine.process("file", content, [model], userKeywords, model).transactions;
+
+// CORREÇÃO: Passando keywords para o motor e aplicando limpeza no retorno
+export const parseBankStatement = (content: string, kw: string[], ck: string[]) => 
+    StrategyEngine.process("file", content, [], [...kw, ...ck]).transactions.map(t => ({
+        ...t,
+        description: t.cleanedDescription || t.description
+    }));

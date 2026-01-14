@@ -10,6 +10,26 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_config: {
+        Row: {
+          id: string
+          key: string
+          value: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          value: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          value?: Json
+          updated_at?: string
+        }
+      }
       banks: {
         Row: {
           created_at: string
@@ -77,6 +97,63 @@ export type Database = {
           },
         ]
       }
+      consolidated_transactions: {
+        Row: {
+          id: string
+          created_at: string
+          transaction_date: string
+          amount: number
+          description: string
+          type: 'income' | 'expense'
+          pix_key: string | null
+          source: 'file' | 'gmail'
+          user_id: string
+          status: 'pending' | 'identified' | 'resolved'
+          bank_id: string | null // NOVO CAMPO
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          transaction_date: string
+          amount: number
+          description: string
+          type: 'income' | 'expense'
+          pix_key?: string | null
+          source: 'file' | 'gmail'
+          user_id: string
+          status?: 'pending' | 'identified' | 'resolved'
+          bank_id?: string | null // NOVO CAMPO
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          transaction_date?: string
+          amount?: number
+          description?: string
+          type?: 'income' | 'expense'
+          pix_key?: string | null
+          source?: 'file' | 'gmail'
+          user_id?: string
+          status?: 'pending' | 'identified' | 'resolved'
+          bank_id?: string | null // NOVO CAMPO
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consolidated_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consolidated_transactions_bank_id_fkey"
+            columns: ["bank_id"]
+            isOneToOne: false
+            referencedRelation: "banks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       file_models: {
         Row: {
           id: string
@@ -86,6 +163,9 @@ export type Database = {
           version: number
           lineage_id: string
           is_active: boolean
+          status: 'draft' | 'approved'
+          approved_by: string | null
+          approved_at: string | null
           fingerprint: Json
           mapping: Json
           parsing_rules: Json
@@ -100,6 +180,9 @@ export type Database = {
           version: number
           lineage_id: string
           is_active?: boolean
+          status?: 'draft' | 'approved'
+          approved_by?: string | null
+          approved_at?: string | null
           fingerprint: Json
           mapping: Json
           parsing_rules: Json
@@ -114,6 +197,9 @@ export type Database = {
           version?: number
           lineage_id?: string
           is_active?: boolean
+          status?: 'draft' | 'approved'
+          approved_by?: string | null
+          approved_at?: string | null
           fingerprint?: Json
           mapping?: Json
           parsing_rules?: Json

@@ -181,11 +181,18 @@ export interface FileModel {
   lineage_id: string;
   is_active: boolean;
   
+  // Governança Administrativa (Novos Campos)
+  status: 'draft' | 'approved'; // Default: 'draft'
+  approvedBy?: string;          // ID do Admin que aprovou
+  approvedAt?: string;          // Data da aprovação
+  
   fingerprint: {
     columnCount: number;
     delimiter: string;
     headerHash: string | null;
-    dataTopology: string;      
+    dataTopology: string;
+    canonicalSignature?: string; // Assinatura unificada para PDF/Excel/Imagem
+    structuralPattern?: string;  // NOVO: Padrão estrutural agnóstico (ex: "DT-ST-NM")
   };
   
   mapping: {

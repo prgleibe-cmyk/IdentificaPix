@@ -7,6 +7,16 @@ import { NameResolver } from './NameResolver';
 export class RowValidator {
   
   /**
+   * Verifica se uma linha tem potencial de dados (não é vazia).
+   * Critério: Pelo menos uma célula com conteúdo não-espaço.
+   */
+  static isPotentialRow(cells: string[]): boolean {
+    if (!cells || cells.length === 0) return false;
+    // Verifica se existe pelo menos uma célula com texto útil
+    return cells.some(cell => cell && String(cell).trim().length > 0);
+  }
+
+  /**
    * Valida se uma transação possui os requisitos MÍNIMOS para existir.
    * Não exclui automaticamente saldos/totais, apenas garante que os dados são estruturalmente válidos.
    */

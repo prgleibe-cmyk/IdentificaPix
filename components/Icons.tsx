@@ -492,7 +492,7 @@ export const ClipboardDocumentIcon: React.FC<IconProps> = (props) => (
 
 export const CheckBadgeIcon: React.FC<IconProps> = (props) => (
     <BaseIcon {...props}>
-        <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.78 4.78 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.78 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.78 4 4 0 0 1 0-6.74z" />
+        <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.78 4.78 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.78 4 4 0 0 1 0-6.74z" />
         <polyline points="9 12 11 14 15 10" />
     </BaseIcon>
 );
@@ -591,5 +591,35 @@ export const FolderPlusIcon: React.FC<IconProps> = (props) => (
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         <line x1="12" y1="11" x2="12" y2="17" />
         <line x1="9" y1="14" x2="15" y2="14" />
+    </BaseIcon>
+);
+
+export const TagIcon: React.FC<IconProps> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+        <line x1="7" y1="7" x2="7.01" y2="7" />
+    </BaseIcon>
+);
+
+export const ArrowUturnLeftIcon: React.FC<IconProps> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+    </BaseIcon>
+);
+
+export const EllipsisVerticalIcon: React.FC<IconProps> = (props) => (
+    <BaseIcon {...props}>
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="12" cy="5" r="1" />
+        <circle cx="12" cy="19" r="1" />
+    </BaseIcon>
+);
+
+export const CloudArrowUpIcon: React.FC<IconProps> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+        <path d="M12 12v9" />
+        <path d="m16 16-4-4-4 4" />
     </BaseIcon>
 );

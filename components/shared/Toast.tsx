@@ -7,7 +7,8 @@ interface ToastProps {
 }
 
 export const Toast: React.FC<ToastProps> = ({ message, type }) => {
-  const baseClasses = "fixed top-6 right-6 z-[100] px-6 py-4 rounded-xl shadow-2xl border flex items-center gap-4 animate-toast-fade-in-out backdrop-blur-md transition-all transform hover:scale-[1.02]";
+  // Z-Index aumentado para 50000 para superar o FilePreprocessorModal (z-9999) e outros overlays
+  const baseClasses = "fixed top-6 right-6 z-[50000] px-6 py-4 rounded-xl shadow-2xl border flex items-center gap-4 animate-toast-fade-in-out backdrop-blur-md transition-all transform hover:scale-[1.02]";
   const typeClasses = type === 'success' 
     ? 'bg-white/90 border-green-200 text-slate-800 dark:bg-slate-800/90 dark:border-green-800 dark:text-white' 
     : 'bg-white/90 border-red-200 text-slate-800 dark:bg-slate-800/90 dark:border-red-800 dark:text-white';

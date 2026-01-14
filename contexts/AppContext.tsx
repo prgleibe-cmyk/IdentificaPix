@@ -1,237 +1,219 @@
 
-import React, { createContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
 import { useReferenceData } from '../hooks/useReferenceData';
-import { useReconciliation } from '../hooks/useReconciliation';
 import { useReportManager } from '../hooks/useReportManager';
-import { usePersistentState } from '../hooks/usePersistentState';
-import {
-    Transaction, Contributor, MatchResult, Bank, Church, ChurchFormData,
-    DeletingItem, ComparisonType, GroupedReportData, SearchFilters, SavedReport,
-    SavingReportState, LearnedAssociation, MatchMethod, FileModel, SpreadsheetData
+import { useReconciliation } from '../hooks/useReconciliation';
+import { 
+    Bank, Church, MatchResult, Transaction, 
+    DeletingItem, SpreadsheetData, SavingReportState 
 } from '../types';
+import { supabase } from '../services/supabaseClient';
+import { consolidationService } from '../services/ConsolidationService';
 import { groupResultsByChurch, PLACEHOLDER_CHURCH } from '../services/processingService';
 
-import { supabase } from '../services/supabaseClient';
-import { useTranslation } from './I18nContext';
-import { LoadingSpinner } from '../components/shared/LoadingSpinner';
-import { RecompareModal } from '../components/modals/RecompareModal';
-
 interface AppContextType {
-    // Data State (from useReferenceData)
+    // Reference Data
     banks: Bank[];
     churches: Church[];
-    fileModels: FileModel[];
-    fetchModels: () => Promise<void>;
-    setBanks: React.Dispatch<React.SetStateAction<Bank[]>>;
-    setChurches: React.Dispatch<React.SetStateAction<Church[]>>;
+    fileModels: any[];
     similarityLevel: number;
-    setSimilarityLevel: React.Dispatch<React.SetStateAction<number>>;
+    setSimilarityLevel: (val: number) => void;
     dayTolerance: number;
-    setDayTolerance: React.Dispatch<React.SetStateAction<number>>;
-    customIgnoreKeywords: string[]; 
-    effectiveIgnoreKeywords: string[]; 
-    addIgnoreKeyword: (keyword: string) => void;
-    removeIgnoreKeyword: (keyword: string) => void;
+    setDayTolerance: (val: number) => void;
+    customIgnoreKeywords: string[];
+    addIgnoreKeyword: (k: string) => void;
+    removeIgnoreKeyword: (k: string) => void;
     contributionKeywords: string[];
-    addContributionKeyword: (keyword: string) => void;
-    removeContributionKeyword: (keyword: string) => void;
-    learnedAssociations: LearnedAssociation[];
+    addContributionKeyword: (k: string) => void;
+    removeContributionKeyword: (k: string) => void;
+    learnedAssociations: any[];
+    learnAssociation: (match: MatchResult) => Promise<void>;
     
-    // Edit States
     editingBank: Bank | null;
-    editingChurch: Church | null;
-    openEditBank: (bank: Bank) => void;
+    openEditBank: (b: Bank) => void;
     closeEditBank: () => void;
-    updateBank: (bankId: string, name: string) => void;
+    updateBank: (id: string, name: string) => Promise<void>;
     addBank: (name: string) => Promise<boolean>;
-    openEditChurch: (church: Church) => void;
+    
+    editingChurch: Church | null;
+    openEditChurch: (c: Church) => void;
     closeEditChurch: () => void;
-    updateChurch: (churchId: string, data: ChurchFormData) => void;
-    addChurch: (data: ChurchFormData) => Promise<boolean>;
+    updateChurch: (id: string, data: any) => Promise<void>;
+    addChurch: (data: any) => Promise<boolean>;
 
-    // Reconciliation State (from useReconciliation)
-    bankStatementFile: { bankId: string, content: string, fileName: string, rawFile?: File } | null;
-    contributorFiles: { churchId: string; content: string; fileName: string; contributors?: Contributor[] }[];
-    matchResults: MatchResult[];
-    setMatchResults: React.Dispatch<React.SetStateAction<MatchResult[]>>;
-    reportPreviewData: { income: GroupedReportData; expenses: GroupedReportData } | null;
-    setReportPreviewData: React.Dispatch<React.SetStateAction<{ income: GroupedReportData; expenses: GroupedReportData } | null>>;
-    comparisonType: ComparisonType;
-    setComparisonType: React.Dispatch<React.SetStateAction<ComparisonType>>;
-    hasActiveSession: boolean;
-    setHasActiveSession: React.Dispatch<React.SetStateAction<boolean>>;
-    isCompareDisabled: boolean;
-    pendingTraining: any;
-    setPendingTraining: (val: any) => void;
-    activeReportId: string | null;
-    setActiveReportId: React.Dispatch<React.SetStateAction<string | null>>;
-    activeSpreadsheetData: SpreadsheetData | null; // NOVO: Dados da planilha ativa
+    fetchModels: () => Promise<void>;
 
-    // Reconciliation Actions
-    openLabManually: (targetFile?: { content: string, fileName: string, type: 'statement' | 'contributor', id: string, rawFile?: File }) => void;
-    handleStatementUpload: (content: string, fileName: string, bankId: string, rawFile: File) => void;
-    handleContributorsUpload: (content: string, fileName: string, churchId: string, rawFile?: File) => void;
-    handleTrainingSuccess: (model: FileModel, data: Transaction[]) => void;
-    removeBankStatementFile: () => void;
-    removeContributorFile: (churchId: string) => void;
-    handleCompare: () => void;
-    handleBackToSettings: () => void;
-    updateReportData: (updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => void;
-    discardCurrentReport: () => void;
-    resetReconciliation: () => void; 
-    handleGmailSyncSuccess: (transactions: Transaction[]) => void; 
-
-    // Manual Operations State & Handlers
-    manualIdentificationTx: Transaction | null;
-    setManualIdentificationTx: React.Dispatch<React.SetStateAction<Transaction | null>>;
-    bulkIdentificationTxs: Transaction[] | null;
-    setBulkIdentificationTxs: React.Dispatch<React.SetStateAction<Transaction[] | null>>;
-    
-    openManualIdentify: (transactionId: string) => void;
-    openBulkManualIdentify: (transactions: Transaction[]) => void;
-    closeManualIdentify: () => void;
-    confirmManualIdentification: (transactionId: string, churchId: string) => void;
-    confirmBulkManualIdentification: (transactionIds: string[], churchId: string) => void;
-    
-    manualMatchState: { record: MatchResult, suggestions: Transaction[] } | null;
-    setManualMatchState: React.Dispatch<React.SetStateAction<{ record: MatchResult, suggestions: Transaction[] } | null>>;
-    openManualMatchModal: (recordToMatch: MatchResult) => void;
-    closeManualMatchModal: () => void;
-    confirmManualAssociation: (selectedTx: Transaction) => void;
-    
-    // Smart Edit
-    smartEditTarget: MatchResult | null;
-    openSmartEdit: (match: MatchResult) => void;
-    closeSmartEdit: () => void;
-    saveSmartEdit: (updatedMatch: MatchResult) => void;
-
-    divergenceConfirmation: MatchResult | null;
-    setDivergenceConfirmation: React.Dispatch<React.SetStateAction<MatchResult | null>>;
-    openDivergenceModal: (match: MatchResult) => void;
-    closeDivergenceModal: () => void;
-    confirmDivergence: (divergentMatch: MatchResult) => void;
-    rejectDivergence: (divergentMatch: MatchResult) => void;
-    
-    learnAssociation: (matchResult: MatchResult) => Promise<void>;
-    findMatchResult: (transactionId: string) => MatchResult | undefined;
-    
-    // AI
-    loadingAiId: string | null;
-    aiSuggestion: { id: string, name: string } | null;
-    handleAnalyze: (transaction: Transaction, candidates: Contributor[]) => void;
-
-    // Recompare Modal
-    isRecompareModalOpen: boolean;
-    openRecompareModal: () => void;
-    closeRecompareModal: () => void;
-
-    // Update Files Modal (NEW)
-    isUpdateFilesModalOpen: boolean;
-    openUpdateFilesModal: () => void;
-    closeUpdateFilesModal: () => void;
-
-    // Reports & Search (from useReportManager)
-    savedReports: SavedReport[];
+    // Report Manager
+    savedReports: any[];
     maxSavedReports: number;
-    searchFilters: SearchFilters;
-    setSearchFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
+    searchFilters: any;
+    setSearchFilters: (filters: any) => void;
+    clearSearchFilters: () => void;
     isSearchFiltersOpen: boolean;
     openSearchFilters: () => void;
     closeSearchFilters: () => void;
-    clearSearchFilters: () => void;
-    allHistoricalResults: MatchResult[];
-    
     savingReportState: SavingReportState | null;
     openSaveReportModal: (state: SavingReportState) => void;
     closeSaveReportModal: () => void;
-    confirmSaveReport: (name: string) => void;
-    viewSavedReport: (reportId: string) => void;
-    updateSavedReportName: (reportId: string, newName: string) => void;
+    confirmSaveReport: (name: string) => Promise<void>;
+    updateSavedReportName: (id: string, name: string) => Promise<void>;
     saveFilteredReport: (results: MatchResult[]) => void;
-    saveCurrentReportChanges: () => void;
-    overwriteSavedReport: (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => Promise<void>; // NOVO
-    deleteOldReports: (dateThreshold: Date) => Promise<void>;
+    overwriteSavedReport: (id: string, results: MatchResult[], spreadsheet?: SpreadsheetData) => Promise<void>;
+    deleteOldReports: (date: Date) => Promise<void>;
+    allHistoricalResults: MatchResult[];
+    
+    // Reconciliation
+    activeBankFiles: { bankId: string, content: string, fileName: string, processedTransactions?: Transaction[] }[]; 
+    selectedBankIds: string[]; 
+    toggleBankSelection: (bankId: string) => void; 
+    bankStatementFile: any; // Deprecated check
+    setBankStatementFile: React.Dispatch<React.SetStateAction<{ bankId: string, content: string, fileName: string, processedTransactions?: Transaction[] }[]>>; // RAW SETTER EXPOSED
+    
+    contributorFiles: any[];
+    matchResults: MatchResult[];
+    setMatchResults: (results: MatchResult[]) => void;
+    reportPreviewData: any;
+    setReportPreviewData: (data: any) => void;
+    hasActiveSession: boolean;
+    setHasActiveSession: (active: boolean) => void;
+    activeReportId: string | null;
+    setActiveReportId: (id: string | null) => void;
+    
+    handleStatementUpload: (content: string, name: string, id: string, file: File) => void;
+    handleContributorsUpload: (content: string, name: string, id: string, file?: File) => void;
+    removeBankStatementFile: (bankId?: string) => void; 
+    removeContributorFile: (id: string) => void;
+    handleCompare: () => Promise<void>;
+    updateReportData: (row: MatchResult, type: 'income' | 'expenses', idToRemove?: string) => void;
+    resetReconciliation: () => void;
+    isCompareDisabled: boolean;
+    comparisonType: any;
+    setComparisonType: (type: any) => void;
 
-    // Global
+    // Manual Identification / Modals
+    manualIdentificationTx: Transaction | null;
+    bulkIdentificationTxs: Transaction[] | null;
+    openManualIdentify: (id: string) => void;
+    closeManualIdentify: () => void;
+    confirmManualIdentification: (txId: string, churchId: string) => void;
+    confirmBulkManualIdentification: (txIds: string[], churchId: string) => void;
+
+    manualMatchState: any;
+    openManualMatchModal: (record: MatchResult) => void;
+    closeManualMatchModal: () => void;
+    confirmManualAssociation: (tx: Transaction) => void;
+
+    divergenceConfirmation: any;
+    openDivergenceModal: (match: MatchResult) => void;
+    closeDivergenceModal: () => void;
+    confirmDivergence: (match: MatchResult) => void;
+    rejectDivergence: (match: MatchResult) => void;
+
+    // UI States
+    initialDataLoaded: boolean;
     deletingItem: DeletingItem | null;
     openDeleteConfirmation: (item: DeletingItem) => void;
     closeDeleteConfirmation: () => void;
     confirmDeletion: () => void;
-    initialDataLoaded: boolean;
-    isSyncing: boolean;
-    summary: {
-        autoConfirmed: { count: number; value: number; };
-        manualConfirmed: { count: number; value: number; };
-        pending: { count: number; value: number; };
-        identifiedCount: number;
-        unidentifiedCount: number;
-        totalValue: number;
-        valuePerChurch: [string, number][];
-        isHistorical: boolean;
-        methodBreakdown: Record<MatchMethod, number>;
-    };
+
     isPaymentModalOpen: boolean;
     openPaymentModal: () => void;
     closePaymentModal: () => void;
+
+    isRecompareModalOpen: boolean;
+    openRecompareModal: () => void;
+    closeRecompareModal: () => void;
+
+    pendingTraining: any;
+    setPendingTraining: (val: any) => void;
+    handleTrainingSuccess: (model: any, data: any) => void;
+    openLabManually: (file?: any) => void;
+
+    smartEditTarget: MatchResult | null;
+    openSmartEdit: (target: MatchResult) => void;
+    closeSmartEdit: () => void;
+    saveSmartEdit: (updated: MatchResult) => void;
+
+    isUpdateFilesModalOpen: boolean;
+    openUpdateFilesModal: () => void;
+    closeUpdateFilesModal: () => void;
+
+    isSyncing: boolean;
+    
+    // View Saved Report
+    viewSavedReport: (id: string) => Promise<void>;
+    activeSpreadsheetData: SpreadsheetData | null;
+    setActiveSpreadsheetData: (data: SpreadsheetData | null) => void;
+    
+    summary: any;
+    
+    loadingAiId: string | null;
+    handleAnalyze: (tx: Transaction, contributors: any[]) => void;
+    aiSuggestion: any;
+
+    handleGmailSyncSuccess: (transactions: Transaction[]) => void;
+    
+    effectiveIgnoreKeywords: string[];
+    saveCurrentReportChanges: () => void;
+    
+    undoIdentification: (transactionId: string) => void;
+    findMatchResult: (transactionId: string) => MatchResult | undefined;
 }
 
 export const AppContext = createContext<AppContextType>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, systemSettings, incrementAiUsage } = useAuth();
-    const { t } = useTranslation();
+    const { user, systemSettings } = useAuth();
     const { showToast, setIsLoading, setActiveView } = useUI();
+    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
+    
+    // UI State for Modals
+    const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
+    const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
+    const [isUpdateFilesModalOpen, setIsUpdateFilesModalOpen] = useState(false);
+    const [activeSpreadsheetData, setActiveSpreadsheetData] = useState<SpreadsheetData | null>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
 
+    // --- Hooks ---
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
     
     const effectiveIgnoreKeywords = useMemo(() => {
-        return systemSettings.globalIgnoreKeywords || [];
-    }, [systemSettings.globalIgnoreKeywords]);
+        const adminKeywords = systemSettings?.globalIgnoreKeywords || [];
+        const userKeywords = referenceData.customIgnoreKeywords || [];
+        return Array.from(new Set([...userKeywords, ...adminKeywords]));
+    }, [referenceData.customIgnoreKeywords, systemSettings]);
 
     const reconciliation = useReconciliation({
-        user, 
+        user,
         churches: referenceData.churches,
         banks: referenceData.banks,
-        fileModels: [],
+        fileModels: referenceData.fileModels,
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance,
-        customIgnoreKeywords: effectiveIgnoreKeywords,
+        customIgnoreKeywords: effectiveIgnoreKeywords, 
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
-        showToast, setIsLoading, setActiveView
+        showToast,
+        setIsLoading,
+        setActiveView
     });
 
-    const [initialDataLoaded, setInitialDataLoaded] = useState(true);
-    const [isSyncing, setIsSyncing] = useState(false); 
-    
-    const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
-    const [isUpdateFilesModalOpen, setIsUpdateFilesModalOpen] = useState(false);
-    
-    const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
-    
-    // Novo estado para planilha ativa
-    const [activeSpreadsheetData, setActiveSpreadsheetData] = useState<SpreadsheetData | null>(null);
-
-    const userSuffix = user ? `-${user.id}` : '-guest';
-    const [summary, setSummary] = usePersistentState(`identificapix-dashboard-summary-v6${userSuffix}`, {
-        autoConfirmed: { count: 0, value: 0 },
-        manualConfirmed: { count: 0, value: 0 },
-        pending: { count: 0, value: 0 },
-        identifiedCount: 0, unidentifiedCount: 0, totalValue: 0, valuePerChurch: [], isHistorical: false,
-        methodBreakdown: { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0, 'TEMPLATE': 0 }
-    }, false);
-
-    // Fetch de Dados (Background Sync) - NÃO BLOQUEANTE
+    // --- FETCH DE DADOS E HIDRATAÇÃO ---
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setInitialDataLoaded(true);
+            return;
+        }
+        
         const fetchData = async () => {
             setIsSyncing(true);
             try {
+                // 1. DADOS ESSENCIAIS (Bancos, Igrejas, Relatórios)
                 const [churchesRes, banksRes, reportsRes] = await Promise.all([
                     supabase.from('churches').select('*').order('name'),
                     supabase.from('banks').select('*').order('name'),
@@ -243,7 +225,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                 if (churchesRes.data) referenceData.setChurches(churchesRes.data as any);
                 if (banksRes.data) referenceData.setBanks(banksRes.data as any);
-                
                 if (reportsRes.data) {
                     reportManager.setSavedReports((reportsRes.data || []).map(r => ({ 
                         id: r.id, 
@@ -254,111 +235,221 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         data: null 
                     })));
                 }
-            } catch (err) { console.error('Background sync failed', err); } 
-            finally { 
+
+                // 2. TENTATIVA DE RECUPERAÇÃO DA LISTA VIVA (Multi-Banco)
+                try {
+                    const pendingTxs = await consolidationService.getPendingTransactions(user.id);
+                    
+                    if (pendingTxs && pendingTxs.length > 0) {
+                        console.log(`[Hydration] Recuperando ${pendingTxs.length} transações vivas do banco.`);
+                        
+                        // Agrupa transações por bank_id
+                        const txsByBank: Record<string, Transaction[]> = {};
+                        const defaultBankId = banksRes.data && banksRes.data.length > 0 ? banksRes.data[0].id : 'active-session-bank';
+
+                        pendingTxs.forEach(dbTx => {
+                            // Se não tiver bank_id, joga no primeiro banco disponível ou default
+                            const targetBank = dbTx.bank_id || defaultBankId;
+                            
+                            if (!txsByBank[targetBank]) txsByBank[targetBank] = [];
+                            
+                            txsByBank[targetBank].push({
+                                id: dbTx.id,
+                                date: dbTx.transaction_date,
+                                amount: dbTx.amount,
+                                description: dbTx.description,
+                                cleanedDescription: dbTx.description, 
+                                contributionType: dbTx.type,
+                                originalAmount: String(dbTx.amount)
+                            });
+                        });
+
+                        // Reconstrói o estado activeBankFiles
+                        // Nota: Como não salvamos o conteúdo bruto no DB para economizar,
+                        // reconstruímos um "conteúdo virtual" para fins de visualização se necessário.
+                        const reconstructedFiles = Object.entries(txsByBank).map(([bankId, transactions]) => {
+                            const virtualContent = transactions
+                                .map(t => `${t.date};${t.description};${t.amount};${t.contributionType}`)
+                                .join('\n');
+                            
+                            // Tenta achar o nome do banco
+                            const bankName = banksRes.data?.find(b => b.id === bankId)?.name || 'Banco Desconhecido';
+
+                            return {
+                                bankId,
+                                content: virtualContent,
+                                fileName: `Sessão Ativa (${bankName})`,
+                                processedTransactions: transactions
+                            };
+                        });
+
+                        // Atualiza o estado no hook de reconciliação
+                        // Precisamos usar o setter exposto pelo hook modificado
+                        reconciliation.setBankStatementFile(reconstructedFiles as any); 
+
+                        // Pré-seleciona todos os bancos recuperados
+                    }
+                } catch (dbError) {
+                    console.warn("[Hydration] Falha ao carregar Lista Viva:", dbError);
+                }
+
+            } catch (err) { 
+                console.error('Critical sync failed', err); 
+            } finally { 
                 setIsSyncing(false); 
-                setInitialDataLoaded(true); 
+                setInitialDataLoaded(true);
             }
         };
+        
         fetchData();
     }, [user?.id]);
 
-    const resultsHash = JSON.stringify(reconciliation.matchResults.map(r => r.transaction.id + r.status));
-    const reportsHash = reportManager.savedReports.length;
+    // --- Actions ---
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            let resultsToProcess = reconciliation.matchResults;
-            let isHistorical = false;
-            
-            if (resultsToProcess.length === 0 && reportManager.savedReports.length > 0) {
-                resultsToProcess = reportManager.savedReports.flatMap(report => report.data?.results || []);
-                isHistorical = true;
-            }
-            const autoConfirmed = resultsToProcess.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod));
-            const manualConfirmed = resultsToProcess.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
-            const pending = resultsToProcess.filter(r => r.status === 'NÃO IDENTIFICADO');
-            const valuePerChurch = new Map<string, number>();
-            const methodBreakdown: Record<MatchMethod, number> = { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0, 'TEMPLATE': 0 };
-            resultsToProcess.forEach(r => {
-                if (r.status === 'IDENTIFICADO') {
-                    if (r.church && r.church.name !== '---' && r.transaction.amount > 0) {
-                        const current = valuePerChurch.get(r.church.name) || 0;
-                        valuePerChurch.set(r.church.name, current + r.transaction.amount);
-                    }
-                    const method = r.matchMethod || 'AUTOMATIC';
-                    if (methodBreakdown[method] !== undefined) methodBreakdown[method]++;
-                }
-            });
-            const newTotal = resultsToProcess.reduce((sum, r) => sum + r.transaction.amount, 0);
-            setSummary(prev => ({
-                autoConfirmed: { count: autoConfirmed.length, value: autoConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0) },
-                manualConfirmed: { count: manualConfirmed.length, value: manualConfirmed.reduce((sum, r) => sum + r.transaction.amount, 0) },
-                pending: { count: pending.length, value: pending.reduce((sum, r) => sum + r.transaction.amount, 0) },
-                identifiedCount: autoConfirmed.length + manualConfirmed.length,
-                unidentifiedCount: pending.length, totalValue: newTotal,
-                valuePerChurch: Array.from(valuePerChurch.entries()).sort((a, b) => b[1] - a[1]),
-                isHistorical, methodBreakdown
-            }));
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [resultsHash, reportsHash]);
-
-    const handleBackToSettings = useCallback(() => setActiveView('upload'), [setActiveView]);
     const openDeleteConfirmation = useCallback((item: DeletingItem) => setDeletingItem(item), []);
     const closeDeleteConfirmation = useCallback(() => setDeletingItem(null), []);
-    
-    // --- RESET FUNCTION UNIFIED ---
-    const unifiedResetReconciliation = useCallback(() => {
-        reconciliation.resetReconciliation();
-        setActiveSpreadsheetData(null); // Limpa também a planilha ativa
-    }, [reconciliation]);
 
     const confirmDeletion = useCallback(async () => {
         if (!deletingItem) return;
-        if (deletingItem.type === 'report-row') {
-             reconciliation.setReportPreviewData(prev => {
-                 if (!prev) return null;
-                 const newPreview = { ...prev };
-                 const targetGroup = deletingItem.meta?.reportType === 'expenses' ? newPreview.expenses : newPreview.income;
-                 Object.keys(targetGroup).forEach(key => { targetGroup[key] = targetGroup[key].filter(r => r.transaction.id !== deletingItem.id); });
-                 return newPreview;
-             });
-             reconciliation.setMatchResults(prev => prev.filter(r => r.transaction.id !== deletingItem.id));
-        } else if (deletingItem.type === 'report-group') {
-             reconciliation.setReportPreviewData(prev => {
-                 if (!prev) return null;
-                 const newPreview = { ...prev };
-                 const targetGroup = deletingItem.meta?.reportType === 'expenses' ? newPreview.expenses : newPreview.income;
-                 if (targetGroup[deletingItem.id]) {
-                     const idsToRemove = targetGroup[deletingItem.id].map(r => r.transaction.id);
-                     delete targetGroup[deletingItem.id];
-                     reconciliation.setMatchResults(prev => prev.filter(r => !idsToRemove.includes(r.transaction.id)));
-                 }
-                 return newPreview;
-             });
-        } else if (deletingItem.type === 'bank') {
-            referenceData.setBanks(prev => prev.filter(b => b.id !== deletingItem.id));
-            await supabase.from('banks').delete().eq('id', deletingItem.id);
-        } else if (deletingItem.type === 'church') {
-            referenceData.setChurches(prev => prev.filter(c => c.id !== deletingItem.id));
-            await supabase.from('churches').delete().eq('id', deletingItem.id);
-        } else if (deletingItem.type === 'report-saved') {
-            reportManager.setSavedReports(prev => prev.filter(r => r.id !== deletingItem.id));
-            await supabase.from('saved_reports').delete().eq('id', deletingItem.id);
-        } else if (deletingItem.type === 'uploaded-files') { reconciliation.removeBankStatementFile(); }
-        closeDeleteConfirmation();
-        showToast("Ação realizada com sucesso.");
-    }, [deletingItem, user, referenceData, reportManager, reconciliation, showToast, closeDeleteConfirmation]);
+        
+        try {
+            switch(deletingItem.type) {
+                case 'bank':
+                    referenceData.setBanks(prev => prev.filter(b => b.id !== deletingItem.id));
+                    if (user) await supabase.from('banks').delete().eq('id', deletingItem.id);
+                    break;
+                case 'church':
+                    referenceData.setChurches(prev => prev.filter(c => c.id !== deletingItem.id));
+                    if (user) await supabase.from('churches').delete().eq('id', deletingItem.id);
+                    break;
+                case 'report-saved':
+                    reportManager.setSavedReports(prev => prev.filter(r => r.id !== deletingItem.id));
+                    if (user) await supabase.from('saved_reports').delete().eq('id', deletingItem.id);
+                    break;
+                case 'report-row':
+                    reconciliation.setMatchResults(prev => prev.filter(r => r.transaction.id !== deletingItem.id));
+                    const newResults = reconciliation.matchResults.filter(r => r.transaction.id !== deletingItem.id);
+                    reconciliation.setReportPreviewData({
+                        income: groupResultsByChurch(newResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                        expenses: { 'all_expenses_group': newResults.filter(r => r.transaction.amount < 0) }
+                    });
+                    break;
+                case 'uploaded-files':
+                    reconciliation.clearFiles();
+                    break;
+                case 'match-results':
+                    reconciliation.setMatchResults([]);
+                    reconciliation.setReportPreviewData(null);
+                    reconciliation.setHasActiveSession(false);
+                    reconciliation.setActiveReportId(null);
+                    break;
+                case 'learned-associations':
+                    referenceData.setLearnedAssociations([]);
+                    if (user) await supabase.from('learned_associations').delete().eq('user_id', user.id);
+                    break;
+                case 'all-data':
+                    referenceData.setBanks([]);
+                    referenceData.setChurches([]);
+                    referenceData.setLearnedAssociations([]);
+                    reconciliation.resetReconciliation();
+                    if (user) {
+                        await supabase.from('banks').delete().eq('user_id', user.id);
+                        await supabase.from('churches').delete().eq('user_id', user.id);
+                        await supabase.from('learned_associations').delete().eq('user_id', user.id);
+                    }
+                    break;
+            }
+            showToast("Item excluído com sucesso.", "success");
+        } catch (e) {
+            console.error(e);
+            showToast("Erro ao excluir item.", "error");
+        } finally {
+            setDeletingItem(null);
+        }
+    }, [deletingItem, referenceData, reportManager, reconciliation, user, showToast]);
 
+    // Manual Identification
+    const openManualIdentify = useCallback((id: string) => {
+        const result = reconciliation.matchResults.find(r => r.transaction.id === id);
+        if (result) {
+            reconciliation.setManualIdentificationTx(result.transaction);
+        }
+    }, [reconciliation.matchResults, reconciliation.setManualIdentificationTx]);
+
+    const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+        const church = referenceData.churches.find(c => c.id === churchId);
+        if (!church) return;
+
+        const result = reconciliation.matchResults.find(r => r.transaction.id === txId);
+        if (result) {
+            const updated: MatchResult = {
+                ...result,
+                status: 'IDENTIFICADO',
+                church,
+                matchMethod: 'MANUAL',
+                similarity: 100
+            };
+            reconciliation.updateReportData(updated, 'income');
+            await referenceData.learnAssociation(updated);
+            try {
+                await consolidationService.markAsIdentified(txId);
+            } catch (e) { console.warn("Failed to mark as identified in DB", e); }
+
+            reconciliation.setManualIdentificationTx(null);
+            showToast("Identificação manual realizada e aprendida.", "success");
+        }
+    }, [reconciliation, referenceData, showToast]);
+
+    const confirmBulkManualIdentification = useCallback((txIds: string[], churchId: string) => {
+        const church = referenceData.churches.find(c => c.id === churchId);
+        if (!church) return;
+
+        txIds.forEach(id => {
+            const result = reconciliation.matchResults.find(r => r.transaction.id === id);
+            if (result) {
+                const updated: MatchResult = {
+                    ...result,
+                    status: 'IDENTIFICADO',
+                    church,
+                    matchMethod: 'MANUAL',
+                    similarity: 100
+                };
+                reconciliation.updateReportData(updated, 'income');
+                referenceData.learnAssociation(updated);
+                consolidationService.markAsIdentified(id).catch(() => {});
+            }
+        });
+        
+        reconciliation.setBulkIdentificationTxs(null);
+        showToast(`${txIds.length} transações identificadas em massa.`, "success");
+    }, [reconciliation, referenceData, showToast]);
+
+    const saveCurrentReportChanges = useCallback(() => {
+        if (reconciliation.activeReportId) {
+            reportManager.overwriteSavedReport(reconciliation.activeReportId, reconciliation.matchResults);
+        }
+    }, [reconciliation.activeReportId, reconciliation.matchResults, reportManager]);
+
+    // View Saved Report Logic
     const viewSavedReport = useCallback(async (reportId: string) => {
         setIsLoading(true);
         try {
             let report = reportManager.savedReports.find(r => r.id === reportId);
-            if (!report) return;
-
-            // LAZY LOAD LOGIC
-            if (!report.data) {
+            
+            if (!report) {
+                const { data: dbReport, error } = await supabase.from('saved_reports').select('*').eq('id', reportId).single();
+                if (error || !dbReport) throw new Error("Relatório não encontrado.");
+                
+                const parsedData = typeof dbReport.data === 'string' ? JSON.parse(dbReport.data as string) : dbReport.data;
+                report = {
+                    id: dbReport.id,
+                    name: dbReport.name,
+                    createdAt: dbReport.created_at,
+                    recordCount: dbReport.record_count,
+                    user_id: dbReport.user_id,
+                    data: parsedData
+                };
+            } else if (!report.data) {
                 const { data: reportContent, error } = await supabase
                     .from('saved_reports')
                     .select('data')
@@ -373,36 +464,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         : reportContent.data;
                     
                     report = { ...report, data: parsedData };
-                    // Atualiza cache local
-                    reportManager.setSavedReports(prev => prev.map(r => r.id === reportId ? report! : r));
+                    reportManager.setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, data: parsedData } : r));
                 }
             }
 
-            if (!report.data) throw new Error("Conteúdo do relatório vazio.");
+            if (!report || !report.data) throw new Error("Conteúdo do relatório vazio.");
 
-            // Resetar estados antes de carregar novo relatório
             reconciliation.clearFiles();
             setActiveSpreadsheetData(null);
 
-            // --- BRANCH DE DECISÃO: PLANILHA OU CONCILIAÇÃO ---
             if (report.data.spreadsheet) {
-                // Carrega Planilha
                 setActiveSpreadsheetData(report.data.spreadsheet);
                 reconciliation.setActiveReportId(reportId);
                 setActiveView('smart_analysis');
                 showToast(`Planilha "${report.name}" carregada.`, "success");
             } else {
-                // Carrega Conciliação Padrão
-                const validResults = report.data.results.map((r: any) => ({ ...r, church: r.church || PLACEHOLDER_CHURCH }));
-                reconciliation.setMatchResults(validResults);
+                let livePendingTransactions: Transaction[] = [];
+                if (user) {
+                    try {
+                        const pendingDb = await consolidationService.getPendingTransactions(user.id);
+                        if (pendingDb) {
+                            livePendingTransactions = pendingDb.map(tx => ({
+                                id: tx.id,
+                                date: tx.transaction_date,
+                                amount: tx.amount,
+                                description: tx.description,
+                                cleanedDescription: tx.description,
+                                contributionType: tx.type,
+                                originalAmount: String(tx.amount)
+                            }));
+                        }
+                    } catch (dbError) {
+                        console.warn("Offline or DB Error getting live pending transactions:", dbError);
+                    }
+                }
+
+                const savedIdentifiedResults = report.data.results
+                    .filter((r: any) => r.status === 'IDENTIFICADO' || r.status === 'RESOLVED')
+                    .map((r: any) => ({ 
+                        ...r, 
+                        church: r.church || referenceData.churches.find(c => c.id === r._churchId) || PLACEHOLDER_CHURCH 
+                    }));
+
+                const livePendingResults: MatchResult[] = livePendingTransactions.map(tx => ({
+                    transaction: tx,
+                    contributor: null,
+                    status: 'NÃO IDENTIFICADO',
+                    church: PLACEHOLDER_CHURCH,
+                    matchMethod: undefined,
+                    similarity: 0
+                }));
+
+                const combinedResults = [...savedIdentifiedResults, ...livePendingResults];
+
+                reconciliation.setMatchResults(combinedResults);
                 reconciliation.setReportPreviewData({
-                    income: groupResultsByChurch(validResults.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                    expenses: { 'all_expenses_group': validResults.filter((r: any) => r.transaction.amount < 0) }
+                    income: groupResultsByChurch(combinedResults.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                    expenses: { 'all_expenses_group': combinedResults.filter((r: any) => r.transaction.amount < 0) }
                 });
+                
                 reconciliation.setHasActiveSession(true); 
                 reconciliation.setActiveReportId(reportId); 
                 setActiveView('reports'); 
-                showToast(`Relatório "${report.name}" carregado.`, "success");
+                
+                if (livePendingTransactions.length > 0) {
+                    showToast(`Relatório "${report.name}" carregado com Lista Viva atualizada.`, "success");
+                } else {
+                    showToast(`Relatório "${report.name}" carregado (Histórico).`, "success");
+                }
             }
 
         } catch (error: any) {
@@ -411,155 +540,151 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } finally {
             setIsLoading(false);
         }
-    }, [reportManager.savedReports, reconciliation, setActiveView, setIsLoading, showToast]);
+    }, [reportManager, reconciliation, setActiveView, setIsLoading, showToast, user, referenceData.churches]);
 
-    // Nova função para salvar as alterações do relatório ativo
-    const saveCurrentReportChanges = useCallback(() => {
-        const reportId = reconciliation.activeReportId;
-        if (!reportId) {
-            showToast("Nenhum relatório salvo ativo para atualizar.", "error");
-            return;
-        }
-        reportManager.overwriteSavedReport(reportId, reconciliation.matchResults);
-    }, [reconciliation.activeReportId, reconciliation.matchResults, reportManager, showToast]);
-
-    const findMatchResult = useCallback((transactionId: string) => reconciliation.matchResults.find(r => r.transaction.id === transactionId) || reportManager.allHistoricalResults.find(r => r.transaction.id === transactionId), [reconciliation.matchResults, reportManager.allHistoricalResults]);
-    
-    const openManualIdentify = useCallback((transactionId: string) => {
-        const result = findMatchResult(transactionId);
-        if (result) reconciliation.setManualIdentificationTx(result.transaction);
-    }, [findMatchResult, reconciliation]);
-
-    const openBulkManualIdentify = useCallback((transactions: Transaction[]) => { reconciliation.setBulkIdentificationTxs(transactions); }, [reconciliation]);
-    
-    const confirmManualIdentification = useCallback((transactionId: string, churchId: string) => {
-        const church = referenceData.churches.find(c => c.id === churchId);
-        const result = findMatchResult(transactionId);
-        if (church && result) {
-            const updated: MatchResult = { ...result, status: 'IDENTIFICADO', church, contributor: { id: `manual-${transactionId}`, name: result.transaction.cleanedDescription || result.transaction.description, amount: result.transaction.amount }, matchMethod: 'MANUAL', similarity: 100, contributorAmount: result.transaction.amount };
-            if (reconciliation.matchResults.some(r => r.transaction.id === transactionId)) reconciliation.updateReportData(updated, 'income');
-            else reportManager.updateSavedReportTransaction(transactionId, updated);
-            reconciliation.closeManualIdentify(); 
-            showToast('Identificação realizada.', 'success');
-        }
-    }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
-
-    const confirmBulkManualIdentification = useCallback((transactionIds: string[], churchId: string) => {
-        const church = referenceData.churches.find(c => c.id === churchId);
-        if (!church) return;
+    const handleGmailSyncSuccess = useCallback((transactions: Transaction[]) => {
+        const csvContent = ""; // Virtual
+        const virtualFile = new File([csvContent], "gmail_import.csv", { type: "text/csv" });
         
-        transactionIds.forEach(id => {
-            const result = findMatchResult(id);
-            if (result) {
-                const updated: MatchResult = { 
-                    ...result, 
-                    status: 'IDENTIFICADO', 
-                    church, 
-                    contributor: { id: `manual-${id}`, name: result.transaction.cleanedDescription || result.transaction.description, amount: result.transaction.amount }, 
-                    matchMethod: 'MANUAL', 
-                    similarity: 100, 
-                    contributorAmount: result.transaction.amount 
-                };
-                if (reconciliation.matchResults.some(r => r.transaction.id === id)) reconciliation.updateReportData(updated, 'income');
-                else reportManager.updateSavedReportTransaction(id, updated);
-            }
-        });
-        reconciliation.closeManualIdentify();
-        showToast(`${transactionIds.length} transações identificadas.`, 'success');
-    }, [referenceData.churches, findMatchResult, reconciliation, reportManager, showToast]);
-
-    const openSmartEdit = useCallback((match: MatchResult) => {
-        setSmartEditTarget(match);
-    }, []);
-
-    const closeSmartEdit = useCallback(() => {
-        setSmartEditTarget(null);
-        reconciliation.setAiSuggestion(null);
+        reconciliation.handleStatementUpload(csvContent, "Importação Gmail", "gmail-import-bank", virtualFile);
+        
+        setTimeout(() => reconciliation.handleCompare(), 500);
     }, [reconciliation]);
 
-    const saveSmartEdit = useCallback((updatedMatch: MatchResult) => {
-        if (reconciliation.matchResults.some(r => r.transaction.id === updatedMatch.transaction.id)) {
-            const ghostId = smartEditTarget?.status === 'PENDENTE' ? smartEditTarget.transaction.id : undefined;
-            reconciliation.updateReportData(updatedMatch, 'income', ghostId);
-        } else {
-            reportManager.updateSavedReportTransaction(updatedMatch.transaction.id, updatedMatch);
-        }
-        showToast("Edição aplicada na tabela.", "success");
-        setSmartEditTarget(null);
-        reconciliation.setAiSuggestion(null);
-    }, [reconciliation, reportManager, showToast, smartEditTarget]);
-
-    const handleAnalyze = useCallback(async (transaction: Transaction, candidates: Contributor[]) => {
-        reconciliation.setLoadingAiId(transaction.id);
-        try {
-            const candidateNames = candidates.slice(0, 50).map(c => c.name);
-            const response = await fetch('/api/ai/suggestion', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    transactionDescription: transaction.description,
-                    contributorNames: candidateNames
-                })
-            });
-
-            if (!response.ok) throw new Error('Falha na API de IA');
-            const data = await response.json();
-            const suggestionText = data.text;
-
-            if (suggestionText && !suggestionText.includes("Nenhuma sugestão clara")) {
-                reconciliation.setAiSuggestion({ id: transaction.id, name: suggestionText });
-                incrementAiUsage(); 
-            } else {
-                reconciliation.setAiSuggestion(null);
-            }
-        } catch (error) {
-            console.error("Erro na análise IA:", error);
-            showToast("Não foi possível obter sugestão da IA.", "error");
-        } finally {
-            reconciliation.setLoadingAiId(null);
-        }
-    }, [incrementAiUsage, showToast, reconciliation]);
-
-    // --- NOVA FUNÇÃO GMAIL SYNC ---
-    const handleGmailSyncSuccess = useCallback((transactions: Transaction[]) => {
-        if (transactions.length === 0) return;
-
-        const virtualFileName = `Importação Gmail - ${new Date().toLocaleDateString()}`;
-        
-        reconciliation.setBankStatementFile(prev => {
-            const existingTxs = prev?.processedTransactions || [];
-            const newTxs = transactions.filter(nt => !existingTxs.some(et => et.id === nt.id || (et.amount === nt.amount && et.date === nt.date && et.description === nt.description)));
-            const merged = [...existingTxs, ...newTxs];
+    const undoIdentification = useCallback(async (transactionId: string) => {
+        const result = reconciliation.matchResults.find(r => r.transaction.id === transactionId);
+        if (result && result.status === 'IDENTIFICADO') {
+            reconciliation.updateReportData({
+                ...result,
+                status: 'NÃO IDENTIFICADO',
+                church: PLACEHOLDER_CHURCH,
+                contributor: null,
+                matchMethod: undefined,
+                similarity: 0
+            }, 'income');
             
-            return {
-                bankId: prev?.bankId || 'gmail-bank',
-                content: prev?.content || 'GMAIL_VIRTUAL_CONTENT',
-                fileName: prev?.fileName || virtualFileName,
-                processedTransactions: merged
-            };
-        });
+            try {
+                await consolidationService.markAsPending(transactionId);
+            } catch(e) { console.warn("Failed to revert status in DB", e); }
 
-        showToast(`${transactions.length} transações do Gmail importadas com sucesso!`, 'success');
-        
+            showToast("Identificação desfeita.", "success");
+        }
     }, [reconciliation, showToast]);
 
-    const value = useMemo(() => ({
-        ...referenceData, ...reconciliation, isCompareDisabled: !reconciliation.bankStatementFile,
-        effectiveIgnoreKeywords, 
-        openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult,
-        ...reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation,
-        closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen,
-        openPaymentModal: () => setIsPaymentModalOpen(true), closePaymentModal: () => setIsPaymentModalOpen(false),
-        isRecompareModalOpen, openRecompareModal: () => setIsRecompareModalOpen(true), closeRecompareModal: () => setIsRecompareModalOpen(false),
-        smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze,
+    const findMatchResult = useCallback((id: string) => {
+        return reconciliation.matchResults.find(r => r.transaction.id === id);
+    }, [reconciliation.matchResults]);
+
+    const summary = useMemo(() => {
+        const total = reconciliation.matchResults.length;
+        const identifiedCount = reconciliation.matchResults.filter(r => r.status === 'IDENTIFICADO').length;
+        const unidentifiedCount = reconciliation.matchResults.filter(r => r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE').length;
+        
+        const auto = reconciliation.matchResults.filter(r => r.status === 'IDENTIFICADO' && r.matchMethod !== 'MANUAL');
+        const manual = reconciliation.matchResults.filter(r => r.status === 'IDENTIFICADO' && r.matchMethod === 'MANUAL');
+        const pending = reconciliation.matchResults.filter(r => r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE');
+
+        const totalValue = reconciliation.matchResults.reduce((acc, r) => acc + (r.transaction.amount || 0), 0);
+
+        const churchMap = new Map<string, number>();
+        reconciliation.matchResults.forEach(r => {
+            if (r.status === 'IDENTIFICADO' && r.church && r.church.id !== 'unidentified') {
+                const current = churchMap.get(r.church.name) || 0;
+                churchMap.set(r.church.name, current + (r.contributorAmount || r.transaction.amount));
+            }
+        });
+        const valuePerChurch = Array.from(churchMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+        const methodBreakdown = {
+            AUTOMATIC: reconciliation.matchResults.filter(r => r.matchMethod === 'AUTOMATIC').length,
+            MANUAL: reconciliation.matchResults.filter(r => r.matchMethod === 'MANUAL').length,
+            LEARNED: reconciliation.matchResults.filter(r => r.matchMethod === 'LEARNED').length,
+            AI: reconciliation.matchResults.filter(r => r.matchMethod === 'AI').length
+        };
+
+        return {
+            total,
+            identifiedCount,
+            unidentifiedCount,
+            autoConfirmed: { count: auto.length, value: auto.reduce((s, r) => s + (r.transaction.amount || 0), 0) },
+            manualConfirmed: { count: manual.length, value: manual.reduce((s, r) => s + (r.transaction.amount || 0), 0) },
+            pending: { count: pending.length, value: pending.reduce((s, r) => s + (r.transaction.amount || 0), 0) },
+            totalValue,
+            valuePerChurch,
+            methodBreakdown,
+            isHistorical: !!reconciliation.activeReportId
+        };
+    }, [reconciliation.matchResults, reconciliation.activeReportId]);
+
+    const openSmartEdit = useCallback((target: MatchResult) => setSmartEditTarget(target), []);
+    const closeSmartEdit = useCallback(() => setSmartEditTarget(null), []);
+    const saveSmartEdit = useCallback(async (updated: MatchResult) => {
+        reconciliation.updateReportData(updated, 'income');
+        if (updated.status === 'IDENTIFICADO') {
+            await referenceData.learnAssociation(updated);
+            consolidationService.markAsIdentified(updated.transaction.id).catch(() => {});
+        }
+        setSmartEditTarget(null);
+        showToast("Registro atualizado com sucesso.", "success");
+    }, [reconciliation, referenceData, showToast]);
+
+    const contextValue: AppContextType = {
+        ...referenceData,
+        ...reportManager,
+        ...reconciliation,
+        
+        // Exposed modified state
+        activeBankFiles: reconciliation.activeBankFiles,
+        selectedBankIds: reconciliation.selectedBankIds,
+        toggleBankSelection: reconciliation.toggleBankSelection,
+        bankStatementFile: reconciliation.activeBankFiles.length > 0 ? reconciliation.activeBankFiles[0] : null, // Compatibilidade
+        setBankStatementFile: reconciliation.setBankStatementFile, // Pass raw setter
+
+        initialDataLoaded,
+        deletingItem,
+        openDeleteConfirmation,
+        closeDeleteConfirmation,
+        confirmDeletion,
+        
+        isPaymentModalOpen,
+        openPaymentModal: () => setIsPaymentModalOpen(true),
+        closePaymentModal: () => setIsPaymentModalOpen(false),
+        
+        isRecompareModalOpen,
+        openRecompareModal: () => setIsRecompareModalOpen(true),
+        closeRecompareModal: () => setIsRecompareModalOpen(false),
+        
+        manualIdentificationTx: reconciliation.manualIdentificationTx,
+        bulkIdentificationTxs: reconciliation.bulkIdentificationTxs,
+        openManualIdentify, 
+        closeManualIdentify: reconciliation.closeManualIdentify,
+        confirmManualIdentification,
+        confirmBulkManualIdentification,
+        
+        smartEditTarget,
+        openSmartEdit,
+        closeSmartEdit,
+        saveSmartEdit,
+        
+        isUpdateFilesModalOpen,
+        openUpdateFilesModal: () => setIsUpdateFilesModalOpen(true),
+        closeUpdateFilesModal: () => setIsUpdateFilesModalOpen(false),
+        
+        isSyncing,
+        viewSavedReport,
+        activeSpreadsheetData,
+        setActiveSpreadsheetData,
+        summary,
+        effectiveIgnoreKeywords,
         saveCurrentReportChanges,
         handleGmailSyncSuccess,
-        resetReconciliation: unifiedResetReconciliation,
-        activeSpreadsheetData,
-        isUpdateFilesModalOpen, 
-        openUpdateFilesModal: () => setIsUpdateFilesModalOpen(true), 
-        closeUpdateFilesModal: () => setIsUpdateFilesModalOpen(false)
-    }), [referenceData, reconciliation, effectiveIgnoreKeywords, reportManager, viewSavedReport, handleBackToSettings, deletingItem, openDeleteConfirmation, closeDeleteConfirmation, confirmDeletion, initialDataLoaded, isSyncing, summary, isPaymentModalOpen, isRecompareModalOpen, openManualIdentify, openBulkManualIdentify, confirmManualIdentification, confirmBulkManualIdentification, findMatchResult, smartEditTarget, openSmartEdit, closeSmartEdit, saveSmartEdit, handleAnalyze, saveCurrentReportChanges, handleGmailSyncSuccess, unifiedResetReconciliation, activeSpreadsheetData, isUpdateFilesModalOpen]);
+        undoIdentification,
+        findMatchResult
+    };
 
-    return <AppContext.Provider value={value}>{children}<RecompareModal /></AppContext.Provider>;
+    return (
+        <AppContext.Provider value={contextValue}>
+            {children}
+        </AppContext.Provider>
+    );
 };

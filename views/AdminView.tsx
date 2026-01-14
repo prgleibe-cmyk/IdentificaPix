@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -15,17 +16,68 @@ import {
     XCircleIcon,
     ArrowsRightLeftIcon,
     BrainIcon,
-    ClipboardDocumentIcon
+    ClipboardDocumentIcon,
+    EyeIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminAuditTab } from '../components/admin/AdminAuditTab';
 import { AdminModelsTab } from '../components/admin/AdminModelsTab';
+import { AdminObservationTab } from '../components/admin/AdminObservationTab';
 
-type AdminTab = 'settings' | 'users' | 'audit' | 'models';
+type AdminTab = 'settings' | 'users' | 'audit' | 'models' | 'observation';
 
 const FIX_SQL = `
--- (SQL mantido inalterado)
+-- ============================================================
+-- SCRIPT DE CORREÇÃO DEFINITIVA (V5)
+-- Execute no Supabase SQL Editor para corrigir a estrutura
+-- ============================================================
+
+BEGIN;
+
+-- 1. Garante que a coluna bank_id existe (CRÍTICO PARA O ERRO 400)
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consolidated_transactions' AND column_name = 'bank_id') THEN 
+        ALTER TABLE consolidated_transactions ADD COLUMN bank_id UUID REFERENCES banks(id); 
+    END IF; 
+END $$;
+
+-- 2. Habilita RLS na tabela
+ALTER TABLE consolidated_transactions ENABLE ROW LEVEL SECURITY;
+
+-- 3. Recria a Política de Exclusão (DELETE)
+DROP POLICY IF EXISTS "Users can delete their own pending items" ON consolidated_transactions;
+
+CREATE POLICY "Users can delete their own pending items"
+ON consolidated_transactions
+FOR DELETE
+USING (auth.uid() = user_id AND status = 'pending');
+
+-- 4. Cria Função Segura de Limpeza (RPC)
+-- Esta função roda no servidor e evita erros de permissão
+CREATE OR REPLACE FUNCTION delete_pending_transactions(target_bank_id UUID DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF target_bank_id IS NOT NULL THEN
+    -- Deleta apenas do banco específico
+    DELETE FROM consolidated_transactions
+    WHERE user_id = auth.uid()
+      AND status = 'pending'
+      AND (bank_id = target_bank_id OR bank_id IS NULL); -- Remove também orfãos se houver
+  ELSE
+    -- Deleta TUDO (Reset)
+    DELETE FROM consolidated_transactions
+    WHERE user_id = auth.uid()
+      AND status = 'pending';
+  END IF;
+END;
+$$;
+
+COMMIT;
 `;
 
 export const AdminView: React.FC = () => {
@@ -88,7 +140,7 @@ export const AdminView: React.FC = () => {
         id: AdminTab, 
         label: string, 
         icon: any, 
-        colorTheme: 'slate' | 'blue' | 'emerald' | 'violet' 
+        colorTheme: 'slate' | 'blue' | 'emerald' | 'violet' | 'indigo' 
     }) => {
         const isActive = activeTab === id;
         
@@ -107,6 +159,10 @@ export const AdminView: React.FC = () => {
             case 'violet':
                 activeClass = "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-500/30";
                 iconClass = isActive ? "text-white" : "text-violet-500";
+                break;
+            case 'indigo':
+                activeClass = "bg-gradient-to-r from-indigo-500 to-cyan-600 text-white shadow-md shadow-indigo-500/30";
+                iconClass = isActive ? "text-white" : "text-indigo-500";
                 break;
             case 'slate':
             default:
@@ -151,7 +207,8 @@ export const AdminView: React.FC = () => {
                         <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
                         <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
-                        <AdminTabButton id="models" label="Modelos" icon={BrainIcon} colorTheme="violet" />
+                        <AdminTabButton id="models" label="Laboratório" icon={BrainIcon} colorTheme="violet" />
+                        <AdminTabButton id="observation" label="Observação" icon={EyeIcon} colorTheme="indigo" />
                     </div>
 
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
@@ -170,6 +227,7 @@ export const AdminView: React.FC = () => {
                 {activeTab === 'users' && <AdminUsersTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
                 {activeTab === 'models' && <AdminModelsTab />}
+                {activeTab === 'observation' && <AdminObservationTab />}
             </div>
 
             {/* Diagnostic Modal */}
@@ -214,28 +272,28 @@ export const AdminView: React.FC = () => {
                                                 <span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">AUSENTE</span>
                                             )}
                                         </div>
-                                        {diagResult.tableModelsStatus !== 'OK' && (
-                                            <div className="mt-2">
-                                                <p className="text-[10px] text-amber-700 mb-2 leading-tight">
-                                                    A tabela necessária para salvar modelos no banco não existe. O sistema está usando o <strong>Modo Local</strong>.
-                                                </p>
-                                                <button 
-                                                    onClick={copySql}
-                                                    className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors"
-                                                >
-                                                    <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-                                                    Copiar SQL de Correção
-                                                </button>
-                                            </div>
-                                        )}
                                     </div>
 
-                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
-                                        <span className="text-xs font-bold text-slate-700">Modo de Operação</span>
-                                        <span className="text-[10px] font-black text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-100">
-                                            {diagResult.tableModelsStatus === 'OK' ? 'ONLINE SYNC' : 'OFFLINE FALLBACK'}
-                                        </span>
+                                    {/* BLOCO DE CORREÇÃO DO PROBLEMA DE DELETE */}
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-amber-800">Correção de Estrutura (V5)</span>
+                                            <span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">IMPORTANTE</span>
+                                        </div>
+                                        <div className="mt-1">
+                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">
+                                                Se a exclusão falha, a coluna 'bank_id' pode estar faltando. Este script corrige isso e atualiza as permissões.
+                                            </p>
+                                            <button 
+                                                onClick={copySql}
+                                                className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"
+                                            >
+                                                <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                                                Copiar SQL V5
+                                            </button>
+                                        </div>
                                     </div>
+
                                 </div>
                             ) : null}
                         </div>

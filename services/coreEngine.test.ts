@@ -3,7 +3,6 @@ import { describe, it, expect } from '../utils/testRunner';
 import { DateResolver } from '../core/processors/DateResolver';
 import { NameResolver } from '../core/processors/NameResolver';
 import { AmountResolver } from '../core/processors/AmountResolver';
-import { Normalizer } from '../core/engine/Normalizer';
 
 describe('Core Engine: Regras Universais de Valor (Magnitude)', () => {
     it('Deve distinguir entre coluna de Transação e Saldo por magnitude (Menor magnitude vence)', () => {
@@ -26,6 +25,18 @@ describe('Core Engine: Regras Universais de Valor (Magnitude)', () => {
     it('Deve limpar símbolos monetários, letras e espaços com fidelidade absoluta', () => {
         expect(AmountResolver.clean('VALOR R$ 1.250,55')).toBe('1250.55');
         expect(AmountResolver.clean('PAGTO 10,00')).toBe('10.00');
+    });
+
+    it('Deve garantir integridade de magnitude no padrão BR (Bugfix 1.000)', () => {
+        expect(AmountResolver.clean('1.000,00')).toBe('1000.00'); // BR Clássico (Híbrido)
+        expect(AmountResolver.clean('1.234,56')).toBe('1234.56'); // BR Composto
+        expect(AmountResolver.clean('10.000,00')).toBe('10000.00'); // Magnitude Alta
+    });
+
+    it('Deve tratar casos ambíguos com a heurística de 3 dígitos', () => {
+        expect(AmountResolver.clean('1.000')).toBe('1000.00'); // Assume 1 mil (BR)
+        expect(AmountResolver.clean('1.500')).toBe('1500.00'); // Assume 1.5 mil (BR)
+        expect(AmountResolver.clean('10.50')).toBe('10.50'); // Assume decimal (US/Prog)
     });
 });
 

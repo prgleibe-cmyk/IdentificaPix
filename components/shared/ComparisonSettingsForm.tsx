@@ -15,17 +15,17 @@ export const ComparisonSettingsForm: React.FC = () => {
         isCompareDisabled,
         comparisonType,
         setComparisonType,
-        bankStatementFile,
-        activeReportId // Adicionado para verificação
+        selectedBankIds, // NOVO
+        activeReportId 
     } = useContext(AppContext);
     const { t, language } = useTranslation();
 
     // LÓGICA CORRIGIDA:
     // O botão habilita se:
-    // 1. Tiver arquivo de extrato carregado (Fluxo Normal)
+    // 1. Tiver pelo menos um banco SELECIONADO (Fluxo Normal)
     // OU
     // 2. Estiver editando um relatório salvo (activeReportId) - Fluxo Aditivo
-    const canProcess = !!bankStatementFile || !!activeReportId;
+    const canProcess = selectedBankIds.length > 0 || !!activeReportId;
     
     // Mantém a lógica específica de 'income' se necessário, mas prioriza a regra acima
     const finalIsCompareDisabled = comparisonType === 'income' ? (!canProcess && isCompareDisabled) : !canProcess;
@@ -143,7 +143,7 @@ export const ComparisonSettingsForm: React.FC = () => {
             <div className="flex items-center gap-2">
                 {finalIsCompareDisabled && (
                     <span className="hidden lg:inline text-[9px] font-bold text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full animate-pulse">
-                        Carregue os arquivos
+                        Selecione um arquivo
                     </span>
                 )}
                 <button 

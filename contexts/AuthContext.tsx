@@ -4,6 +4,7 @@ import { supabase } from '../services/supabaseClient';
 import { Session, User } from '@supabase/supabase-js';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { SubscriptionStatus } from '../types';
+import { AdminConfigService } from '../services/AdminConfigService';
 
 interface SystemSettings {
     defaultTrialDays: number;
@@ -59,12 +60,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
   const lastProcessedUserId = useRef<string | null>(null);
   
+  // Mantém estado local para acesso rápido e offline first
   const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>('identificapix-settings-v6', DEFAULT_SETTINGS);
   const settingsRef = useRef(systemSettings);
 
   useEffect(() => {
     settingsRef.current = systemSettings;
   }, [systemSettings]);
+
+  // Sincronização com Supabase (AdminConfig) - PRIORIDADE ABSOLUTA AO DB
+  useEffect(() => {
+      const syncRemoteSettings = async () => {
+          try {
+              // Busca configurações do servidor
+              const remoteSettings = await AdminConfigService.get<SystemSettings>('system_settings');
+              
+              if (remoteSettings) {
+                  // MODO DEFINITIVO: Se existe configuração no banco, ELA É A LEI.
+                  // Merge com DEFAULT_SETTINGS para garantir integridade estrutural se o DB tiver campos faltantes
+                  setSystemSettings(prev => ({
+                      ...DEFAULT_SETTINGS,
+                      ...remoteSettings
+                  }));
+                  console.log("[Config] Configurações carregadas do Banco de Dados.");
+              } else {
+                  // MODO DEFAULT: Se o banco está vazio (primeiro uso), usamos os padrões do código.
+                  setSystemSettings(prev => ({
+                      ...DEFAULT_SETTINGS, // Garante estrutura base
+                      ...prev              // Mantém local
+                  }));
+                  console.log("[Config] Usando configurações padrão do sistema.");
+              }
+          } catch (e) {
+              console.error("Failed to sync system settings", e);
+          }
+      };
+      
+      syncRemoteSettings();
+  }, [setSystemSettings]);
 
   const [subscription, setSubscription] = useState<SubscriptionStatus>({
       plan: 'trial',
@@ -205,8 +238,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const updateSystemSettings = useCallback((newSettings: Partial<SystemSettings>) => {
-      setSystemSettings(prev => ({ ...prev, ...newSettings }));
+  const updateSystemSettings = useCallback(async (newSettings: Partial<SystemSettings>) => {
+      // 1. Atualiza estado local imediatamente (Optimistic UI)
+      // Usa ref para garantir base atualizada sem depender de 'prev' assíncrono para a chamada de API
+      const currentSettings = settingsRef.current;
+      const updated = { ...currentSettings, ...newSettings };
+      
+      setSystemSettings(updated);
+
+      // 2. Persiste no Banco de Dados (Background)
+      // Removemos o side-effect de dentro do setter de estado para garantir execução única e correta
+      try {
+          await AdminConfigService.set('system_settings', updated);
+      } catch (err) {
+          console.error("Falha Crítica: Configuração não persistida no DB", err);
+          // Opcional: Reverter estado ou notificar erro (mas mantemos o optimistic para UX)
+      }
   }, [setSystemSettings]);
 
   const refreshSubscription = useCallback(() => calculateSubscription(user, true), [calculateSubscription, user]);
