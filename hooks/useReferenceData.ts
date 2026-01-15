@@ -4,7 +4,6 @@ import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { Logger } from '../services/monitoringService';
-import { User } from '@supabase/supabase-js';
 import { normalizeString, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/processingService';
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
@@ -15,7 +14,7 @@ const DEFAULT_IGNORE_KEYWORDS = [
     'Sr', 'Sra', 'Dr', 'Dra', 'RECEB OUTRA IF'
 ];
 
-export const useReferenceData = (user: User | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
+export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     const { subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
 

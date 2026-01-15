@@ -1,7 +1,6 @@
 
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Session, User } from '@supabase/supabase-js';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { SubscriptionStatus } from '../types';
 import { AdminConfigService } from '../services/AdminConfigService';
@@ -19,8 +18,8 @@ interface SystemSettings {
 }
 
 interface AuthContextType {
-  session: Session | null;
-  user: User | null;
+  session: any | null;
+  user: any | null;
   loading: boolean;
   signOut: () => Promise<void>;
   subscription: SubscriptionStatus;
@@ -53,8 +52,8 @@ const DEFAULT_SETTINGS: SystemSettings = {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<any | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   
   const isSigningOut = useRef(false);
@@ -112,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       maxBanks: 2
   });
 
-  const calculateSubscription = useCallback(async (currentUser: User | null, force: boolean = false) => {
+  const calculateSubscription = useCallback(async (currentUser: any | null, force: boolean = false) => {
       if (!currentUser || isSigningOut.current) return;
       
       if (!force && lastProcessedUserId.current === currentUser.id) return;
@@ -185,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastProcessedUserId.current = null;
         setSession(null);
         setUser(null);
-        await supabase.auth.signOut();
+        await (supabase.auth as any).signOut();
         
         Object.keys(localStorage).forEach(key => {
             if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
@@ -205,7 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    const { data: { subscription: authListener } } = (supabase.auth as any).onAuthStateChange(async (event: any, newSession: any) => {
         if (!mounted || isSigningOut.current) return;
 
         if (newSession) {
@@ -221,7 +220,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    (supabase.auth as any).getSession().then(({ data: { session: s } }: any) => {
         if (mounted && !isSigningOut.current) {
             if (s) {
                 setSession(s);

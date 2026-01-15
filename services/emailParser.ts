@@ -68,11 +68,13 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
         const extracted = response.text ? JSON.parse(response.text) : [];
 
         // Converte para o tipo Transaction interno
+        // ATUALIZAÇÃO FASE 1: RawDescription populado
         return extracted.map((item: any) => ({
             id: `gmail-${item.id}`,
             date: item.date,
-            description: item.description,
-            cleanedDescription: item.description, // Será limpo novamente pelo pipeline principal
+            description: item.description, // Descrição Limpa (sugestão da IA)
+            rawDescription: `GMAIL: ${item.description}`, // Fonte de Verdade (Simplificada)
+            cleanedDescription: item.description, 
             amount: item.amount,
             originalAmount: String(item.amount),
             contributionType: item.type || 'PIX'

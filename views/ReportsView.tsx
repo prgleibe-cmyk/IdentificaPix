@@ -17,7 +17,8 @@ import {
     ChevronRightIcon,
     PrinterIcon,
     DocumentArrowDownIcon,
-    ArrowPathIcon 
+    ArrowPathIcon,
+    RectangleStackIcon
 } from '../components/Icons';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { MatchResult } from '../types';
@@ -37,8 +38,8 @@ export const ReportsView: React.FC = () => {
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     
-    // Categorias Principais
-    const [activeCategory, setActiveCategory] = useState<'churches' | 'unidentified' | 'expenses'>('churches');
+    // Categorias Principais (Adicionado 'general')
+    const [activeCategory, setActiveCategory] = useState<'general' | 'churches' | 'unidentified' | 'expenses'>('general');
     
     // ID do Relatório Específico Selecionado (Ex: ID da Igreja)
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -50,11 +51,12 @@ export const ReportsView: React.FC = () => {
     useEffect(() => {
         if (!reportPreviewData) return;
 
-        if (activeCategory === 'churches') {
+        if (activeCategory === 'general') {
+            setSelectedReportId('general_all');
+        } else if (activeCategory === 'churches') {
             const churchIds = Object.keys(reportPreviewData.income).filter(k => k !== 'unidentified').sort();
             if (churchIds.length > 0) {
-                // Se o ID selecionado não estiver na lista de igrejas, seleciona o primeiro
-                if (!selectedReportId || !churchIds.includes(selectedReportId)) {
+                if (!selectedReportId || !churchIds.includes(selectedReportId) || selectedReportId === 'general_all') {
                     setSelectedReportId(churchIds[0]);
                 }
             } else {
@@ -85,20 +87,26 @@ export const ReportsView: React.FC = () => {
     }, [reportPreviewData]);
 
     const counts = useMemo(() => {
+        // Flatten all income for general count
+        const general = reportPreviewData ? Object.values(reportPreviewData.income).flat().length : 0;
         const churches = churchList.length;
         const pending = reportPreviewData?.income['unidentified']?.length || 0;
         const expenses = reportPreviewData?.expenses['all_expenses_group']?.length || 0;
-        return { churches, pending, expenses };
+        return { general, churches, pending, expenses };
     }, [churchList, reportPreviewData]);
 
     // Dados da Tabela Ativa
     const activeData = useMemo(() => {
-        if (!reportPreviewData || !selectedReportId) return [];
+        if (!reportPreviewData) return [];
         
         let data: MatchResult[] = [];
-        if (activeCategory === 'expenses') {
-            data = reportPreviewData.expenses[selectedReportId] || [];
-        } else {
+        
+        if (activeCategory === 'general') {
+            // Combina tudo de income (Igrejas + Não Identificados)
+            data = (Object.values(reportPreviewData.income) as MatchResult[][]).flat();
+        } else if (activeCategory === 'expenses') {
+            data = reportPreviewData.expenses['all_expenses_group'] || [];
+        } else if (selectedReportId) {
             data = reportPreviewData.income[selectedReportId] || [];
         }
 
@@ -120,16 +128,25 @@ export const ReportsView: React.FC = () => {
     // Totais do Relatório Ativo
     const activeSummary = useMemo(() => {
         const count = activeData.length;
-        const total = activeData.reduce((sum, r) => sum + r.transaction.amount, 0);
+        
+        // CALCULO DO TOTAL GERAL DA TABELA
+        const total = activeData.reduce((sum, r) => {
+            const amount = r.status === 'PENDENTE' 
+                ? (r.contributorAmount || r.contributor?.amount || 0) 
+                : r.transaction.amount;
+            return sum + amount;
+        }, 0);
         
         // Filtros
-        const pendingTxs = activeData.filter(r => r.status === 'PENDENTE');
+        const pendingTxs = activeData.filter(r => r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO');
         const autoTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && r.matchMethod !== 'MANUAL');
         const manualTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && r.matchMethod === 'MANUAL');
 
-        // Contagens e Valores
         const pending = pendingTxs.length;
-        const pendingValue = pendingTxs.reduce((sum, r) => sum + (r.contributorAmount || 0), 0);
+        const pendingValue = pendingTxs.reduce((sum, r) => {
+             const val = r.status === 'PENDENTE' ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+             return sum + val;
+        }, 0);
 
         const auto = autoTxs.length;
         const autoValue = autoTxs.reduce((sum, r) => sum + r.transaction.amount, 0);
@@ -191,19 +208,20 @@ export const ReportsView: React.FC = () => {
     };
 
     const handleDownload = () => {
-        const headers = ["Data", "Descrição", "Tipo", "Status", "Valor"];
+        const headers = ["Data", "Descrição", "Tipo", "Status", "Valor", "Igreja"]; // Added Church
         const csvContent = [
             headers.join(";"),
             ...sortedData.map(r => {
-                const date = formatDate(r.transaction.date);
+                const isGhost = r.status === 'PENDENTE';
+                const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
                 const desc = (r.contributor?.cleanedName || r.transaction.description).replace(/;/g, ' ');
                 const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
                 const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
-                // Formata para padrão brasileiro no CSV (vírgula decimal)
-                const amount = (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : r.transaction.amount)
-                    .toFixed(2).replace('.', ',');
+                const church = (r.church?.name || '---').replace(/;/g, ' ');
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const amount = Number(rawAmount).toFixed(2).replace('.', ',');
                 
-                return [`"${date}"`, `"${desc}"`, `"${type}"`, `"${status}"`, `"${amount}"`].join(";");
+                return [`"${date}"`, `"${desc}"`, `"${type}"`, `"${status}"`, `"${amount}"`, `"${church}"`].join(";");
             })
         ].join("\n");
 
@@ -221,21 +239,26 @@ export const ReportsView: React.FC = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const title = activeCategory === 'churches' 
+        const title = activeCategory === 'general' ? 'Relatório Geral de Entradas' 
+            : activeCategory === 'churches' 
             ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório de Igreja')
             : activeCategory === 'unidentified' ? 'Transações Pendentes' : 'Saídas e Despesas';
 
         const tableRows = sortedData.map(r => {
-            const date = formatDate(r.transaction.date);
+            const isGhost = r.status === 'PENDENTE';
+            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             const name = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-            const amount = formatCurrency(r.status === 'PENDENTE' ? (r.contributorAmount || 0) : r.transaction.amount, language);
+            const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+            const amount = formatCurrency(amountVal, language);
             const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
+            const churchName = r.church?.name || '-';
 
             return `
                 <tr>
                     <td>${date}</td>
                     <td>${name}</td>
+                    <td style="font-size: 9px;">${churchName}</td>
                     <td style="text-align: center;">${type}</td>
                     <td style="text-align: center;">${status}</td>
                     <td style="text-align: right;">${amount}</td>
@@ -279,11 +302,12 @@ export const ReportsView: React.FC = () => {
                     <table>
                         <thead>
                             <tr>
-                                <th style="width: 15%">Data</th>
-                                <th style="width: 45%">Nome / Descrição</th>
-                                <th style="width: 15%; text-align: center;">Tipo</th>
+                                <th style="width: 12%">Data</th>
+                                <th style="width: 35%">Nome / Descrição</th>
+                                <th style="width: 20%">Igreja</th>
+                                <th style="width: 10%; text-align: center;">Tipo</th>
                                 <th style="width: 10%; text-align: center;">Status</th>
-                                <th style="width: 15%; text-align: right;">Valor</th>
+                                <th style="width: 13%; text-align: right;">Valor</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -300,7 +324,7 @@ export const ReportsView: React.FC = () => {
     };
 
     const handleRowChange = (updatedRow: MatchResult) => {
-        updateReportData(updatedRow, activeReportType);
+        updateReportData(updatedRow); // Updated to use single arg atomic update
     };
 
     const handleEdit = (row: MatchResult) => {
@@ -314,7 +338,10 @@ export const ReportsView: React.FC = () => {
         let activeClass = "";
         let iconClass = "";
         
-        if (id === 'churches') {
+        if (id === 'general') {
+            activeClass = "bg-gradient-to-r from-slate-700 to-slate-900 text-white shadow-md shadow-slate-500/30";
+            iconClass = isActive ? "text-white" : "text-slate-600 dark:text-slate-300";
+        } else if (id === 'churches') {
             activeClass = "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30";
             iconClass = isActive ? "text-white" : "text-blue-500";
         } else if (id === 'unidentified') {
@@ -392,7 +419,13 @@ export const ReportsView: React.FC = () => {
                     <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
                     
                     {/* CATEGORY TABS (Compact) */}
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-0.5 rounded-full border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-0.5 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
+                        <CategoryPill 
+                            id="general" 
+                            label="Geral" 
+                            count={counts.general} 
+                            icon={RectangleStackIcon} 
+                        />
                         <CategoryPill 
                             id="churches" 
                             label="Igrejas" 
@@ -491,7 +524,8 @@ export const ReportsView: React.FC = () => {
                         </div>
                         <div>
                             <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide">
-                                {activeCategory === 'churches' 
+                                {activeCategory === 'general' ? 'Todas as Entradas (Completo)' : 
+                                 activeCategory === 'churches' 
                                     ? churchList.find(c => c.id === selectedReportId)?.name || 'Selecione uma Igreja'
                                     : activeCategory === 'unidentified' ? 'Transações Pendentes' : 'Saídas e Despesas'
                                 }
@@ -531,7 +565,7 @@ export const ReportsView: React.FC = () => {
                                 </span>
                             </div>
 
-                            {/* PENDING PILL */}
+                            {/* PENDING PILL (Exibido apenas se > 0) */}
                             {activeSummary.pending > 0 && (
                                 <div className="flex items-center gap-2 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
                                     <div className="flex flex-col leading-none">

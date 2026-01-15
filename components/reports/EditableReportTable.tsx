@@ -89,32 +89,27 @@ const IncomeRow = memo(({
     ignoreKeywords,
 }: any) => {
     const row = result as MatchResult;
+    const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
-    const isPendingList = row.status === 'PENDENTE';
     
-    // --- Lógica de Data com Divergência Visual ---
-    const bankDateRaw = row.transaction.date;
-    const listDateRaw = row.contributor?.date;
+    // --- Dados Primários (Fonte de Verdade Isolada) ---
+    // Se for Fantasma, usa dados da lista. Se for Real, usa dados do banco.
+    const displayAmount = isGhost 
+        ? (row.contributorAmount || row.contributor?.amount || 0) 
+        : row.transaction.amount;
     
-    const bankDisplay = formatDate(bankDateRaw);
-    const listDisplay = listDateRaw ? formatDate(listDateRaw) : null;
+    const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     
-    const datesDiverge = isIdentified && listDisplay && bankDisplay !== listDisplay;
-
+    // Nome: Preferência total pelo Contribuinte, fallback para descrição limpa do banco
     const txDescFormatted = formatIncomeDescription(row.transaction.description, ignoreKeywords);
+    const displayName = row.contributor?.name || row.contributor?.cleanedName || txDescFormatted;
     
-    // Nome: Contribuinte > Descrição Limpa
-    const displayName = row.contributor?.name || txDescFormatted;
-    
-    // Tipos Separados para as duas linhas
+    // Tipos
     const contribType = row.contributor?.contributionType;
     const bankType = row.transaction.contributionType;
-    
-    const amount = isPendingList ? 0 : (row.contributorAmount ?? row.transaction.amount);
-    const expectedAmount = isPendingList ? row.contributorAmount : 0;
 
     const getStatusBadge = () => {
-        if (!isIdentified && !isPendingList) {
+        if (!isIdentified && !isGhost) {
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 uppercase tracking-wide whitespace-nowrap">
                     Pendente
@@ -122,7 +117,7 @@ const IncomeRow = memo(({
             );
         }
 
-        if (isPendingList) {
+        if (isGhost) {
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide whitespace-nowrap">
                     Não Localizado
@@ -157,34 +152,27 @@ const IncomeRow = memo(({
             transition-colors 
             border-b border-slate-200 dark:border-slate-700 
             hover:bg-blue-50/60 dark:hover:bg-blue-900/20 
-            ${isPendingList 
+            ${isGhost 
                 ? 'bg-amber-50/50 dark:bg-amber-900/10' 
                 : 'odd:bg-white even:bg-slate-50 dark:odd:bg-slate-800 dark:even:bg-slate-800/40'
             }
         `}>
-            {/* Coluna Data com Destaque de Divergência */}
+            {/* Coluna Data */}
             <td className="px-4 py-2.5 font-mono text-[11px]">
-                {datesDiverge ? (
-                    <div className="flex flex-col leading-tight">
-                        <span className="text-slate-500 dark:text-slate-400" title="Data Banco">{bankDisplay}</span>
-                        <span className="text-amber-600 dark:text-amber-400 font-bold" title="Data Lista (Divergente)">{listDisplay}</span>
-                    </div>
-                ) : (
-                    <span className="text-slate-500 dark:text-slate-400">{bankDisplay || listDisplay}</span>
-                )}
+                <span className="text-slate-500 dark:text-slate-400">{displayDate}</span>
             </td>
             
-            {/* Coluna Nome/Descrição com Ícones Inline */}
+            {/* Coluna Nome/Descrição */}
             <td className="px-4 py-2.5">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
-                        {(row.contributor || isPendingList) ? (
+                        {(row.contributor || isGhost) ? (
                             <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" title="Origem: Lista de Contribuintes" />
                         ) : (
                             <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
                         )}
                         
-                        <span className={`text-xs font-bold leading-tight truncate max-w-[250px] ${isPendingList ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`} title={displayName}>
+                        <span className={`text-xs font-bold leading-tight truncate max-w-[250px] ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`} title={displayName}>
                             {displayName}
                         </span>
                     </div>
@@ -198,7 +186,7 @@ const IncomeRow = memo(({
                         </div>
                     )}
                     
-                    {isPendingList && (
+                    {isGhost && (
                         <span className="text-[9px] text-red-400 pl-5 font-medium italic">
                             Não identificado no banco
                         </span>
@@ -220,7 +208,7 @@ const IncomeRow = memo(({
             
             <td className="px-4 py-2.5">
                 <div className="flex flex-col gap-1.5 items-start">
-                    {(row.contributor || isPendingList) && (
+                    {(row.contributor || isGhost) && (
                         <div className="flex items-center gap-1.5" title="Tipo na Lista">
                             <UserIcon className="w-3 h-3 text-indigo-400 shrink-0" />
                             <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
@@ -229,7 +217,7 @@ const IncomeRow = memo(({
                         </div>
                     )}
 
-                    {!isPendingList && (
+                    {!isGhost && (
                         <div className="flex items-center gap-1.5 opacity-80" title="Tipo no Extrato">
                             <BanknotesIcon className="w-3 h-3 text-slate-400 shrink-0" />
                             <span className="text-[9px] font-medium text-slate-600 bg-slate-100 border border-slate-200 dark:bg-slate-700/50 dark:text-slate-400 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
@@ -241,24 +229,24 @@ const IncomeRow = memo(({
             </td>
 
             <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                {isPendingList ? (
+                {isGhost ? (
                     <div className="flex flex-col items-end">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 line-through">
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 line-through decoration-slate-300">
                             0,00
                         </span>
-                        <span className="text-[9px] text-slate-300 dark:text-slate-600 font-medium">
-                            (Exp: {formatCurrency(expectedAmount, language)})
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                            (Exp: {formatCurrency(displayAmount, language)})
                         </span>
                     </div>
                 ) : (
-                    <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${amount < 0 ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white'}`}>
-                        {formatCurrency(amount, language)}
+                    <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${displayAmount < 0 ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white'}`}>
+                        {formatCurrency(displayAmount, language)}
                     </span>
                 )}
             </td>
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1 justify-center transition-opacity">
-                    {!isIdentified && !isPendingList ? (
+                    {!isIdentified && !isGhost ? (
                         <div className="flex items-center justify-center gap-1">
                             <button 
                                 onClick={() => onEdit(row)} 
@@ -307,7 +295,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         openDivergenceModal, 
         openDeleteConfirmation,
         openSmartEdit,
-        undoIdentification // NEW
+        undoIdentification 
     } = useContext(AppContext);
     
     const handleEdit = useCallback((row: MatchResult) => {

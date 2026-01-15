@@ -25,7 +25,9 @@ export const ManualMatchModal: React.FC = () => {
         const targetAmount = record.contributor?.amount || 0;
         const targetDate = record.contributor?.date ? parseDate(record.contributor.date) : null;
 
-        return suggestions.filter(tx => {
+        return suggestions.filter(match => {
+            const tx = match.transaction;
+            
             // Amount Match (Strict)
             if (Math.abs(tx.amount - targetAmount) > 0.05) return false;
             
@@ -44,7 +46,7 @@ export const ManualMatchModal: React.FC = () => {
     const filteredSuggestions = useMemo(() => {
         // If the user types anything, we search the ENTIRE dataset (Global Search)
         if (searchQuery.trim()) {
-            return suggestions.filter(tx => filterTransactionByUniversalQuery(tx, searchQuery));
+            return suggestions.filter(match => filterTransactionByUniversalQuery(match.transaction, searchQuery));
         }
         // If search is empty, show Smart Suggestions (Amount/Date match)
         return smartMatches;
@@ -53,9 +55,9 @@ export const ManualMatchModal: React.FC = () => {
 
     const handleConfirm = () => {
         if (selectedTxId) {
-            const selectedTx = suggestions.find(s => s.id === selectedTxId);
-            if (selectedTx) {
-                confirmManualAssociation(selectedTx);
+            const selectedMatch = suggestions.find(s => s.transaction.id === selectedTxId);
+            if (selectedMatch) {
+                confirmManualAssociation(selectedMatch);
             }
         }
     };
@@ -133,7 +135,8 @@ export const ManualMatchModal: React.FC = () => {
                              <div className="overflow-y-auto custom-scrollbar flex-1 p-2 bg-slate-50/20 dark:bg-slate-900/20">
                                 {filteredSuggestions.length > 0 ? (
                                     <ul className="space-y-2">
-                                        {filteredSuggestions.map(tx => {
+                                        {filteredSuggestions.map(match => {
+                                            const tx = match.transaction;
                                             const isSelected = selectedTxId === tx.id;
                                             return (
                                                 <li

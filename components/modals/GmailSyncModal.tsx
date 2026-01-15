@@ -29,7 +29,7 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
         addLog("Verificando sessão...");
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await (supabase.auth as any).getSession();
             
             // Tenta obter o token do provedor. 
             // Nota: O Supabase só expõe o provider_token na sessão inicial ou se configurado explicitamente.

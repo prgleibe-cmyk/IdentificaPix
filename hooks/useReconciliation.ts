@@ -1,31 +1,28 @@
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { usePersistentState } from './usePersistentState';
+import { useState, useCallback } from 'react';
 import { 
+    MatchResult, 
     Transaction, 
     Contributor, 
-    MatchResult, 
     Church, 
     Bank, 
     FileModel, 
-    GroupedReportData, 
     ComparisonType,
-    ViewType,
-    LearnedAssociation
+    ContributorFile,
+    GroupedReportData
 } from '../types';
 import { 
+    processFileContent, 
+    parseContributors, 
     matchTransactions, 
-    groupResultsByChurch, 
-    PLACEHOLDER_CHURCH,
-    normalizeString,
-    processFileContent
+    groupResultsByChurch,
+    PLACEHOLDER_CHURCH
 } from '../services/processingService';
-import { User } from '@supabase/supabase-js';
-import { consolidationService } from '../services/ConsolidationService';
 import { getAISuggestion } from '../services/geminiService';
+import { consolidationService } from '../services/ConsolidationService';
 
 interface UseReconciliationProps {
-    user: User | null;
+    user: any;
     churches: Church[];
     banks: Bank[];
     fileModels: FileModel[];
@@ -33,10 +30,10 @@ interface UseReconciliationProps {
     dayTolerance: number;
     customIgnoreKeywords: string[];
     contributionKeywords: string[];
-    learnedAssociations: LearnedAssociation[];
-    showToast: (msg: string, type?: 'success' | 'error') => void;
+    learnedAssociations: any[];
+    showToast: (msg: string, type: 'success' | 'error') => void;
     setIsLoading: (loading: boolean) => void;
-    setActiveView: (view: ViewType) => void;
+    setActiveView: (view: any) => void;
 }
 
 export const useReconciliation = ({
@@ -53,469 +50,440 @@ export const useReconciliation = ({
     setIsLoading,
     setActiveView
 }: UseReconciliationProps) => {
+
+    // --- State ---
+    const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
+    const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
+    const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
     
-    const userSuffix = user ? `-${user.id}` : '-guest';
-
-    const [activeBankFiles, setBankStatementFile] = usePersistentState<{ 
-        bankId: string, 
-        content: string, 
-        fileName: string, 
-        rawFile?: File,
-        processedTransactions?: Transaction[]
-    }[]>(`identificapix-bank-files-v1${userSuffix}`, [], true);
-
-    const [selectedBankIds, setSelectedBankIds] = usePersistentState<string[]>(`identificapix-selected-banks-v1${userSuffix}`, [], false);
-
-    const [contributorFiles, setContributorFiles] = usePersistentState<{ churchId: string; content: string; fileName: string, contributors?: Contributor[] }[]>(`identificapix-contributors-v6${userSuffix}`, [], true);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-results-v6${userSuffix}`, [], true);
-    const [reportPreviewData, setReportPreviewData] = usePersistentState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(`identificapix-report-preview-v6${userSuffix}`, null, true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session-v6${userSuffix}`, false, false);
-    const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null, false);
-
-    const [comparisonType, setComparisonType] = useState<ComparisonType>('both');
-    const [pendingTraining, setPendingTraining] = useState<{ content: string; fileName: string; type: 'statement' | 'contributor'; entityId: string, rawFile?: File } | null>(null);
-
+    const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
+    const [reportPreviewData, setReportPreviewData] = useState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(null);
+    const [activeReportId, setActiveReportId] = useState<string | null>(null);
+    const [hasActiveSession, setHasActiveSession] = useState(false);
+    
+    const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
+    
+    // UI State for Modals
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[] | null>(null);
-    const [manualMatchState, setManualMatchState] = useState<{ record: MatchResult, suggestions: Transaction[] } | null>(null);
-    const [divergenceConfirmation, setDivergenceConfirmation] = useState<MatchResult | null>(null);
+    const [divergenceConfirmation, setDivergenceConfirmation] = useState<{ transaction: Transaction; contributor: Contributor; divergence: any } | null>(null);
+    const [manualMatchState, setManualMatchState] = useState<{ record: MatchResult; suggestions: MatchResult[] } | null>(null);
+    
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
-    const [aiSuggestion, setAiSuggestion] = useState<{ id: string, name: string } | null>(null);
+    const [aiSuggestion, setAiSuggestion] = useState<{ id: string; name: string } | null>(null);
+    const [pendingTraining, setPendingTraining] = useState<any | null>(null);
+    const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
 
-    const cleaningKeywords = useMemo(() => {
-        return Array.from(new Set([...customIgnoreKeywords, ...contributionKeywords]));
-    }, [customIgnoreKeywords, contributionKeywords]);
+    // --- File Handling ---
+    const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string, rawFile?: File) => {
+        setIsLoading(true);
+        try {
+            const result = processFileContent(content, fileName, fileModels, customIgnoreKeywords);
+            const processedTransactions = result.transactions;
+
+            if (processedTransactions.length === 0) {
+                showToast("Nenhuma transação encontrada no arquivo.", "error");
+                setIsLoading(false);
+                return;
+            }
+
+            setBankStatementFile(prev => {
+                const filtered = prev.filter(f => f.bankId !== bankId);
+                return [...filtered, {
+                    bankId,
+                    content,
+                    fileName,
+                    rawFile,
+                    processedTransactions
+                }];
+            });
+            
+            if (!selectedBankIds.includes(bankId)) {
+                setSelectedBankIds(prev => [...prev, bankId]);
+            }
+
+            showToast("Extrato carregado com sucesso.", "success");
+        } catch (error: any) {
+            console.error(error);
+            showToast("Erro ao processar extrato.", "error");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fileModels, customIgnoreKeywords, selectedBankIds, showToast, setIsLoading]);
+
+    const removeBankStatementFile = useCallback((bankId: string) => {
+        setBankStatementFile(prev => prev.filter(f => f.bankId !== bankId));
+        setSelectedBankIds(prev => prev.filter(id => id !== bankId));
+    }, []);
+
+    const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string, rawFile?: File) => {
+        setIsLoading(true);
+        setTimeout(() => {
+            try {
+                const contributors = parseContributors(content, customIgnoreKeywords, contributionKeywords);
+                if (contributors.length === 0) {
+                    showToast("Nenhum contribuinte encontrado.", "error");
+                    setIsLoading(false);
+                    return;
+                }
+                
+                const church = churches.find(c => c.id === churchId);
+                if (church) {
+                    const newFile: ContributorFile = { church, contributors, fileName, churchId };
+                    setContributorFiles(prev => {
+                        const filtered = prev.filter(f => f.churchId !== churchId);
+                        return [...filtered, newFile];
+                    });
+                    showToast("Lista de membros carregada.", "success");
+                }
+            } catch (error) {
+                console.error(error);
+                showToast("Erro ao processar lista.", "error");
+            } finally {
+                setIsLoading(false);
+            }
+        }, 100);
+    }, [churches, customIgnoreKeywords, contributionKeywords, showToast, setIsLoading]);
+
+    const removeContributorFile = useCallback((churchId: string) => {
+        setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
+    }, []);
+
+    const clearFiles = useCallback(() => {
+        setBankStatementFile([]);
+        setContributorFiles([]);
+        setSelectedBankIds([]);
+    }, []);
 
     const toggleBankSelection = useCallback((bankId: string) => {
         setSelectedBankIds(prev => {
             if (prev.includes(bankId)) return prev.filter(id => id !== bankId);
             return [...prev, bankId];
         });
-    }, [setSelectedBankIds]);
+    }, []);
 
-    const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string, rawFile: File) => {
-        setIsLoading(true);
-        try {
-            const result = processFileContent(content, fileName, fileModels, cleaningKeywords);
-            const transactions = result.transactions;
-
-            if (transactions.length > 0) {
-                setBankStatementFile(prevFiles => {
-                    const existingIndex = prevFiles.findIndex(f => f.bankId === bankId);
-                    const newEntry = { 
-                        bankId, 
-                        content, 
-                        fileName, 
-                        rawFile,
-                        processedTransactions: transactions 
-                    };
-
-                    if (existingIndex >= 0) {
-                        const updated = [...prevFiles];
-                        updated[existingIndex] = newEntry;
-                        return updated;
-                    } else {
-                        return [...prevFiles, newEntry];
-                    }
-                });
-
-                setSelectedBankIds(prev => prev.includes(bankId) ? prev : [...prev, bankId]);
-                
-                if (result.appliedModel) {
-                    showToast("Modelo identificado e aplicado.", "success");
-                } else {
-                    showToast(`Extrato carregado.`, 'success');
-                }
-
-                if (user) {
-                    const consolidationData = transactions.map(t => ({
-                        transaction_date: t.date,
-                        amount: t.amount,
-                        description: t.description,
-                        type: (t.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
-                        pix_key: null,
-                        source: 'file' as 'file',
-                        user_id: user.id,
-                        bank_id: bankId 
-                    }));
-
-                    consolidationService.addTransactions(consolidationData)
-                        .catch(err => console.warn("[Consolidation] Background sync skipped:", err));
-                }
-
-            } else {
-                showToast("Formato de arquivo não reconhecido.", "error");
-            }
-        } catch (e: any) {
-            console.error(e);
-            showToast("Erro ao ler o arquivo: " + e.message, "error");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [setBankStatementFile, setSelectedBankIds, showToast, setIsLoading, fileModels, cleaningKeywords, user]);
-
-    const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string, rawFile?: File) => {
-        setIsLoading(true);
-        try {
-            const result = processFileContent(content, fileName, fileModels, cleaningKeywords);
-            const transactions = result.transactions;
-
-            const contributors: Contributor[] = transactions.map(t => ({
-                name: t.description,
-                cleanedName: t.cleanedDescription,
-                normalizedName: normalizeString(t.description, cleaningKeywords),
-                amount: t.amount,
-                date: t.date,
-                originalAmount: t.originalAmount,
-                contributionType: t.contributionType
-            }));
-
-            if (contributors.length > 0) {
-                setContributorFiles(prev => {
-                    const other = prev.filter(f => f.churchId !== churchId);
-                    return [...other, { churchId, content, fileName, contributors }];
-                });
-                showToast(`Lista carregada.`, 'success');
-            } else {
-                showToast("Formato de lista não reconhecido.", "error");
-            }
-        } catch (e: any) {
-            showToast("Erro ao ler o arquivo: " + e.message, "error");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [cleaningKeywords, setContributorFiles, showToast, setIsLoading, fileModels]);
-
-    const handleTrainingSuccess = useCallback((model: FileModel, processedData: Transaction[]) => {
-        if (!pendingTraining) return;
-        const { type, entityId, content, fileName, rawFile } = pendingTraining;
-
-        if (type === 'statement') {
-            setBankStatementFile(prevFiles => {
-                const existingIndex = prevFiles.findIndex(f => f.bankId === entityId);
-                const newEntry = { bankId: entityId, content, fileName, rawFile, processedTransactions: processedData };
-                if (existingIndex >= 0) {
-                    const updated = [...prevFiles];
-                    updated[existingIndex] = newEntry;
-                    return updated;
-                } else {
-                    return [...prevFiles, newEntry];
-                }
-            });
-            setSelectedBankIds(prev => prev.includes(entityId) ? prev : [...prev, entityId]);
-            showToast("Extrato salvo!", "success");
-
-            if (user && processedData.length > 0) {
-                const consolidationData = processedData.map(t => ({
-                    transaction_date: t.date,
-                    amount: t.amount,
-                    description: t.description,
-                    type: (t.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
-                    pix_key: null,
-                    source: 'file' as 'file',
-                    user_id: user.id,
-                    bank_id: entityId
-                }));
-                consolidationService.addTransactions(consolidationData).catch(() => {});
-            }
-        } else {
-            const contributors: Contributor[] = processedData.map(t => ({
-                name: t.description,
-                cleanedName: t.cleanedDescription,
-                normalizedName: normalizeString(t.description, cleaningKeywords),
-                amount: t.amount,
-                date: t.date,
-                originalAmount: t.originalAmount,
-                contributionType: t.contributionType
-            }));
-            setContributorFiles(prev => {
-                const other = prev.filter(f => f.churchId !== entityId);
-                return [...other, { churchId: entityId, content, fileName, contributors }];
-            });
-            showToast("Lista salva!", "success");
-        }
-        setPendingTraining(null);
-    }, [pendingTraining, cleaningKeywords, setBankStatementFile, setContributorFiles, showToast, user, setSelectedBankIds]);
-
-    const openLabManually = useCallback((targetFile?: { content: string, fileName: string, type: 'statement' | 'contributor', id: string, rawFile?: File }) => {
-        if (targetFile) {
-            setPendingTraining({ content: targetFile.content, fileName: targetFile.fileName, type: targetFile.type, entityId: targetFile.id, rawFile: targetFile.rawFile });
-        } else if (activeBankFiles.length > 0) {
-            const firstBank = activeBankFiles[0];
-            setPendingTraining({ content: firstBank.content, fileName: firstBank.fileName, type: 'statement', entityId: firstBank.bankId, rawFile: firstBank.rawFile });
-        } else {
-            showToast("Carregue um arquivo primeiro.", "error");
-        }
-    }, [activeBankFiles, showToast]);
-
-    // --- BLINDAGEM DA EXCLUSÃO ---
-    const removeBankStatementFile = useCallback(async (bankId?: string) => {
-        // 1. Atualização Otimista
-        if (bankId) {
-            setBankStatementFile(prev => prev.filter(f => f.bankId !== bankId));
-            setSelectedBankIds(prev => prev.filter(id => id !== bankId));
-        } else {
-            setBankStatementFile([]);
-            setSelectedBankIds([]);
-        }
-
-        // 2. Persistência Assíncrona Segura
-        if (user) {
-            consolidationService.deletePendingTransactions(user.id, bankId)
-                .catch(e => {
-                    // Log apenas, não trava a UI pois já foi removido visualmente
-                    console.warn("[Consolidation] Delete sync warning:", e); 
-                });
-        }
-    }, [setBankStatementFile, setSelectedBankIds, user]);
-
-    const removeContributorFile = useCallback((churchId: string) => {
-        setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));
-    }, [setContributorFiles]);
-
-    const clearFiles = useCallback(() => {
-        setBankStatementFile([]);
-        setContributorFiles([]);
-        setSelectedBankIds([]);
-    }, [setBankStatementFile, setContributorFiles, setSelectedBankIds]);
-
-    const resetReconciliation = useCallback(async () => {
-        // 1. Limpeza Local
-        setBankStatementFile([]);
-        setContributorFiles([]);
-        setMatchResults([]);
-        setReportPreviewData(null);
-        setHasActiveSession(false);
-        setActiveReportId(null);
-        setSelectedBankIds([]);
+    // --- Core Logic: REGENERATE PREVIEW ---
+    // Esta função é o coração da Fase 2 e 3. Ela transforma a lista plana (matchResults)
+    // na estrutura agrupada que a UI consome, sem patches manuais.
+    const regenerateReportPreview = useCallback((results: MatchResult[]) => {
+        // Separação Lógica Base (CORRIGIDO: Inclui valores 0 para não ocultar nada)
+        // Entradas (Income): Valor >= 0 OU Fantasmas (Pendentes)
+        const incomeResults = results.filter(r => r.transaction.amount >= 0 || r.status === 'PENDENTE');
         
-        // 2. Limpeza DB Segura
-        if (user) {
-            try {
-                // Passa undefined explicitamente para indicar "delete all"
-                await consolidationService.deletePendingTransactions(user.id, undefined);
-                console.log("[Consolidation] Reset DB command sent.");
-            } catch (e) {
-                console.error("[Consolidation] Reset DB failed:", e);
-            }
-        }
-        showToast("Ambiente limpo.", "success");
-    }, [setBankStatementFile, setContributorFiles, setMatchResults, setReportPreviewData, setHasActiveSession, showToast, setActiveReportId, setSelectedBankIds, user]);
+        // Saídas (Expenses): Valor < 0 (Estritamente negativo)
+        // Nota: Se houver um fantasma com valor negativo, ele iria para cima por ser PENDENTE, 
+        // mas fantasmas de listas geralmente são positivos.
+        const expenseResults = results.filter(r => r.transaction.amount < 0 && r.status !== 'PENDENTE');
 
-    // --- ENGINE ---
+        setReportPreviewData({
+            income: groupResultsByChurch(incomeResults),
+            expenses: { 'all_expenses_group': expenseResults }
+        });
+    }, []);
+
+    // --- Reconciliation Logic ---
     const handleCompare = useCallback(async () => {
-        if (selectedBankIds.length === 0 && !activeReportId) {
-            showToast("Selecione pelo menos um banco.", "error");
+        if (activeBankFiles.length === 0 && !activeReportId) {
+            showToast("Carregue pelo menos um extrato bancário.", "error");
             return;
         }
-        
+
         setIsLoading(true);
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         try {
-            let activeTransactions: Transaction[] = [];
-            
-            if (activeBankFiles.length > 0) {
-                const filesToProcess = activeBankFiles.filter(f => selectedBankIds.includes(f.bankId));
-                activeTransactions = filesToProcess.flatMap(file => {
-                    if (file.processedTransactions && file.processedTransactions.length > 0) {
-                        return file.processedTransactions;
-                    }
-                    return processFileContent(file.content, file.fileName, fileModels, cleaningKeywords).transactions;
-                });
-            } else if (activeReportId && user) {
-                try {
-                    const dbTransactions = await consolidationService.getPendingTransactions(user.id);
-                    activeTransactions = dbTransactions.map(dbTx => ({
-                        id: dbTx.id,
-                        date: dbTx.transaction_date,
-                        amount: dbTx.amount,
-                        description: dbTx.description,
-                        cleanedDescription: dbTx.description,
-                        contributionType: dbTx.type,
-                        originalAmount: String(dbTx.amount)
-                    }));
-                } catch(e) {
-                    activeTransactions = matchResults.filter(r => r.status === 'NÃO IDENTIFICADO').map(r => r.transaction);
-                }
-            } else if (activeReportId) {
-                activeTransactions = matchResults.filter(r => r.status === 'NÃO IDENTIFICADO').map(r => r.transaction);
+            let allTransactions: Transaction[] = [];
+
+            if (activeReportId && matchResults.length > 0) {
+                allTransactions = matchResults.map(r => r.transaction);
+            } else {
+                const selectedFiles = activeBankFiles.filter(f => selectedBankIds.includes(f.bankId));
+                allTransactions = selectedFiles.flatMap(f => f.processedTransactions || []);
             }
 
-            if (activeTransactions.length === 0) {
-                showToast("Não há transações pendentes.", "error");
+            if (allTransactions.length === 0) {
+                showToast("Nenhuma transação para processar.", "error");
+                setIsLoading(false);
                 return;
             }
 
-            let filteredTransactions = activeTransactions;
-            if (comparisonType === 'income') filteredTransactions = activeTransactions.filter(t => t.amount > 0);
-            else if (comparisonType === 'expenses') filteredTransactions = activeTransactions.filter(t => t.amount < 0);
-
-            const contributorData = contributorFiles.map(cf => {
-                const church = churches.find(c => c.id === cf.churchId) || PLACEHOLDER_CHURCH;
-                if (cf.contributors && cf.contributors.length > 0) return { church, contributors: cf.contributors };
-                const listResult = processFileContent(cf.content, cf.fileName, fileModels, cleaningKeywords);
-                const currentContributors = listResult.transactions.map(t => ({
-                    name: t.description,
-                    cleanedName: t.cleanedDescription,
-                    normalizedName: normalizeString(t.description, cleaningKeywords),
-                    amount: t.amount,
-                    date: t.date,
-                    originalAmount: t.originalAmount,
-                    contributionType: t.contributionType
-                }));
-                return { church, contributors: currentContributors };
-            });
-
-            const newResults = matchTransactions(
-                filteredTransactions, 
-                contributorData, 
-                { similarityThreshold: similarityLevel, dayTolerance }, 
-                learnedAssociations, 
-                churches, 
-                cleaningKeywords
+            const results = matchTransactions(
+                allTransactions,
+                contributorFiles,
+                { similarityThreshold: similarityLevel, dayTolerance },
+                learnedAssociations,
+                churches,
+                customIgnoreKeywords
             );
 
-            if (activeReportId) {
-                setMatchResults(prevResults => {
-                    const finalResults = [...prevResults];
-                    newResults.forEach(newRes => {
-                        const index = finalResults.findIndex(r => r.transaction.id === newRes.transaction.id);
-                        if (index !== -1) {
-                            const existing = finalResults[index];
-                            if (existing.matchMethod === 'MANUAL' || existing.matchMethod === 'AI') return;
-                            if (newRes.status === 'IDENTIFICADO' && existing.status !== 'IDENTIFICADO') finalResults[index] = newRes;
-                            else if (newRes.suggestion && !existing.suggestion) finalResults[index] = newRes;
-                        } else {
-                            finalResults.push(newRes);
-                        }
-                    });
-                    setReportPreviewData({
-                        income: groupResultsByChurch(finalResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                        expenses: { 'all_expenses_group': finalResults.filter(r => r.transaction.amount < 0) }
-                    });
-                    return finalResults;
-                });
-                showToast("Dados atualizados!", 'success');
-            } else {
-                setMatchResults(newResults);
-                setReportPreviewData({
-                    income: groupResultsByChurch(newResults.filter(r => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                    expenses: { 'all_expenses_group': newResults.filter(r => r.transaction.amount < 0) }
-                });
-                showToast("Conciliação finalizada!", 'success');
-            }
-
-            if (user) {
-                const autoMatches = newResults.filter(r => r.status === 'IDENTIFICADO' && r.transaction.id && !r.transaction.id.startsWith('ghost-'));
-                if (autoMatches.length > 0) {
-                    const updatePromises = autoMatches.map(m => consolidationService.markAsIdentified(m.transaction.id).catch(() => {}));
-                    Promise.all(updatePromises);
-                }
-            }
+            setMatchResults(results);
+            regenerateReportPreview(results); // Gera a visualização baseada na nova lista
 
             setHasActiveSession(true);
-            setActiveView('reports');
+            
+            if (!activeReportId) {
+                setActiveView('reports');
+            }
+            showToast("Conciliação concluída!", "success");
 
-        } catch (e: any) {
-            console.error(e);
-            showToast("Erro ao processar.", "error");
+        } catch (error) {
+            console.error("Reconciliation error:", error);
+            showToast("Erro durante a conciliação.", "error");
         } finally {
             setIsLoading(false);
         }
-    }, [activeBankFiles, selectedBankIds, activeReportId, contributorFiles, churches, similarityLevel, dayTolerance, cleaningKeywords, learnedAssociations, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, showToast, setIsLoading, comparisonType, fileModels, matchResults, user]);
+    }, [activeBankFiles, selectedBankIds, contributorFiles, similarityLevel, dayTolerance, learnedAssociations, churches, customIgnoreKeywords, activeReportId, matchResults, showToast, setIsLoading, setActiveView, regenerateReportPreview]);
 
-    const updateReportData = useCallback((updatedRow: MatchResult, reportType: 'income' | 'expenses', idToRemove?: string) => {
-        setMatchResults(prev => {
-            let next = prev;
-            if (idToRemove) next = next.filter(r => r.transaction.id !== idToRemove);
-            return next.map(r => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
-        });
-        setReportPreviewData(prev => {
-            if (!prev) return null;
-            const newPreview = JSON.parse(JSON.stringify(prev));
-            const targetGroup = reportType === 'expenses' ? newPreview.expenses : newPreview.income;
-            if (reportType === 'income') {
-                Object.keys(targetGroup).forEach(key => {
-                    targetGroup[key] = targetGroup[key].filter((r: MatchResult) => {
-                        const isTarget = r.transaction.id === updatedRow.transaction.id;
-                        const isGhost = idToRemove && r.transaction.id === idToRemove;
-                        return !isTarget && !isGhost;
-                    });
-                });
-                const currentChurchId = updatedRow.church.id || 'unidentified';
-                if (!newPreview.income[currentChurchId]) newPreview.income[currentChurchId] = [];
-                newPreview.income[currentChurchId].push(updatedRow);
-            } else {
-                Object.keys(targetGroup).forEach(key => {
-                    targetGroup[key] = targetGroup[key].map((r: MatchResult) => r.transaction.id === updatedRow.transaction.id ? updatedRow : r);
-                });
+    // --- Report Management ---
+
+    // AÇÃO ATÔMICA 1: ATUALIZAR / IDENTIFICAR
+    // Atualiza o estado da transação e limpa fantasmas correspondentes automaticamente
+    const updateReportData = useCallback((updatedRow: MatchResult) => {
+        setMatchResults(prevResults => {
+            const next = [...prevResults];
+            
+            // 1. Encontra e Atualiza a linha alvo
+            const index = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
+            if (index !== -1) {
+                next[index] = updatedRow;
+            } else if (updatedRow.status === 'PENDENTE') {
+                // Caso especial: Adição de novo item (ex: criação manual)
+                next.push(updatedRow);
             }
-            return newPreview;
-        });
-    }, [setMatchResults, setReportPreviewData]);
 
-    const discardCurrentReport = useCallback(() => {
+            // 2. Limpeza de Fantasmas (Efeito Colateral da Identificação)
+            // Se a transação foi associada a um contribuinte da lista, o item pendente correspondente deve sumir
+            if (updatedRow.status === 'IDENTIFICADO' && updatedRow.contributor?._internalId) {
+                const ghostId = `ghost-${updatedRow.contributor._internalId}`;
+                // Encontra e remove o fantasma atomicamente
+                const ghostIndex = next.findIndex(r => r.transaction.id === ghostId);
+                if (ghostIndex !== -1) {
+                    next.splice(ghostIndex, 1);
+                }
+            }
+
+            regenerateReportPreview(next);
+            return next;
+        });
+    }, [regenerateReportPreview]);
+
+    // AÇÃO ATÔMICA 2: REMOVER (EXCLUSÃO)
+    // Usada para excluir linhas (reais ou fantasmas) do relatório
+    const removeTransaction = useCallback((transactionId: string) => {
+        setMatchResults(prevResults => {
+            const next = prevResults.filter(r => r.transaction.id !== transactionId);
+            regenerateReportPreview(next);
+            return next;
+        });
+    }, [regenerateReportPreview]);
+
+    // AÇÃO ATÔMICA 3: REVERTER (DESFAZER MATCH)
+    // Restaura a transação para não identificado e recria o fantasma se necessário
+    const revertMatch = useCallback((transactionId: string) => {
+        setMatchResults(prev => {
+            const next = [...prev];
+            const index = next.findIndex(r => r.transaction.id === transactionId);
+            
+            if (index === -1) return prev;
+
+            const originalResult = next[index];
+            const oldContributor = originalResult.contributor;
+
+            // 1. Reset da Transação para estado limpo
+            next[index] = {
+                ...originalResult,
+                status: 'NÃO IDENTIFICADO',
+                church: PLACEHOLDER_CHURCH,
+                contributor: null,
+                matchMethod: undefined,
+                similarity: 0,
+                divergence: undefined
+            };
+
+            // 2. Restauração do Fantasma (Se necessário)
+            if (oldContributor && oldContributor._internalId) {
+                // Verifica se o fantasma já existe para não duplicar
+                const ghostId = `ghost-${oldContributor._internalId}`;
+                const exists = next.some(r => r.transaction.id === ghostId);
+                
+                if (!exists) {
+                    const ghost: MatchResult = {
+                        transaction: {
+                            id: ghostId,
+                            date: oldContributor.date || new Date().toISOString().split('T')[0],
+                            description: oldContributor.name,
+                            rawDescription: oldContributor.name,
+                            amount: 0,
+                            cleanedDescription: oldContributor.name,
+                            contributionType: oldContributor.contributionType,
+                            originalAmount: "0.00"
+                        },
+                        contributor: oldContributor,
+                        status: 'PENDENTE',
+                        church: (oldContributor as any).church || PLACEHOLDER_CHURCH,
+                        matchMethod: 'MANUAL',
+                        similarity: 0,
+                        contributorAmount: oldContributor.amount,
+                        contributionType: oldContributor.contributionType,
+                        _injectedId: oldContributor._internalId
+                    };
+                    next.push(ghost);
+                }
+            }
+
+            regenerateReportPreview(next);
+            return next;
+        });
+    }, [regenerateReportPreview]);
+
+    const resetReconciliation = useCallback(async () => {
         setMatchResults([]);
         setReportPreviewData(null);
-        setHasActiveSession(false);
         setActiveReportId(null);
-        setActiveView('upload');
-    }, [setMatchResults, setReportPreviewData, setHasActiveSession, setActiveView, setActiveReportId]);
-
-    const closeManualIdentify = useCallback(() => { setManualIdentificationTx(null); setBulkIdentificationTxs(null); }, []);
-    const openManualMatchModal = useCallback((record: MatchResult) => { setManualMatchState({ record, suggestions: matchResults.map(r => r.transaction) }); }, [matchResults]);
-    const closeManualMatchModal = useCallback(() => setManualMatchState(null), []);
-
-    const confirmManualAssociation = useCallback((selectedTx: Transaction) => {
-        if (!manualMatchState) return;
-        const { record } = manualMatchState;
-        const ghostIdToRemove = record.status === 'PENDENTE' ? record.transaction.id : undefined;
-        const updatedResult: MatchResult = { ...record, transaction: selectedTx, status: 'IDENTIFICADO', matchMethod: 'MANUAL', similarity: 100 };
-        updateReportData(updatedResult, 'income', ghostIdToRemove);
-        closeManualMatchModal();
-        showToast("Associado.", "success");
-    }, [manualMatchState, updateReportData, closeManualMatchModal, showToast]);
-
-    const openDivergenceModal = useCallback((match: MatchResult) => setDivergenceConfirmation(match), []);
-    const closeDivergenceModal = useCallback(() => setDivergenceConfirmation(null), []);
-    const confirmDivergence = useCallback((divergentMatch: MatchResult) => { updateReportData({ ...divergentMatch, status: 'IDENTIFICADO' }, 'income'); setDivergenceConfirmation(null); }, [updateReportData]);
-    const rejectDivergence = useCallback((divergentMatch: MatchResult) => {
-        if (divergentMatch.divergence?.expectedChurch) {
-             const restored: MatchResult = { ...divergentMatch, church: divergentMatch.divergence.expectedChurch, status: 'IDENTIFICADO' };
-             updateReportData(restored, 'income');
-        } else {
-             updateReportData({ ...divergentMatch, status: 'NÃO IDENTIFICADO', church: PLACEHOLDER_CHURCH, contributor: null }, 'income');
+        setHasActiveSession(false);
+        setBankStatementFile([]);
+        setContributorFiles([]);
+        setSelectedBankIds([]);
+        if (user) {
+             try {
+                 await consolidationService.deletePendingTransactions(user.id);
+             } catch (e) { console.error("Error clearing DB", e); }
         }
-        setDivergenceConfirmation(null);
-    }, [updateReportData]);
+        showToast("Nova conciliação iniciada.", "success");
+        setActiveView('upload');
+    }, [user, showToast, setActiveView]);
 
-    const handleAnalyze = useCallback(async (tx: Transaction, contributors: Contributor[]) => {
-        setLoadingAiId(tx.id);
-        setAiSuggestion(null);
+    const importGmailTransactions = useCallback((transactions: Transaction[]) => {
+        const virtualFile = {
+            bankId: 'gmail-import',
+            content: '',
+            fileName: `Gmail Import - ${new Date().toLocaleDateString()}`,
+            processedTransactions: transactions
+        };
+        setBankStatementFile(prev => [...prev, virtualFile]);
+        setSelectedBankIds(prev => prev.includes('gmail-import') ? prev : [...prev, 'gmail-import']);
+    }, []);
+
+    // --- Identification Actions ---
+
+    const closeManualIdentify = useCallback(() => {
+        setManualIdentificationTx(null);
+        setBulkIdentificationTxs(null);
+    }, []);
+
+    const handleAnalyze = useCallback(async (transaction: Transaction, contributors: Contributor[]) => {
+        setLoadingAiId(transaction.id);
         try {
-            const result = await getAISuggestion(tx, contributors);
-            setAiSuggestion({ id: tx.id, name: result });
-        } catch (error) {
-            console.error("AI Analysis failed", error);
-            showToast("Falha na análise de IA", "error");
+            const suggestionName = await getAISuggestion(transaction, contributors);
+            setAiSuggestion({ id: transaction.id, name: suggestionName });
+        } catch (e) {
+            console.error("AI Analysis failed", e);
         } finally {
             setLoadingAiId(null);
         }
-    }, [showToast, setLoadingAiId, setAiSuggestion]);
+    }, []);
 
-    const isCompareDisabled = selectedBankIds.length === 0 && !activeReportId;
+    // --- Modal Management ---
+    
+    const openDivergenceModal = useCallback((result: MatchResult) => {
+        if (result.divergence) {
+            setDivergenceConfirmation({
+                transaction: result.transaction,
+                contributor: result.contributor!,
+                divergence: result.divergence
+            });
+        }
+    }, []);
 
-    return useMemo(() => ({
-        activeBankFiles, selectedBankIds, toggleBankSelection,
-        bankStatementFile: activeBankFiles.length > 0 ? activeBankFiles[0] : null,
-        contributorFiles, matchResults, setMatchResults, reportPreviewData, setReportPreviewData, hasActiveSession, setHasActiveSession,
-        activeReportId, setActiveReportId, pendingTraining, setPendingTraining, comparisonType, setComparisonType,
-        handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearFiles, 
-        handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess, resetReconciliation,
-        manualIdentificationTx, setManualIdentificationTx, bulkIdentificationTxs, setBulkIdentificationTxs, closeManualIdentify,
-        manualMatchState, setManualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation,
-        divergenceConfirmation, setDivergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence,
-        loadingAiId, setLoadingAiId, aiSuggestion, setAiSuggestion, handleAnalyze,
-        setBankStatementFile: (files: any) => setBankStatementFile(files),
-        isCompareDisabled
-    }), [activeBankFiles, selectedBankIds, toggleBankSelection, contributorFiles, matchResults, reportPreviewData, hasActiveSession, activeReportId, pendingTraining, comparisonType, handleStatementUpload, handleContributorsUpload, removeBankStatementFile, removeContributorFile, clearFiles, handleCompare, updateReportData, discardCurrentReport, openLabManually, handleTrainingSuccess, setMatchResults, setReportPreviewData, setHasActiveSession, setActiveReportId, resetReconciliation, manualIdentificationTx, bulkIdentificationTxs, closeManualIdentify, manualMatchState, openManualMatchModal, closeManualMatchModal, confirmManualAssociation, divergenceConfirmation, openDivergenceModal, closeDivergenceModal, confirmDivergence, rejectDivergence, loadingAiId, aiSuggestion, handleAnalyze, setBankStatementFile, isCompareDisabled]);
+    const closeDivergenceModal = useCallback(() => setDivergenceConfirmation(null), []);
+
+    const confirmDivergence = useCallback((data: any) => {
+        const result = matchResults.find(r => r.transaction.id === data.transaction.id);
+        if (result) {
+            const updated: MatchResult = {
+                ...result,
+                status: 'IDENTIFICADO',
+                divergence: undefined
+            };
+            updateReportData(updated);
+        }
+        closeDivergenceModal();
+        showToast("Divergência confirmada.", "success");
+    }, [matchResults, updateReportData, closeDivergenceModal, showToast]);
+
+    const rejectDivergence = useCallback((data: any) => {
+        closeDivergenceModal();
+    }, [closeDivergenceModal]);
+
+    const closeManualMatchModal = useCallback(() => setManualMatchState(null), []);
+    
+    const confirmManualAssociation = useCallback((match: MatchResult) => {
+        if (manualMatchState) {
+            // Usa updateReportData que agora limpa fantasmas automaticamente
+            updateReportData(match);
+            closeManualMatchModal();
+            showToast("Associação manual confirmada.", "success");
+        }
+    }, [manualMatchState, updateReportData, closeManualMatchModal, showToast]);
+
+    const handleTrainingSuccess = useCallback((model: FileModel, data: Transaction[]) => {
+        setPendingTraining(null);
+        showToast("Modelo treinado com sucesso!", "success");
+    }, [showToast]);
+
+    const closeRecompareModal = useCallback(() => setIsRecompareModalOpen(false), []);
+
+    const isCompareDisabled = activeBankFiles.length === 0 && !activeReportId;
+
+    return {
+        activeBankFiles,
+        contributorFiles,
+        matchResults,
+        reportPreviewData,
+        activeReportId,
+        setActiveReportId,
+        hasActiveSession,
+        setHasActiveSession,
+        comparisonType,
+        setComparisonType,
+        loadingAiId,
+        aiSuggestion,
+        manualIdentificationTx,
+        setManualIdentificationTx,
+        bulkIdentificationTxs,
+        setBulkIdentificationTxs,
+        divergenceConfirmation,
+        manualMatchState,
+        pendingTraining,
+        setPendingTraining,
+        selectedBankIds,
+        isRecompareModalOpen,
+        setIsRecompareModalOpen,
+        isCompareDisabled,
+        handleStatementUpload,
+        handleContributorsUpload,
+        removeBankStatementFile,
+        removeContributorFile,
+        clearFiles,
+        toggleBankSelection,
+        setBankStatementFile,
+        handleCompare,
+        resetReconciliation,
+        importGmailTransactions,
+        revertMatch,
+        removeTransaction,
+        closeManualIdentify,
+        handleAnalyze,
+        updateReportData,
+        setMatchResults,
+        setReportPreviewData,
+        openDivergenceModal,
+        closeDivergenceModal,
+        confirmDivergence,
+        rejectDivergence,
+        closeManualMatchModal,
+        confirmManualAssociation,
+        handleTrainingSuccess,
+        closeRecompareModal
+    };
 };

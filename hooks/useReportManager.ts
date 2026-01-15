@@ -3,7 +3,6 @@ import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
-import { User } from '@supabase/supabase-js';
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
     dateRange: { start: null, end: null },
@@ -20,7 +19,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 // Ajustado para 60 relatórios (Equivalente a 5 anos de histórico mensal).
 const MAX_REPORTS_PER_USER = 60;
 
-export const useReportManager = (user: User | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
+export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     
     // --- User Scoping for Local Storage ---
     const userSuffix = user ? `-${user.id}` : '-guest';

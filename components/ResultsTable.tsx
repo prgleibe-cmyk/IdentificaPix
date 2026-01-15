@@ -25,9 +25,10 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
         AI: { Icon: SparklesIcon, tooltip: t('tooltip.ai'), color: 'text-teal-500 bg-teal-50 dark:bg-teal-900/30 dark:text-teal-400' },
         MANUAL: { Icon: UserPlusIcon, tooltip: t('tooltip.manual'), color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400' },
         AUTOMATIC: null,
+        TEMPLATE: null
     };
 
-    const config = iconMap[method];
+    const config = iconMap[method] || iconMap.AUTOMATIC;
     if (!config) return null;
 
     return (
@@ -94,82 +95,60 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                         {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, contributionType, divergence }) => {
-                            const isExpense = transaction.amount < 0;
-                            const isPendingList = status === 'PENDENTE';
+                            const isGhost = status === 'PENDENTE';
                             
-                            // Se for PENDENTE (lista não encontrada), mostra o valor esperado (contributorAmount)
-                            // Caso contrário, mostra o valor da transação real (ou o esperado se a transação for placeholder)
-                            const amount = isPendingList 
-                                ? (contributorAmount || 0) 
-                                : (isExpense 
-                                    ? transaction.amount 
-                                    : (contributorAmount ?? (Math.abs(transaction.amount) > 0 ? transaction.amount : (contributor?.amount ?? 0))));
+                            // Lógica Simplificada de Valor:
+                            // Se é Fantasma, usa o valor do contribuinte (que está em contributorAmount ou no obj contributor).
+                            // Se é Real, usa o valor da transação.
+                            const displayAmount = isGhost 
+                                ? (contributorAmount || contributor?.amount || 0)
+                                : transaction.amount;
                             
-                            // --- Lógica de Data com Divergência Visual ---
-                            const bankDateRaw = transaction.date;
-                            const listDateRaw = contributor?.date;
-                            
-                            const bankDisplay = formatDate(bankDateRaw);
-                            const listDisplay = listDateRaw ? formatDate(listDateRaw) : null;
-                            
-                            const isIdentified = status === 'IDENTIFICADO';
-                            const datesDiverge = isIdentified && listDisplay && bankDisplay !== listDisplay;
+                            const isExpense = displayAmount < 0;
 
+                            // Lógica de Data:
+                            // Se é Fantasma, data da lista. Se Real, data do banco.
+                            const rawDate = isGhost ? (contributor?.date || transaction.date) : transaction.date;
+                            const displayDate = formatDate(rawDate);
+                            
+                            // Nomes para exibição
                             const cleanedTxDesc = cleanTransactionDescriptionForDisplay(transaction.description, customIgnoreKeywords);
-                            // PRIORIDADE DE NOME: Contribuinte > Descrição Limpa > Descrição Bruta
-                            const displayName = contributor?.cleanedName || contributor?.name || cleanedTxDesc;
+                            const contributorName = contributor?.cleanedName || contributor?.name;
                             
-                            // Tipo: Combinação de Contribuinte (Lista) + Transação (Banco)
-                            const contribType = contributor?.contributionType;
-                            const bankType = transaction.contributionType;
+                            // Nome Principal: Se tem contribuinte vinculado (Match ou Fantasma), mostra ele. Senão, mostra descrição limpa do banco.
+                            const primaryName = contributorName || cleanedTxDesc;
                             
-                            let displayType = '---';
-                            if (contribType && bankType) {
-                                if (contribType.toUpperCase().trim() === bankType.toUpperCase().trim()) {
-                                    displayType = contribType;
-                                } else {
-                                    displayType = `${contribType} • ${bankType}`;
-                                }
-                            } else {
-                                displayType = contribType || contributionType || bankType || '---';
-                            }
+                            // Tipo: Prioriza o tipo consolidado
+                            const displayType = contributor?.contributionType || contributionType || transaction.contributionType || '---';
 
                             return (
-                                <tr key={transaction.id} className={`group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 ${isPendingList ? 'opacity-70 bg-slate-50/30 dark:bg-slate-800/30' : ''}`}>
+                                <tr key={transaction.id} className={`group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 ${isGhost ? 'opacity-70 bg-slate-50/30 dark:bg-slate-800/30' : ''}`}>
                                     
                                     {/* Coluna Data */}
                                     <td className="px-4 py-2.5 whitespace-nowrap">
-                                        {datesDiverge ? (
-                                            <div className="flex flex-col leading-tight font-mono text-[11px]">
-                                                <span className="text-slate-500 dark:text-slate-400" title="Data Banco">{bankDisplay}</span>
-                                                <span className="text-amber-600 dark:text-amber-400 font-bold" title="Data Lista (Divergente)">{listDisplay}</span>
-                                            </div>
-                                        ) : (
-                                            <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
-                                                {bankDisplay || listDisplay}
-                                            </span>
-                                        )}
+                                        <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400 tabular-nums tracking-tight">
+                                            {displayDate}
+                                        </span>
                                     </td>
                                     
-                                    {/* Coluna Nome / Descrição com Ícones Inline */}
+                                    {/* Coluna Nome / Descrição */}
                                     <td className="px-4 py-2.5 break-words min-w-[200px]">
                                         <div className="flex flex-col gap-1">
-                                            {/* Linha Principal (Preferência para Lista/Pessoa) */}
                                             <div className="flex items-center gap-2">
-                                                {/* Ícone Lógico: Se tem contribuinte (mesmo que venha da lista ou match), usa User. Se é só banco, usa Banknotes */}
-                                                {(contributor || isPendingList) ? (
+                                                {/* Ícone Lógico: User = Origem Lista/Match, Banknotes = Origem Banco Pura */}
+                                                {(contributor || isGhost) ? (
                                                     <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" title="Origem: Lista de Contribuintes" />
                                                 ) : (
                                                     <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
                                                 )}
                                                 
-                                                <span className={`text-xs font-bold leading-tight line-clamp-1 ${isPendingList ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`} title={displayName}>
-                                                    {displayName}
+                                                <span className={`text-xs font-bold leading-tight line-clamp-1 ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`} title={primaryName}>
+                                                    {primaryName}
                                                 </span>
                                             </div>
 
-                                            {/* Linha Secundária (Origem Banco - Exibida se houver Match e for diferente ou para contexto) */}
-                                            {status === 'IDENTIFICADO' && contributor && cleanedTxDesc && cleanedTxDesc !== contributor.cleanedName && (
+                                            {/* Subtítulo: Mostra a origem bancária se houve Match e os nomes diferem */}
+                                            {status === 'IDENTIFICADO' && contributor && cleanedTxDesc && cleanedTxDesc !== contributorName && (
                                                 <div className="flex items-center gap-2 opacity-80">
                                                     <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
                                                     <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[250px]">
@@ -178,7 +157,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                                 </div>
                                             )}
                                             
-                                            {isPendingList && (
+                                            {isGhost && (
                                                 <span className="text-[9px] text-red-400 dark:text-red-400 pl-5 font-medium italic">
                                                     Não encontrado no extrato
                                                 </span>
@@ -191,11 +170,13 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                             {displayType}
                                         </span>
                                     </td>
+                                    
                                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                                        <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400 font-black' : isPendingList ? 'text-slate-400 dark:text-slate-500 line-through decoration-slate-300' : 'text-slate-900 dark:text-white'}`}>
-                                            {formatCurrency(amount, language)}
+                                        <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${isExpense ? 'text-red-600 dark:text-red-400 font-black' : isGhost ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`}>
+                                            {formatCurrency(displayAmount, language)}
                                         </span>
                                     </td>
+                                    
                                     <td className="px-4 py-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             {getStatusBadge(status, matchMethod)}
@@ -205,6 +186,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                             )}
                                         </div>
                                     </td>
+                                    
                                     <td className="px-4 py-2.5 text-center">
                                         {status === 'NÃO IDENTIFICADO' && (
                                             <button 

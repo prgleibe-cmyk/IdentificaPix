@@ -478,6 +478,7 @@ export const FilePreprocessorModal: React.FC<{
                 id: `sim-${index}`,
                 date: isValid ? isoDate : rawDate,
                 description: rawDesc,
+                rawDescription: rawDesc,
                 amount: amount,
                 originalAmount: rawAmount,
                 cleanedDescription: cleanedDesc,

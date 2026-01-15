@@ -12,7 +12,7 @@ export const gmailService = {
      * Utiliza o Supabase Auth com escopos adicionais.
      */
     connect: async () => {
-        const { error } = await supabase.auth.signInWithOAuth({
+        const { error } = await (supabase.auth as any).signInWithOAuth({
             provider: 'google',
             options: {
                 scopes: GMAIL_SCOPES,

@@ -29,10 +29,11 @@ export interface ChurchFormData {
 export interface Transaction {
   id: string;
   date: string;
-  description: string;
+  description: string; // Descrição de trabalho (pode ser a limpa)
+  rawDescription: string; // Descrição ORIGINAL IMUTÁVEL (Fonte de Verdade)
   amount: number;
   originalAmount?: string;
-  cleanedDescription?: string;
+  cleanedDescription?: string; // Sugestão de limpeza (não sobrescreve raw)
   contributionType?: string;
 }
 
@@ -71,6 +72,8 @@ export interface MatchResult {
 export interface ContributorFile {
   church: Church;
   contributors: Contributor[];
+  fileName?: string;
+  churchId?: string;
 }
 
 export interface GroupedReportData {

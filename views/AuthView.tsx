@@ -17,7 +17,7 @@ export const AuthView: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-        const { error } = await supabase.auth.signInWithOAuth({
+        const { error } = await (supabase.auth as any).signInWithOAuth({
             provider: 'google',
             options: {
                 queryParams: {
@@ -60,14 +60,14 @@ export const AuthView: React.FC = () => {
         attempts++;
         try {
             if (isLogin) {
-                const { error } = await supabase.auth.signInWithPassword({
+                const { error } = await (supabase.auth as any).signInWithPassword({
                     email: email,
                     password: password,
                 });
                 
                 if (error) throw error;
             } else {
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await (supabase.auth as any).signUp({
                     email: email,
                     password: password,
                     options: {

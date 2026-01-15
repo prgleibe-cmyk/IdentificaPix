@@ -37,7 +37,7 @@ export const GmailModal: React.FC<GmailModalProps> = ({ onClose, onSuccess }) =>
             localStorage.setItem('identificapix_gmail_pending', 'true');
 
             // 2. Inicia OAuth com escopos estritos
-            const { error } = await supabase.auth.signInWithOAuth({
+            const { error } = await (supabase.auth as any).signInWithOAuth({
                 provider: 'google',
                 options: {
                     scopes: 'https://www.googleapis.com/auth/gmail.readonly',
@@ -100,7 +100,7 @@ ${new Date().toLocaleDateString('pt-BR')};TRANSFERENCIA RECEBIDA;-1200.00;TED`;
                 // Pequeno delay para garantir hidratação da sessão do Supabase
                 await new Promise(r => setTimeout(r, 1000));
 
-                const { data: { session }, error } = await supabase.auth.getSession();
+                const { data: { session }, error } = await (supabase.auth as any).getSession();
                 
                 if (error || !session) {
                     throw new Error("Sessão não recuperada. Tente novamente.");

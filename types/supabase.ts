@@ -395,7 +395,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_pending_transactions: {
+        Args: {
+          target_bank_id?: string
+        }
+        Returns: void
+      }
     }
     Enums: {
       [_ in never]: never

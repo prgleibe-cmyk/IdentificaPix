@@ -111,12 +111,12 @@ describe('processingService: Intelligent CSV Parser (Column Detection)', () => {
 
 describe('processingService: Full Matching Logic', () => {
     const mockTransactions: Transaction[] = [
-        { id: 't1', date: '15/07/2024', description: 'PIX Recebido de João S. Sauro', amount: 100 },
-        { id: 't2', date: '17/07/2024', description: 'Maria Oliveira', amount: 250.50 }, // Divergent date
-        { id: 't3', date: '17/07/2024', description: 'Pagamento J Pereira', amount: 50 }, // Abbreviated
-        { id: 't4', date: '19/07/2024', description: 'Pix de Algum Estranho', amount: 999 }, // No match
-        { id: 't5', date: '18/07/2024', description: 'Dra. Ana Costa', amount: 300 }, // Exact match
-        { id: 't6', date: '19/07/2024', description: 'Pedro de Souza', amount: 75.25 }, // Duplicate value
+        { id: 't1', date: '15/07/2024', description: 'PIX Recebido de João S. Sauro', rawDescription: 'PIX Recebido de João S. Sauro', amount: 100 },
+        { id: 't2', date: '17/07/2024', description: 'Maria Oliveira', rawDescription: 'Maria Oliveira', amount: 250.50 }, // Divergent date
+        { id: 't3', date: '17/07/2024', description: 'Pagamento J Pereira', rawDescription: 'Pagamento J Pereira', amount: 50 }, // Abbreviated
+        { id: 't4', date: '19/07/2024', description: 'Pix de Algum Estranho', rawDescription: 'Pix de Algum Estranho', amount: 999 }, // No match
+        { id: 't5', date: '18/07/2024', description: 'Dra. Ana Costa', rawDescription: 'Dra. Ana Costa', amount: 300 }, // Exact match
+        { id: 't6', date: '19/07/2024', description: 'Pedro de Souza', rawDescription: 'Pedro de Souza', amount: 75.25 }, // Duplicate value
     ];
 
     const mockChurch: Church = { id: 'c1', name: 'Igreja Matriz', address: '', logoUrl: '', pastor: '' };
@@ -177,7 +177,7 @@ describe('processingService: Full Matching Logic', () => {
 
 describe('processingService: Universal Search Filtering', () => {
     const mockMatchResult: MatchResult = {
-        transaction: { id: 't1', date: '10/09/2024', description: 'PIX de Maria Clara', amount: 150.75, cleanedDescription: 'Maria Clara' },
+        transaction: { id: 't1', date: '10/09/2024', description: 'PIX de Maria Clara', rawDescription: 'PIX de Maria Clara', amount: 150.75, cleanedDescription: 'Maria Clara' },
         // Fix: Added missing 'amount' property required by Contributor type to avoid property missing error
         contributor: { name: 'Maria Clara de Jesus', cleanedName: 'Maria Clara de Jesus', normalizedName: 'maria clara jesus', amount: 150.75 },
         status: 'IDENTIFICADO',
@@ -225,7 +225,7 @@ describe('processingService: Universal Search Filtering', () => {
     });
     
     it('should handle transaction-only filtering', () => {
-        const transaction: Transaction = { id: 't1', date: '10/09/2024', description: 'PIX de Maria Clara', amount: 150.75 };
+        const transaction: Transaction = { id: 't1', date: '10/09/2024', description: 'PIX de Maria Clara', rawDescription: 'PIX de Maria Clara', amount: 150.75 };
         expect(filterTransactionByUniversalQuery(transaction, '150,75')).toBe(true);
         expect(filterTransactionByUniversalQuery(transaction, 'clara')).toBe(true);
         expect(filterTransactionByUniversalQuery(transaction, 'joao')).toBe(false);
