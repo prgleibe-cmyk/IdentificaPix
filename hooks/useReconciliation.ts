@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { 
     MatchResult, 
     Transaction, 
@@ -74,6 +74,71 @@ export const useReconciliation = ({
     const [pendingTraining, setPendingTraining] = useState<any | null>(null);
     const [isRecompareModalOpen, setIsRecompareModalOpen] = useState(false);
 
+    // --- EFFECT: LISTA VIVA PERSISTENCE (HYDRATION) ---
+    // Recupera transações pendentes do banco de dados ao iniciar
+    useEffect(() => {
+        let isMounted = true;
+
+        const hydrateListaViva = async () => {
+            if (!user) return;
+
+            try {
+                // Busca transações pendentes consolidadas no servidor
+                const dbTransactions = await consolidationService.getPendingTransactions(user.id);
+
+                if (!isMounted) return;
+                if (!dbTransactions || dbTransactions.length === 0) return;
+
+                // Agrupa por Banco para reconstruir a estrutura de "Arquivos"
+                const groupedByBank: Record<string, Transaction[]> = {};
+
+                dbTransactions.forEach((t: any) => {
+                    const bankId = t.bank_id || 'unknown'; // Agrupa orfãos em 'unknown' ou id específico
+                    
+                    // Mapeia do formato DB para Transaction da UI
+                    const tx: Transaction = {
+                        id: t.id,
+                        date: t.transaction_date,
+                        description: t.description,
+                        rawDescription: t.description, // O DB já contém a descrição consolidada
+                        amount: t.amount,
+                        originalAmount: String(t.amount.toFixed(2)),
+                        contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
+                        cleanedDescription: t.description // Assume que o salvo já está limpo ou usável
+                    };
+
+                    if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
+                    groupedByBank[bankId].push(tx);
+                });
+
+                // Reconstrói os "Arquivos Virtuais" para a UI
+                const restoredFiles = Object.entries(groupedByBank).map(([bankId, txs]) => ({
+                    bankId,
+                    content: '', // Conteúdo raw não é necessário para processamento já estruturado
+                    fileName: `Lista Viva (Recuperada)`,
+                    rawFile: undefined,
+                    processedTransactions: txs,
+                    isRestored: true
+                }));
+
+                // Atualiza estado apenas se houver dados
+                if (restoredFiles.length > 0) {
+                    setBankStatementFile(restoredFiles);
+                    // Seleciona automaticamente os bancos que têm dados
+                    setSelectedBankIds(restoredFiles.map(f => f.bankId));
+                    console.log(`[Lista Viva] ${restoredFiles.length} arquivos recuperados do banco de dados.`);
+                }
+
+            } catch (err) {
+                console.error("Falha ao hidratar Lista Viva:", err);
+            }
+        };
+
+        hydrateListaViva();
+
+        return () => { isMounted = false; };
+    }, [user]);
+
     // --- File Handling ---
     const handleStatementUpload = useCallback((content: string, fileName: string, bankId: string, rawFile?: File) => {
         setIsLoading(true);
@@ -114,7 +179,12 @@ export const useReconciliation = ({
     const removeBankStatementFile = useCallback((bankId: string) => {
         setBankStatementFile(prev => prev.filter(f => f.bankId !== bankId));
         setSelectedBankIds(prev => prev.filter(id => id !== bankId));
-    }, []);
+        // IMPORTANTE: Dispara limpeza no banco para manter consistência
+        if (user) {
+            consolidationService.deletePendingTransactions(user.id, bankId)
+                .catch(err => console.error("Erro ao limpar banco remoto:", err));
+        }
+    }, [user]);
 
     const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string, rawFile?: File) => {
         setIsLoading(true);
