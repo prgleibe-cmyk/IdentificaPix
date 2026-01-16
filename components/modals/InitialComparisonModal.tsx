@@ -25,8 +25,10 @@ export const InitialComparisonModal: React.FC<InitialComparisonModalProps> = ({ 
 
     const handleRun = async () => {
         setIsProcessing(true);
+        // Pequeno delay para feedback visual do botão carregando
         setTimeout(async () => {
-            await handleCompare();
+            // Chama o processamento passando os valores ATUAIS definidos no formulário
+            await handleCompare(comparisonType, similarityLevel, dayTolerance);
             setIsProcessing(false);
             onClose();
         }, 100);

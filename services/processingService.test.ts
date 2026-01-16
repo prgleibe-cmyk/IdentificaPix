@@ -10,7 +10,7 @@ import {
     filterByUniversalQuery,
     filterTransactionByUniversalQuery,
 } from './processingService';
-import { Contributor, Transaction, ContributorFile, MatchResult, Church } from '../types';
+import { Contributor, Transaction, ContributorFile, MatchResult, Church, ReconciliationStatus } from '../types';
 
 // Mock data
 const mockContributors: Contributor[] = [
@@ -137,15 +137,15 @@ describe('processingService: Full Matching Logic', () => {
         const results = matchTransactions(mockTransactions, mockContributorFiles, options, [], mockChurches);
         
         const t1Result = results.find(r => r.transaction.id === 't1');
-        expect(t1Result?.status).toBe('IDENTIFICADO');
+        expect(t1Result?.status).toBe(ReconciliationStatus.IDENTIFIED);
         expect(t1Result?.contributor?.name).toBe('João da Silva Sauro');
 
         const t3Result = results.find(r => r.transaction.id === 't3');
-        expect(t3Result?.status).toBe('NÃO IDENTIFICADO'); // Score is ~66%, below threshold
+        expect(t3Result?.status).toBe(ReconciliationStatus.UNIDENTIFIED); // Score is ~66%, below threshold
         expect(t3Result?.contributor).toBeNull();
 
         const t4Result = results.find(r => r.transaction.id === 't4');
-        expect(t4Result?.status).toBe('NÃO IDENTIFICADO');
+        expect(t4Result?.status).toBe(ReconciliationStatus.UNIDENTIFIED);
         expect(t4Result?.contributor).toBeNull();
     });
 
@@ -153,7 +153,7 @@ describe('processingService: Full Matching Logic', () => {
         // FIX: Added `mockChurches` as the 5th argument to match the function signature.
         const results = matchTransactions(mockTransactions, mockContributorFiles, options, [], mockChurches);
         const t2Result = results.find(r => r.transaction.id === 't2'); // tx date 17/07, contributor date 16/07
-        expect(t2Result?.status).toBe('IDENTIFICADO');
+        expect(t2Result?.status).toBe(ReconciliationStatus.IDENTIFIED);
         expect(t2Result?.contributor?.name).toBe('Maria Oliveira (PIX)');
         expect(t2Result!.similarity!).toBeGreaterThan(options.similarityThreshold);
     });
@@ -163,14 +163,14 @@ describe('processingService: Full Matching Logic', () => {
          // FIX: Added `mockChurches` as the 5th argument to match the function signature.
          const results = matchTransactions(mockTransactions, mockContributorFiles, newOptions, [], mockChurches);
          const t2Result = results.find(r => r.transaction.id === 't2');
-         expect(t2Result?.status).toBe('NÃO IDENTIFICADO');
+         expect(t2Result?.status).toBe(ReconciliationStatus.UNIDENTIFIED);
     });
 
     it('should handle duplicate values correctly', () => {
          // FIX: Added `mockChurches` as the 5th argument to match the function signature.
          const results = matchTransactions(mockTransactions, mockContributorFiles, options, [], mockChurches);
          const t6Result = results.find(r => r.transaction.id === 't6');
-         expect(t6Result?.status).toBe('IDENTIFICADO');
+         expect(t6Result?.status).toBe(ReconciliationStatus.IDENTIFIED);
          expect(t6Result?.contributor?.name).toBe('Pedro de Souza e Souza');
     });
 });
@@ -180,7 +180,7 @@ describe('processingService: Universal Search Filtering', () => {
         transaction: { id: 't1', date: '10/09/2024', description: 'PIX de Maria Clara', rawDescription: 'PIX de Maria Clara', amount: 150.75, cleanedDescription: 'Maria Clara' },
         // Fix: Added missing 'amount' property required by Contributor type to avoid property missing error
         contributor: { name: 'Maria Clara de Jesus', cleanedName: 'Maria Clara de Jesus', normalizedName: 'maria clara jesus', amount: 150.75 },
-        status: 'IDENTIFICADO',
+        status: ReconciliationStatus.IDENTIFIED,
         church: { id: 'c1', name: 'Igreja Matriz', address: '', logoUrl: '', pastor: '' }
     };
 

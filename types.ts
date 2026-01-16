@@ -1,94 +1,80 @@
 
-export type Language = 'pt' | 'en' | 'es';
-export type Theme = 'light' | 'dark';
-export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis';
-export type SettingsTab = 'params' | 'associations' | 'preferences' | 'automation';
-export type MatchMethod = 'AUTOMATIC' | 'MANUAL' | 'LEARNED' | 'AI' | 'TEMPLATE';
+export * from './types/domain';
+export * from './types/ui';
+export * from './types/api';
+
+// Tipos Complexos ou que dependem de vários módulos mantidos aqui temporariamente
 export type ComparisonType = 'income' | 'expenses' | 'both';
 
-export interface Bank {
-  id: string;
-  name: string;
-}
-
-export interface Church {
-  id: string;
-  name: string;
-  address: string;
-  logoUrl: string;
-  pastor: string;
-}
-
-export interface ChurchFormData {
-  name: string;
-  address: string;
-  pastor: string;
-  logoUrl: string;
-}
-
-export interface Transaction {
-  id: string;
-  date: string;
-  description: string; // Descrição de trabalho (pode ser a limpa)
-  rawDescription: string; // Descrição ORIGINAL IMUTÁVEL (Fonte de Verdade)
-  amount: number;
-  originalAmount?: string;
-  cleanedDescription?: string; // Sugestão de limpeza (não sobrescreve raw)
-  contributionType?: string;
-}
-
-export interface Contributor {
-  id?: string;
-  name: string;
-  cleanedName?: string;
-  normalizedName?: string;
-  amount: number;
-  date?: string;
-  originalAmount?: string;
-  contributionType?: string;
-  // Auxiliary fields for UI/Processing
-  _churchName?: string;
-  _churchId?: string;
-  _internalId?: string;
-}
-
-export interface MatchResult {
-  transaction: Transaction;
-  contributor: Contributor | null;
-  status: 'IDENTIFICADO' | 'NÃO IDENTIFICADO' | 'PENDENTE';
-  church: Church;
-  matchMethod?: MatchMethod;
-  similarity?: number;
-  contributorAmount?: number;
-  contributionType?: string;
-  divergence?: {
-    expectedChurch: Church;
-    actualChurch: Church;
-  };
-  suggestion?: Contributor; // Sugestão de melhor match (mesmo abaixo do threshold)
-  _injectedId?: string; // Usado para hidratação no Smart Analysis
-}
-
 export interface ContributorFile {
-  church: Church;
-  contributors: Contributor[];
+  church: any; // Church from domain
+  contributors: any[]; // Contributor from domain
   fileName?: string;
   churchId?: string;
 }
 
 export interface GroupedReportData {
-  [churchId: string]: MatchResult[];
+  [churchId: string]: any[]; // MatchResult[] from domain
 }
 
-export interface SearchFilters {
-  dateRange: { start: string | null; end: string | null };
-  valueFilter: { operator: 'any' | 'exact' | 'gt' | 'lt' | 'between'; value1: number | null; value2: number | null };
-  transactionType: 'all' | 'income' | 'expenses';
-  reconciliationStatus: 'all' | 'confirmed_any' | 'confirmed_auto' | 'confirmed_manual' | 'unconfirmed';
-  filterBy: 'none' | 'church' | 'contributor';
-  churchIds: string[];
-  contributorName: string;
-  reportId: string | null;
+export interface FileModel {
+  id: string;
+  name: string;
+  user_id: string;
+  version: number;
+  lineage_id: string;
+  is_active: boolean;
+  status: 'draft' | 'approved';
+  approvedBy?: string;
+  approvedAt?: string;
+  fingerprint: {
+    columnCount: number;
+    delimiter: string;
+    headerHash: string | null;
+    dataTopology: string;
+    canonicalSignature?: string;
+    structuralPattern?: string;
+  };
+  mapping: {
+    dateColumnIndex: number;
+    descriptionColumnIndex: number;
+    amountColumnIndex: number;
+    typeColumnIndex?: number;
+    skipRowsStart: number;
+    skipRowsEnd: number;
+    decimalSeparator: ',' | '.';
+    thousandsSeparator: '.' | ',' | '';
+  };
+  parsingRules: {
+    ignoredKeywords: string[]; 
+    rowFilters: string[];      
+    dateFormat?: string;
+  };
+  snippet?: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export interface SavedReport {
+  id: string;
+  name: string;
+  createdAt: string;
+  recordCount: number;
+  user_id: string;
+  data: {
+    results: any[]; // MatchResult[]
+    sourceFiles: any[];
+    bankStatementFile: any;
+    spreadsheet?: any; // SpreadsheetData
+  } | null;
+}
+
+export interface SpreadsheetData {
+  title: string;
+  logo: string | null;
+  columns: any[]; // ColumnDef
+  rows: any[]; // ManualRow
+  signatures: string[];
 }
 
 export interface ManualRow {
@@ -107,125 +93,4 @@ export interface ColumnDef {
     editable: boolean;
     removable: boolean;
     visible: boolean;
-}
-
-export interface SpreadsheetData {
-  title: string;
-  logo: string | null;
-  columns: ColumnDef[];
-  rows: ManualRow[];
-  signatures: string[];
-}
-
-export interface SavedReport {
-  id: string;
-  name: string;
-  createdAt: string;
-  recordCount: number;
-  user_id: string;
-  data: {
-    results: MatchResult[];
-    sourceFiles: any[];
-    bankStatementFile: any;
-    spreadsheet?: SpreadsheetData;
-  } | null;
-}
-
-export interface SavingReportState {
-  type: 'global' | 'group' | 'search' | 'spreadsheet';
-  results: MatchResult[];
-  groupName: string;
-  spreadsheetData?: SpreadsheetData;
-}
-
-export interface LearnedAssociation {
-  id?: string;
-  normalizedDescription: string;
-  contributorNormalizedName: string;
-  churchId: string;
-  user_id: string;
-}
-
-export interface DeletingItem {
-  type: 'bank' | 'church' | 'report-saved' | 'report-row' | 'report-group' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'all-data';
-  id: string;
-  name: string;
-  meta?: any;
-}
-
-export interface SubscriptionStatus {
-  plan: 'trial' | 'active' | 'expired' | 'lifetime';
-  daysRemaining: number;
-  totalDays: number;
-  isExpired: boolean;
-  isBlocked: boolean;
-  isLifetime: boolean;
-  aiLimit: number;
-  aiUsage: number;
-  maxChurches: number;
-  maxBanks: number;
-  customPrice?: number;
-}
-
-export interface ReceiptAnalysisResult {
-  isValid: boolean;
-  amount?: number;
-  date?: string;
-  recipient?: string;
-  sender?: string;
-  reason?: string;
-}
-
-export interface FileModel {
-  id: string;
-  name: string;
-  user_id: string;
-  version: number;
-  lineage_id: string;
-  is_active: boolean;
-  
-  // Governança Administrativa (Novos Campos)
-  status: 'draft' | 'approved'; // Default: 'draft'
-  approvedBy?: string;          // ID do Admin que aprovou
-  approvedAt?: string;          // Data da aprovação
-  
-  fingerprint: {
-    columnCount: number;
-    delimiter: string;
-    headerHash: string | null;
-    dataTopology: string;
-    canonicalSignature?: string; // Assinatura unificada para PDF/Excel/Imagem
-    structuralPattern?: string;  // NOVO: Padrão estrutural agnóstico (ex: "DT-ST-NM")
-  };
-  
-  mapping: {
-    dateColumnIndex: number;
-    descriptionColumnIndex: number;
-    amountColumnIndex: number;
-    typeColumnIndex?: number;
-    skipRowsStart: number;
-    skipRowsEnd: number;
-    decimalSeparator: ',' | '.';
-    thousandsSeparator: '.' | ',' | '';
-  };
-
-  parsingRules: {
-    ignoredKeywords: string[]; 
-    rowFilters: string[];      
-    dateFormat?: string;
-  };
-  
-  snippet?: string; // Novo campo para armazenar as primeiras linhas do arquivo
-  createdAt: string;
-  lastUsedAt?: string;
-}
-
-// Novos tipos para integração Gmail
-export interface GmailSyncStatus {
-  isSyncing: boolean;
-  totalEmails: number;
-  processedEmails: number;
-  foundTransactions: number;
-  status: 'idle' | 'authenticating' | 'fetching' | 'analyzing' | 'complete' | 'error';
-  error?: string;
 }
