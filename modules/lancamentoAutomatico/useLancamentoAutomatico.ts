@@ -42,7 +42,7 @@ export const useLancamentoAutomatico = () => {
         stateIniciarLancamento(bankId, itemId);
         setCurrentItemId(itemId);
         
-        // No modo assistido ou manual, tentamos sugerir via IA se houver tutor/memória
+        // Sugestão em tempo real ao abrir edição manual ou iniciar assistido
         if (user) {
             const item = state.bancos.find(b => b.bankId === bankId)?.itens.find(i => i.id === itemId);
             if (item) {
@@ -50,7 +50,11 @@ export const useLancamentoAutomatico = () => {
                 const decisao = await lancamentoService.decidirCategoriaAutomatica(user.id, item, instr);
                 if (decisao) {
                     atualizarIgrejaSugerida(bankId, itemId, decisao.categoria);
-                    registrarObservacao(itemId, 'SUGESTAO_IA', { decisao });
+                    registrarObservacao(itemId, 'SUGESTAO_IA', { 
+                        categoria: decisao.categoria, 
+                        confianca: decisao.proposal.confianca,
+                        motivo: decisao.proposal.observacao 
+                    });
                 }
             }
         }
@@ -62,34 +66,76 @@ export const useLancamentoAutomatico = () => {
         stateConfirmarLancamento(bankId, itemId);
     }, [state.bancos, state.modoAtivo, user, stateConfirmarLancamento]);
 
-    // LOOP DE EXECUÇÃO AUTOMÁTICA
+    // LOOP DE EXECUÇÃO AUTOMÁTICA (PROCESSADOR DE FILA IA)
     useEffect(() => {
         if (state.modoAtivo !== MODOS_LANCAMENTO.AUTOMATICO || !state.isAutoRunning || !user || state.currentItemId) return;
 
-        const processarFila = async () => {
+        const processarProximoDaFila = async () => {
+            // Busca o primeiro item da lista de selecionados
             const proximoItem = state.bancos.flatMap(b => b.itens).find(i => state.selectedIds.includes(i.id));
-            if (!proximoItem) { setAutoRunning(false); return; }
+            
+            if (!proximoItem) { 
+                setAutoRunning(false); 
+                return; 
+            }
 
-            const instr = await lancamentoService.obterInstrucaoIA(user.id, proximoItem.bankId);
-            const decisao = await lancamentoService.decidirCategoriaAutomatica(user.id, proximoItem, instr);
+            try {
+                // 1. Consultar Motor de Decisão (Cérebro)
+                const instr = await lancamentoService.obterInstrucaoIA(user.id, proximoItem.bankId);
+                const decisao = await lancamentoService.decidirCategoriaAutomatica(user.id, proximoItem, instr);
 
-            if (decisao) {
-                stateIniciarLancamento(proximoItem.bankId, proximoItem.id);
-                setCurrentItemId(proximoItem.id);
-                atualizarIgrejaSugerida(proximoItem.bankId, proximoItem.id, decisao.categoria);
-                registrarObservacao(proximoItem.id, 'AUTO_EXEC', { decisao });
-                
-                executionTimer.current = setTimeout(() => {
-                    confirmarLancamento(proximoItem.bankId, proximoItem.id);
-                }, 800 + Math.random() * 400); // Delay humano
-            } else {
-                registrarObservacao(proximoItem.id, 'AUTO_SKIP', { motivo: 'Sem confiança' });
+                if (decisao && decisao.proposal.confianca >= 80) {
+                    // 2. Simular Ação: Iniciar
+                    stateIniciarLancamento(proximoItem.bankId, proximoItem.id);
+                    setCurrentItemId(proximoItem.id);
+                    
+                    // 3. Aplicar Decisão
+                    atualizarIgrejaSugerida(proximoItem.bankId, proximoItem.id, decisao.categoria);
+                    registrarObservacao(proximoItem.id, 'IA_DECISAO_AUTO', { 
+                        categoria: decisao.categoria, 
+                        confianca: decisao.proposal.confianca,
+                        caixa: decisao.proposal.caixa
+                    });
+                    
+                    // 4. Delay Humano e Confirmação
+                    executionTimer.current = setTimeout(() => {
+                        confirmarLancamento(proximoItem.bankId, proximoItem.id);
+                    }, 1200); 
+                } else {
+                    // IA não tem certeza ou não encontrou padrão
+                    registrarObservacao(proximoItem.id, 'IA_PULO_AUTO', { 
+                        motivo: decisao ? 'Baixa confiança' : 'Sem padrão reconhecido' 
+                    });
+                    // Remove da fila para não travar o loop
+                    toggleSelection(proximoItem.id);
+                }
+            } catch (err) {
+                console.error("[AutoLoop] Falha ao processar item:", err);
                 toggleSelection(proximoItem.id);
             }
         };
-        processarFila();
-        return () => clearTimeout(executionTimer.current);
-    }, [state.isAutoRunning, state.currentItemId, state.selectedIds, state.modoAtivo, state.bancos, user, stateIniciarLancamento, setCurrentItemId, atualizarIgrejaSugerida, registrarObservacao, confirmarLancamento, toggleSelection, setAutoRunning]);
+
+        // Pequeno intervalo entre ciclos de processamento
+        const intervalId = setTimeout(processarProximoDaFila, 500);
+        return () => {
+            clearTimeout(intervalId);
+            clearTimeout(executionTimer.current);
+        };
+    }, [
+        state.isAutoRunning, 
+        state.currentItemId, 
+        state.selectedIds, 
+        state.modoAtivo, 
+        state.bancos, 
+        user, 
+        stateIniciarLancamento, 
+        setCurrentItemId, 
+        atualizarIgrejaSugerida, 
+        registrarObservacao, 
+        confirmarLancamento, 
+        toggleSelection, 
+        setAutoRunning
+    ]);
 
     return {
         ...state, setModoAtivo, toggleSelection, setBulkSelection, setAutoRunning,
