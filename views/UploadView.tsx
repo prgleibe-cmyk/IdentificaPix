@@ -451,9 +451,8 @@ export const UploadView: React.FC = () => {
     else if (hasFiles && !hasSelection) actionButtonText = "Selecione um Banco";
     else if (hasSelection) actionButtonText = `Processar (${selectedBankIds.length})`;
 
-    const actionButtonStyle = activeReportId 
-        ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-orange-500/30" 
-        : "bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 shadow-emerald-500/30";
+    // ALTERAÇÃO SOLICITADA: Gradiente alaranjado para o botão principal
+    const actionButtonStyle = "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-orange-500/30";
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-6 pb-4 px-1">

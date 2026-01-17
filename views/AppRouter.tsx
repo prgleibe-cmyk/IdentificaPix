@@ -14,6 +14,7 @@ import { SearchView } from './SearchView';
 import { SavedReportsView } from './SavedReportsView';
 import { AdminView } from './AdminView';
 import { SmartAnalysisView } from './SmartAnalysisView';
+import { LancamentoAutomaticoPanel } from '../modules/lancamentoAutomatico';
 
 // --- Modals ---
 import { EditBankModal } from '../components/modals/EditBankModal';
@@ -44,6 +45,7 @@ export const AppRouter: React.FC = () => {
         case 'savedReports': return <SavedReportsView />;
         case 'settings': return <SettingsView />;
         case 'smart_analysis': return <SmartAnalysisView />;
+        case 'lancamentoAutomatico': return <LancamentoAutomaticoPanel />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
         default: return <DashboardView />;
     }

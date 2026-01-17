@@ -24,7 +24,8 @@ import {
     DocumentDuplicateIcon,
     ArrowPathIcon,
     TableCellsIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    BoltIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -38,13 +39,14 @@ export const Sidebar: React.FC = () => {
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
 
     const navItems = useMemo(() => {
-        const items: { view: ViewType, labelKey: any, icon: React.ReactNode, special?: boolean }[] = [
+        const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [
             { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-5 h-5"/> },
             { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> },
             { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> },
             { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
+            { view: 'lancamentoAutomatico', labelKey: 'Lançamento Automático', icon: <BoltIcon className="w-5 h-5"/> },
             { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-5 h-5"/> },
         ];
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <ShieldCheckIcon className="w-5 h-5"/>, special: true });
@@ -76,37 +78,24 @@ export const Sidebar: React.FC = () => {
     return (
         <aside className={`relative h-screen flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
             
-            {/* ELEMENTOS DECORATIVOS DE FUNDO (Background Icons) */}
             <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-[0.03]">
-                {/* Ícone de Gráfico (Topo Direito) */}
                 <ChartBarIcon className="absolute -top-12 -right-12 w-64 h-64 text-white transform rotate-12" />
-                
-                {/* Ícone de Tabela (Meio Esquerdo) */}
                 <TableCellsIcon className="absolute top-[30%] -left-16 w-56 h-56 text-white transform -rotate-12" />
-                
-                {/* Ícone de Dinheiro (Fundo Centro) */}
                 <BanknotesIcon className="absolute bottom-[20%] -right-10 w-48 h-48 text-white transform rotate-6" />
-                
-                {/* Ícone de Configuração (Rodapé Esquerdo) */}
                 <Cog6ToothIcon className="absolute -bottom-10 -left-10 w-40 h-40 text-white transform -rotate-45" />
             </div>
 
             <div className="relative z-10 flex flex-col h-full">
                 
-                {/* 3D LOGO CONTAINER - Compactado verticalmente (py-6) */}
                 <div className={`flex flex-col items-center justify-center py-6 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
                     <div 
                         className="relative group cursor-pointer perspective-[1000px] z-50" 
                         onClick={() => !isCollapsed && setActiveView('dashboard')}
                         style={{ perspective: '1000px' }}
                     >
-                        {/* Outer Glow Halo */}
                         <div className="absolute -inset-6 bg-blue-500/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         
-                        {/* The 3D Block Container */}
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                            
-                            {/* Glass Surface */}
                             <div className="
                                 relative bg-gradient-to-br from-white/10 via-white/5 to-transparent 
                                 p-4 rounded-2xl border border-white/20 
@@ -115,8 +104,6 @@ export const Sidebar: React.FC = () => {
                                 transition-all duration-500
                             ">
                                 <LogoIcon className="w-12 h-12 text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)]" />
-                                
-                                {/* Shine Reflection */}
                                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                             </div>
                         </div>
@@ -132,17 +119,16 @@ export const Sidebar: React.FC = () => {
                     )}
                 </div>
 
-                {/* Navegação - Compactada (space-y-1) */}
                 <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar relative z-20">
                     {navItems.map((item) => (
                         <button
                             key={item.view}
                             onClick={() => setActiveView(item.view)}
                             className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg shadow-black/20 border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                            title={isCollapsed ? t(item.labelKey) : ''}
+                            title={isCollapsed ? (item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey) : ''}
                         >
                             {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform duration-300 ${activeView === item.view ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}` })}
-                            {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{t(item.labelKey)}</span>}
+                            {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey}</span>}
                             
                             {activeView === item.view && !isCollapsed && (
                                 <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_8px_rgba(79,230,208,0.8)]"></div>
@@ -152,8 +138,6 @@ export const Sidebar: React.FC = () => {
                 </nav>
 
                 <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>
-                    
-                    {/* Indicador de Sync */}
                     {isSyncing && (
                         <div className={`flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-full animate-pulse ${isCollapsed ? 'mx-auto' : ''}`}>
                             <ArrowPathIcon className="w-3.5 h-3.5 text-blue-400 animate-spin" />
@@ -162,7 +146,6 @@ export const Sidebar: React.FC = () => {
                     )}
 
                     <div className={`flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
-                        {/* Botão de Suporte WhatsApp */}
                         <button 
                             onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
                             className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}
@@ -172,7 +155,6 @@ export const Sidebar: React.FC = () => {
                             {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
                         </button>
                         
-                        {/* Botão de Status/Pagamento */}
                         <button 
                             onClick={openPaymentModal} 
                             className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
