@@ -1,10 +1,15 @@
-
 import { useState, useCallback } from 'react';
 import { LancamentoItem, LancamentoModo, LancamentoState, BancoLancamento, ObservacaoLog, SugestaoLancamento, AprovacaoSugestao } from './types';
 import { MODOS_LANCAMENTO } from './constants';
 
 export const useLancamentoState = () => {
-    const [state, setState] = useState<LancamentoState & { selectedIds: string[], isAutoRunning: boolean, currentItemId: string | null }>({
+    const [state, setState] = useState<LancamentoState & { 
+        selectedIds: string[], 
+        isAutoRunning: boolean, 
+        currentItemId: string | null,
+        isInstructionModalOpen: boolean,
+        activeInstruction: string
+    }>({
         bancos: [],
         modoAtivo: MODOS_LANCAMENTO.OBSERVACAO,
         isProcessando: false,
@@ -13,7 +18,9 @@ export const useLancamentoState = () => {
         aprovacoes: [],
         selectedIds: [],
         isAutoRunning: false,
-        currentItemId: null
+        currentItemId: null,
+        isInstructionModalOpen: false,
+        activeInstruction: ''
     });
 
     const setModoAtivo = useCallback((modo: LancamentoModo) => {
@@ -21,10 +28,7 @@ export const useLancamentoState = () => {
     }, []);
 
     const setBancos = useCallback((novosBancos: BancoLancamento[]) => {
-        setState(prev => ({ 
-            ...prev, 
-            bancos: novosBancos 
-        }));
+        setState(prev => ({ ...prev, bancos: novosBancos }));
     }, []);
 
     const toggleSelection = useCallback((id: string) => {
@@ -53,6 +57,10 @@ export const useLancamentoState = () => {
 
     const setAutoRunning = useCallback((running: boolean) => {
         setState(prev => ({ ...prev, isAutoRunning: running }));
+    }, []);
+
+    const setInstructionModal = useCallback((open: boolean, text: string = '') => {
+        setState(prev => ({ ...prev, isInstructionModalOpen: open, activeInstruction: text }));
     }, []);
 
     const setCurrentItemId = useCallback((id: string | null) => {
@@ -93,12 +101,9 @@ export const useLancamentoState = () => {
             currentItemId: prev.currentItemId === itemId ? null : prev.currentItemId,
             bancos: prev.bancos.map(banco => {
                 if (banco.bankId !== bankId) return banco;
-                
                 const itemToMove = banco.itens.find(i => i.id === itemId);
                 if (!itemToMove) return banco;
-
                 const updatedItem = { ...itemToMove, status: 'LANCADO' as const, executionStatus: 'confirmado' as const };
-
                 return {
                     ...banco,
                     itens: banco.itens.filter(i => i.id !== itemId),
@@ -115,26 +120,12 @@ export const useLancamentoState = () => {
         }));
     }, []);
 
-    const registrarAprovacao = useCallback((aprovacao: AprovacaoSugestao) => {
-        setState(prev => ({
-            ...prev,
-            aprovacoes: [...prev.aprovacoes.filter(a => a.sugestaoId !== aprovacao.sugestaoId), aprovacao]
-        }));
-    }, []);
-
     const registrarObservacao = useCallback((lancamentoId: string, acao: string, payload: any) => {
         const novaObservacao: ObservacaoLog = {
             id: `obs-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-            lancamentoId,
-            acao,
-            payload,
-            dataHora: new Date().toISOString()
+            lancamentoId, acao, payload, dataHora: new Date().toISOString()
         };
-
-        setState(prev => ({
-            ...prev,
-            observacoes: [novaObservacao, ...prev.observacoes]
-        }));
+        setState(prev => ({ ...prev, observacoes: [novaObservacao, ...prev.observacoes] }));
     }, []);
 
     return {
@@ -144,12 +135,12 @@ export const useLancamentoState = () => {
         toggleSelection,
         setBulkSelection,
         setAutoRunning,
+        setInstructionModal,
         setCurrentItemId,
         atualizarIgrejaSugerida,
         iniciarLancamento,
         confirmarLancamento,
         adicionarSugestoes,
-        registrarAprovacao,
         registrarObservacao
     };
 };
