@@ -41,7 +41,9 @@ export const useLancamentoAutomatico = () => {
     const iniciarLancamento = useCallback(async (bankId: string, itemId: string) => {
         stateIniciarLancamento(bankId, itemId);
         setCurrentItemId(itemId);
-        if (state.modoAtivo === MODOS_LANCAMENTO.ASSISTIDO && user) {
+        
+        // No modo assistido ou manual, tentamos sugerir via IA se houver tutor/memória
+        if (user) {
             const item = state.bancos.find(b => b.bankId === bankId)?.itens.find(i => i.id === itemId);
             if (item) {
                 const instr = await lancamentoService.obterInstrucaoIA(user.id, bankId);
@@ -52,7 +54,7 @@ export const useLancamentoAutomatico = () => {
                 }
             }
         }
-    }, [state.modoAtivo, state.bancos, user, stateIniciarLancamento, setCurrentItemId, atualizarIgrejaSugerida, registrarObservacao]);
+    }, [state.bancos, user, stateIniciarLancamento, setCurrentItemId, atualizarIgrejaSugerida, registrarObservacao]);
 
     const confirmarLancamento = useCallback(async (bankId: string, itemId: string) => {
         const item = state.bancos.find(b => b.bankId === bankId)?.itens.find(i => i.id === itemId);
@@ -87,7 +89,7 @@ export const useLancamentoAutomatico = () => {
         };
         processarFila();
         return () => clearTimeout(executionTimer.current);
-    }, [state.isAutoRunning, state.currentItemId, state.selectedIds, state.modoAtivo, state.bancos, user]);
+    }, [state.isAutoRunning, state.currentItemId, state.selectedIds, state.modoAtivo, state.bancos, user, stateIniciarLancamento, setCurrentItemId, atualizarIgrejaSugerida, registrarObservacao, confirmarLancamento, toggleSelection, setAutoRunning]);
 
     return {
         ...state, setModoAtivo, toggleSelection, setBulkSelection, setAutoRunning,
