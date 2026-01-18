@@ -41,12 +41,14 @@ export const iaTrainingService = {
     },
 
     /**
-     * Recupera a sequência de passos salva para um banco específico.
+     * Recupera a sequência de passos salva para um banco específico do usuário autenticado.
      */
-    async loadTrainingMemory(bankName: string): Promise<any[] | null> {
+    async loadTrainingMemory(bankName: string): Promise<any[]> {
+        if (!bankName) return [];
+
         try {
             const { data: { session } } = await (supabase.auth as any).getSession();
-            if (!session?.user?.id) return null;
+            if (!session?.user?.id) return [];
 
             const { data, error } = await supabase
                 .from('ia_training_memory')
@@ -55,11 +57,20 @@ export const iaTrainingService = {
                 .eq('bank_name', bankName)
                 .maybeSingle();
 
-            if (error) throw error;
-            return data?.steps || null;
+            if (error) {
+                console.error("Erro carregando memória IA:", error);
+                return [];
+            }
+
+            if (!data || !data.steps || !data.steps.length) {
+                console.warn(`Nenhuma memória encontrada para o banco ${bankName}`);
+                return [];
+            }
+
+            return data.steps;
         } catch (error) {
-            Logger.error(`[IA Service] Erro ao carregar memória para ${bankName}`, error);
-            return null;
+            Logger.error(`[IA Service] Erro fatal ao carregar memória para ${bankName}`, error);
+            return [];
         }
     }
 };

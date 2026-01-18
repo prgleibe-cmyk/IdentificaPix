@@ -39,12 +39,16 @@ async function processItemReal(item: QueueItem) {
     if (!item || !lockExecution(item)) return;
 
     try {
-        // 1. Busca memória de treinamento para este banco
         const bankName = item.transactionData.bankName;
+        
+        // 1. Busca memória de treinamento para este banco via serviço persistente
         const steps = await iaTrainingService.loadTrainingMemory(bankName);
 
         if (!steps || steps.length === 0) {
-            console.warn(`[IA Engine] Sem memória de treino para ${bankName}. Pulando item.`);
+            console.warn(`[IA Engine] Sem memória de treino para ${bankName}.`);
+            alert(`Não há memória de treinamento para o banco "${bankName}". Por favor, utilize o Modo Assistido pelo menos uma vez para ensinar o caminho à IA.`);
+            
+            isAutoRunning = false; // Interrompe a fila automática por segurança
             item.status = "failed";
             unlockExecution();
             return;
@@ -59,7 +63,7 @@ async function processItemReal(item: QueueItem) {
         }
 
         // 3. Executa cada passo aprendido sequencialmente
-        console.log(`[IA Engine] Executando ${steps.length} passos para ${item.id}`);
+        console.log(`[IA Engine] Executando ${steps.length} passos para ${item.id} no banco ${bankName}`);
         for (const step of steps) {
             if (!isAutoRunning) break;
             await executeStepInPage(step, item);
