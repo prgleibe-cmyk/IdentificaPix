@@ -1,0 +1,32 @@
+
+{
+  "manifest_version": 3,
+  "name": "IdentificaPix - Lançamento Automático IA",
+  "version": "1.0.0",
+  "description": "Executor inteligente para o Lançamento Automático do IdentificaPix.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "IdentificaPix IA"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
+}
