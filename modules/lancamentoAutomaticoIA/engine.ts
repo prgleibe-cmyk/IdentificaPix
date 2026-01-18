@@ -28,12 +28,13 @@ async function processQueueLoop() {
         }
 
         await processItemReal(item);
-        await new Promise(r => setTimeout(r, 1000));
+        // Intervalo entre itens para estabilidade do navegador
+        await new Promise(r => setTimeout(r, 1500));
     }
 }
 
 /**
- * Execução Real do Item: Busca memória -> Executa passos -> Marca concluído.
+ * Execução Real do Item: Busca memória verificada -> Executa passos -> Marca concluído.
  */
 async function processItemReal(item: QueueItem) {
     if (!item || !lockExecution(item)) return;
@@ -41,14 +42,13 @@ async function processItemReal(item: QueueItem) {
     try {
         const bankName = item.transactionData.bankName;
         
-        // 1. Busca memória de treinamento para este banco via serviço persistente
+        // 1. Busca memória de treinamento VERIFICADA para este banco
         const steps = await iaTrainingService.loadTrainingMemory(bankName);
 
         if (!steps || steps.length === 0) {
-            console.warn(`[IA Engine] Sem memória de treino para ${bankName}.`);
-            alert(`Não há memória de treinamento para o banco "${bankName}". Por favor, utilize o Modo Assistido pelo menos uma vez para ensinar o caminho à IA.`);
-            
-            isAutoRunning = false; // Interrompe a fila automática por segurança
+            // iaTrainingService já dispara o alerta visual para o usuário
+            console.warn(`[IA Engine] Execução cancelada: Sem passos aprendidos para ${bankName}.`);
+            isAutoRunning = false;
             item.status = "failed";
             unlockExecution();
             return;
@@ -63,7 +63,7 @@ async function processItemReal(item: QueueItem) {
         }
 
         // 3. Executa cada passo aprendido sequencialmente
-        console.log(`[IA Engine] Executando ${steps.length} passos para ${item.id} no banco ${bankName}`);
+        console.log(`[IA Engine] Iniciando sequência de ${steps.length} passos para item ${item.id}`);
         for (const step of steps) {
             if (!isAutoRunning) break;
             await executeStepInPage(step, item);
@@ -88,7 +88,7 @@ async function processItemReal(item: QueueItem) {
         }
 
     } catch (e) {
-        console.error("[IA Engine] Erro na execução real:", e);
+        console.error("[IA Engine] Erro crítico na execução real:", e);
         item.status = "failed";
         if (item.transactionData) item.transactionData.executionStatus = 'aguardando';
     } finally {

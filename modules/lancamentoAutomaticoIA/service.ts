@@ -9,11 +9,12 @@ import { Logger } from '../../services/monitoringService';
 export const iaTrainingService = {
     /**
      * Salva ou atualiza a sequência de passos aprendida para um banco específico.
+     * Versão verificada com logs e alertas de erro.
      */
     async saveTrainingMemory(bankName: string, capturedSteps: any[]) {
         if (!bankName || !capturedSteps || capturedSteps.length === 0) {
             console.warn("[IA Service] Tentativa de salvar treino vazio ou sem identificação de banco.");
-            return;
+            return false;
         }
 
         try {
@@ -31,17 +32,24 @@ export const iaTrainingService = {
                 .from('ia_training_memory')
                 .upsert([payload], { onConflict: 'user_id, bank_name' });
 
-            if (error) throw error;
+            if (error) {
+                console.error("Erro salvando memória IA:", error);
+                alert(`Erro ao salvar memória para o banco "${bankName}": ${error.message}`);
+                return false;
+            }
 
-            Logger.info(`[IA Service] Memória de treinamento salva para: ${bankName}`);
-        } catch (error) {
-            Logger.error(`[IA Service] Erro ao salvar memória IA para ${bankName}`, error);
-            throw error;
+            console.log(`[IA Service] Memória gravada com sucesso para o banco "${bankName}"`);
+            return true;
+        } catch (error: any) {
+            Logger.error(`[IA Service] Erro fatal ao salvar memória IA para ${bankName}`, error);
+            alert(`Falha técnica ao salvar treinamento: ${error.message}`);
+            return false;
         }
     },
 
     /**
      * Recupera a sequência de passos salva para um banco específico do usuário autenticado.
+     * Versão verificada com validação de dados e alertas de ausência de memória.
      */
     async loadTrainingMemory(bankName: string): Promise<any[]> {
         if (!bankName) return [];
@@ -59,16 +67,19 @@ export const iaTrainingService = {
 
             if (error) {
                 console.error("Erro carregando memória IA:", error);
+                alert(`Erro ao carregar memória para o banco "${bankName}": ${error.message}`);
                 return [];
             }
 
             if (!data || !data.steps || !data.steps.length) {
-                console.warn(`Nenhuma memória encontrada para o banco ${bankName}`);
+                console.warn(`[IA Service] Nenhuma memória encontrada para o banco "${bankName}"`);
+                alert(`Não há memória de treinamento para o banco "${bankName}". Por favor, utilize o Modo Assistido pelo menos uma vez para ensinar o caminho à IA.`);
                 return [];
             }
 
+            console.log(`[IA Service] Memória carregada com sucesso para o banco "${bankName}"`);
             return data.steps;
-        } catch (error) {
+        } catch (error: any) {
             Logger.error(`[IA Service] Erro fatal ao carregar memória para ${bankName}`, error);
             return [];
         }
