@@ -1,8 +1,10 @@
+
 {
   "name": "IdentificaPix",
-  "description": "Tela de login para o sistema de conciliação IdentificaPix.",
+  "description": "Sistema de conciliação bancária inteligente para igrejas e instituições utilizando Gemini AI.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ]
 }

@@ -4,7 +4,7 @@ import { Transaction } from "../types";
 import { Logger } from "./monitoringService";
 
 const getAIClient = () => {
-    const apiKey = process.env.API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    const apiKey = process.env.API_KEY;
     if (!apiKey) throw new Error("API Key missing");
     return new GoogleGenAI({ apiKey });
 };
@@ -14,37 +14,13 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
 
     try {
         const ai = getAIClient();
-        
-        // Prepara o prompt com lote de e-mails para economizar chamadas
-        const emailData = emails.map(e => `
-        --- EMAIL ID: ${e.id} ---
-        DATA: ${e.date}
-        ASSUNTO: ${e.subject}
-        CONTEÚDO: ${e.snippet} ... ${e.body.substring(0, 500)}
-        -------------------------
-        `).join('\n');
+        const emailData = emails.map(e => `ID: ${e.id} | ASSUNTO: ${e.subject} | CORPO: ${e.body.substring(0, 500)}`).join('\n---\n');
 
-        const prompt = `
-        Você é um extrator financeiro especializado em e-mails bancários brasileiros (Pix, Transferências).
-        Analise os e-mails abaixo e extraia as transações financeiras válidas.
-        
-        INPUT:
-        ${emailData}
-
-        REGRAS:
-        1. Ignore e-mails de propaganda, segurança ou avisos gerais.
-        2. Extraia apenas e-mails de confirmação de transação (Entrada ou Saída).
-        3. Para "Entradas" (Pix Recebido), o valor deve ser POSITIVO.
-        4. Para "Saídas" (Pix Enviado, Pagamento), o valor deve ser NEGATIVO.
-        5. A data deve ser convertida para o formato YYYY-MM-DD.
-        6. A descrição deve conter o nome do pagador/recebedor ou a descrição do Pix. Limpe textos como "Pix recebido de".
-        
-        Retorne um JSON Array.
-        `;
+        const prompt = `Extraia transações bancárias (Pix, Transferências) destes e-mails. Entradas positivas, Saídas negativas. Retorne JSON Array de objetos {id, date, description, amount, type}.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: prompt,
+            contents: `${prompt}\n\n${emailData}`,
             config: {
                 temperature: 0.1,
                 responseMimeType: "application/json",
@@ -53,11 +29,11 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
                     items: {
                         type: Type.OBJECT,
                         properties: {
-                            id: { type: Type.STRING, description: "O ID original do e-mail" },
-                            date: { type: Type.STRING, description: "YYYY-MM-DD" },
+                            id: { type: Type.STRING },
+                            date: { type: Type.STRING },
                             description: { type: Type.STRING },
                             amount: { type: Type.NUMBER },
-                            type: { type: Type.STRING, description: "PIX, TED, BOLETO, etc" }
+                            type: { type: Type.STRING }
                         },
                         required: ["id", "date", "description", "amount"]
                     }
@@ -67,13 +43,11 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
 
         const extracted = response.text ? JSON.parse(response.text) : [];
 
-        // Converte para o tipo Transaction interno
-        // ATUALIZAÇÃO FASE 1: RawDescription populado
         return extracted.map((item: any) => ({
             id: `gmail-${item.id}`,
             date: item.date,
-            description: item.description, // Descrição Limpa (sugestão da IA)
-            rawDescription: `GMAIL: ${item.description}`, // Fonte de Verdade (Simplificada)
+            description: item.description,
+            rawDescription: `GMAIL: ${item.description}`,
             cleanedDescription: item.description, 
             amount: item.amount,
             originalAmount: String(item.amount),
