@@ -56,14 +56,15 @@ export const useDataDeletion = ({
                 case 'all-data': {
                     reconciliation.resetReconciliation();
                     await supabase.rpc('delete_pending_transactions'); 
-                    reconciliation.clearFiles();
-                    // Opcional: Limpar bancos e igrejas se for reset total
+                    // FIX: Removido chamada inexistente clearFiles
                     showToast("Todos os dados temporários foram limpos.", "success");
                     break;
                 }
                 case 'uploaded-files': {
-                    reconciliation.clearFiles();
+                    // FIX: Removido chamada inexistente clearFiles
                     await supabase.rpc('delete_pending_transactions');
+                    reconciliation.setBankStatementFile([]);
+                    reconciliation.setSelectedBankIds([]);
                     showToast("Arquivos e transações limpos.", "success");
                     break;
                 }

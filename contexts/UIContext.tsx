@@ -3,6 +3,12 @@ import React, { createContext, useState, useContext, useCallback, useEffect, use
 import { usePersistentState } from '../hooks/usePersistentState';
 import { Theme, ViewType } from '../types';
 
+interface ParsingProgress {
+    current: number;
+    total: number;
+    label: string;
+}
+
 interface UIContextType {
     theme: Theme;
     toggleTheme: () => void;
@@ -10,6 +16,8 @@ interface UIContextType {
     setActiveView: React.Dispatch<React.SetStateAction<ViewType>>;
     isLoading: boolean;
     setIsLoading: (loading: boolean) => void;
+    parsingProgress: ParsingProgress | null;
+    setParsingProgress: (progress: ParsingProgress | null) => void;
     toast: { message: string; type: 'success' | 'error' } | null;
     showToast: (message: string, type?: 'success' | 'error') => void;
 }
@@ -17,17 +25,15 @@ interface UIContextType {
 const UIContext = createContext<UIContextType>(null!);
 
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    // MUDANÇA: Padrão alterado para 'light' para criar o contraste (Sidebar Escura / Conteúdo Claro)
     const [theme, setTheme] = usePersistentState<Theme>('identificapix-theme', 'light');
     const [activeView, setActiveView] = useState<ViewType>('dashboard');
     const [isLoading, setIsLoadingState] = useState<boolean>(false);
+    const [parsingProgress, setParsingProgress] = useState<ParsingProgress | null>(null);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     
-    // Ref para controlar timeouts do loading
     const loadingTimeoutRef = useRef<any>(null);
 
     useEffect(() => {
-        // Garante que a classe dark seja aplicada no HTML
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
         } else {
@@ -61,9 +67,11 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         setActiveView,
         isLoading,
         setIsLoading,
+        parsingProgress,
+        setParsingProgress,
         toast,
         showToast
-    }), [theme, toggleTheme, activeView, isLoading, setIsLoading, toast, showToast]);
+    }), [theme, toggleTheme, activeView, isLoading, setIsLoading, parsingProgress, setParsingProgress, toast, showToast]);
 
     return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 };

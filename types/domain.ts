@@ -44,6 +44,7 @@ export interface Transaction {
   originalAmount?: string;
   cleanedDescription?: string;
   contributionType?: string;
+  paymentMethod?: string; // Nova Coluna: FORMA
 }
 
 export interface Contributor {
@@ -55,6 +56,7 @@ export interface Contributor {
   date?: string;
   originalAmount?: string;
   contributionType?: string;
+  paymentMethod?: string; // Suporte na lista de membros
   _churchName?: string;
   _churchId?: string;
   _internalId?: string;
@@ -69,6 +71,7 @@ export interface MatchResult {
   similarity?: number;
   contributorAmount?: number;
   contributionType?: string;
+  paymentMethod?: string; // FORMA consolidada
   divergence?: {
     expectedChurch: Church;
     actualChurch: Church;

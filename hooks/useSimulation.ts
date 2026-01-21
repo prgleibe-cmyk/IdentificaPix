@@ -1,11 +1,10 @@
-
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Transaction } from '../types';
 import { DateResolver } from '../core/processors/DateResolver';
 import { AmountResolver } from '../core/processors/AmountResolver';
-import { NameResolver } from '../core/processors/NameResolver';
-import { TypeResolver } from '../core/processors/TypeResolver';
 import { RowValidator } from '../core/processors/RowValidator';
+import { TypeResolver } from '../core/processors/TypeResolver';
+import { extractTransactionsFromComplexBlock } from '../services/geminiService';
 
 interface SafeTransaction extends Transaction {
     sourceIndex?: number;
@@ -23,101 +22,141 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
     const [processedTransactions, setProcessedTransactions] = useState<SafeTransaction[]>([]);
     const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
     const [editingRowData, setEditingRowData] = useState<SafeTransaction | null>(null);
+    const [isSimulating, setIsSimulating] = useState(false);
+    
+    const lastDataRef = useRef<string>('');
+    const lastMappingRef = useRef<string>('');
 
-    const runSimulation = useCallback(() => {
-        if (!gridData.length) return;
-
-        const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, typeColumnIndex, skipRowsStart } = activeMapping || {
-            dateColumnIndex: -1, descriptionColumnIndex: -1, amountColumnIndex: -1, skipRowsStart: 0
-        };
-
-        const newTransactions: SafeTransaction[] = [];
-        const yearAnchor = new Date().getFullYear();
-        
-        gridData.forEach((cols, index) => {
-            if (!RowValidator.isPotentialRow(cols)) return;
-            
-            const isSkipped = index < (skipRowsStart || 0);
-            const rawDate = cols[dateColumnIndex] || '';
-            const rawDesc = cols[descriptionColumnIndex] || '';
-            const rawAmount = cols[amountColumnIndex] || '';
-            const rawType = typeColumnIndex !== undefined ? cols[typeColumnIndex] : '';
-            
-            let isoDate = '', amount = 0, cleanedDesc = rawDesc, finalType = rawType, isValid = false, status: SafeTransaction['status'] = 'pending';
-            
-            if (isSkipped) { 
-                status = 'ignored'; 
-            } else if (activeMapping) {
-                isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
-                amount = parseFloat(AmountResolver.clean(rawAmount));
-                
-                if (!!isoDate && isoDate.length >= 10 && !isNaN(amount) && rawDesc.trim().length > 0) {
-                    cleanedDesc = NameResolver.clean(rawDesc, cleaningKeywords);
-                    finalType = rawType ? rawType.trim().toUpperCase() : TypeResolver.resolveFromDescription(rawDesc);
-                    isValid = true; 
-                    status = 'valid';
-                } else if (!isNaN(amount) || rawDesc.trim().length > 0) { 
-                    status = 'pending'; 
-                    cleanedDesc = NameResolver.clean(rawDesc, cleaningKeywords); 
-                }
-            } else { 
-                cleanedDesc = cols.join(' | '); 
-            }
-            
-            newTransactions.push({ 
-                id: `sim-${index}`, 
-                date: isValid ? isoDate : rawDate, 
-                description: rawDesc, 
-                rawDescription: rawDesc, 
-                amount, 
-                originalAmount: rawAmount, 
-                cleanedDescription: cleanedDesc, 
-                contributionType: finalType, 
-                sourceIndex: index, 
-                isValid, 
-                status 
-            });
-        });
-
-        setProcessedTransactions(newTransactions);
-    }, [gridData, activeMapping, cleaningKeywords]);
-
-    // Roda simulação sempre que os dados ou mapeamento mudarem
-    useEffect(() => {
-        if (gridData.length > 0) runSimulation();
-    }, [activeMapping, gridData, runSimulation]);
-
-    const startEdit = (tx: SafeTransaction, idx: number) => {
-        setEditingRowIndex(idx);
-        setEditingRowData({ ...tx });
-    };
-
-    const saveRow = (onLearned?: (original: string[], corrected: SafeTransaction) => void) => {
-        if (editingRowIndex !== null && editingRowData) {
-            setProcessedTransactions(prev => {
-                const n = [...prev];
-                n[editingRowIndex] = { ...editingRowData, status: 'edited', isValid: true };
-                return n;
-            });
-            
-            if (onLearned) {
-                onLearned(gridData[editingRowData.sourceIndex!], editingRowData);
-            }
-            setEditingRowIndex(null);
+    const runSimulation = useCallback(async () => {
+        if (!gridData || gridData.length === 0) {
+            setProcessedTransactions([]);
+            return;
         }
-    };
 
-    const cancelEdit = () => setEditingRowIndex(null);
+        const mapping = activeMapping || { extractionMode: 'COLUMNS', dateColumnIndex: -1, descriptionColumnIndex: -1, amountColumnIndex: -1, skipRowsStart: 0 };
+        setIsSimulating(true);
+
+        try {
+            // MODO: EXTRAÇÃO DE BLOCO (Contextual IA)
+            if (mapping.extractionMode === 'BLOCK') {
+                const textForAi = gridData.slice(0, 1000).map(row => row.join(' ')).join('\n');
+                const aiResult = await extractTransactionsFromComplexBlock(textForAi);
+                
+                if (aiResult && aiResult.length > 0) {
+                    setProcessedTransactions(aiResult.map((tx, i) => ({
+                        ...tx,
+                        id: `block-sim-${i}-${Date.now()}`,
+                        rawDescription: tx.description,
+                        cleanedDescription: tx.description,
+                        originalAmount: String(tx.amount),
+                        contributionType: tx.type || '',
+                        paymentMethod: tx.paymentMethod || '',
+                        isValid: true,
+                        status: 'valid'
+                    })));
+                } else {
+                    setProcessedTransactions([]);
+                }
+                return;
+            }
+
+            // MODO TRADICIONAL: COLUNAS FIXAS
+            const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
+            const newTransactions: SafeTransaction[] = [];
+            const yearAnchor = DateResolver.discoverAnchorYear(gridData);
+            
+            gridData.forEach((cols, index) => {
+                if (!RowValidator.isPotentialRow(cols)) return;
+                const isSkipped = index < (skipRowsStart || 0);
+                
+                if (dateColumnIndex === -1 && descriptionColumnIndex === -1 && amountColumnIndex === -1) {
+                    newTransactions.push({ 
+                        id: `sim-raw-${index}`, 
+                        date: "---", 
+                        description: cols.join(' | ').substring(0, 80), 
+                        rawDescription: cols.join('|'), 
+                        amount: 0, 
+                        originalAmount: "0.00", 
+                        cleanedDescription: cols.join(' | '), 
+                        contributionType: "", 
+                        paymentMethod: "", 
+                        sourceIndex: index, 
+                        isValid: false, 
+                        status: 'pending' 
+                    });
+                    return;
+                }
+
+                const rawDate = (cols[dateColumnIndex] || '').trim();
+                const rawDesc = (cols[descriptionColumnIndex] || '').trim();
+                const rawAmount = (cols[amountColumnIndex] || '').trim();
+                
+                const rawForm = (paymentMethodColumnIndex !== undefined && cols[paymentMethodColumnIndex])
+                    ? cols[paymentMethodColumnIndex].trim().toUpperCase()
+                    : TypeResolver.resolveFromDescription(rawDesc);
+
+                const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
+                const amountStr = AmountResolver.clean(rawAmount);
+                const amount = parseFloat(amountStr);
+                const isValid = RowValidator.isValid(isoDate, rawDesc, amountStr) && !isSkipped;
+                
+                newTransactions.push({ 
+                    id: `sim-${index}-${Date.now()}`,
+                    date: isoDate || rawDate || "---", 
+                    description: rawDesc || "---", 
+                    rawDescription: rawDesc || "---", 
+                    paymentMethod: rawForm || "",
+                    amount: isNaN(amount) ? 0 : amount, 
+                    originalAmount: rawAmount, 
+                    cleanedDescription: rawDesc,
+                    contributionType: 'AUTO', 
+                    sourceIndex: index, 
+                    isValid, 
+                    status: isSkipped ? 'ignored' : (isValid ? 'valid' : 'error') 
+                });
+            });
+            setProcessedTransactions(newTransactions);
+        } catch (e) {
+            console.error("Simulation error:", e);
+        } finally {
+            setIsSimulating(false);
+        }
+    }, [gridData, activeMapping]);
+
+    useEffect(() => {
+        const dataHash = gridData.length > 0 ? `${gridData.length}-${gridData[0].join('|').substring(0, 50)}` : 'empty';
+        const mappingKey = JSON.stringify(activeMapping);
+        if (dataHash !== lastDataRef.current || mappingKey !== lastMappingRef.current) {
+            lastDataRef.current = dataHash;
+            lastMappingRef.current = mappingKey;
+            runSimulation();
+        }
+    }, [gridData, activeMapping, runSimulation]);
 
     return {
         processedTransactions,
-        setProcessedTransactions,
+        isSimulating,
         runSimulation,
         editingRowIndex,
         editingRowData,
         setEditingRowData,
-        startEdit,
-        saveRow,
-        cancelEdit
+        startEdit: (tx: any, idx: number) => { 
+            setEditingRowIndex(idx); 
+            // 🛡️ Blindagem: Garante que strings opcionais nunca sejam undefined no estado de edição
+            setEditingRowData({ 
+                ...tx,
+                contributionType: tx.contributionType || '',
+                paymentMethod: tx.paymentMethod || ''
+            }); 
+        },
+        saveRow: (onLearned?: any) => {
+            if (editingRowIndex !== null && editingRowData) {
+                const updatedTx = { ...editingRowData, status: 'edited' as const, isValid: true };
+                setProcessedTransactions(prev => { const n = [...prev]; n[editingRowIndex] = updatedTx; return n; });
+                if (onLearned && editingRowData.sourceIndex !== undefined) onLearned(gridData[editingRowData.sourceIndex], updatedTx);
+                setEditingRowIndex(null);
+            }
+        },
+        cancelEdit: () => setEditingRowIndex(null)
     };
 };

@@ -1,6 +1,7 @@
-
 import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod } from '../types';
+// Fixed: Imported groupResultsByChurch from processingService instead of using require
+import { groupResultsByChurch } from '../services/processingService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -41,40 +42,60 @@ export const useReconciliationActions = ({
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
     
-    // Lista de resultados atuais para manipulação eficiente
+    // 1. Cria uma nova lista baseada no estado atual para garantir imutabilidade e re-render
     const currentResults = [...reconciliation.matchResults];
+    let affectedCount = 0;
     
     txIds.forEach(id => {
       const idx = currentResults.findIndex(r => r.transaction.id === id);
       if (idx !== -1) {
         const original = currentResults[idx];
         
-        // Se for um registro fantasma (PENDENTE), vira IDENTIFICADO direto
-        // Se for uma transação real, vira IDENTIFICADO
+        // 2. Cria o novo objeto de resultado para este item do lote
         const updated: MatchResult = {
           ...original,
-          status: ReconciliationStatus.IDENTIFIED,
-          church,
+          status: ReconciliationStatus.IDENTIFIED, // Muda para Identificado
+          church, // Define a igreja escolhida
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
-          contributorAmount: original.transaction.amount || original.contributor?.amount
+          contributorAmount: original.transaction.amount || original.contributor?.amount,
+          divergence: undefined
         };
         
         currentResults[idx] = updated;
+        
+        // 3. Opcional: Aprende a associação para usos futuros automáticos
         referenceData.learnAssociation(updated);
+        affectedCount++;
       }
     });
     
-    // Atualiza o estado global de uma vez só
+    // 4. Atualiza o estado principal do motor de reconciliação
     reconciliation.setMatchResults(currentResults);
     
-    // Regenera o preview para refletir as mudanças nas abas
-    if (reconciliation.regenerateReportPreview) {
-        reconciliation.regenerateReportPreview(currentResults);
+    // 5. Força a regeneração do preview (necessário para atualizar as abas de Relatórios)
+    if (reconciliation.setReportPreviewData) {
+        // Recalcula o agrupamento por igreja imediatamente
+        const incomeResults = currentResults.filter(r => 
+            r.transaction.amount >= 0 || 
+            r.status === ReconciliationStatus.PENDING
+        );
+        
+        const expenseResults = currentResults.filter(r => 
+            r.transaction.amount < 0 && 
+            r.status !== ReconciliationStatus.PENDING
+        );
+
+        // Fixed: Removed dynamic require here as it is now imported at the top
+        reconciliation.setReportPreviewData({
+            income: groupResultsByChurch(incomeResults),
+            expenses: { 'all_expenses_group': expenseResults }
+        });
     }
     
+    // 6. Fecha o modal e limpa a seleção
     reconciliation.closeManualIdentify();
-    showToast(`${txIds.length} transações movidas para ${church.name}.`, "success");
+    showToast(`${affectedCount} registros identificados para ${church.name}.`, "success");
   }, [reconciliation, referenceData, showToast]);
 
   const undoIdentification = useCallback((txId: string) => {

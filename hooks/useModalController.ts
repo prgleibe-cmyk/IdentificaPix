@@ -3,14 +3,13 @@ import { useState, useCallback } from 'react';
 import { MatchResult, DeletingItem } from '../types';
 
 export const useModalController = () => {
-    // --- States ---
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isUpdateFilesModalOpen, setIsUpdateFilesModalOpen] = useState(false);
     const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
+    const [autoLaunchTarget, setAutoLaunchTarget] = useState<MatchResult[] | null>(null);
 
-    // --- Actions ---
     const openPaymentModal = useCallback(() => setIsPaymentModalOpen(true), []);
     const closePaymentModal = useCallback(() => setIsPaymentModalOpen(false), []);
     
@@ -25,6 +24,9 @@ export const useModalController = () => {
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
+
+    const openAutoLaunch = useCallback((targets: MatchResult[]) => setAutoLaunchTarget(targets), []);
+    const closeAutoLaunch = useCallback(() => setAutoLaunchTarget(null), []);
 
     return {
         isPaymentModalOpen,
@@ -41,6 +43,9 @@ export const useModalController = () => {
         closeDeleteConfirmation,
         isSearchFiltersOpen,
         openSearchFilters,
-        closeSearchFilters
+        closeSearchFilters,
+        autoLaunchTarget,
+        openAutoLaunch,
+        closeAutoLaunch
     };
 };

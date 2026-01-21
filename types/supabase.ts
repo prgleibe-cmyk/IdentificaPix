@@ -109,7 +109,8 @@ export type Database = {
           source: 'file' | 'gmail'
           user_id: string
           status: 'pending' | 'identified' | 'resolved'
-          bank_id: string | null // NOVO CAMPO
+          bank_id: string | null
+          row_hash: string | null
         }
         Insert: {
           id?: string
@@ -122,7 +123,8 @@ export type Database = {
           source: 'file' | 'gmail'
           user_id: string
           status?: 'pending' | 'identified' | 'resolved'
-          bank_id?: string | null // NOVO CAMPO
+          bank_id?: string | null
+          row_hash?: string | null
         }
         Update: {
           id?: string
@@ -135,7 +137,8 @@ export type Database = {
           source?: 'file' | 'gmail'
           user_id?: string
           status?: 'pending' | 'identified' | 'resolved'
-          bank_id?: string | null // NOVO CAMPO
+          bank_id?: string | null
+          row_hash?: string | null
         }
         Relationships: [
           {
@@ -366,7 +369,7 @@ export type Database = {
           id?: string
           user_id: string
           amount: number
-          status?: 'pending' | 'approved' | 'rejected'
+          status?: 'pending' | 'approved' | 'rejected' | 'confirmed'
           receipt_url?: string | null
           notes?: string | null
           created_at?: string
@@ -375,7 +378,7 @@ export type Database = {
           id?: string
           user_id?: string
           amount?: number
-          status?: 'pending' | 'approved' | 'rejected'
+          status?: 'pending' | 'approved' | 'rejected' | 'confirmed'
           receipt_url?: string | null
           notes?: string | null
           created_at?: string

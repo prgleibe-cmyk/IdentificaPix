@@ -1,101 +1,102 @@
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
-
-interface UseLiveListSyncProps {
-    user: any;
-    setBankStatementFile: (fn: (prev: any[]) => any[]) => void;
-    setSelectedBankIds: (fn: (prev: string[]) => string[]) => void;
-    showToast?: (msg: string, type: 'success' | 'error') => void;
-}
+import { LaunchService } from '../services/LaunchService';
 
 export const useLiveListSync = ({
     user,
     setBankStatementFile,
     setSelectedBankIds,
     showToast
-}: UseLiveListSyncProps) => {
-    const isHydrated = useRef(false);
+}: any) => {
+    const isHydrating = useRef(false);
+    const lastUserId = useRef<string | null>(null);
+    const [isCleaning, setIsCleaning] = useState(false);
 
-    // --- HIDRATAÇÃO: Recupera do DB ao iniciar ---
-    useEffect(() => {
-        if (!user || isHydrated.current) return;
-
-        const hydrate = async () => {
-            try {
-                const dbTransactions = await consolidationService.getPendingTransactions(user.id);
-                if (!dbTransactions || dbTransactions.length === 0) {
-                    isHydrated.current = true;
-                    return;
-                }
-
-                const groupedByBank: Record<string, Transaction[]> = {};
-                dbTransactions.forEach((t: any) => {
-                    const bankId = t.bank_id || 'unknown';
-                    const tx: Transaction = {
-                        id: t.id,
-                        date: t.transaction_date,
-                        description: t.description,
-                        rawDescription: t.description,
-                        amount: t.amount,
-                        originalAmount: String(t.amount.toFixed(2)),
-                        contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
-                        cleanedDescription: t.description
-                    };
-                    if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
-                    groupedByBank[bankId].push(tx);
-                });
-
-                const restoredFiles = Object.entries(groupedByBank).map(([bankId, txs]) => ({
-                    bankId,
-                    content: '',
-                    fileName: `Lista Viva (Recuperada)`,
-                    rawFile: undefined,
-                    processedTransactions: txs,
-                    isRestored: true
-                }));
-
-                setBankStatementFile(() => restoredFiles);
-                setSelectedBankIds(() => restoredFiles.map(f => f.bankId));
-                isHydrated.current = true;
-                console.log(`[Lista Viva] ${dbTransactions.length} transações restauradas.`);
-            } catch (err) {
-                console.error("Erro na hidratação da Lista Viva:", err);
-            }
-        };
-
-        hydrate();
-    }, [user, setBankStatementFile, setSelectedBankIds]);
-
-    // --- PERSISTÊNCIA: Helper para salvar novas transações ---
-    const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
-        if (!user || transactions.length === 0) return;
+    const hydrate = useCallback(async (forceClearUI: boolean = false) => {
+        if (!user || isHydrating.current || isCleaning) return;
+        isHydrating.current = true;
+        
         try {
-            const data = transactions.map(t => ({
-                transaction_date: t.date,
-                amount: t.amount,
-                description: t.description,
-                type: (t.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
-                pix_key: null,
-                source: 'file' as 'file',
-                user_id: user.id,
-                bank_id: bankId
+            if (forceClearUI) {
+                setBankStatementFile(() => []);
+                setSelectedBankIds(() => []);
+            }
+
+            const dbTransactions = await consolidationService.getPendingTransactions(user.id);
+            
+            if (!dbTransactions || dbTransactions.length === 0) {
+                setBankStatementFile(() => []);
+                setSelectedBankIds(() => []);
+                isHydrating.current = false;
+                return;
+            }
+
+            const groupedByBank: Record<string, Transaction[]> = {};
+            dbTransactions.forEach((t: any) => {
+                const bankId = t.bank_id || 'gmail-sync';
+                const tx: Transaction = {
+                    id: t.id,
+                    date: t.transaction_date,
+                    description: t.description,
+                    rawDescription: t.description,
+                    amount: t.amount,
+                    originalAmount: String(t.amount.toFixed(2)),
+                    contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
+                    cleanedDescription: t.description
+                };
+                if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
+                groupedByBank[bankId].push(tx);
+            });
+
+            const restoredFiles = Object.entries(groupedByBank).map(([bankId, txs]) => ({
+                bankId,
+                fileName: bankId === 'gmail-sync' ? 'Sincronização Gmail' : `Lista Viva (Sincronizada)`,
+                processedTransactions: txs,
+                isRestored: true
             }));
-            await consolidationService.addTransactions(data);
-        } catch (e) {
-            console.warn("[Lista Viva] Falha na sincronização remota (Offline mode)", e);
+
+            setBankStatementFile(() => restoredFiles);
+            setSelectedBankIds((prev: string[]) => {
+                const ids = restoredFiles.map(f => f.bankId);
+                return Array.from(new Set([...prev.filter(id => ids.includes(id)), ...ids]));
+            });
+            
+        } catch (err) {
+            console.error("[Lista Viva] Falha na hidratação:", err);
+        } finally {
+            isHydrating.current = false;
         }
-    }, [user]);
+    }, [user, setBankStatementFile, setSelectedBankIds, isCleaning]);
+
+    useEffect(() => {
+        if (user?.id && user.id !== lastUserId.current) {
+            lastUserId.current = user.id;
+            hydrate();
+        }
+    }, [user, hydrate]);
+
+    const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
+        if (!user) return { added: 0, skipped: 0, total: transactions.length };
+        const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
+        await hydrate();
+        return stats;
+    }, [user, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
         if (!user) return;
+        setIsCleaning(true); // Bloqueia hidratação
         try {
+            setBankStatementFile(() => []); // Limpa UI imediatamente
+            setSelectedBankIds(() => []);
             await consolidationService.deletePendingTransactions(user.id, bankId);
-        } catch (e) {
-            console.error("[Lista Viva] Erro ao limpar banco remoto:", e);
+            console.log("[Lista Viva] Banco limpo com sucesso.");
+        } finally {
+            setIsCleaning(false);
+            await hydrate(true); // Tenta hidratar após limpeza
         }
-    }, [user]);
+    }, [user, setBankStatementFile, setSelectedBankIds, hydrate]);
 
-    return { persistTransactions, clearRemoteList };
+    return { persistTransactions, clearRemoteList, hydrate };
 };

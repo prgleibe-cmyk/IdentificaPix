@@ -2,37 +2,29 @@
 import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, MatchMethod } from '../../types';
 import { normalizeString, parseDate, PLACEHOLDER_CHURCH, cleanTransactionDescriptionForDisplay } from '../utils/parsingUtils';
 
+/**
+ * Calcula a similaridade focada apenas no NOME.
+ */
 export const calculateNameSimilarity = (description: string, contributor: Contributor, ignoreKeywords: string[] = []): number => {
+    // Se não houver keywords (caso do Modelo), a comparação é direta
     const txNorm = normalizeString(description, ignoreKeywords);
     const contribNorm = contributor.normalizedName || normalizeString(contributor.name, ignoreKeywords);
     
     if (!txNorm || !contribNorm) return 0;
 
-    const txTokens = txNorm.split(/\s+/).filter(t => t.length > 0);
-    const contribTokens = contribNorm.split(/\s+/).filter(t => t.length > 0);
+    const txTokens = txNorm.split(/\s+/).filter(t => t.length > 2);
+    const contribTokens = contribNorm.split(/\s+/).filter(t => t.length > 2);
     
-    if (txTokens.length === 0 || contribTokens.length === 0) return 0;
+    if (txTokens.length === 0 || contribTokens.length === 0) {
+        // Fallback para match exato se os nomes forem curtos
+        return txNorm === contribNorm ? 100 : 0;
+    }
     
     const txSet = new Set(txTokens);
     const contribSet = new Set(contribTokens);
     const intersection = [...txSet].filter(w => contribSet.has(w)).length;
     
     return (2 * intersection) / (txSet.size + contribSet.size) * 100;
-};
-
-/**
- * Valida se a diferença de dias entre duas datas está dentro da tolerância.
- */
-const isWithinDateTolerance = (date1: string | undefined, date2: string | undefined, tolerance: number): boolean => {
-    if (tolerance === undefined || !date1 || !date2) return true;
-    const d1 = parseDate(date1);
-    const d2 = parseDate(date2);
-    if (!d1 || !d2) return true;
-
-    const diffTime = Math.abs(d1.getTime() - d2.getTime());
-    const diffDays = diffTime / (1000 * 3600 * 24);
-    
-    return diffDays <= tolerance;
 };
 
 export const matchTransactions = (
@@ -43,37 +35,44 @@ export const matchTransactions = (
     churches: Church[],
     customIgnoreKeywords: string[] = []
 ): MatchResult[] => {
-    const allContributors = contributorFiles.flatMap((file: any) => 
-        file.contributors.map((c: any) => ({ 
+    const contributorsByChurch = new Map<string, any[]>();
+    
+    contributorFiles.forEach((file: any) => {
+        const churchId = file.church.id;
+        const list = file.contributors.map((c: any) => ({ 
             ...c, 
             church: file.church,
-            _internalId: c.id || `contrib-${file.church.id}-${normalizeString(c.name).replace(/\s/g, '')}-${c.amount}`
-        }))
-    );
-    
+            _churchId: churchId,
+            _internalId: c.id || `contrib-${churchId}-${normalizeString(c.name).replace(/\s/g, '')}`
+        }));
+        contributorsByChurch.set(churchId, list);
+    });
+
+    const allContributorsFlat = Array.from(contributorsByChurch.values()).flat();
     const finalResults: MatchResult[] = [];
     const usedContributors = new Set<string>();
 
-    // PROCESSAMENTO DE TODAS AS TRANSAÇÕES DO BANCO (SEM EXCEÇÃO)
     transactions.forEach(tx => {
+        // PRIORIDADE 1: Se a transação já foi pré-marcada como vinda de um modelo,
+        // mantemos a integridade dela e apenas tentamos o match de contribuinte.
+        const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
+        
         let matchResult: MatchResult = {
             transaction: tx,
             contributor: null,
             status: ReconciliationStatus.UNIDENTIFIED,
             church: PLACEHOLDER_CHURCH,
             similarity: 0,
-            contributionType: tx.contributionType
+            contributionType: tx.contributionType,
+            paymentMethod: tx.paymentMethod
         };
 
-        const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
-        
-        // 1. TENTA ASSOCIAÇÃO APRENDIDA
+        // PRIORIDADE 2: Associações Aprendidas (Histórico do Usuário)
         const learned = learnedAssociations.find((la: any) => la.normalizedDescription === txDescNormalized);
-        if (learned) {
-            const matchedContrib = allContributors.find((c: any) => 
-                (normalizeString(c.name, customIgnoreKeywords) === learned.contributorNormalizedName) && 
-                (c.church.id === learned.churchId) &&
-                isWithinDateTolerance(tx.date, c.date, options.dayTolerance)
+        if (learned && learned.churchId) {
+            const churchList = contributorsByChurch.get(learned.churchId) || [];
+            const matchedContrib = churchList.find((c: any) => 
+                normalizeString(c.name, customIgnoreKeywords) === learned.contributorNormalizedName
             );
 
             if (matchedContrib) {
@@ -85,22 +84,20 @@ export const matchTransactions = (
                     church: matchedContrib.church,
                     matchMethod: MatchMethod.LEARNED,
                     similarity: 100,
-                    contributorAmount: matchedContrib.amount
+                    contributorAmount: matchedContrib.amount,
+                    contributionType: matchedContrib.contributionType || tx.contributionType,
+                    paymentMethod: matchedContrib.paymentMethod || tx.paymentMethod
                 };
                 finalResults.push(matchResult);
                 return;
             }
         }
 
-        // 2. BUSCA POR SIMILARIDADE AUTOMÁTICA
+        // PRIORIDADE 3: Match por IA/Similaridade
         let bestMatch: any = null;
         let highestScore = 0;
 
-        allContributors.forEach((contrib: any) => {
-            if (!isWithinDateTolerance(tx.date, contrib.date, options.dayTolerance)) {
-                return;
-            }
-
+        allContributorsFlat.forEach((contrib: any) => {
             const score = calculateNameSimilarity(tx.description, contrib, customIgnoreKeywords);
             if (score > highestScore) {
                 highestScore = score;
@@ -108,45 +105,43 @@ export const matchTransactions = (
             }
         });
 
-        // Só marca como IDENTIFICADO se atingir o limiar, mas a LINHA DO BANCO É MANTIDA SEMPRE
-        if (bestMatch && highestScore >= options.similarityThreshold) {
+        if (bestMatch && highestScore >= 90) {
             usedContributors.add(bestMatch._internalId);
             matchResult = {
                 ...matchResult,
                 status: ReconciliationStatus.IDENTIFIED,
                 contributor: bestMatch,
                 church: bestMatch.church,
-                matchMethod: MatchMethod.AUTOMATIC,
+                matchMethod: MatchMethod.AI,
                 similarity: highestScore,
-                contributorAmount: bestMatch.amount
+                contributorAmount: bestMatch.amount,
+                contributionType: bestMatch.contributionType || tx.contributionType,
+                paymentMethod: bestMatch.paymentMethod || tx.paymentMethod
             };
-        } else if (bestMatch) {
-            // Guarda a sugestão mesmo que baixa, mas mantém status UNIDENTIFIED
+        } else if (bestMatch && highestScore >= 25) {
             matchResult.suggestion = bestMatch;
             matchResult.similarity = highestScore;
         }
 
-        // A transação original é SEMPRE adicionada à lista final
         finalResults.push(matchResult);
     });
 
-    // 3. GERA REGISTROS PENDENTES PARA O QUE SOBROU NAS LISTAS DE CONTRIBUINTES
-    // Garante que nenhum nome da lista de membros seja esquecido
-    allContributors.forEach((contrib: any) => {
+    // Adiciona "Fantasmas" (Contribuintes na lista mas não no extrato)
+    allContributorsFlat.forEach((contrib: any) => {
         if (!usedContributors.has(contrib._internalId)) {
-            const dynamicCleanedName = cleanTransactionDescriptionForDisplay(contrib.name, customIgnoreKeywords);
             finalResults.push({
                 transaction: {
                     id: `ghost-${contrib._internalId}`,
                     date: contrib.date || new Date().toISOString().split('T')[0],
                     description: contrib.name,
                     rawDescription: contrib.name,
-                    amount: 0, // Valor zero no banco pois não foi localizado
-                    cleanedDescription: dynamicCleanedName,
+                    amount: 0,
+                    cleanedDescription: contrib.name,
                     contributionType: contrib.contributionType,
+                    paymentMethod: contrib.paymentMethod,
                     originalAmount: "0.00"
                 },
-                contributor: { ...contrib, cleanedName: dynamicCleanedName },
+                contributor: { ...contrib, cleanedName: contrib.name },
                 status: ReconciliationStatus.PENDING,
                 church: contrib.church,
                 matchMethod: MatchMethod.MANUAL,

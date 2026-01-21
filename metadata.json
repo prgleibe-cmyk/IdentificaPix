@@ -1,7 +1,6 @@
-
 {
   "name": "IdentificaPix",
-  "description": "Sistema de conciliação bancária inteligente para igrejas e instituições utilizando Gemini AI.",
+  "description": "Sistema avançado de conciliação bancária e gestão financeira para instituições religiosas com inteligência artificial Gemini.",
   "requestFramePermissions": [
     "camera",
     "microphone",

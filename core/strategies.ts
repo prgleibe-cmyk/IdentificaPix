@@ -1,284 +1,115 @@
 
 import { Transaction, FileModel } from '../types';
+import { ContractExecutor } from './engine/ContractExecutor';
+import { Fingerprinter } from './processors/Fingerprinter';
 import { DateResolver } from './processors/DateResolver';
 import { AmountResolver } from './processors/AmountResolver';
-import { NameResolver } from './processors/NameResolver';
 import { TypeResolver } from './processors/TypeResolver';
-import { generateFingerprint } from './processors/Fingerprinter';
 
-/**
- * 🛡️ CORE_ESTAVEL - MOTOR DE ESTRATÉGIAS (SYSTEM HEART)
- * --------------------------------------------------------------------------
- * ESTE ARQUIVO É A ÚNICA FONTE DE VERDADE PARA O PROCESSAMENTO DE ARQUIVOS.
- * 
- * ATUALIZAÇÃO: Aplicação de Regras de Limpeza Global na Descrição Principal.
- */
-
-/**
- * Interface que todo Parser de Banco deve implementar.
- */
 export interface BankStrategy {
     name: string;
     canHandle(filename: string, content: string, models?: FileModel[]): boolean;
-    parse(content: string, yearAnchor: number, models?: FileModel[], globalKeywords?: string[]): Transaction[];
+    parse(content: string, yearAnchor: number, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
 }
 
 /**
- * ESTRATÉGIA: MODELO APRENDIDO (DatabaseModelStrategy)
+ * 🛡️ PIPELINE SOURCE RESOLVER (INTEGRAL V6)
+ * Processamento via Modelo Aprendido usando o ContractExecutor.
  */
 export const DatabaseModelStrategy: BankStrategy = {
     name: 'Modelo Aprendido',
-
     canHandle: (filename, content, models) => {
         if (!models || models.length === 0) return false;
-        
-        const fingerprint = generateFingerprint(content);
-        if (!fingerprint) return false;
+        const fileFp = Fingerprinter.generate(content);
+        if (!fileFp) return false;
 
         return models.some(m => 
-            m.fingerprint.delimiter === fingerprint.delimiter &&
-            m.fingerprint.columnCount === fingerprint.columnCount
+            m.is_active && (
+                (m.fingerprint.headerHash === fileFp.headerHash && m.fingerprint.headerHash !== null) ||
+                (m.fingerprint.structuralPattern === fileFp.structuralPattern && m.fingerprint.structuralPattern !== 'UNKNOWN') ||
+                (m.fingerprint.canonicalSignature === fileFp.canonicalSignature)
+            )
         );
     },
-
-    parse: (content, yearAnchor, models, globalKeywords = []) => {
-        if (!models || models.length === 0) return [];
-        const fingerprint = generateFingerprint(content);
-        if (!fingerprint) return [];
-
-        const matchingModel = models.find(m => 
-            m.fingerprint.delimiter === fingerprint.delimiter &&
-            m.fingerprint.columnCount === fingerprint.columnCount
+    parse: async (content, yearAnchor, models, globalKeywords = []) => {
+        const fileFp = Fingerprinter.generate(content);
+        const model = models?.find(m => 
+            m.is_active && (
+                (m.fingerprint.headerHash === fileFp?.headerHash) || 
+                (m.fingerprint.structuralPattern === fileFp?.structuralPattern) ||
+                (m.fingerprint.canonicalSignature === fileFp?.canonicalSignature)
+            )
         );
 
-        if (!matchingModel) return [];
+        if (!model) return [];
 
-        const transactions: Transaction[] = [];
-        const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
-        const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, typeColumnIndex, skipRowsStart } = matchingModel.mapping;
-        const delimiter = matchingModel.fingerprint.delimiter;
-
-        const combinedKeywords = [
-            ...(matchingModel.parsingRules?.ignoredKeywords || []),
-            ...globalKeywords
-        ];
-
-        const dataLines = lines.slice(skipRowsStart || 0);
-
-        dataLines.forEach((line, index) => {
-            const cols = line.split(delimiter || ';');
-            
-            if (cols.length <= Math.max(dateColumnIndex, descriptionColumnIndex, amountColumnIndex)) return;
-
-            const rawDate = cols[dateColumnIndex];
-            const rawDesc = cols[descriptionColumnIndex];
-            const rawAmount = cols[amountColumnIndex];
-            const rawType = typeColumnIndex !== undefined ? cols[typeColumnIndex] : '';
-
-            const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
-            const amountStr = AmountResolver.clean(rawAmount);
-            const amount = parseFloat(amountStr);
-
-            // ACEITA VALOR 0 PARA FIDELIDADE TOTAL
-            if (isoDate && !isNaN(amount)) {
-                const cleanedDesc = NameResolver.clean(rawDesc, combinedKeywords);
-                const finalType = rawType ? rawType.trim().toUpperCase() : TypeResolver.resolveFromDescription(rawDesc);
-
-                transactions.push({
-                    id: `db-${index}-${Date.now()}`,
-                    date: isoDate,
-                    description: cleanedDesc, // APLICAÇÃO DA REGRA GLOBAL: Usa descrição limpa
-                    rawDescription: rawDesc,  // Fonte de Verdade (Backup)
-                    amount: amount,
-                    originalAmount: rawAmount,
-                    cleanedDescription: cleanedDesc, 
-                    contributionType: finalType
-                });
-            }
-        });
-
-        DatabaseModelStrategy.name = `Modelo: ${matchingModel.name}`;
-        
-        return transactions;
+        // EXECUÇÃO DIRETA E BLINDADA
+        const result = await ContractExecutor.apply(model, content);
+        return result;
     }
 };
 
-/**
- * ESTRATÉGIA: SICOOB (PDF/Texto)
- */
-export const SicoobStrategy: BankStrategy = {
-    name: 'Sicoob (Extrato PDF)',
-    
-    canHandle: (filename, content) => {
-        const upper = content.toUpperCase();
-        return upper.includes('SICOOB') || 
-               (upper.includes('DATA') && upper.includes('HISTÓRICO') && upper.includes('VALOR'));
-    },
-
-    parse: (content, yearAnchor, models, globalKeywords = []) => {
-        const transactions: Transaction[] = [];
-        const lines = content.split(/\r?\n/);
-        
-        const headerRegex = /^(\d{2}\/\d{2})\s+(.*?)\s+([\d.,]+[CD]?\*?)$/;
-        const noiseRegex = /SICOOB|SISTEMA DE COOPERATIVAS|PLATAFORMA DE SERVIÇOS|EXTRATO CONTA|DATA\s+HISTÓRICO\s+VALOR|TOTAL DE|OUVIDORIA|CENTRAL DE ATENDIMENTO|DEFICIENTES AUDITIVOS|CAPITAIS|REGIÕES|0800/i;
-
-        let currentBlock: {
-            date: string;
-            lines: string[];
-            rawAmount: string;
-        } | null = null;
-
-        const processBlock = (block: typeof currentBlock) => {
-            if (!block) return;
-
-            const isoDate = DateResolver.resolveToISO(block.date, yearAnchor);
-            
-            let multiplier = 1;
-            const valUpper = block.rawAmount.toUpperCase();
-            if (valUpper.includes('D') || valUpper.includes('-')) multiplier = -1;
-            
-            const amountStr = AmountResolver.clean(block.rawAmount);
-            const amount = Math.abs(parseFloat(amountStr)) * multiplier;
-
-            if (isoDate && !isNaN(amount)) {
-                const fullDescription = block.lines.join(' '); // Original completo
-                const cleanedDescription = NameResolver.clean(fullDescription, globalKeywords);
-                const type = TypeResolver.resolveFromDescription(fullDescription);
-
-                transactions.push({
-                    id: `sicoob-${isoDate}-${amount}-${transactions.length}`,
-                    date: isoDate,
-                    description: cleanedDescription, // APLICAÇÃO DA REGRA GLOBAL: Usa descrição limpa
-                    rawDescription: fullDescription, // Fonte de Verdade
-                    amount: amount,
-                    originalAmount: block.rawAmount,
-                    cleanedDescription: cleanedDescription, 
-                    contributionType: type
-                });
-            }
-        };
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            if (noiseRegex.test(line)) continue;
-
-            const match = line.match(headerRegex);
-
-            if (match) {
-                if (currentBlock) processBlock(currentBlock);
-                currentBlock = {
-                    date: match[1], 
-                    lines: [match[2].trim()], 
-                    rawAmount: match[3] 
-                };
-            } else {
-                if (currentBlock) currentBlock.lines.push(line);
-            }
-        }
-
-        if (currentBlock) processBlock(currentBlock);
-
-        return transactions;
-    }
-};
-
-/**
- * ESTRATÉGIA: GENÉRICA (Fallback Inteligente)
- */
 export const GenericStrategy: BankStrategy = {
-    name: 'Genérico (CSV/Excel)',
-
+    name: 'Genérico',
     canHandle: () => true,
-
     parse: (content, yearAnchor, models, globalKeywords = []) => {
-        const transactions: Transaction[] = [];
         const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
-        
         if (lines.length === 0) return [];
-
-        const firstLine = lines[0];
-        const delimiter = firstLine.includes(';') ? ';' : (firstLine.includes('\t') ? '\t' : ',');
-        
-        const rows = lines.map(l => l.split(delimiter));
-        const dateIdx = DateResolver.identifyDateColumn(rows);
-        const amountIdx = AmountResolver.identifyAmountColumn(rows, [dateIdx]);
-        const nameIdx = NameResolver.identifyNameColumn(rows, [dateIdx, amountIdx]);
-        const typeIdx = TypeResolver.identifyTypeColumn(rows, [dateIdx, amountIdx, nameIdx]);
-
-        if (dateIdx === -1 || amountIdx === -1) return [];
-
-        rows.forEach((row, index) => {
-            const rawDate = row[dateIdx];
-            const rawAmount = row[amountIdx];
-            const rawDesc = nameIdx !== -1 ? row[nameIdx] : 'Sem descrição';
-            
-            let rawType = typeIdx !== -1 ? row[typeIdx] : '';
-            if (!rawType || rawType.trim() === '') {
-                rawType = TypeResolver.resolveFromDescription(rawDesc);
-            } else {
-                rawType = rawType.toUpperCase().trim();
-            }
-
+        const delimiter = Fingerprinter.detectDelimiter(lines[0]);
+        const grid = lines.map(l => l.split(delimiter));
+        const dateIdx = DateResolver.identifyDateColumn(grid);
+        const amountIdx = AmountResolver.identifyAmountColumn(grid, [dateIdx]);
+        const nameIdx = TypeResolver.identifyTypeColumn(grid, [dateIdx, amountIdx]);
+        const transactions: Transaction[] = [];
+        grid.forEach((cols, index) => {
+            const rawDate = cols[dateIdx] || '';
+            const rawDesc = cols[nameIdx] || cols.join(' ');
+            const rawAmount = cols[amountIdx] || '';
             const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
-            const amountStr = AmountResolver.clean(rawAmount);
-            const amount = parseFloat(amountStr);
-
-            // ACEITA VALOR 0
-            if (isoDate && !isNaN(amount)) {
-                const cleanedDesc = NameResolver.clean(rawDesc, globalKeywords);
-
+            const stdAmount = AmountResolver.clean(rawAmount);
+            const numVal = parseFloat(stdAmount);
+            if (isoDate && !isNaN(numVal) && stdAmount !== "0.00") {
                 transactions.push({
                     id: `gen-${index}-${Date.now()}`,
                     date: isoDate,
-                    description: cleanedDesc,     // APLICAÇÃO DA REGRA GLOBAL: Usa descrição limpa
-                    rawDescription: rawDesc,  // Fonte de Verdade
-                    amount: amount,
+                    description: rawDesc,
+                    rawDescription: rawDesc,
+                    amount: numVal,
                     originalAmount: rawAmount,
-                    cleanedDescription: cleanedDesc,
-                    contributionType: rawType
+                    cleanedDescription: rawDesc,
+                    contributionType: TypeResolver.resolveFromDescription(rawDesc)
                 });
             }
         });
-
         return transactions;
     }
 };
 
 export const StrategyEngine = {
-    strategies: [DatabaseModelStrategy, SicoobStrategy, GenericStrategy],
-
-    process: (filename: string, content: string, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): { transactions: Transaction[], strategyName: string } => {
+    strategies: [DatabaseModelStrategy, GenericStrategy],
+    process: async (filename: string, content: string, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): Promise<{ transactions: Transaction[], strategyName: string }> => {
         const yearAnchor = DateResolver.discoverAnchorYear(content);
         
-        if (overrideModel) {
-            try {
-                const specificResults = DatabaseModelStrategy.parse(content, yearAnchor, [overrideModel], globalKeywords);
-                if (specificResults.length > 0) {
-                    return { 
-                        transactions: specificResults, 
-                        strategyName: `Modelo Aprovado: ${overrideModel.name}` 
-                    };
-                }
-            } catch (e) {
-                console.error(`[Engine] Erro crítico ao aplicar modelo específico:`, e);
-            }
+        let targetModel = overrideModel;
+
+        if (!targetModel) {
+            const fileFp = Fingerprinter.generate(content);
+            targetModel = models.find(m => 
+                m.is_active && (
+                    (m.fingerprint.headerHash === fileFp?.headerHash && m.fingerprint.headerHash !== null) ||
+                    (m.fingerprint.structuralPattern === fileFp?.structuralPattern) ||
+                    (m.fingerprint.canonicalSignature === fileFp?.canonicalSignature)
+                )
+            );
         }
 
-        for (const strategy of StrategyEngine.strategies) {
-            if (strategy.name === GenericStrategy.name) continue;
-
-            if (strategy.canHandle(filename, content, models)) {
-                const results = strategy.parse(content, yearAnchor, models, globalKeywords);
-                if (results.length > 0) {
-                    return { transactions: results, strategyName: strategy.name };
-                }
-            }
+        // SE HOUVER MODELO, O FLUXO É EXCLUSIVO. NÃO HÁ FALLBACK PARA GENÉRICO.
+        if (targetModel) {
+            const txs = await DatabaseModelStrategy.parse(content, yearAnchor, [targetModel], globalKeywords);
+            return { transactions: txs, strategyName: targetModel.name };
         }
 
-        return { 
-            transactions: GenericStrategy.parse(content, yearAnchor, models, globalKeywords),
-            strategyName: GenericStrategy.name 
-        };
+        const genResult = GenericStrategy.parse(content, yearAnchor, models, globalKeywords) as Transaction[];
+        return { transactions: genResult, strategyName: 'Genérico' };
     }
 };

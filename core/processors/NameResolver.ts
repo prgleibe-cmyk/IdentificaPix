@@ -10,8 +10,7 @@ export class NameResolver {
     /\bCONTA\b/gi, /\bCORRENTE\b/gi, /\bPOUPANCA\b/gi, /\bBANCO\b/gi,
     /\bCOMPROVANTE\b/gi, /\bAUTENTICACAO\b/gi, /\bSTR\b/gi, /\bPGTO\b/gi,
     /\bCREDITO\b/gi, /\bDEBITO\b/gi, /\bEXTRATO\b/gi, /\bFAVORECIDO\b/gi,
-    /\bLIQUIDACAO\b/gi, /\bESTORNO\b/gi, /\bLANCTO\b/gi,
-    /\bRECEB\.?\s*OUTRA\s*IF\b/gi
+    /\bLIQUIDACAO\b/gi, /\bESTORNO\b/gi, /\bLANCTO\b/gi
   ];
 
   private static CONTROL_KEYWORDS = [
@@ -34,10 +33,8 @@ export class NameResolver {
             if (excludedIndices.includes(index)) return;
             const val = String(cell || '').trim();
             
-            // Um nome costuma ter mais de 4 caracteres e não ser puramente numérico
             if (val.length > 4 && !/^[\d.,R$\s\-()]+$/.test(val)) {
                 scores[index] += 1;
-                // Bônus para nomes com múltiplos espaços (característica de nomes/descrições)
                 if (val.split(' ').length > 1) scores[index] += 0.5;
             }
         });
@@ -48,8 +45,8 @@ export class NameResolver {
   }
 
   /**
-   * LIMPEZA UNIVERSAL: A regra de ouro do sistema.
-   * Aplica todas as limpezas bancárias e customizadas em um único pipeline.
+   * LIMPEZA UNIVERSAL: Preserva documentos e remove ruído bancário.
+   * MODIFICAÇÃO: Não remove mais sequências numéricas longas para preservar CPFs/CNPJs.
    */
   static clean(rawName: string, userKeywords: string[] = []): string {
     if (!rawName) return '';
@@ -61,30 +58,24 @@ export class NameResolver {
       cleaned = cleaned.replace(pattern, ' ');
     });
 
-    // 2. Palavras-chave Customizadas (do mais longo para o mais curto)
+    // 2. Palavras-chave Customizadas
     const sortedKeywords = [...userKeywords].sort((a, b) => b.length - a.length);
     sortedKeywords.forEach(k => {
       if (k && k.trim()) {
-        const escaped = k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        cleaned = cleaned.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), ' ');
+          const escaped = k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          cleaned = cleaned.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), ' ');
       }
     });
 
-    // 3. Lixo Técnico e Pontuação
-    cleaned = cleaned.replace(/\d{3}\.\d{3}\.\d{3}-\d{2}/g, ' '); // CPF
-    cleaned = cleaned.replace(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g, ' '); // CNPJ
-    cleaned = cleaned.replace(/[*\-_.;:/\\|()<>]/g, ' '); // Símbolos
-
-    // 4. Normalização de Espaços
+    // 3. Normalização de Espaços
+    // NOTA: Mantemos números e caracteres especiais (.,-*) para preservar a identidade do documento.
     const result = cleaned.replace(/\s+/g, ' ').trim();
 
-    // 🛡️ BLINDAGEM: Se a limpeza deletou quase tudo (nome muito curto), 
-    // retorna o original para garantir que o usuário veja algo.
     return result.length < 2 ? rawName.trim() : result;
   }
 
   /**
-   * Normalização para comparison em memória (Sem acentos, Uppercase).
+   * NORMALIZAÇÃO DE SEGURANÇA
    */
   static normalize(text: string): string {
     if (!text) return '';
@@ -92,7 +83,7 @@ export class NameResolver {
       .toUpperCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') 
-      .replace(/[^\w\s]/gi, '')       
+      .replace(/[^A-Z0-9\s*.\-/]/gi, '') 
       .replace(/\s+/g, ' ')           
       .trim();
   }

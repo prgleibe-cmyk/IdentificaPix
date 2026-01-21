@@ -22,16 +22,14 @@ import {
     WhatsAppIcon,
     PresentationChartLineIcon,
     DocumentDuplicateIcon,
-    ArrowPathIcon,
     TableCellsIcon,
-    BanknotesIcon,
-    BoltIcon
+    BanknotesIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
-    const { signOut, user, subscription, systemSettings, loading: authLoading } = useAuth();
+    const { signOut, user, subscription, systemSettings } = useAuth();
     const { openPaymentModal, isSyncing } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -46,7 +44,6 @@ export const Sidebar: React.FC = () => {
             { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
-            { view: 'lancamentoAutomatico', labelKey: 'Lançamento Automático', icon: <BoltIcon className="w-5 h-5"/> },
             { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-5 h-5"/> },
         ];
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <ShieldCheckIcon className="w-5 h-5"/>, special: true });
@@ -138,13 +135,6 @@ export const Sidebar: React.FC = () => {
                 </nav>
 
                 <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>
-                    {isSyncing && (
-                        <div className={`flex items-center justify-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/30 rounded-full animate-pulse ${isCollapsed ? 'mx-auto' : ''}`}>
-                            <ArrowPathIcon className="w-3.5 h-3.5 text-blue-400 animate-spin" />
-                            {!isCollapsed && <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wide">Sincronizando...</span>}
-                        </div>
-                    )}
-
                     <div className={`flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
                         <button 
                             onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 

@@ -21,7 +21,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
-    // --- Modularized Controllers & State Slices ---
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
@@ -62,7 +61,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [isSyncing, setIsSyncing] = useState(false);
 
-    // --- High-level Orchestration Actions ---
     const saveSmartEdit = useCallback((result: MatchResult) => {
         reconciliation.updateReportData(result);
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
@@ -73,7 +71,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reconciliation, referenceData, modalController, showToast]);
 
     const openManualIdentify = useCallback((txId: string) => {
-        const tx = reconciliation.matchResults.find(r => r.transaction.id === txId)?.transaction;
+        const tx = reconciliation.matchResults.find((r: any) => r.transaction.id === txId)?.transaction;
         if (tx) reconciliation.setManualIdentificationTx(tx);
     }, [reconciliation]);
 
@@ -82,7 +80,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setTimeout(() => reconciliation.handleCompare(), 500);
     }, [reconciliation]);
 
-    // --- Derived State: Summary Calculation ---
     const summary = useMemo(() => {
         const results = reconciliation.matchResults;
         const hasSession = reconciliation.hasActiveSession;
@@ -96,10 +93,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let autoVal = 0, manualVal = 0, pendingVal = 0;
 
         if (hasSession && results.length > 0) {
-            identifiedCount = results.filter(r => r.status === 'IDENTIFICADO').length;
-            unidentifiedCount = results.filter(r => r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE').length;
+            identifiedCount = results.filter((r: any) => r.status === 'IDENTIFICADO').length;
+            unidentifiedCount = results.filter((r: any) => r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE').length;
             
-            results.forEach(r => {
+            results.forEach((r: any) => {
                 if (r.status === 'IDENTIFICADO') {
                     const val = r.transaction.amount;
                     totalValue += val;
@@ -113,10 +110,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             });
 
-            const grouped = groupResultsByChurch(results.filter(r => r.status === 'IDENTIFICADO'));
-            valuePerChurch = Object.values(grouped).map(group => {
+            const grouped = groupResultsByChurch(results.filter((r: any) => r.status === 'IDENTIFICADO'));
+            valuePerChurch = Object.values(grouped).map((group: any) => {
                 const churchName = group[0]?.church?.name || 'Desconhecida';
-                const total = group.reduce((acc, curr) => acc + curr.transaction.amount, 0);
+                const total = (group as any[]).reduce((acc: number, curr: any) => acc + curr.transaction.amount, 0);
                 return [churchName, total] as [string, number];
             }).sort((a, b) => b[1] - a[1]);
 

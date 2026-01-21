@@ -1,165 +1,39 @@
 
 import React from 'react';
 
-// --- Base Icon Props ---
-interface IconProps extends React.SVGProps<SVGSVGElement> {
-    className?: string;
-    strokeWidth?: number;
-    title?: string;
-}
-
-// Helper para padronizar o estilo "Outline" (Lucide/Heroicons style)
-const BaseIcon: React.FC<IconProps & { children: React.ReactNode, viewBox?: string }> = ({ 
-    className = "w-6 h-6", 
-    strokeWidth = 1.5, 
-    children,
-    viewBox = "0 0 24 24",
-    ...props
-}) => (
+export const BaseIcon: React.FC<any> = (props) => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
-        viewBox={viewBox} 
+        viewBox="0 0 24 24" 
         fill="none" 
         stroke="currentColor" 
-        strokeWidth={strokeWidth} 
+        strokeWidth={props.strokeWidth || 1.5} 
         strokeLinecap="round" 
         strokeLinejoin="round" 
-        className={className}
+        className={props.className || "w-6 h-6"}
         {...props}
     >
-        {props.title && <title>{props.title}</title>}
-        {children}
+        {props.children}
     </svg>
 );
 
-// ... (Outros ícones mantidos inalterados, exportando apenas o LogoIcon modificado e o resto do arquivo) ...
-
-export const CreditCardIcon: React.FC<IconProps> = (props) => (
+export const MagnifyingGlassIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <rect x="2" y="5" width="20" height="14" rx="2" />
-        <line x1="2" y1="10" x2="22" y2="10" />
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </BaseIcon>
 );
 
-export const BarcodeIcon: React.FC<IconProps> = (props) => (
+/* Alias for MagnifyingGlassIcon */
+export const SearchIcon = MagnifyingGlassIcon;
+
+export const MinusIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M3 5v14" />
-        <path d="M8 5v14" />
-        <path d="M12 5v14" />
-        <path d="M17 5v14" />
-        <path d="M21 5v14" />
+        <line x1="5" y1="12" x2="19" y2="12" />
     </BaseIcon>
 );
 
-export const MagnifyingGlassIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-    </BaseIcon>
-);
-
-export const BanknotesIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </BaseIcon>
-);
-
-export const PlayCircleIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <circle cx="12" cy="12" r="10" />
-        <polygon points="10 8 16 12 10 16 10 8" />
-    </BaseIcon>
-);
-
-export const CodeBracketSquareIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <rect width="18" height="18" x="3" y="3" rx="2" />
-        <path d="m9 10-2 2 2 2" />
-        <path d="m15 10 2 2-2 2" />
-    </BaseIcon>
-);
-
-// --- 3D ENHANCED LOGO ---
-export const LogoIcon: React.FC<IconProps> = ({ className = "w-10 h-10", ...props }) => (
-    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} {...props} style={{ overflow: 'visible' }}>
-        <defs>
-            {/* Gradiente Metálico/Neon */}
-            <linearGradient id="logo_grad_3d" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#22d3ee" />   {/* Cyan 400 */}
-                <stop offset="50%" stopColor="#3b82f6" />   {/* Blue 500 */}
-                <stop offset="100%" stopColor="#6366f1" />  {/* Indigo 500 */}
-            </linearGradient>
-            
-            {/* Filtro de Relevo e Iluminação 3D */}
-            <filter id="3d-relief" x="-50%" y="-50%" width="200%" height="200%">
-                {/* 1. Blur para suavizar */}
-                <feGaussianBlur in="SourceAlpha" stdDeviation="0.5" result="blur"/>
-                
-                {/* 2. Luz Especular (Brilho) */}
-                <feSpecularLighting in="blur" surfaceScale="5" specularConstant="1" specularExponent="20" lightingColor="#ffffff" result="specularOut">
-                    <fePointLight x="-5000" y="-10000" z="20000"/>
-                </feSpecularLighting>
-                
-                {/* 3. Compor Brilho sobre o Objeto */}
-                <feComposite in="specularOut" in2="SourceAlpha" operator="in" result="specularComposite"/>
-                
-                {/* 4. Sombra Projetada (Drop Shadow) */}
-                <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.5" />
-                
-                {/* 5. Juntar tudo */}
-                <feComposite in="SourceGraphic" in2="specularComposite" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
-            </filter>
-        </defs>
-
-        <g filter="url(#3d-relief)">
-            <path 
-                d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" 
-                stroke="url(#logo_grad_3d)" 
-                strokeWidth="3" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-            />
-            <path 
-                d="M9 11L11 13L15 9" 
-                stroke="url(#logo_grad_3d)" 
-                strokeWidth="3" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-            />
-        </g>
-    </svg>
-);
-
-export const GoogleIcon: React.FC<IconProps> = ({ className = "w-5 h-5", ...props }) => (
-    <svg className={className} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" {...props}>
-        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
-        <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
-        <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
-        <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.02,35.625,44,30.036,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
-    </svg>
-);
-
-export const WhatsAppIcon: React.FC<IconProps> = ({ className, ...props }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className} {...props}>
-        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.463 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-    </svg>
-);
-
-export const HomeIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-        <polyline points="9 22 9 12 15 12 15 22" />
-    </BaseIcon>
-);
-
-export const UploadIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-    </BaseIcon>
-);
-
-export const PlusCircleIcon: React.FC<IconProps> = (props) => (
+export const PlusCircleIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="8" x2="12" y2="16" />
@@ -167,146 +41,96 @@ export const PlusCircleIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-export const ChartBarIcon: React.FC<IconProps> = (props) => (
+export const ArrowPathIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+        <path d="M21 3v5h-5" />
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+        <path d="M3 21v-5h5" />
     </BaseIcon>
 );
 
-export const SearchIcon: React.FC<IconProps> = (props) => (
+export const PhotoIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <circle cx="11" cy="11" r="8" />
-        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <polyline points="21 15 16 10 5 21" />
     </BaseIcon>
 );
 
-export const Cog6ToothIcon: React.FC<IconProps> = (props) => (
+export const SparklesIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-        <circle cx="12" cy="12" r="3" />
+        <path d="m12 3 1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z" />
+        <path d="M5 3v4" /><path d="M3 5h4" /><path d="M21 17v4" /><path d="M19 19h4" />
     </BaseIcon>
 );
 
-export const CheckCircleIcon: React.FC<IconProps> = (props) => (
+export const CheckCircleIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
         <polyline points="22 4 12 14.01 9 11.01" />
     </BaseIcon>
 );
 
-export const XCircleIcon: React.FC<IconProps> = (props) => (
+export const XMarkIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <circle cx="12" cy="12" r="10" />
-        <line x1="15" y1="9" x2="9" y2="15" />
-        <line x1="9" y1="9" x2="15" y2="15" />
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
     </BaseIcon>
 );
 
-export const ChartPieIcon: React.FC<IconProps> = (props) => (
+export const HomeIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-        <path d="M22 12A10 10 0 0 0 12 2v10z" />
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="9 22 9 12 15 12 15 22" />
     </BaseIcon>
 );
 
-export const ShieldCheckIcon: React.FC<IconProps> = (props) => (
+export const UploadIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        <polyline points="9 12 11 14 15 10" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
     </BaseIcon>
 );
 
-export const UserIcon: React.FC<IconProps> = (props) => (
+export const ChartBarIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
+        <line x1="12" y1="20" x2="12" y2="10" />
+        <line x1="18" y1="20" x2="18" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="16" />
     </BaseIcon>
 );
 
-export const UserCircleIcon: React.FC<IconProps> = (props) => (
+export const Cog6ToothIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M5.52 19c.64-2.2 1.84-3 3.22-3h6.52c1.38 0 2.58.8 3.22 3" />
-        <circle cx="12" cy="10" r="3" />
-        <circle cx="12" cy="12" r="10" />
+        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z" />
     </BaseIcon>
 );
 
-export const BuildingOfficeIcon: React.FC<IconProps> = (props) => (
+export const ShieldCheckIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-        <line x1="9" y1="22" x2="9" y2="22.01" />
-        <line x1="15" y1="22" x2="15" y2="22.01" />
-        <line x1="9" y1="18" x2="9" y2="18.01" />
-        <line x1="15" y1="18" x2="15" y2="18.01" />
-        <line x1="9" y1="14" x2="9" y2="14.01" />
-        <line x1="15" y1="14" x2="15" y2="14.01" />
-        <line x1="9" y1="10" x2="9" y2="10.01" />
-        <line x1="15" y1="10" x2="15" y2="10.01" />
-        <line x1="9" y1="6" x2="9" y2="6.01" />
-        <line x1="15" y1="6" x2="15" y2="6.01" />
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+        <path d="m9 12 2 2 4-4" />
     </BaseIcon>
 );
 
-export const CircleStackIcon: React.FC<IconProps> = (props) => (
+export const DocumentDuplicateIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <ellipse cx="12" cy="5" rx="9" ry="3" />
-        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-    </BaseIcon>
-);
-
-export const BoltIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-    </BaseIcon>
-);
-
-export const DollarSignIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <line x1="12" y1="1" x2="12" y2="23" />
-        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </BaseIcon>
-);
-
-export const SparklesIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-    </BaseIcon>
-);
-
-export const ArrowsRightLeftIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <polyline points="17 1 21 5 17 9" />
-        <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-        <polyline points="7 23 3 19 7 15" />
-        <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-    </BaseIcon>
-);
-
-export const DocumentDuplicateIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+        <path d="M20 7h-9a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z" />
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
     </BaseIcon>
 );
 
-export const FloppyDiskIcon: React.FC<IconProps> = (props) => (
+export const BrainIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-        <polyline points="17 21 17 13 7 13 7 21" />
-        <polyline points="7 3 7 8 15 8" />
+        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.54Z" />
+        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.54Z" />
     </BaseIcon>
 );
 
-export const PencilIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-    </BaseIcon>
-);
-
-export const TrashIcon: React.FC<IconProps> = (props) => (
+export const TrashIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <polyline points="3 6 5 6 21 6" />
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -315,7 +139,177 @@ export const TrashIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-export const PrinterIcon: React.FC<IconProps> = (props) => (
+export const WrenchScrewdriverIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="m14.7 12.7 5 5a2 2 0 0 1 0 2.8l-1.5 1.5a2 2 0 0 1-2.8 0l-5-5" />
+        <path d="M8.8 13.1l-4.2 4.2a2 2 0 0 0 0 2.8l1.5 1.5a2 2 0 0 0 2.8 0l4.2-4.2" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="m20 4-8.4 8.4" />
+        <path d="m4 20 8.4-8.4" />
+    </BaseIcon>
+);
+
+export const DocumentArrowDownIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="12" y1="18" x2="12" y2="12" />
+        <polyline points="9 15 12 18 15 15" />
+    </BaseIcon>
+);
+
+export const CloudArrowUpIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+        <polyline points="12 12 12 16" />
+        <polyline points="9 15 12 12 15 15" />
+    </BaseIcon>
+);
+
+export const PlayCircleIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <circle cx="12" cy="12" r="10" />
+        <polygon points="10 8 16 12 10 16 10 8" />
+    </BaseIcon>
+);
+
+export const PencilIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z" />
+    </BaseIcon>
+);
+
+export const ExclamationTriangleIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+    </BaseIcon>
+);
+
+export const UserIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+    </BaseIcon>
+);
+
+export const BanknotesIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="2" y="6" width="20" height="12" rx="2" />
+        <circle cx="12" cy="12" r="2" />
+        <path d="M6 12h.01M18 12h.01" />
+    </BaseIcon>
+);
+
+export const ArrowUturnLeftIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+    </BaseIcon>
+);
+
+/* Fix: Deduplicated XCircleIcon and ensured unique implementation */
+export const XCircleIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="15" y1="9" x2="9" y2="15" />
+        <line x1="9" y1="9" x2="15" y2="15" />
+    </BaseIcon>
+);
+
+export const ChevronDownIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <polyline points="6 9 12 15 18 9" />
+    </BaseIcon>
+);
+
+export const ChevronUpIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <polyline points="18 15 12 9 6 15" />
+    </BaseIcon>
+);
+
+export const ChevronLeftIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <polyline points="15 18 9 12 15 6" />
+    </BaseIcon>
+);
+
+export const ChevronRightIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <polyline points="9 18 15 12 9 6" />
+    </BaseIcon>
+);
+
+export const ArrowLeftOnRectangleIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" y1="12" x2="9" y2="12" />
+    </BaseIcon>
+);
+
+export const WhatsAppIcon: React.FC<any> = (props) => (
+    <svg 
+        viewBox="0 0 24 24" 
+        fill="currentColor" 
+        className={props.className || "w-6 h-6"}
+        {...props}
+    >
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+    </svg>
+);
+
+export const CreditCardIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+        <line x1="1" y1="10" x2="23" y2="10" />
+    </BaseIcon>
+);
+
+export const BarcodeIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M3 5v14M8 5v14M11 5v14M16 5v14M21 5v14M6 5v14M13 5v14M18 5v14" />
+    </BaseIcon>
+);
+
+export const ClockIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+    </BaseIcon>
+);
+
+export const PlusIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+    </BaseIcon>
+);
+
+export const TrophyIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+        <path d="M4 22h16" />
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+    </BaseIcon>
+);
+
+export const TableCellsIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="3" y1="15" x2="21" y2="15" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+        <line x1="15" y1="3" x2="15" y2="21" />
+    </BaseIcon>
+);
+
+export const PrinterIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <polyline points="6 9 6 2 18 2 18 9" />
         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
@@ -323,46 +317,101 @@ export const PrinterIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-export const DocumentArrowDownIcon: React.FC<IconProps> = (props) => (
+export const FloppyDiskIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
-        <path d="M12 10v8" />
-        <path d="M8 14l4 4 4-4" />
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+        <polyline points="17 21 17 13 7 13 7 21" />
+        <polyline points="7 3 7 8 15 8" />
     </BaseIcon>
 );
 
-export const XMarkIcon: React.FC<IconProps> = (props) => (
+export const ArrowsRightLeftIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <line x1="18" y1="6" x2="6" y2="18" />
-        <line x1="6" y1="6" x2="18" y2="18" />
+        <path d="m17 2 4 4-4 4" />
+        <path d="M3 6h18" />
+        <path d="m7 22-4-4 4-4" />
+        <path d="M21 18H3" />
     </BaseIcon>
 );
 
-export const ChevronLeftIcon: React.FC<IconProps> = (props) => (
+export const EllipsisVerticalIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <polyline points="15 18 9 12 15 6" />
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="12" cy="5" r="1" />
+        <circle cx="12" cy="19" r="1" />
     </BaseIcon>
 );
 
-export const ChevronRightIcon: React.FC<IconProps> = (props) => (
+export const EnvelopeIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <polyline points="9 18 15 12 9 6" />
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z" />
+        <polyline points="22,6 12,13 2,6" />
     </BaseIcon>
 );
 
-export const ChevronUpIcon: React.FC<IconProps> = (props) => (
+export const GoogleIcon: React.FC<any> = (props) => (
+    <svg 
+        viewBox="0 0 24 24" 
+        className={props.className || "w-6 h-6"} 
+        {...props}
+    >
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.07-3.71 1.07-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335"/>
+    </svg>
+);
+
+export const BoltIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <polyline points="18 15 12 9 6 15" />
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </BaseIcon>
 );
 
-export const ChevronDownIcon: React.FC<IconProps> = (props) => (
+export const CheckBadgeIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <polyline points="6 9 12 15 18 9" />
+        <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" />
+        <path d="m9 12 2 2 4-4" />
     </BaseIcon>
 );
 
-export const SunIcon: React.FC<IconProps> = (props) => (
+export const ShieldIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+    </BaseIcon>
+);
+
+export const LogoIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+    </BaseIcon>
+);
+
+export const UserPlusIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="8.5" cy="7" r="4" />
+        <line x1="20" y1="8" x2="20" y2="14" />
+        <line x1="23" y1="11" x2="17" y2="11" />
+    </BaseIcon>
+);
+
+export const DollarSignIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </BaseIcon>
+);
+
+export const CircleStackIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+        <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
+    </BaseIcon>
+);
+
+export const SunIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <circle cx="12" cy="12" r="5" />
         <line x1="12" y1="1" x2="12" y2="3" />
@@ -376,13 +425,13 @@ export const SunIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-export const MoonIcon: React.FC<IconProps> = (props) => (
+export const MoonIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
     </BaseIcon>
 );
 
-export const GlobeAltIcon: React.FC<IconProps> = (props) => (
+export const GlobeAltIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <circle cx="12" cy="12" r="10" />
         <line x1="2" y1="12" x2="22" y2="12" />
@@ -390,82 +439,7 @@ export const GlobeAltIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-export const ArrowLeftOnRectangleIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-        <polyline points="16 17 21 12 16 7" />
-        <line x1="21" y1="12" x2="9" y2="12" />
-    </BaseIcon>
-);
-
-export const ExclamationTriangleIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-    </BaseIcon>
-);
-
-export const PaintBrushIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M12 2.69l5.74 9.2a.909.909 0 0 0 1.27.32l2.99-1.99a.909.909 0 0 0 .32-1.27l-9.2-5.74Z" />
-        <path d="M11 10.65 14.35 14" />
-        <path d="m14 17 3 3" />
-        <path d="M8.29 17a6.29 6.29 0 0 0-3.32-2.18l-.5-.11a6.3 6.3 0 0 0-3.83.69l-.19.1 7.84 7.84.1-.19a6.3 6.3 0 0 0 .69-3.83l-.11-.5A6.29 6.29 0 0 0 8.29 17Z" />
-    </BaseIcon>
-);
-
-export const AdjustmentsHorizontalIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <line x1="4" y1="21" x2="4" y2="14" />
-        <line x1="4" y1="10" x2="4" y2="3" />
-        <line x1="12" y1="21" x2="12" y2="12" />
-        <line x1="12" y1="8" x2="12" y2="3" />
-        <line x1="20" y1="21" x2="20" y2="16" />
-        <line x1="20" y1="12" x2="20" y2="3" />
-        <line x1="1" y1="14" x2="7" y2="14" />
-        <line x1="9" y1="8" x2="15" y2="8" />
-        <line x1="17" y1="16" x2="23" y2="16" />
-    </BaseIcon>
-);
-
-export const InformationCircleIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="16" x2="12" y2="12" />
-        <line x1="12" y1="8" x2="12.01" y2="8" />
-    </BaseIcon>
-);
-
-export const EnvelopeIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-        <polyline points="22,6 12,13 2,6" />
-    </BaseIcon>
-);
-
-export const LockClosedIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </BaseIcon>
-);
-
-export const EyeIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-        <circle cx="12" cy="12" r="3" />
-    </BaseIcon>
-);
-
-export const EyeSlashIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-        <line x1="1" y1="1" x2="23" y2="23" />
-    </BaseIcon>
-);
-
-export const CalendarIcon: React.FC<IconProps> = (props) => (
+export const CalendarIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
         <line x1="16" y1="2" x2="16" y2="6" />
@@ -474,152 +448,113 @@ export const CalendarIcon: React.FC<IconProps> = (props) => (
     </BaseIcon>
 );
 
-export const QrCodeIcon: React.FC<IconProps> = (props) => (
+export const RectangleStackIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-        <path d="M3 14h7v7H3z" />
+        <path d="M3 10h18M3 14h18M3 18h18" />
+        <path d="M2 5h20v14H2z" />
     </BaseIcon>
 );
 
-export const ClipboardDocumentIcon: React.FC<IconProps> = (props) => (
+export const AdjustmentsHorizontalIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-        <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+        <line x1="21" y1="4" x2="14" y2="4" />
+        <line x1="10" y1="4" x2="3" y2="4" />
+        <line x1="21" y1="12" x2="12" y2="12" />
+        <line x1="8" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="20" x2="16" y2="20" />
+        <line x1="12" y1="20" x2="3" y2="20" />
+        <line x1="14" y1="2" x2="14" y2="6" />
+        <line x1="8" y1="10" x2="8" y2="14" />
+        <line x1="16" y1="18" x2="16" y2="22" />
     </BaseIcon>
 );
 
-export const CheckBadgeIcon: React.FC<IconProps> = (props) => (
+export const PaintBrushIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.78 4.78 4 4 0 0 1-6.74 0 4 4 0 0 1-4.78-4.78 4 4 0 0 1 0-6.74z" />
-        <polyline points="9 12 11 14 15 10" />
+        <path d="M12 21a9 9 0 1 1 0-18c4.97 0 9 3.58 9 8a4.5 4.5 0 0 1-4.5 4.5c-.53 0-1.04-.09-1.52-.27-.37-.13-.77-.07-1.09.18-.32.25-.49.64-.46 1.04.05.51.07 1.04.07 1.55 0 1.66-1.34 3-3 3z" />
+        <circle cx="7.5" cy="10.5" r="1" />
+        <circle cx="10.5" cy="7.5" r="1" />
+        <circle cx="13.5" cy="7.5" r="1" />
+        <circle cx="16.5" cy="10.5" r="1" />
     </BaseIcon>
 );
 
-export const PhotoIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-        <circle cx="8.5" cy="8.5" r="1.5" />
-        <polyline points="21 15 16 10 5 21" />
-    </BaseIcon>
-);
-
-export const ClockIcon: React.FC<IconProps> = (props) => (
+export const InformationCircleIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
     </BaseIcon>
 );
 
-export const WrenchScrewdriverIcon: React.FC<IconProps> = (props) => (
+export const ChartPieIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+        <path d="M22 12A10 10 0 0 0 12 2v10z" />
     </BaseIcon>
 );
 
-export const BrainIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M12 16v5" />
-        <path d="M16 14v6" />
-        <path d="M8 14v6" />
-        <path d="M12 3a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
-    </BaseIcon>
-);
-
-export const UserPlusIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="8.5" cy="7" r="4" />
-        <line x1="20" y1="8" x2="20" y2="14" />
-        <line x1="23" y1="11" x2="17" y2="11" />
-    </BaseIcon>
-);
-
-export const ArrowPathIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M23 4v6h-6" />
-        <path d="M1 20v-6h6" />
-        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </BaseIcon>
-);
-
-export const PresentationChartLineIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M3 3v18h18" />
-        <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
-    </BaseIcon>
-);
-
-export const TrophyIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M8 21h8" />
-        <path d="M12 17v4" />
-        <path d="M7 4h10" />
-        <path d="M17 4v3a5 5 0 0 1-10 0V4" />
-        <path d="M3 6h4" />
-        <path d="M17 6h4" />
-        <path d="M3 6v1c0 2.21 1.79 4 4 4h0" />
-        <path d="M21 6v1c0 2.21-1.79 4-4 4h0" />
-    </BaseIcon>
-);
-
-export const RectangleStackIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M2 10h20" />
-        <path d="M2 14h20" />
-        <path d="M2 18h20" />
-        <rect x="2" y="6" width="20" height="16" rx="2" />
-    </BaseIcon>
-);
-
-export const TableCellsIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z" />
-    </BaseIcon>
-);
-
-export const CursorArrowRaysIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-        <path d="M13 13l6 6" />
-    </BaseIcon>
-);
-
-export const FolderPlusIcon: React.FC<IconProps> = (props) => (
-    <BaseIcon {...props}>
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        <line x1="12" y1="11" x2="12" y2="17" />
-        <line x1="9" y1="14" x2="15" y2="14" />
-    </BaseIcon>
-);
-
-export const TagIcon: React.FC<IconProps> = (props) => (
+export const TagIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
         <line x1="7" y1="7" x2="7.01" y2="7" />
     </BaseIcon>
 );
 
-export const ArrowUturnLeftIcon: React.FC<IconProps> = (props) => (
+export const BuildingOfficeIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M9 14 4 9l5-5" />
-        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+        <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+        <line x1="9" y1="22" x2="9" y2="18" />
+        <line x1="15" y1="22" x2="15" y2="18" />
+        <line x1="12" y1="18" x2="12" y2="22" />
+        <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
     </BaseIcon>
 );
 
-export const EllipsisVerticalIcon: React.FC<IconProps> = (props) => (
+/* Fixed: Added missing EyeIcon */
+export const EyeIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <circle cx="12" cy="12" r="1" />
-        <circle cx="12" cy="5" r="1" />
-        <circle cx="12" cy="19" r="1" />
+        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
     </BaseIcon>
 );
 
-export const CloudArrowUpIcon: React.FC<IconProps> = (props) => (
+/* Fixed: Added missing EyeSlashIcon */
+export const EyeSlashIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
-        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
-        <path d="M12 12v9" />
-        <path d="m16 16-4-4-4 4" />
+        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20" />
+    </BaseIcon>
+);
+
+/* Fixed: Added missing LockClosedIcon */
+export const LockClosedIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </BaseIcon>
+);
+
+/* Fixed: Added missing PresentationChartLineIcon */
+export const PresentationChartLineIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M4 4h16v12H4z" />
+        <path d="M4 20h16M9 20v2M15 20v2M8 12l3-3 2 2 3-3" />
+    </BaseIcon>
+);
+
+/* Fixed: Added missing QrCodeIcon */
+export const QrCodeIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+        <path d="M14 14h3M14 17h1M14 20h3M17 17h1M17 20h1M20 14h1M20 17h1M20 20h1M17 14h1" />
+    </BaseIcon>
+);
+
+/* Fixed: Added missing ClipboardDocumentIcon */
+export const ClipboardDocumentIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1M8 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M8 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m0 0h2a2 2 0 0 1 2 2v3m-6 9h6m-6-3h6" />
     </BaseIcon>
 );

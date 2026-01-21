@@ -14,7 +14,6 @@ import { SearchView } from './SearchView';
 import { SavedReportsView } from './SavedReportsView';
 import { AdminView } from './AdminView';
 import { SmartAnalysisView } from './SmartAnalysisView';
-import { LancamentoAutomaticoPanel } from '../modules/lancamentoAutomatico';
 
 // --- Modals ---
 import { EditBankModal } from '../components/modals/EditBankModal';
@@ -28,12 +27,11 @@ import { DivergenceConfirmationModal } from '../components/modals/DivergenceConf
 import { PaymentModal } from '../components/modals/PaymentModal';
 import { FilePreprocessorModal } from '../components/modals/FilePreprocessorModal';
 import { SmartEditModal } from '../components/modals/SmartEditModal';
+import { AutoLaunchModal } from '../components/modals/AutoLaunchModal';
 
 export const AppRouter: React.FC = () => {
     const { activeView } = useUI();
     const { user } = useAuth();
-
-    // Robust check: Lowercase comparison to ensure access matches regardless of casing
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
     
     switch (activeView) {
@@ -45,7 +43,6 @@ export const AppRouter: React.FC = () => {
         case 'savedReports': return <SavedReportsView />;
         case 'settings': return <SettingsView />;
         case 'smart_analysis': return <SmartAnalysisView />;
-        case 'lancamentoAutomatico': return <LancamentoAutomaticoPanel />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
         default: return <DashboardView />;
     }
@@ -69,10 +66,11 @@ export const ModalsRenderer: React.FC = () => {
         pendingTraining,
         setPendingTraining,
         handleTrainingSuccess,
-        smartEditTarget
+        smartEditTarget,
+        autoLaunchTarget
     } = context;
 
-    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget) {
+    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget && !autoLaunchTarget) {
         return null;
     }
 
@@ -95,6 +93,7 @@ export const ModalsRenderer: React.FC = () => {
                 />
             )}
             {smartEditTarget && <SmartEditModal />}
+            {autoLaunchTarget && <AutoLaunchModal />}
         </>
     );
 };

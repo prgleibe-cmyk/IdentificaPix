@@ -1,10 +1,9 @@
-
 import React, { useContext, useState, useMemo, memo, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Church, Bank, ChurchFormData } from '../types';
-import { SearchIcon, PlusCircleIcon, BuildingOfficeIcon, UserIcon, PencilIcon, TrashIcon, ArrowsRightLeftIcon, XMarkIcon } from '../components/Icons';
+import { SearchIcon, PlusCircleIcon, BuildingOfficeIcon, UserIcon, PencilIcon, TrashIcon, ArrowsRightLeftIcon, XMarkIcon, BanknotesIcon, BrainIcon, CreditCardIcon } from '../components/Icons';
 
 
 // --- Reusable List Item with Robust Layout ---
@@ -269,6 +268,112 @@ const ChurchesList: React.FC = () => {
     );
 };
 
+// --- Contribution Types Management Component ---
+const ContributionTypesList: React.FC = () => {
+    const { contributionKeywords, addContributionKeyword, removeContributionKeyword } = useContext(AppContext);
+    const [newType, setNewType] = useState('');
+
+    const handleAddType = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newType.trim()) return;
+        addContributionKeyword(newType);
+        setNewType('');
+    };
+    
+    return (
+        <div className="h-full flex flex-col">
+            <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50">
+                <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
+                        <BanknotesIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Tipos de Contribuição</h3>
+                        <span className="text-[9px] font-bold text-emerald-600 mt-1 block uppercase">{contributionKeywords.length} ativos</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div className="flex-shrink-0 mb-3">
+                <form onSubmit={handleAddType} className="relative">
+                    <input
+                        type="text"
+                        value={newType}
+                        onChange={(e) => setNewType(e.target.value)}
+                        placeholder="Ex: MISSÃO, DÍZIMO..."
+                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white py-2 pl-4 pr-16 font-medium transition-all text-[11px] outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                    <button type="submit" disabled={!newType.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-emerald-600 text-white text-[9px] font-bold uppercase rounded-lg shadow-md active:scale-95 transition-all">OK</button>
+                </form>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-1">
+                {contributionKeywords.map(keyword => (
+                    <div key={keyword} className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl shadow-sm hover:border-emerald-200 transition-all group">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">{keyword}</span>
+                        <button onClick={() => removeContributionKeyword(keyword)} className="p-1 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                            <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- Payment Methods Management Component ---
+const PaymentMethodsList: React.FC = () => {
+    const { paymentMethods, addPaymentMethod, removePaymentMethod } = useContext(AppContext);
+    const [newMethod, setNewMethod] = useState('');
+
+    const handleAddMethod = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMethod.trim()) return;
+        addPaymentMethod(newMethod);
+        setNewMethod('');
+    };
+    
+    return (
+        <div className="h-full flex flex-col">
+            <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-700/50">
+                <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-brand-blue dark:text-blue-400 border border-blue-100 dark:border-blue-800/50">
+                        <CreditCardIcon className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Formas de Recebimento</h3>
+                        <span className="text-[9px] font-bold text-brand-blue mt-1 block uppercase">{paymentMethods.length} ativas</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div className="flex-shrink-0 mb-3">
+                <form onSubmit={handleAddMethod} className="relative">
+                    <input
+                        type="text"
+                        value={newMethod}
+                        onChange={(e) => setNewMethod(e.target.value)}
+                        placeholder="Ex: PIX, CARTÃO, DINHEIRO..."
+                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white py-2 pl-4 pr-16 font-medium transition-all text-[11px] outline-none focus:ring-2 focus:ring-brand-blue/20"
+                    />
+                    <button type="submit" disabled={!newMethod.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-brand-blue text-white text-[9px] font-bold uppercase rounded-lg shadow-md active:scale-95 transition-all">OK</button>
+                </form>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-1">
+                {paymentMethods.map(method => (
+                    <div key={method} className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl shadow-sm hover:border-brand-blue/30 transition-all group">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">{method}</span>
+                        <button onClick={() => removePaymentMethod(method)} className="p-1 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                            <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 // --- Main Register View ---
 export const RegisterView: React.FC = () => {
     const { t } = useTranslation();
@@ -277,6 +382,9 @@ export const RegisterView: React.FC = () => {
     
     const [showNewBankForm, setShowNewBankForm] = useState(false);
     const [showNewChurchForm, setShowNewChurchForm] = useState(false);
+    
+    // ABA ATIVA: 'banks' | 'churches' | 'contribution' | 'payment'
+    const [activeTab, setActiveTab] = useState<'banks' | 'churches' | 'contribution' | 'payment'>('banks');
 
     useEffect(() => {
         refreshSubscription();
@@ -285,84 +393,154 @@ export const RegisterView: React.FC = () => {
     const bankLimitReached = banks.length >= (subscription.maxBanks || 1);
     const churchLimitReached = churches.length >= (subscription.maxChurches || 1);
 
+    // Helper para botões de aba
+    const TabButton = ({ id, label, icon: Icon, colorTheme }: any) => {
+        const isActive = activeTab === id;
+        let activeClass = "";
+        let iconClass = "";
+        
+        switch (colorTheme) {
+            case 'blue': 
+                activeClass = "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30"; 
+                iconClass = isActive ? "text-white" : "text-blue-500"; 
+                break;
+            case 'emerald': 
+                activeClass = "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30"; 
+                iconClass = isActive ? "text-white" : "text-emerald-500"; 
+                break;
+            case 'violet': 
+                activeClass = "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-purple-500/30"; 
+                iconClass = isActive ? "text-white" : "text-violet-500"; 
+                break;
+            case 'amber': 
+                activeClass = "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-orange-500/30"; 
+                iconClass = isActive ? "text-white" : "text-amber-500"; 
+                break;
+            default: 
+                activeClass = "bg-gradient-to-r from-slate-600 to-slate-800 text-white shadow-md"; 
+                iconClass = isActive ? "text-white" : "text-slate-500"; 
+                break;
+        }
+
+        return (
+            <button 
+                onClick={() => setActiveTab(id)} 
+                className={`
+                    relative flex items-center gap-2 px-5 py-2 rounded-full transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
+                    ${isActive ? `${activeClass} transform scale-105 z-10 border-transparent` : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"}
+                `}
+            >
+                <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
+                <span>{label}</span>
+            </button>
+        );
+    };
+
     return (
         <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
-            <div className="flex-shrink-0 flex items-center justify-between px-1">
+            <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div>
                     <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight">{t('register.title')}</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-[10px]">{t('register.subtitle')}</p>
                 </div>
+
+                {/* NAVEGAÇÃO POR ABAS NO CABEÇALHO */}
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
+                    <TabButton id="banks" label={t('register.manageBanks')} icon={BuildingOfficeIcon} colorTheme="blue" />
+                    <TabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" />
+                    <TabButton id="contribution" label="Tipo Contribuição" icon={BanknotesIcon} colorTheme="emerald" />
+                    <TabButton id="payment" label="Forma Recebimento" icon={CreditCardIcon} colorTheme="amber" />
+                </div>
+
                 <button 
                     onClick={() => refreshSubscription()} 
-                    className="p-1.5 text-slate-400 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors" 
+                    className="hidden md:block p-1.5 text-slate-400 hover:text-brand-blue hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors" 
                     title="Atualizar limites"
                 >
                     <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
                 </button>
             </div>
             
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {/* Banks Column */}
-                <div 
-                    className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up fill-mode-backwards"
-                    style={{ animationDelay: '0ms' }}
-                >
-                    <div className="flex justify-between items-center mb-3 flex-shrink-0 relative z-10">
-                        <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-brand-blue dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                                <BuildingOfficeIcon className="w-4 h-4" />
+            <div className="flex-1 min-h-0">
+                {/* Banks View */}
+                {activeTab === 'banks' && (
+                    <div 
+                        className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up"
+                    >
+                        <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl text-brand-blue dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                                    <BuildingOfficeIcon className="w-6 h-6" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">{t('register.manageBanks')}</h3>
+                                    <span className={`text-xs font-bold mt-1 ${bankLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>
+                                        Registrados: {banks.length} / {subscription.maxBanks || 1}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex flex-col">
-                                <h3 className="font-bold text-sm text-slate-800 dark:text-white leading-none">{t('register.manageBanks')}</h3>
-                                <span className={`text-[9px] font-bold mt-0.5 ${bankLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {banks.length} / {subscription.maxBanks || 1} utilizados
-                                </span>
-                            </div>
+                            {!bankLimitReached && (
+                                <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 rounded-full active:bg-blue-700 shadow-md shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
+                                    <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
+                                </button>
+                            )}
                         </div>
-                        {!bankLimitReached && (
-                            <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-emerald-700 to-emerald-500 hover:from-emerald-800 hover:to-emerald-600 rounded-full active:bg-emerald-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
-                                <PlusCircleIcon className="w-3 h-3" /><span>{t('common.new')}</span>
-                            </button>
-                        )}
-                    </div>
-                    
-                    <div className="flex-1 min-h-0 flex flex-col relative z-10">
                         <div className="flex-1 min-h-0">
                             <BanksList />
                         </div>
                     </div>
-                </div>
+                )}
 
-                {/* Churches Column */}
-                <div 
-                    className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up fill-mode-backwards"
-                    style={{ animationDelay: '100ms' }}
-                >
-                    <div className="flex justify-between items-center mb-3 flex-shrink-0 relative z-10">
-                        <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
-                                <UserIcon className="w-4 h-4" />
+                {/* Churches View */}
+                {activeTab === 'churches' && (
+                    <div 
+                        className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up"
+                    >
+                        <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
+                                    <UserIcon className="w-6 h-6" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">{t('register.manageChurches')}</h3>
+                                    <span className={`text-xs font-bold mt-1 ${churchLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>
+                                        Registradas: {churches.length} / {subscription.maxChurches || 1}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex flex-col">
-                                <h3 className="font-bold text-sm text-slate-800 dark:text-white leading-none">{t('register.manageChurches')}</h3>
-                                <span className={`text-[9px] font-bold mt-0.5 ${churchLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {churches.length} / {subscription.maxChurches || 1} utilizados
-                                </span>
-                            </div>
+                            {!churchLimitReached && (
+                                <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-indigo-700 to-indigo-500 hover:from-indigo-800 hover:to-indigo-600 rounded-full active:bg-indigo-700 shadow-md shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
+                                    <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
+                                </button>
+                            )}
                         </div>
-                        {!churchLimitReached && (
-                             <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-white bg-gradient-to-l from-emerald-700 to-emerald-500 hover:from-emerald-800 hover:to-emerald-600 rounded-full active:bg-emerald-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all transform active:scale-[0.98] tracking-wide uppercase">
-                                <PlusCircleIcon className="w-3 h-3" /><span>{t('common.new')}</span>
-                            </button>
-                        )}
-                    </div>
-                    
-                    <div className="flex-1 min-h-0 flex flex-col relative z-10">
                         <div className="flex-1 min-h-0">
                             <ChurchesList />
                         </div>
                     </div>
-                </div>
+                )}
+
+                {/* Contribution Type View */}
+                {activeTab === 'contribution' && (
+                    <div 
+                        className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up"
+                    >
+                        <div className="flex-1 min-h-0">
+                            <ContributionTypesList />
+                        </div>
+                    </div>
+                )}
+
+                {/* Payment Method View */}
+                {activeTab === 'payment' && (
+                    <div 
+                        className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up"
+                    >
+                        <div className="flex-1 min-h-0">
+                            <PaymentMethodsList />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Modals for New Entities */}

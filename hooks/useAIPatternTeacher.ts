@@ -1,6 +1,13 @@
 
 import { useState, useCallback } from 'react';
 import { extractStructuredDataByExample } from '../services/geminiService';
+import { FileModel, Transaction } from '../types';
+
+export interface LearningPackage {
+    model: Partial<FileModel>;
+    sampleTransactions: Transaction[];
+    confidence: number;
+}
 
 interface UseAIPatternTeacherProps {
     gridData: string[][];
@@ -18,35 +25,82 @@ export const useAIPatternTeacher = ({
     const [isInferringMapping, setIsInferringMapping] = useState(false);
     const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any } | null>(null);
 
-    const handleApplyCorrectionPattern = useCallback(async () => {
-        if (!learnedPatternSource) return;
+    /**
+     * APLICAR PADRÃO (Fluxo Blindado UI -> Learn -> UI)
+     * Garante resolução explícita e retorno de controle para a interface.
+     */
+    const handleApplyCorrectionPattern = useCallback(async (): Promise<LearningPackage | null> => {
+        if (!learnedPatternSource || gridData.length === 0) return null;
+        
+        console.log("[Learn:START] Iniciando re-análise estrutural via IA...");
         setIsInferringMapping(true);
+
         try {
             const { originalRaw, corrected } = learnedPatternSource;
-            const rawSnippet = gridData.slice(0, 500).map(row => row.join(';')).join('\n');
-            const userExample = `RAW: [${originalRaw.join('|')}] -> DATA: ${corrected.date}, DESC: ${corrected.cleanedDescription}, VAL: ${corrected.amount}`;
+            // Pega uma amostra significativa para o aprendizado contextual
+            const rawSnippet = gridData.slice(0, 300).map(row => row.join(';')).join('\n');
+            
+            const userExample = `O usuário corrigiu uma linha manualmente. Aprenda este padrão estrutural:
+               LINHA ORIGINAL: [${originalRaw.join(' | ')}] 
+               CORREÇÃO DESEJADA: 
+               - Data: ${corrected.date}
+               - Descrição: ${corrected.cleanedDescription}
+               - Valor: ${corrected.amount}
+               - Tipo: ${corrected.contributionType}
+               - Forma (Pagamento): ${corrected.paymentMethod}
+               
+               Instrução: Re-analise o snippet de dados e extraia TODAS as linhas seguindo este padrão de colunas.`;
             
             const result = await extractStructuredDataByExample(rawSnippet, userExample);
             
             if (result?.rows?.length > 0) {
-                setGridData(result.rows.map((r: any) => [
-                    r.date || '', 
-                    r.description || '', 
-                    r.amount ? String(r.amount) : '', 
-                    r.reference || ''
-                ]));
-                setActiveMapping({ 
+                // 1. Converte retorno da IA para grade estruturada
+                const reStructuredGrid = result.rows.map((r: any) => [
+                    String(r.date || ''), 
+                    String(r.description || ''), 
+                    String(r.amount || '0'),
+                    String(r.type || 'AUTO'),
+                    String(r.paymentMethod || 'OUTROS')
+                ]);
+
+                // 2. Atualiza a grade visual imediatamente (Bypass Pipeline)
+                setGridData(reStructuredGrid);
+                
+                // 3. Define novo contrato de mapeamento baseado na nova grade
+                const refinedMapping = { 
                     dateColumnIndex: 0, 
                     descriptionColumnIndex: 1, 
                     amountColumnIndex: 2, 
-                    typeColumnIndex: 3, 
-                    skipRowsStart: 0 
-                });
+                    paymentMethodColumnIndex: 4,
+                    typeColumnIndex: 3,
+                    skipRowsStart: 0,
+                    skipRowsEnd: 0,
+                    decimalSeparator: '.' as const,
+                    thousandsSeparator: '' as const,
+                    extractionMode: 'COLUMNS' as const
+                };
+
+                setActiveMapping(refinedMapping);
+                
+                // 4. Limpeza de estado e resolução
                 setLearnedPatternSource(null); 
-                showToast("Inteligência artificial aprendeu o novo padrão!", "success");
+                console.log("[Learn:DONE] Padrão aplicado e grade reconstruída.");
+                showToast("Inteligência aplicada! Verifique os resultados na grade.", "success");
+
+                return {
+                    model: { mapping: refinedMapping },
+                    sampleTransactions: [], 
+                    confidence: 0.99
+                };
             }
+            
+            console.warn("[Learn:ERROR] IA retornou conjunto vazio.");
+            return null;
+
         } catch (e: any) { 
-            showToast("Falha ao processar padrão: " + e.message, "error"); 
+            console.error("[Learn:CRITICAL]", e);
+            showToast("Erro ao processar padrão estrutural.", "error"); 
+            return null;
         } finally { 
             setIsInferringMapping(false); 
         }

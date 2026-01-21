@@ -4,6 +4,7 @@ import React from 'react';
 // --- Contexts & Controllers ---
 import { RootProvider, SessionProvider } from './contexts/AppProviders';
 import { useSessionController, useContentController } from './hooks/useAppController';
+import { UIProvider } from './contexts/UIContext';
 
 // --- Views & Router ---
 import { AppRouter, ModalsRenderer } from './views/AppRouter';
@@ -20,29 +21,36 @@ const MainLayout: React.FC = () => {
 
     if (!initialDataLoaded) {
         return (
-            <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
-                <LoadingSpinner />
+            <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#051024]">
+                <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                    <p className="text-white text-xs font-bold uppercase tracking-widest">Iniciando IdentificaPix...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] bg-noise font-sans overflow-hidden">
-            {/* Sidebar is fixed height, main content scrolls */}
+        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] bg-noise font-sans overflow-hidden relative">
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                
-                {/* Alterado padding de p-6/p-8 para p-2/p-3 para maximizar espaço */}
                 <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
                     <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
-                        {isLoading ? (
-                            <div className="flex-1 flex items-center justify-center">
-                                <LoadingSpinner />
-                            </div>
-                        ) : (
-                            <div className="animate-fade-in h-full">
-                                <AppRouter />
+                        {/* 
+                            MODIFICAÇÃO CRÍTICA: O AppRouter permanece montado mesmo em isLoading.
+                            Isso evita interrupção de processos e loops de remounting.
+                        */}
+                        <div className={`h-full transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                            <AppRouter />
+                        </div>
+
+                        {/* Spinner como Overlay centralizado */}
+                        {isLoading && (
+                            <div className="absolute inset-0 z-[100] flex items-center justify-center backdrop-blur-[1px]">
+                                <div className="bg-white/80 dark:bg-slate-900/80 p-8 rounded-[2.5rem] shadow-2xl border border-white/20">
+                                    <LoadingSpinner />
+                                </div>
                             </div>
                         )}
                     </div>
@@ -62,7 +70,7 @@ const AppContent: React.FC = () => {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#051024]">
-                <LoadingSpinner />
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-400 border-t-transparent"></div>
             </div>
         );
     }
@@ -82,7 +90,9 @@ const AppContent: React.FC = () => {
 export default function App() {
     return (
         <RootProvider>
-            <AppContent />
+            <UIProvider>
+                <AppContent />
+            </UIProvider>
         </RootProvider>
     );
 }

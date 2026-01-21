@@ -1,6 +1,6 @@
 
-import React, { useState, useContext, memo, useCallback, useMemo } from 'react';
-import { MatchResult } from '../../types';
+import React, { useState, useContext, memo, useCallback, useMemo, useEffect } from 'react';
+import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -9,17 +9,16 @@ import {
     ChevronUpIcon, 
     ChevronDownIcon, 
     TrashIcon, 
-    ExclamationTriangleIcon, 
     ChevronLeftIcon, 
     ChevronRightIcon, 
     UserIcon,
     UserPlusIcon,
-    SparklesIcon,
-    BrainIcon,
     BanknotesIcon,
-    ArrowUturnLeftIcon
+    ArrowUturnLeftIcon,
+    CheckCircleIcon
 } from '../Icons';
 import { formatIncomeDescription } from '../../services/processingService';
+import { BulkActionToolbar } from '../BulkActionToolbar';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -59,278 +58,122 @@ const SortableHeader: React.FC<{
     );
 });
 
-const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ method }) => {
-    if (!method || method === 'AUTOMATIC') return null;
-
-    const iconMap = {
-        LEARNED: { Icon: BrainIcon, color: 'text-purple-500 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-400' },
-        AI: { Icon: SparklesIcon, color: 'text-teal-500 bg-teal-50 dark:bg-teal-900/30 dark:text-teal-400' },
-        MANUAL: { Icon: UserPlusIcon, color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400' },
-        TEMPLATE: { Icon: SparklesIcon, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-400' }
-    };
-
-    const config = iconMap[method];
-    if (!config) return null;
-
-    return (
-        <span className={`ml-1.5 p-1 rounded-md ${config.color} inline-flex items-center justify-center`} title={method}>
-            <config.Icon className="w-3 h-3" />
-        </span>
-    );
-}
-
 const IncomeRow = memo(({ 
     result, 
     language, 
     onEdit, 
     onDelete, 
     onUndo,
-    openDivergence, 
     ignoreKeywords,
+    isSelected,
+    onToggleSelection
 }: any) => {
     const row = result as MatchResult;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
-    
-    // --- Dados Primários (Fonte de Verdade Isolada) ---
-    // Se for Fantasma, usa dados da lista. Se for Real, usa dados do banco.
-    const displayAmount = isGhost 
-        ? (row.contributorAmount || row.contributor?.amount || 0) 
-        : row.transaction.amount;
-    
+    const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
-    
-    // Nome: Preferência total pelo Contribuinte, fallback para descrição limpa do banco
     const txDescFormatted = formatIncomeDescription(row.transaction.description, ignoreKeywords);
     const displayName = row.contributor?.name || row.contributor?.cleanedName || txDescFormatted;
-    
-    // Tipos
-    const contribType = row.contributor?.contributionType;
-    const bankType = row.transaction.contributionType;
-
-    const getStatusBadge = () => {
-        if (!isIdentified && !isGhost) {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800 uppercase tracking-wide whitespace-nowrap">
-                    Pendente
-                </span>
-            );
-        }
-
-        if (isGhost) {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide whitespace-nowrap">
-                    Não Localizado
-                </span>
-            );
-        }
-        
-        let bgClass = 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400';
-        let label = 'Auto';
-
-        if (row.matchMethod === 'MANUAL') {
-            bgClass = 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400';
-            label = 'Manual';
-        } else if (row.matchMethod === 'AI') {
-            bgClass = 'bg-teal-50 border-teal-100 text-teal-700 dark:bg-teal-900/30 dark:border-teal-800 dark:text-teal-400';
-            label = 'IA';
-        } else if (row.matchMethod === 'LEARNED') {
-             bgClass = 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-400';
-             label = 'Aprendido';
-        }
-
-        return (
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide whitespace-nowrap ${bgClass}`}>
-                {label}
-            </span>
-        );
-    };
+    const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
 
     return (
-        <tr className={`
-            group 
-            transition-colors 
-            border-b border-slate-200 dark:border-slate-700 
-            hover:bg-blue-50/60 dark:hover:bg-blue-900/20 
-            ${isGhost 
-                ? 'bg-amber-50/50 dark:bg-amber-900/10' 
-                : 'odd:bg-white even:bg-slate-50 dark:odd:bg-slate-800 dark:even:bg-slate-800/40'
-            }
-        `}>
-            {/* Coluna Data */}
-            <td className="px-4 py-2.5 font-mono text-[11px]">
-                <span className="text-slate-500 dark:text-slate-400">{displayDate}</span>
+        <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 ${isGhost ? 'bg-amber-50/50' : 'odd:bg-white even:bg-slate-50'} ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
+            <td className="px-4 py-2.5 text-center">
+                {!isIdentified ? (
+                    <input 
+                        type="checkbox" 
+                        checked={isSelected} 
+                        onChange={() => onToggleSelection(row.transaction.id)}
+                        className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                    />
+                ) : (
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500/20 mx-auto" />
+                )}
             </td>
-            
-            {/* Coluna Nome/Descrição */}
+            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{displayDate}</td>
             <td className="px-4 py-2.5">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
-                        {(row.contributor || isGhost) ? (
-                            <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" title="Origem: Lista de Contribuintes" />
-                        ) : (
-                            <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
-                        )}
-                        
-                        <span className={`text-xs font-bold leading-tight truncate max-w-[250px] ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}`} title={displayName}>
-                            {displayName}
-                        </span>
+                        {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
+                        <span className={`text-xs font-bold truncate max-w-[250px] ${isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
-
-                    {isIdentified && displayName !== txDescFormatted && (
-                        <div className="flex items-center gap-2 opacity-80">
-                            <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Origem: Extrato Bancário" />
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[250px]">
-                                {txDescFormatted}
-                            </span>
-                        </div>
-                    )}
-                    
-                    {isGhost && (
-                        <span className="text-[9px] text-red-400 pl-5 font-medium italic">
-                            Não identificado no banco
-                        </span>
-                    )}
-                </div>
-            </td>
-            
-            <td className="px-4 py-2.5 text-center">
-                <div className="flex items-center justify-center">
-                    {getStatusBadge()}
-                    {isIdentified && <MatchMethodIcon method={row.matchMethod} />}
                 </div>
             </td>
             <td className="px-4 py-2.5 text-center">
-                <span className={`text-[10px] font-bold ${row.similarity && row.similarity >= 90 ? 'text-emerald-600 dark:text-emerald-400' : row.similarity && row.similarity >= 70 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
-                    {row.similarity ? `${row.similarity.toFixed(0)}%` : '-'}
-                </span>
+                {isIdentified ? <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span> : <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>}
             </td>
-            
-            <td className="px-4 py-2.5">
-                <div className="flex flex-col gap-1.5 items-start">
-                    {(row.contributor || isGhost) && (
-                        <div className="flex items-center gap-1.5" title="Tipo na Lista">
-                            <UserIcon className="w-3 h-3 text-indigo-400 shrink-0" />
-                            <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
-                                {contribType || '---'}
-                            </span>
-                        </div>
-                    )}
-
-                    {!isGhost && (
-                        <div className="flex items-center gap-1.5 opacity-80" title="Tipo no Extrato">
-                            <BanknotesIcon className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="text-[9px] font-medium text-slate-600 bg-slate-100 border border-slate-200 dark:bg-slate-700/50 dark:text-slate-400 dark:border-slate-700 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
-                                {bankType || '---'}
-                            </span>
-                        </div>
-                    )}
-                </div>
-            </td>
-
-            <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                {isGhost ? (
-                    <div className="flex flex-col items-end">
-                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 line-through decoration-slate-300">
-                            0,00
-                        </span>
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
-                            (Exp: {formatCurrency(displayAmount, language)})
-                        </span>
-                    </div>
-                ) : (
-                    <span className={`font-mono text-xs font-bold tabular-nums tracking-tight ${displayAmount < 0 ? 'text-red-600 dark:text-red-400 font-black' : 'text-slate-900 dark:text-white'}`}>
-                        {formatCurrency(displayAmount, language)}
-                    </span>
-                )}
-            </td>
+            <td className="px-4 py-2.5"><span className="text-[9px] font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || '---'}</span></td>
+            <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
+            <td className="px-4 py-2.5 text-right font-mono text-xs font-bold">{formatCurrency(displayAmount, language)}</td>
             <td className="px-4 py-2.5 text-center">
-                <div className="flex gap-1 justify-center transition-opacity">
+                <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     {!isIdentified && !isGhost ? (
-                        <div className="flex items-center justify-center gap-1">
-                            <button 
-                                onClick={() => onEdit(row)} 
-                                className={`p-1.5 rounded-lg text-white transition-all shadow-md hover:-translate-y-0.5 ${
-                                    row.suggestion 
-                                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 ring-1 ring-purple-300 dark:ring-purple-700' 
-                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
-                                }`}
-                                title={row.suggestion ? "Identificar (Sugestão IA Disponível)" : "Identificar (IA + Manual)"}
-                            >
-                                {row.suggestion ? <SparklesIcon className="w-3.5 h-3.5 animate-pulse" /> : <UserPlusIcon className="w-3.5 h-3.5" />}
-                            </button>
-                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 transition-colors shadow-sm opacity-0 group-hover:opacity-100" title="Excluir">
-                                <TrashIcon className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
+                        <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg bg-brand-blue text-white shadow-sm"><UserPlusIcon className="w-3.5 h-3.5" /></button>
                     ) : (
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                            <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm" title="Editar / Corrigir">
-                                <PencilIcon className="w-3.5 h-3.5" />
-                            </button>
-                            
-                            {/* UNDO BUTTON */}
-                            {isIdentified && (
-                                <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50 transition-colors shadow-sm" title="Desfazer Identificação">
-                                    <ArrowUturnLeftIcon className="w-3.5 h-3.5" />
-                                </button>
-                            )}
-                            
-                            {row.divergence && <button onClick={() => openDivergence(row)} className="p-1.5 rounded-lg text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-300 dark:hover:bg-yellow-900/50 transition-colors shadow-sm" title="Confirmar Divergência"><ExclamationTriangleIcon className="w-3.5 h-3.5" /></button>}
-                            
-                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 transition-colors shadow-sm" title="Excluir">
-                                <TrashIcon className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
+                        <>
+                            <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50"><PencilIcon className="w-3.5 h-3.5" /></button>
+                            {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                        </>
                     )}
+                    <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
                 </div>
             </td>
         </tr>
     );
 });
 
-export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, onRowChange, reportType, sortConfig, onSort, loadingAiId, onEdit }) => {
+export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit }) => {
     const { t, language } = useTranslation();
-    const { 
-        openDivergenceModal, 
-        openDeleteConfirmation,
-        openSmartEdit,
-        undoIdentification 
-    } = useContext(AppContext);
+    const { openDeleteConfirmation, openSmartEdit, undoIdentification } = useContext(AppContext);
     
-    const handleEdit = useCallback((row: MatchResult) => {
-        if (onEdit) {
-            onEdit(row);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    
+    useEffect(() => {
+        setSelectedIds([]);
+    }, [data.length]);
+
+    const toggleSelection = useCallback((id: string) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    }, []);
+
+    const toggleAll = useCallback(() => {
+        const selectable = data.filter(r => r.status !== ReconciliationStatus.IDENTIFIED);
+        if (selectedIds.length === selectable.length && selectable.length > 0) {
+            setSelectedIds([]);
         } else {
-            openSmartEdit(row);
+            setSelectedIds(selectable.map(r => r.transaction.id));
         }
-    }, [openSmartEdit, onEdit]);
+    }, [data, selectedIds]);
 
-    const handleDelete = useCallback((row: MatchResult) => {
-        openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } });
-    }, [openDeleteConfirmation, reportType]);
-
-    // Pagination
     const [currentPage, setCurrentPage] = useState(1);
-    const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
     const paginatedData = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return data.slice(start, start + ITEMS_PER_PAGE);
     }, [data, currentPage]);
 
     return (
-        <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900">
+        <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900 relative">
+            <BulkActionToolbar selectedIds={selectedIds} onClear={() => setSelectedIds([])} />
             <div className="flex-1 w-full overflow-auto custom-scrollbar relative">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-200 dark:bg-slate-950 border-b-2 border-slate-300 dark:border-slate-600 sticky top-0 z-20 shadow-sm">
+                    <thead className="bg-slate-200 dark:bg-slate-950 sticky top-0 z-20 shadow-sm">
                         <tr>
-                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
-                            <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[35%]" />
+                            <th className="px-4 py-3 w-10 text-center">
+                                <input 
+                                    type="checkbox" 
+                                    onChange={toggleAll}
+                                    checked={selectedIds.length > 0 && selectedIds.length === data.filter(r => r.status !== ReconciliationStatus.IDENTIFIED).length}
+                                    className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
+                                />
+                            </th>
+                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[10%]" />
+                            <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[30%]" />
                             <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
-                            <SortableHeader sortKey="similarity" title="Simil." sortConfig={sortConfig} onSort={onSort} className="text-center w-[8%]" />
                             <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
+                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
                             <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="text-right w-[13%]" />
-                            <SortableHeader sortKey="hasSuggestion" title={t('table.actions')} sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
+                            <th className="px-4 py-3 text-center text-[10px] font-bold uppercase text-slate-700">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -338,24 +181,23 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             <IncomeRow 
                                 key={result.transaction.id}
                                 result={result}
-                                t={t}
                                 language={language}
-                                onEdit={handleEdit}
-                                onDelete={handleDelete}
+                                isSelected={selectedIds.includes(result.transaction.id)}
+                                onToggleSelection={toggleSelection}
+                                onEdit={(row: MatchResult) => onEdit ? onEdit(row) : openSmartEdit(row)}
+                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                                 onUndo={undoIdentification}
-                                openDivergence={openDivergenceModal}
-                                ignoreKeywords={[]}
                             />
                         ))}
                     </tbody>
                 </table>
             </div>
-            {totalPages > 1 && (
-                <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 z-30">
-                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Página {currentPage} de {totalPages}</span>
+            {data.length > ITEMS_PER_PAGE && (
+                <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white border-t border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-500">Página {currentPage} de {Math.ceil(data.length / ITEMS_PER_PAGE)}</span>
                     <div className="flex items-center gap-2">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronLeftIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>
-                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-colors"><ChevronRightIcon className="w-4 h-4 text-slate-600 dark:text-slate-300" /></button>
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronLeftIcon className="w-4 h-4" /></button>
+                        <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / ITEMS_PER_PAGE), p + 1))} disabled={currentPage === Math.ceil(data.length / ITEMS_PER_PAGE)} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronRightIcon className="w-4 h-4" /></button>
                     </div>
                 </div>
             )}

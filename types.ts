@@ -36,9 +36,12 @@ export interface FileModel {
     structuralPattern?: string;
   };
   mapping: {
+    // Fix: Added extractionMode to support different parsing strategies
+    extractionMode?: 'COLUMNS' | 'BLOCK';
     dateColumnIndex: number;
     descriptionColumnIndex: number;
     amountColumnIndex: number;
+    paymentMethodColumnIndex?: number; // NOVA COLUNA NO MODELO
     typeColumnIndex?: number;
     skipRowsStart: number;
     skipRowsEnd: number;

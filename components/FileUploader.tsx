@@ -1,9 +1,9 @@
 
 import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { UploadIcon, CheckCircleIcon, XMarkIcon } from './Icons';
+import { useUI } from '../contexts/UIContext';
 
 let pdfjsLib: any = null;
-let mammoth: any = null;
 let XLSX: any = null;
 
 export interface FileUploaderHandle {
@@ -12,7 +12,7 @@ export interface FileUploaderHandle {
 
 interface FileUploaderProps {
   title: string;
-  onFileUpload: (content: string, fileName: string, rawFile: File) => void;
+  onFileUpload: (content: string, fileName: string, rawFile: File) => void | Promise<void>;
   id: string;
   isUploaded: boolean;
   uploadedFileName: string | null;
@@ -20,6 +20,7 @@ interface FileUploaderProps {
   onDelete?: () => void;
   customTrigger?: (props: { onClick: (e: React.MouseEvent) => void, disabled: boolean, isParsing: boolean }) => React.ReactNode;
   onParsingStatusChange?: (isParsing: boolean) => void;
+  useLocalLoadingOnly?: boolean; 
 }
 
 export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({ 
@@ -31,12 +32,13 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     disabled = false, 
     onDelete, 
     customTrigger,
-    onParsingStatusChange
+    onParsingStatusChange,
+    useLocalLoadingOnly = false
 }, ref) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const { setIsLoading, setParsingProgress } = useUI() as any;
 
-  // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
       open: () => {
           if (!disabled && !isParsing) {
@@ -56,10 +58,8 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
                     lib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`;
                 }
                 pdfjsLib = lib;
-                (window as any).pdfjsLib = lib; 
             } catch (e) {}
         }
-        if (!mammoth) { try { const mod = await import('mammoth'); mammoth = mod.default || mod; } catch (e) {} }
         if (!XLSX) { try { const mod = await import('xlsx'); XLSX = mod.default || mod; } catch (e) {} }
     } catch (e) {}
   };
@@ -70,7 +70,10 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
       if (onParsingStatusChange) {
           onParsingStatusChange(isParsing);
       }
-  }, [isParsing, onParsingStatusChange]);
+      if (!useLocalLoadingOnly) {
+          setIsLoading(isParsing);
+      }
+  }, [isParsing, onParsingStatusChange, setIsLoading, useLocalLoadingOnly]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -80,6 +83,8 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
 
   const processFile = async (file: File) => {
     setIsParsing(true);
+    if (setParsingProgress) setParsingProgress({ current: 0, total: 0, label: 'Iniciando...' });
+    
     try {
         await ensureLibsLoaded();
         const fileNameLower = file.name.toLowerCase();
@@ -87,98 +92,62 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
         let extractedText = '';
 
         if (fileNameLower.endsWith('.pdf')) {
-             if (!pdfjsLib) throw new Error("Biblioteca PDF não carregada. Tente recarregar a página.");
+             if (!pdfjsLib) throw new Error("Biblioteca PDF não carregada.");
              const loadingTask = pdfjsLib.getDocument(new Uint8Array(fileBuffer));
              const pdf = await loadingTask.promise;
+             const totalPages = pdf.numPages;
              
-             for (let i = 1; i <= pdf.numPages; i++) {
+             console.log(`[Ingestion:PDF] Iniciando leitura integral de ${file.name}. Total de páginas: ${totalPages}`);
+
+             for (let i = 1; i <= totalPages; i++) {
+                 if (setParsingProgress) setParsingProgress({ current: i, total: totalPages, label: `Extraindo texto: Página ${i}/${totalPages}` });
                  const page = await pdf.getPage(i);
                  const textContent = await page.getTextContent();
                  const items = textContent.items as any[];
-                 const lineMap: Map<number, { str: string, x: number }[]> = new Map();
-                 
-                 items.forEach(item => {
-                     const y = Math.round(item.transform[5]); 
-                     if (!lineMap.has(y)) lineMap.set(y, []);
-                     lineMap.get(y)!.push({ str: item.str, x: item.transform[4] });
-                 });
-
-                 const sortedY = Array.from(lineMap.keys()).sort((a, b) => b - a);
-
-                 for (const y of sortedY) {
-                     const lineItems = lineMap.get(y)!.sort((a, b) => a.x - b.x);
-                     const lineStr = lineItems.map(it => it.str).join(' '); 
-                     if (lineStr.trim()) extractedText += lineStr + '\n';
-                 }
+                 extractedText += items.map(it => it.str).join(' ') + '\n';
              }
-
-        } else if (fileNameLower.endsWith('.docx')) {
-            if (!mammoth) throw new Error("Word lib missing");
-            const result = await mammoth.extractRawText({ arrayBuffer: fileBuffer });
-            extractedText = result.value;
-
+             
+             console.log(`[Ingestion:PDF] Leitura concluída. Linhas brutas extraídas: ${extractedText.split('\n').length}`);
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
             if (!XLSX) throw new Error("Excel lib missing");
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             extractedText = XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }); 
-
         } else {
             extractedText = new TextDecoder('utf-8').decode(fileBuffer);
         }
 
-        if (!extractedText || extractedText.trim().length === 0) {
-            throw new Error("O arquivo parece estar vazio.");
-        }
-        
-        onFileUpload(extractedText, file.name, file);
+        // CRÍTICO: Aguardar o término do upload para garantir que o loadingGlobal não seja interrompido
+        await onFileUpload(extractedText, file.name, file);
 
     } catch (error: any) {
-        console.error(error);
-        alert(`Erro ao ler arquivo: ${error.message}`);
+        alert(`Erro: ${error.message}`);
     } finally {
         setIsParsing(false);
+        if (setParsingProgress) setParsingProgress(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     if (!disabled && !isParsing) fileInputRef.current?.click();
   };
 
-  // Custom trigger handling
   if (customTrigger) {
       return (
           <div className="flex-shrink-0">
-              <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept=".csv,.txt,.xlsx,.xls,.pdf,.docx" />
+              <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept=".csv,.txt,.xlsx,.xls,.pdf" />
               {customTrigger({ onClick: handleClick, disabled: disabled || isParsing, isParsing })}
           </div>
       );
   }
 
-  if (isUploaded) {
-    return (
-      <div className="flex-shrink-0 flex items-center justify-between space-x-2 bg-emerald-50 border border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-full shadow-sm animate-fade-in w-full sm:w-auto transition-all">
-        <div className="flex items-center space-x-1.5 min-w-0">
-            <CheckCircleIcon className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500" />
-            <span className="text-[10px] font-bold truncate max-w-[100px]">{uploadedFileName}</span>
-        </div>
-        {onDelete && (
-            <button type="button" onClick={onDelete} className="p-0.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-800 text-emerald-600 dark:text-emerald-400 transition-colors">
-                <XMarkIcon className="w-3 h-3" />
-            </button>
-        )}
-      </div>
-    );
-  }
-
   return (
     <div className="flex-shrink-0">
-      <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept=".csv,.txt,.xlsx,.xls,.pdf,.docx" />
-      <button type="button" onClick={handleClick} disabled={disabled || isParsing} className={`group inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all duration-300 relative overflow-hidden ${disabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 shadow-sm hover:shadow-emerald-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]'}`}>
-         {isParsing ? <><svg className="animate-spin h-3 w-3 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span className="tracking-wide">Lendo...</span></> : <><UploadIcon className="w-3 h-3 opacity-90" /><span className="tracking-wide relative z-10">{title}</span></>}
+      <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept=".csv,.txt,.xlsx,.xls,.pdf" />
+      <button type="button" onClick={handleClick} disabled={disabled || isParsing} className={`group inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all ${disabled ? 'bg-slate-100 text-slate-400' : 'text-white bg-emerald-600 hover:bg-emerald-500 shadow-sm'}`}>
+         {isParsing ? <><svg className="animate-spin h-3 w-3 text-white mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Processando...</span></> : <><UploadIcon className="w-3 h-3" /><span>{title}</span></>}
       </button>
     </div>
   );

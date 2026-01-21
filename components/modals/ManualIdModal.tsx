@@ -23,9 +23,18 @@ export const ManualIdModal: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
 
-    // O modal deve suportar tanto uma transação individual quanto um lote
     const isBulk = !!bulkIdentificationTxs && bulkIdentificationTxs.length > 0;
     const targetTx = manualIdentificationTx;
+
+    // --- ATALHOS DE TECLADO ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') closeManualIdentify();
+            if (e.key === 'Enter' && selectedChurchId && !isSaving) handleConfirm();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [closeManualIdentify, selectedChurchId, isSaving]);
 
     useEffect(() => {
         setAiSuggestion(null);
@@ -48,7 +57,6 @@ export const ManualIdModal: React.FC = () => {
             }
         }
 
-        // Lógica de pré-seleção
         if (preSelectedId) {
             setSelectedChurchId(preSelectedId);
         } else if (churches.length === 1) {
@@ -109,7 +117,6 @@ export const ManualIdModal: React.FC = () => {
         <div className="glass-overlay animate-fade-in">
             <div className="glass-modal w-full max-w-lg flex flex-col animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]">
                 
-                {/* Header Compacto */}
                 <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className={`p-3 rounded-2xl ${isBulk ? 'bg-blue-600 text-white shadow-lg' : 'bg-brand-blue text-white shadow-lg shadow-blue-500/20'}`}>
@@ -122,13 +129,15 @@ export const ManualIdModal: React.FC = () => {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Identificação Pendente</p>
                         </div>
                     </div>
-                    <button type="button" onClick={closeManualIdentify} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
-                        <XMarkIcon className="w-6 h-6" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[7px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1 rounded">Esc</span>
+                        <button type="button" onClick={closeManualIdentify} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                            <XMarkIcon className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="p-8 space-y-8">
-                    {/* INFO DO REGISTRO */}
                     <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
                         {isBulk ? (
                             <div className="flex justify-between items-center">
@@ -159,7 +168,6 @@ export const ManualIdModal: React.FC = () => {
                         )}
                     </div>
 
-                    {/* SUGESTÃO IA (Somente Individual) */}
                     {!isBulk && aiSuggestion && (
                         <div className="p-4 bg-gradient-to-r from-purple-500/10 to-indigo-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-4 animate-fade-in-up">
                             <div className="p-2.5 bg-white dark:bg-purple-900/40 rounded-xl shadow-sm text-purple-600 dark:text-purple-300">
@@ -174,7 +182,6 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     )}
 
-                    {/* SELETOR DE IGREJA */}
                     <div className="space-y-3">
                         <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                            Escolha a Igreja de Destino
@@ -200,13 +207,9 @@ export const ManualIdModal: React.FC = () => {
                                 <ChevronDownIcon className="w-4 h-4" />
                             </div>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-medium italic mt-2 text-center">
-                            {isBulk ? '* Todos os itens selecionados serão movidos para esta igreja.' : '* O registro será movido de pendentes para o relatório da igreja.'}
-                        </p>
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="px-8 py-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 rounded-b-[2.5rem]">
                     <button 
                         type="button" 
@@ -221,7 +224,8 @@ export const ManualIdModal: React.FC = () => {
                         disabled={!selectedChurchId || isSaving} 
                         className="px-10 py-3 text-[10px] font-black text-white rounded-full shadow-xl shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] flex items-center gap-2"
                     >
-                         {isSaving ? 'Processando...' : (isBulk ? 'Confirmar Destinação Lote' : 'Confirmar Destino')}
+                         {isSaving ? 'Processando...' : (isBulk ? 'Confirmar Lote' : 'Confirmar')}
+                         {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                     </button>
                 </div>
             </div>

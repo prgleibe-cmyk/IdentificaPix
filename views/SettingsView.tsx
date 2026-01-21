@@ -23,7 +23,6 @@ import {
 } from '../components/Icons';
 
 const PreferencesTab: React.FC = () => {
-    // ... (Mantém lógica interna)
     const { openDeleteConfirmation, deleteOldReports, savedReports } = useContext(AppContext);
     const { theme, toggleTheme } = useUI();
     const { t, language, setLanguage } = useTranslation();
@@ -156,7 +155,6 @@ const PreferencesTab: React.FC = () => {
                             ))}
                         </div>
 
-                        {/* Nova Seção: Manutenção de Relatórios Antigos */}
                         <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
                             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Manutenção de Espaço</h4>
                             <div className="p-3 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-700/50">
@@ -220,143 +218,25 @@ const PreferencesTab: React.FC = () => {
     );
 };
 
-const AutomationTab: React.FC = () => {
-    // ... (Mantém lógica interna)
-    const { 
-        contributionKeywords, addContributionKeyword, removeContributionKeyword
-    } = useContext(AppContext);
-    const [newType, setNewType] = useState('');
-
-    const handleAddType = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newType.trim()) return;
-        addContributionKeyword(newType);
-        setNewType('');
-    };
-    
-    return (
-        <div className="h-full flex flex-col pb-6 space-y-6 overflow-y-auto custom-scrollbar">
-            <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col">
-                <div className="flex-shrink-0 flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
-                            <BanknotesIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tipos de Contribuição</h3>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Gerencie palavras que identificam colunas de tipo (Ex: Dízimo, Oferta)</p>
-                        </div>
-                    </div>
-                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-800">
-                        {contributionKeywords.length} ativos
-                    </span>
-                </div>
-                
-                <div className="flex-shrink-0 mb-5 space-y-4">
-                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        <PlusCircleIcon className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                        <p>Adicione nomes que, se presentes na maioria das linhas de uma coluna, identificarão essa coluna como o "Tipo" da contribuição.</p>
-                    </div>
-                    <form onSubmit={handleAddType} className="relative">
-                        <input
-                            type="text"
-                            value={newType}
-                            onChange={(e) => setNewType(e.target.value)}
-                            placeholder="Novo tipo (ex: MISSÃO, CAMPANHA)..."
-                            className="block w-full rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white py-3 pl-5 pr-24 font-medium transition-all text-xs outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        />
-                        <button type="submit" disabled={!newType.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded-full shadow-md">Cadastrar</button>
-                    </form>
-                </div>
-
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-1 custom-scrollbar">
-                    {contributionKeywords.map(keyword => (
-                        <div key={keyword} className="flex items-center gap-2 pl-3 pr-1 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] font-bold">
-                            <span>{keyword}</span>
-                            <button onClick={() => removeContributionKeyword(keyword)} className="p-1 rounded-full text-emerald-400 hover:text-red-500"><XMarkIcon className="w-3 h-3" /></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
 export const SettingsView: React.FC = () => {
     const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<SettingsTab>('preferences');
-
-    // TAB BUTTON COMPONENT - PILL STYLE
-    const SettingsTabButton = ({ 
-        id, 
-        label, 
-        icon: Icon, 
-        colorTheme 
-    }: { 
-        id: SettingsTab, 
-        label: string, 
-        icon: any, 
-        colorTheme: 'blue' | 'violet' 
-    }) => {
-        const isActive = activeTab === id;
-        
-        let activeClass = "";
-        let iconClass = "";
-
-        switch (colorTheme) {
-            case 'blue':
-                activeClass = "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30";
-                iconClass = isActive ? "text-white" : "text-blue-500";
-                break;
-            case 'violet':
-                activeClass = "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-500/30";
-                iconClass = isActive ? "text-white" : "text-violet-500";
-                break;
-        }
-
-        const baseClass = "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700";
-
-        return (
-            <button
-                onClick={() => setActiveTab(id)}
-                className={`
-                    relative flex items-center gap-2 px-4 py-1.5 rounded-full transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
-                    ${isActive ? `${activeClass} transform scale-105 z-10 border-transparent` : baseClass}
-                `}
-            >
-                <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
-                <span>{label}</span>
-            </button>
-        );
-    };
 
     return (
         <div className="flex flex-col h-full lg:h-[calc(100vh-1rem)] animate-fade-in gap-2 pb-1">
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{t('settings.title')}</h2>
                 
-                {/* TABS CONTAINER - PILL STYLE */}
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
-                     <SettingsTabButton 
-                        id="preferences"
-                        label={t('settings.tabPreferences')} 
-                        icon={WrenchScrewdriverIcon} 
-                        colorTheme="blue"
-                     />
-                     <SettingsTabButton 
-                        id="automation"
-                        label={t('settings.tabAutomation')} 
-                        icon={BrainIcon} 
-                        colorTheme="violet"
-                     />
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800">
+                     <div className="relative flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 border-transparent transform scale-105 z-10 text-[10px] font-bold uppercase tracking-wide">
+                        <WrenchScrewdriverIcon className="w-3.5 h-3.5 text-white" />
+                        <span>{t('settings.tabPreferences')}</span>
+                     </div>
                 </div>
             </div>
 
             <div className="flex-1 min-h-0">
                  <div className="h-full w-full">
-                    {activeTab === 'preferences' && <PreferencesTab />}
-                    {activeTab === 'automation' && <AutomationTab />}
+                    <PreferencesTab />
                  </div>
             </div>
         </div>
