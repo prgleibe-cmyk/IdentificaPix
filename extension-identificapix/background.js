@@ -1,7 +1,6 @@
 
-// background.js - O cérebro persistente da extensão
+// background.js - O cérebro persistente v1.0.2
 
-// Função auxiliar para gerenciar o estado no storage (Necessário no Manifest V3)
 async function getTrainingState() {
   const result = await chrome.storage.local.get(['trainingState']);
   return result.trainingState || { active: false, steps: [], appTabId: null };
@@ -11,13 +10,11 @@ async function updateTrainingState(newState) {
   await chrome.storage.local.set({ trainingState: newState });
 }
 
-// Listener para mensagens
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   
   (async () => {
     let state = await getTrainingState();
 
-    // 1. Início do Treino
     if (msg.type === "START_TRAINING") {
       state = {
         active: true,
@@ -27,62 +24,60 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sampleItem: msg.payload.sampleItem
       };
       await updateTrainingState(state);
-      console.log("[IdentificaPix BG] Treino Iniciado e Persistido. Tab App:", sender.tab.id);
+      console.log("[IdentificaPix BG] Treino Iniciado. App Tab:", sender.tab.id);
     }
 
-    // 2. Captura de Ação
     if (msg.type === "ACTION_CAPTURED" && state.active) {
       state.steps.push(msg.payload);
       await updateTrainingState(state);
-      console.log("[IdentificaPix BG] Ação gravada. Total de passos:", state.steps.length);
     }
 
-    // 3. Fim do Treino
     if (msg.type === "STOP_TRAINING") {
-      console.log("[IdentificaPix BG] Finalizando treino. Passos capturados:", state.steps.length);
+      console.log("[IdentificaPix BG] Finalizando treino. Passos:", state.steps.length);
       
       const finalMacro = {
         bankName: state.bankName,
         steps: state.steps,
-        targetUrl: sender.tab.url // Salva a URL onde o treino ocorreu
+        targetUrl: sender.tab.url
       };
       
-      const appTabId = state.appTabId;
-
-      // Reseta estado
+      // Reseta estado imediatamente no storage
       await updateTrainingState({ active: false, steps: [], appTabId: null });
 
-      if (appTabId) {
-        chrome.tabs.sendMessage(appTabId, {
-          type: "SAVE_TRAINING",
-          payload: finalMacro
-        }, (response) => {
-            if (chrome.runtime.lastError) {
-                console.error("[IdentificaPix BG] Erro ao enviar para o App:", chrome.runtime.lastError.message);
-            } else {
-                console.log("[IdentificaPix BG] Macro enviada para o App com sucesso.");
-            }
-        });
-      }
+      // Busca dinamicamente qualquer aba do IdentificaPix para enviar o resultado
+      chrome.tabs.query({url: ["*://*.identificapix.com.br/*", "*://localhost/*"]}, (tabs) => {
+          if (tabs.length > 0) {
+              // Tenta enviar para a aba original, se falhar, tenta na primeira encontrada
+              const targetTab = tabs.find(t => t.id === state.appTabId) || tabs[0];
+              chrome.tabs.sendMessage(targetTab.id, {
+                type: "SAVE_TRAINING",
+                payload: finalMacro
+              }, (response) => {
+                  if (chrome.runtime.lastError) {
+                      console.error("[IdentificaPix BG] Falha ao entregar para o App:", chrome.runtime.lastError.message);
+                  } else {
+                      console.log("[IdentificaPix BG] Macro entregue com sucesso à aba:", targetTab.id);
+                  }
+              });
+          } else {
+              console.error("[IdentificaPix BG] Nenhuma aba do IdentificaPix encontrada para salvar!");
+          }
+      });
     }
 
-    // 4. Execução de Lançamento (Automático)
     if (msg.type === "EXECUTE_ITEM") {
       chrome.tabs.query({}, (tabs) => {
           tabs.forEach(tab => {
               if (tab.id !== sender.tab.id) {
                   chrome.tabs.sendMessage(tab.id, msg, () => {
-                      if (chrome.runtime.lastError) { /* Ignora abas sem script */ }
+                      if (chrome.runtime.lastError) { /* ignore */ }
                   });
               }
           });
       });
     }
 
-    // 5. Item Concluído
     if (msg.type === "ITEM_DONE") {
-      const currentState = await getTrainingState();
-      // Tenta enviar para a aba do app que estava gravada ou para qualquer aba do identificapix aberta
       chrome.tabs.query({url: ["*://*.identificapix.com.br/*", "*://localhost/*"]}, (tabs) => {
           tabs.forEach(tab => {
               chrome.tabs.sendMessage(tab.id, msg, () => {
@@ -95,5 +90,5 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ status: "processed" });
   })();
 
-  return true; // Mantém o canal aberto para o async
+  return true;
 });
