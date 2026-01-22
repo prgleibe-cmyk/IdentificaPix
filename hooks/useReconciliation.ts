@@ -20,6 +20,7 @@ import {
 } from '../services/processingService';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { useLiveListSync } from './useLiveListSync';
+import { usePersistentState } from './usePersistentState';
 
 export const useReconciliation = ({
     user,
@@ -36,6 +37,7 @@ export const useReconciliation = ({
     setActiveView
 }: any) => {
 
+    const userSuffix = user ? `-${user.id}` : '-guest';
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
@@ -46,6 +48,9 @@ export const useReconciliation = ({
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
+    
+    // Novo Estado para Itens Lançados
+    const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
@@ -66,22 +71,24 @@ export const useReconciliation = ({
     }, []);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File) => {
-        // Removido setIsLoading local para não conflitar com o do componente que chama
         try {
             const result = await processFileContent(content, fileName, fileModels, customIgnoreKeywords);
             const stats = await persistTransactions(bankId, result.transactions);
-            const feedback = `Recebidos: ${stats.total} | Novos: ${stats.added} | Ignorados: ${stats.skipped}`;
+            const feedback = `Total: ${stats.total} | Novos: ${stats.added} | Já Existentes: ${stats.skipped}`;
 
             if (stats.added === 0) {
-                showToast(`Nenhuma linha nova detectada.\n${feedback}`, "error");
+                showToast(`Lista Sincronizada.\n${feedback}`, "success");
             } else {
                 showToast(`Sucesso! ${feedback}`, "success");
             }
+            
+            // Força hidratação final
+            await hydrate();
         } catch (error) {
             console.error("[Reconciliation] Upload Fail:", error);
             showToast("Erro no processamento.", "error");
         }
-    }, [fileModels, customIgnoreKeywords, persistTransactions, showToast]);
+    }, [fileModels, customIgnoreKeywords, persistTransactions, showToast, hydrate]);
 
     const importGmailTransactions = useCallback(async (transactions: Transaction[]) => {
         if (!user || transactions.length === 0) return;
@@ -89,13 +96,13 @@ export const useReconciliation = ({
         try {
             const result = await IngestionOrchestrator.processVirtualData('Gmail', transactions, customIgnoreKeywords);
             const stats = await persistTransactions('gmail-sync', result.transactions);
-            const feedback = `Recebidos: ${stats.total} | Novos: ${stats.added} | Ignorados: ${stats.skipped}`;
-            if (stats.added === 0) showToast(`Gmail: Sem novos dados.\n${feedback}`, "success");
-            else showToast(`Gmail sincronizado! ${feedback}`, "success");
+            const feedback = `Total: ${stats.total} | Novos: ${stats.added}`;
+            showToast(`Gmail sincronizado! ${feedback}`, "success");
+            await hydrate();
         } finally {
             setIsLoading(false);
         }
-    }, [user, customIgnoreKeywords, persistTransactions, showToast, setIsLoading]);
+    }, [user, customIgnoreKeywords, persistTransactions, showToast, setIsLoading, hydrate]);
 
     const removeBankStatementFile = useCallback(async (bankId: string) => {
         setIsLoading(true);
@@ -124,12 +131,31 @@ export const useReconciliation = ({
         }
     }, [clearRemoteList, showToast, setActiveView, setIsLoading]);
 
+    const markAsLaunched = useCallback((txId: string) => {
+        setMatchResults(prev => {
+            const item = prev.find(r => r.transaction.id === txId);
+            if (item) {
+                setLaunchedResults(launched => [{ ...item, launchedAt: new Date().toISOString() }, ...launched]);
+                const next = prev.filter(r => r.transaction.id !== txId);
+                regenerateReportPreview(next);
+                return next;
+            }
+            return prev;
+        });
+    }, [setMatchResults, setLaunchedResults, regenerateReportPreview]);
+
+    const deleteLaunchedItem = useCallback((txId: string) => {
+        setLaunchedResults(prev => prev.filter(r => r.transaction.id !== txId));
+        showToast("Item removido do histórico de lançados.", "success");
+    }, [setLaunchedResults, showToast]);
+
     return {
         activeBankFiles, contributorFiles, matchResults, reportPreviewData,
         activeReportId, setActiveReportId, hasActiveSession, setHasActiveSession,
         comparisonType, setComparisonType, selectedBankIds,
         manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
+        launchedResults, setLaunchedResults, markAsLaunched, deleteLaunchedItem,
         importGmailTransactions, handleStatementUpload, 
         handleContributorsUpload: (content: string, fileName: string, churchId: string) => {
              const church = churches.find((c: any) => c.id === churchId);
@@ -177,6 +203,9 @@ export const useReconciliation = ({
                 regenerateReportPreview(next);
                 return next;
             });
-        }
+        },
+        hydrate,
+        setMatchResults,
+        setReportPreviewData
     };
 };

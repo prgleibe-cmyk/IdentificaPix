@@ -4,7 +4,7 @@ import { MatchResult } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
-import { SparklesIcon, UserPlusIcon, BrainIcon, ExclamationTriangleIcon, BanknotesIcon, UserIcon, CheckCircleIcon } from './Icons';
+import { SparklesIcon, UserPlusIcon, BrainIcon, ExclamationTriangleIcon, BanknotesIcon, UserIcon, CheckCircleIcon, BuildingOfficeIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
 
 interface ResultsTableProps {
@@ -52,11 +52,10 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
     }, []);
 
     const toggleAll = useCallback(() => {
-        const selectable = results.filter(r => r.status !== 'IDENTIFICADO');
-        if (selectedIds.length === selectable.length && selectable.length > 0) {
+        if (selectedIds.length === results.length && results.length > 0) {
             setSelectedIds([]);
         } else {
-            setSelectedIds(selectable.map(r => r.transaction.id));
+            setSelectedIds(results.map(r => r.transaction.id));
         }
     }, [results, selectedIds]);
 
@@ -104,11 +103,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                     type="checkbox" 
                                     className="w-4 h-4 rounded-full border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer accent-blue-600"
                                     onChange={toggleAll}
-                                    checked={selectedIds.length > 0 && selectedIds.length === results.filter(r => r.status !== 'IDENTIFICADO').length}
+                                    checked={selectedIds.length > 0 && selectedIds.length === results.length}
                                 />
                             </th>
                             <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">{t('table.date')}</th>
-                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[32%]">Nome / Descrição</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[22%]">Nome / Descrição</th>
+                            <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[15%]">Igreja</th>
                             <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[12%]">Tipo</th>
                             <th scope="col" className="px-4 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[10%]">Forma</th>
                             <th scope="col" className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest w-[13%]">{t('table.amount')}</th>
@@ -117,7 +117,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, contributionType, paymentMethod, divergence }) => {
+                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, contributionType, paymentMethod, divergence, church }) => {
                             const isGhost = status === 'PENDENTE';
                             const isSelected = selectedIds.includes(transaction.id);
                             const displayAmount = isGhost ? (contributorAmount || contributor?.amount || 0) : transaction.amount;
@@ -132,16 +132,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                             return (
                                 <tr key={transaction.id} className={`group hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-all duration-200 ${isGhost ? 'opacity-70 bg-slate-50/30 dark:bg-slate-800/30' : ''} ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                                     <td className="px-4 py-2.5 text-center">
-                                        {status !== 'IDENTIFICADO' ? (
-                                            <input 
-                                                type="checkbox" 
-                                                className="w-4 h-4 rounded-full border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer accent-blue-600"
-                                                checked={isSelected}
-                                                onChange={() => toggleSelection(transaction.id)}
-                                            />
-                                        ) : (
-                                            <CheckCircleIcon className="w-4 h-4 text-emerald-500/30 mx-auto" />
-                                        )}
+                                        <input 
+                                            type="checkbox" 
+                                            className="w-4 h-4 rounded-full border-slate-300 text-brand-blue focus:ring-brand-blue cursor-pointer accent-blue-600"
+                                            checked={isSelected}
+                                            onChange={() => toggleSelection(transaction.id)}
+                                        />
                                     </td>
                                     <td className="px-4 py-2.5 whitespace-nowrap font-mono text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">{displayDate}</td>
                                     <td className="px-4 py-2.5">
@@ -151,6 +147,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                                 <span className={`text-xs font-bold leading-tight ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>{primaryName}</span>
                                             </div>
                                             {isGhost && <span className="text-[9px] text-red-400 pl-5 font-medium italic">Não encontrado no extrato</span>}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${status === 'IDENTIFICADO' ? 'text-indigo-400' : 'text-slate-300'}`} />
+                                            <span className={`text-[10px] font-bold uppercase truncate max-w-[120px] ${status === 'IDENTIFICADO' ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
+                                                {church?.name || '---'}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5">

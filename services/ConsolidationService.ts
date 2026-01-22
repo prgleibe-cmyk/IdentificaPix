@@ -72,6 +72,20 @@ export const consolidationService = {
         }
     },
 
+    deleteTransactionById: async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from('consolidated_transactions')
+                .delete()
+                .eq('id', id);
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error("[Consolidation] Erro ao deletar transação única:", error);
+            throw error;
+        }
+    },
+
     getPendingTransactions: async (userId: string) => {
         try {
             const { data, error } = await supabase

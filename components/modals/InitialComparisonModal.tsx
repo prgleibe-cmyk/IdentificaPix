@@ -41,17 +41,17 @@ export const InitialComparisonModal: React.FC<InitialComparisonModalProps> = ({ 
                 type="button"
                 onClick={() => setComparisonType(value)}
                 className={`
-                    relative flex-1 flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 gap-2
+                    relative flex-1 flex items-center justify-center py-2.5 px-4 rounded-xl border-2 transition-all duration-200 gap-2
                     ${isSelected 
-                        ? `bg-white dark:bg-slate-800 ${colorClass} shadow-lg transform scale-105 z-10` 
+                        ? `bg-white dark:bg-slate-800 ${colorClass} shadow-md transform scale-105 z-10` 
                         : 'bg-slate-50 dark:bg-slate-900 border-transparent text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-200 dark:hover:border-slate-700'
                     }
                 `}
             >
-                <Icon className={`w-6 h-6 ${isSelected ? '' : 'opacity-50'}`} />
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? '' : 'opacity-70'}`}>{label}</span>
+                <Icon className={`w-4 h-4 ${isSelected ? '' : 'opacity-50'}`} />
+                <span className={`text-[10px] font-black uppercase tracking-widest ${isSelected ? '' : 'opacity-70'}`}>{label}</span>
                 {isSelected && (
-                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-current animate-pulse"></div>
+                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-current border-2 border-white dark:border-slate-800 shadow-sm animate-pulse"></div>
                 )}
             </button>
         );
@@ -80,7 +80,7 @@ export const InitialComparisonModal: React.FC<InitialComparisonModalProps> = ({ 
                 {/* Body - Scrollable */}
                 <div className="p-8 overflow-y-auto custom-scrollbar space-y-8">
                     
-                    {/* 1. Comparison Type */}
+                    {/* 1. Comparison Type - Layout Horizontal Compacto */}
                     <div className="space-y-3">
                         <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
                             {t('upload.comparisonType')}
@@ -164,7 +164,7 @@ export const InitialComparisonModal: React.FC<InitialComparisonModalProps> = ({ 
                     )}
                 </div>
 
-                {/* Footer */}
+                {/* Footer - Botão com Gradiente Âmbar/Laranja */}
                 <div className="bg-slate-50 dark:bg-slate-900/30 px-8 py-6 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-700/50">
                     <button type="button" onClick={onClose} className="px-6 py-3 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">
                         {t('common.cancel')}
@@ -173,7 +173,7 @@ export const InitialComparisonModal: React.FC<InitialComparisonModalProps> = ({ 
                         type="button" 
                         onClick={handleRun} 
                         disabled={isProcessing}
-                        className="flex items-center gap-2 px-8 py-3 text-xs font-bold text-white bg-gradient-to-r from-brand-blue to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-8 py-3 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 rounded-full shadow-lg shadow-amber-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed border border-white/10"
                     >
                         {isProcessing ? (
                             <>

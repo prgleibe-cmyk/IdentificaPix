@@ -37,7 +37,8 @@ const SmartBankCard: React.FC<{ bank: any }> = ({ bank }) => {
         removeBankStatementFile,
         fileModels,
         effectiveIgnoreKeywords,
-        setBankStatementFile
+        setBankStatementFile,
+        hydrate
     } = useContext(AppContext);
     
     const { user } = useAuth();
@@ -104,15 +105,14 @@ const SmartBankCard: React.FC<{ bank: any }> = ({ bank }) => {
             }
 
             const launchResult = await LaunchService.launchToBank(user.id, bank.id, newTransactions);
+            
+            // Critical fix: Always hydrate to sync UI with database state
+            await hydrate();
 
             if (launchResult.added > 0) {
-                setBankStatementFile((prevFiles: any[]) => [
-                    ...prevFiles, 
-                    { bankId: bank.id, content, fileName, rawFile, processedTransactions: newTransactions }
-                ]);
                 showToast(`${launchResult.added} transações adicionadas!`, "success");
             } else {
-                showToast("Nenhum dado novo encontrado.", "warning");
+                showToast("Lista atualizada (registros já existiam no sistema).", "success");
             }
         } catch (e: any) {
             showToast("Erro ao adicionar: " + e.message, "error");

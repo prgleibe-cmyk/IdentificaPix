@@ -1,7 +1,7 @@
 
 import { MatchResult, Transaction } from './domain';
 
-export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis';
+export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis' | 'launched';
 export type Theme = 'light' | 'dark';
 export type Language = 'pt' | 'en' | 'es';
 
@@ -9,7 +9,7 @@ export type Language = 'pt' | 'en' | 'es';
 export type SettingsTab = 'params' | 'associations' | 'preferences' | 'automation';
 
 export interface DeletingItem {
-  type: 'bank' | 'church' | 'report-saved' | 'report-row' | 'report-group' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'all-data';
+  type: 'bank' | 'church' | 'report-saved' | 'report-row' | 'report-group' | 'uploaded-files' | 'match-results' | 'learned-associations' | 'all-data' | 'launched-item';
   id: string;
   name: string;
   meta?: any;

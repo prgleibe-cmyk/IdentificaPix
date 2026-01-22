@@ -29,52 +29,37 @@ type AdminTab = 'settings' | 'users' | 'audit' | 'models' | 'observation';
 
 const FIX_SQL = `
 -- ============================================================
--- SCRIPT DE CORREÇÃO DEFINITIVA (V6)
--- Execute no Supabase SQL Editor
+-- SCRIPT DE CORREÇÃO DEFINITIVA (V7 - Automação)
 -- ============================================================
 
 BEGIN;
 
--- 1. Correção consolidated_transactions
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consolidated_transactions' AND column_name = 'bank_id') THEN 
-        ALTER TABLE consolidated_transactions ADD COLUMN bank_id UUID REFERENCES banks(id); 
-    END IF; 
-END $$;
+-- 1. Tabela de Macros de Automação
+CREATE TABLE IF NOT EXISTS public.automation_macros (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    bank_id UUID REFERENCES public.banks(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    steps JSONB NOT NULL,
+    target_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
 
--- 2. Correção file_models (COLUNA STATUS FALTANTE)
+-- Políticas RLS para Automação
+ALTER TABLE public.automation_macros ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can manage their own macros" ON public.automation_macros;
+CREATE POLICY "Users can manage their own macros" ON public.automation_macros
+    FOR ALL USING (auth.uid() = user_id);
+
+-- 2. Correções Existentes
 ALTER TABLE file_models ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'draft';
 ALTER TABLE file_models ADD COLUMN IF NOT EXISTS parsing_rules JSONB DEFAULT '{"ignoredKeywords": [], "rowFilters": []}'::jsonb;
 
--- 3. Políticas de Visibilidade Global (Modelos para todos)
+-- Políticas de Visibilidade Global (Modelos para todos)
 DROP POLICY IF EXISTS "Enable read access for all users" ON file_models;
 CREATE POLICY "Enable read access for all users" ON file_models
 FOR SELECT USING (is_active = true);
-
-DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON file_models;
-CREATE POLICY "Enable insert for authenticated users only" ON file_models
-FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-
--- 4. Função de Limpeza
-CREATE OR REPLACE FUNCTION delete_pending_transactions(target_bank_id UUID DEFAULT NULL)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  IF target_bank_id IS NOT NULL THEN
-    DELETE FROM consolidated_transactions
-    WHERE user_id = auth.uid()
-      AND status = 'pending'
-      AND (bank_id = target_bank_id OR bank_id IS NULL);
-  ELSE
-    DELETE FROM consolidated_transactions
-    WHERE user_id = auth.uid()
-      AND status = 'pending';
-  END IF;
-END;
-$$;
 
 COMMIT;
 `;
@@ -95,7 +80,7 @@ export const AdminView: React.FC = () => {
 
     const copySql = () => {
         navigator.clipboard.writeText(FIX_SQL);
-        showToast("SQL copiado! Execute no Supabase SQL Editor.", "success");
+        showToast("SQL V7 copiado! Execute no Supabase SQL Editor.", "success");
     };
 
     const runDiagnostics = async () => {
@@ -192,10 +177,10 @@ export const AdminView: React.FC = () => {
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.geminiKey ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><span className="text-xs font-bold text-slate-700">Chave Gemini (process.env)</span>{diagResult.geminiKey ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.supabaseStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão Supabase</span>{diagResult.supabaseError && <span className="text-[10px] text-red-500 mt-1">{diagResult.supabaseError}</span>}</div>{diagResult.supabaseStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
-                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V6)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">IMPORTANTE</span></div>
+                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V7)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">NOVA TABELA</span></div>
                                         <div className="mt-1">
-                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script corrige o erro de coluna 'status' faltante e libera modelos para todos.</p>
-                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V6</button>
+                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script cria a tabela de macros necessária para a automação funcionar.</p>
+                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V7</button>
                                         </div>
                                     </div>
                                 </div>

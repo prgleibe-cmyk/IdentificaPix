@@ -30,6 +30,35 @@ export type Database = {
           updated_at?: string
         }
       }
+      automation_macros: {
+        Row: {
+          id: string
+          user_id: string
+          bank_id: string | null
+          name: string
+          steps: Json
+          target_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          bank_id?: string | null
+          name: string
+          steps: Json
+          target_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          bank_id?: string | null
+          name?: string
+          steps?: Json
+          target_url?: string | null
+          created_at?: string
+        }
+      }
       banks: {
         Row: {
           created_at: string
@@ -82,9 +111,9 @@ export type Database = {
           address?: string
           created_at?: string
           id?: string
-          logoUrl?: string
-          name?: string
-          pastor?: string
+          logoUrl: string
+          name: string
+          pastor: string
           user_id?: string | null
         }
         Relationships: [
@@ -120,7 +149,7 @@ export type Database = {
           description: string
           type: 'income' | 'expense'
           pix_key?: string | null
-          source: 'file' | 'gmail'
+          source?: 'file' | 'gmail'
           user_id: string
           status?: 'pending' | 'identified' | 'resolved'
           bank_id?: string | null
@@ -135,7 +164,7 @@ export type Database = {
           type?: 'income' | 'expense'
           pix_key?: string | null
           source?: 'file' | 'gmail'
-          user_id?: string
+          user_id?: string | null
           status?: 'pending' | 'identified' | 'resolved'
           bank_id?: string | null
           row_hash?: string | null
@@ -413,85 +442,3 @@ export type Database = {
     }
   }
 }
-
-type PublicSchema = Database[Extract<keyof Database, "public">]
-
-export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
-
-export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
-
-export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
-
-export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
-    : never

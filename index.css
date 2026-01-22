@@ -4,15 +4,14 @@
 @tailwind utilities;
 
 /* --- GLOBAL CONSISTENCY FIX --- */
-/* Força um tamanho base consistente independente do ambiente ou navegador */
 html {
-  font-size: 16px; /* Garante que 1rem = 16px em qualquer lugar */
+  font-size: 16px;
   height: 100%;
 }
 
 @media (max-width: 768px) {
   html {
-    font-size: 14px; /* Ajuste responsivo suave para telas menores */
+    font-size: 14px;
   }
 }
 
@@ -39,44 +38,34 @@ html {
 body {
   @apply bg-brand-bg text-brand-graphite;
   height: 100%;
-  overscroll-behavior: none; /* Previne o bounce effect do scroll em Mac/iOS */
+  overscroll-behavior: none;
 }
 
 /* --- SUPER PREMIUM UTILITIES --- */
 
-/* Fundo do Modal (Overlay) */
 .glass-overlay {
   @apply fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6;
-  @apply bg-[#020610]/60 backdrop-blur-[6px]; /* Escurece o fundo e desfoca o app atrás */
+  @apply bg-[#020610]/60 backdrop-blur-[6px];
   @apply transition-all duration-500 ease-out;
 }
 
-/* Corpo do Modal (O Vidro) */
 .glass-modal {
   @apply relative overflow-hidden;
-  @apply bg-white/90 dark:bg-[#0B1120]/80; /* Base semi-transparente */
-  @apply backdrop-blur-2xl; /* Desfoque pesado estilo vidro fosco */
-  
-  /* Bordas de Luz e Profundidade */
+  @apply bg-white/90 dark:bg-[#0B1120]/80;
+  @apply backdrop-blur-2xl;
   @apply border border-white/40 dark:border-white/10;
-  @apply ring-1 ring-white/60 dark:ring-white/5 ring-inset; /* Anel interno de luz */
-  
-  /* Sombreamento Premium em Camadas */
-  /* 1. Sombra de ambiente (Glow Azulado muito sutil) */
-  /* 2. Sombra de profundidade (Preta profunda) */
+  @apply ring-1 ring-white/60 dark:ring-white/5 ring-inset;
   box-shadow: 
     0 0 0 1px rgba(255, 255, 255, 0.1) inset,
     0 20px 50px -12px rgba(0, 0, 0, 0.5), 
     0 0 100px -20px rgba(0, 82, 204, 0.15); 
 }
 
-/* Header com Gradiente Sutil */
 .glass-header {
   @apply border-b border-slate-100/50 dark:border-slate-800/50;
   @apply bg-gradient-to-b from-white/50 to-transparent dark:from-white/5 dark:to-transparent;
 }
 
-/* Global Noise Texture (Grain) */
 .bg-noise {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
   background-repeat: repeat;
@@ -93,12 +82,22 @@ body {
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+@keyframes progress-ia {
+  0% { width: 0%; }
+  50% { width: 70%; }
+  100% { width: 100%; }
+}
+
 .animate-pulse-soft {
   animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .animate-scale-in {
   animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-progress {
+  animation: progress-ia 3s ease-in-out infinite;
 }
 
 @media print {
@@ -120,12 +119,10 @@ body {
     overflow: visible !important;
   }
 
-  /* Garante que tabelas não quebrem feio */
   tr {
     break-inside: avoid;
   }
   
-  /* Esconde barras de rolagem */
   ::-webkit-scrollbar {
     display: none;
   }

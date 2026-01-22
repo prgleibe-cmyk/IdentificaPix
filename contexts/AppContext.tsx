@@ -8,11 +8,14 @@ import { useReportManager } from '../hooks/useReportManager';
 import { useReconciliationActions } from '../hooks/useReconciliationActions';
 import { useModalController } from '../hooks/useModalController';
 import { useDataDeletion } from '../hooks/useDataDeletion';
+import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
-    Transaction
+    Transaction,
+    ReconciliationStatus,
+    MatchMethod
 } from '../types';
-import { groupResultsByChurch } from '../services/processingService';
+import { groupResultsByChurch, normalizeString } from '../services/processingService';
 
 export const AppContext = createContext<any>(null!);
 
@@ -25,6 +28,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
     
+    // --- ESTADO DE AUTOMAÇÃO ---
+    const [automationMacros, setAutomationMacros] = useState<any[]>([]);
+
+    const fetchMacros = useCallback(async (silent = false) => {
+        if (!user) return;
+        if (!silent) console.log("[AppContext] Buscando macros no banco para o usuário:", user.id);
+        
+        const { data, error } = await supabase
+            .from('automation_macros')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error("[AppContext] Erro ao buscar macros:", error.message);
+            return;
+        }
+        if (data) {
+            console.log("[AppContext] Macros carregadas com sucesso:", data.length);
+            setAutomationMacros(data);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        fetchMacros();
+    }, [fetchMacros]);
+
     const effectiveIgnoreKeywords = useMemo(() => {
         return [...(referenceData.customIgnoreKeywords || []), ...(systemSettings.globalIgnoreKeywords || [])];
     }, [referenceData.customIgnoreKeywords, systemSettings.globalIgnoreKeywords]);
@@ -61,6 +91,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [isSyncing, setIsSyncing] = useState(false);
 
+    // --- LISTENER DA EXTENSÃO ATUALIZADO (V4) ---
+    useEffect(() => {
+        const handleExtensionMessage = async (event: MessageEvent) => {
+            // Aceita mensagens tanto diretas quanto via chrome.runtime bridge
+            if (!event.data || event.data.source !== "IdentificaPixExt") return;
+
+            const { type, payload } = event.data;
+            console.log(`%c[AppContext] MENSAGEM RECEBIDA DA EXTENSÃO: ${type}`, "color: #8b5cf6; font-weight: bold;");
+
+            if (type === "SAVE_TRAINING" && user) {
+                console.log("[AppContext] Iniciando salvamento da macro no Supabase...");
+                setIsLoading(true);
+                try {
+                    const { data, error } = await supabase
+                        .from('automation_macros')
+                        .insert({
+                            user_id: user.id,
+                            name: `Macro ${payload.bankName || 'Treino'} - ${new Date().toLocaleTimeString()}`,
+                            steps: payload.steps,
+                            target_url: payload.targetUrl || null
+                        })
+                        .select();
+
+                    if (error) throw error;
+                    
+                    console.log("[AppContext] Macro salva no DB com ID:", data[0].id);
+                    // Atualização imediata do estado
+                    setAutomationMacros(prev => [data[0], ...prev]);
+                    showToast("IA: Novo percurso aprendido e habilitado!", "success");
+                } catch (e: any) {
+                    console.error("[AppContext] ERRO CRÍTICO AO SALVAR MACRO NO BANCO:", e.message);
+                    showToast("Erro ao salvar aprendizado no banco de dados.", "error");
+                } finally {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        window.addEventListener("message", handleExtensionMessage);
+        return () => window.removeEventListener("message", handleExtensionMessage);
+    }, [user, setIsLoading, showToast]);
+
     const saveSmartEdit = useCallback((result: MatchResult) => {
         reconciliation.updateReportData(result);
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
@@ -74,6 +146,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const tx = reconciliation.matchResults.find((r: any) => r.transaction.id === txId)?.transaction;
         if (tx) reconciliation.setManualIdentificationTx(tx);
     }, [reconciliation]);
+
+    const runAiAutoIdentification = useCallback(() => {
+        if (reconciliation.matchResults.length === 0) return;
+        
+        setIsLoading(true);
+        let identifiedCount = 0;
+        
+        const currentResults = [...reconciliation.matchResults];
+        const nextResults = currentResults.map(res => {
+            if (res.status === ReconciliationStatus.UNIDENTIFIED) {
+                const txDescNorm = normalizeString(res.transaction.description, effectiveIgnoreKeywords);
+                const learned = referenceData.learnedAssociations.find((la: any) => la.normalizedDescription === txDescNorm);
+                
+                if (learned) {
+                    const church = referenceData.churches.find((c: any) => c.id === learned.churchId);
+                    if (church) {
+                        identifiedCount++;
+                        return {
+                            ...res,
+                            status: ReconciliationStatus.IDENTIFIED,
+                            church: church,
+                            matchMethod: MatchMethod.LEARNED,
+                            similarity: 100,
+                            contributor: res.suggestion || { name: learned.contributorNormalizedName, amount: res.transaction.amount },
+                            contributorAmount: res.transaction.amount,
+                            suggestion: undefined
+                        };
+                    }
+                }
+
+                if (res.suggestion && (res.similarity || 0) >= 90) {
+                    const churchId = (res.suggestion as any)._churchId || res.suggestion.church?.id;
+                    const church = referenceData.churches.find((c: any) => c.id === churchId);
+                    
+                    if (church) {
+                        identifiedCount++;
+                        return {
+                            ...res,
+                            status: ReconciliationStatus.IDENTIFIED,
+                            contributor: res.suggestion,
+                            church: church,
+                            matchMethod: MatchMethod.AI,
+                            similarity: res.similarity,
+                            contributorAmount: res.suggestion.amount,
+                            suggestion: undefined
+                        };
+                    }
+                }
+            }
+            return res;
+        });
+
+        if (identifiedCount > 0) {
+            reconciliation.setMatchResults(nextResults);
+            const incomeResults = nextResults.filter(r => r.transaction.amount >= 0 || r.status === ReconciliationStatus.PENDING);
+            const expenseResults = nextResults.filter(r => r.transaction.amount < 0 && r.status !== ReconciliationStatus.PENDING);
+
+            reconciliation.setReportPreviewData({
+                income: groupResultsByChurch(incomeResults),
+                expenses: { 'all_expenses_group': expenseResults }
+            });
+
+            showToast(`${identifiedCount} transações identificadas automaticamente.`, "success");
+        } else {
+            showToast("Nenhuma sugestão de alta confiança encontrada.", "info");
+        }
+        
+        setIsLoading(false);
+    }, [reconciliation, referenceData, effectiveIgnoreKeywords, setIsLoading, showToast]);
 
     const handleGmailSyncSuccess = useCallback((transactions: Transaction[]) => {
         reconciliation.importGmailTransactions(transactions);
@@ -163,6 +304,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...reconciliation,
         ...reconciliationActions,
         ...modalController,
+        automationMacros,
+        fetchMacros,
         initialDataLoaded,
         summary,
         activeSpreadsheetData,
@@ -170,11 +313,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSyncing,
         handleGmailSyncSuccess,
         confirmDeletion,
-        openManualIdentify
+        openManualIdentify,
+        runAiAutoIdentification
     }), [
         referenceData, effectiveIgnoreKeywords, reportManager, reconciliation, reconciliationActions,
-        modalController, initialDataLoaded, summary, activeSpreadsheetData, 
-        saveSmartEdit, isSyncing, handleGmailSyncSuccess, confirmDeletion, openManualIdentify
+        modalController, automationMacros, fetchMacros, initialDataLoaded, summary, activeSpreadsheetData, 
+        saveSmartEdit, isSyncing, handleGmailSyncSuccess, confirmDeletion, openManualIdentify,
+        runAiAutoIdentification
     ]);
 
     return (

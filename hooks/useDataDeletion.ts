@@ -2,6 +2,7 @@
 import { useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { DeletingItem } from '../types';
+import { consolidationService } from '../services/ConsolidationService';
 
 interface UseDataDeletionProps {
     user: any;
@@ -49,19 +50,29 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'report-row': {
+                    // Se não for um registro fantasma, remove permanentemente do banco de dados
+                    if (!id.startsWith('ghost-')) {
+                        await consolidationService.deleteTransactionById(id);
+                    }
+                    
+                    // Remove do estado da reconciliação (UI do relatório)
                     reconciliation.removeTransaction(id);
-                    showToast("Linha removida.", "success");
+                    
+                    // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
+                    if (reconciliation.hydrate) {
+                        await reconciliation.hydrate();
+                    }
+                    
+                    showToast("Linha removida permanentemente.", "success");
                     break;
                 }
                 case 'all-data': {
                     reconciliation.resetReconciliation();
                     await supabase.rpc('delete_pending_transactions'); 
-                    // FIX: Removido chamada inexistente clearFiles
                     showToast("Todos os dados temporários foram limpos.", "success");
                     break;
                 }
                 case 'uploaded-files': {
-                    // FIX: Removido chamada inexistente clearFiles
                     await supabase.rpc('delete_pending_transactions');
                     reconciliation.setBankStatementFile([]);
                     reconciliation.setSelectedBankIds([]);

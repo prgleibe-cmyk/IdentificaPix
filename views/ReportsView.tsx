@@ -18,7 +18,8 @@ import {
     PrinterIcon,
     DocumentArrowDownIcon,
     ArrowPathIcon,
-    RectangleStackIcon
+    RectangleStackIcon,
+    SparklesIcon
 } from '../components/Icons';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { MatchResult } from '../types';
@@ -32,7 +33,8 @@ export const ReportsView: React.FC = () => {
         matchResults,
         updateReportData,
         loadingAiId,
-        openSmartEdit
+        openSmartEdit,
+        runAiAutoIdentification
     } = useContext(AppContext);
     
     const { setActiveView } = useUI();
@@ -447,33 +449,43 @@ export const ReportsView: React.FC = () => {
                     </div>
                 </div>
 
-                {/* ACTIONS (RIGHT) - Separated buttons for clear function distinction */}
+                {/* ACTIONS (RIGHT) - Padronizados com as Pílulas de Categoria */}
                 <div className="flex items-center gap-2 w-full md:w-auto ml-auto">
                     
-                    {/* BUTTON GROUP: Toolset (Update, Download, Print) */}
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-1 mr-2 border border-slate-200 dark:border-slate-700">
+                    {/* Conciliação Inteligente IA */}
+                    <button 
+                        onClick={runAiAutoIdentification}
+                        className="relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-md shadow-indigo-500/20 hover:-translate-y-0.5 transition-all active:scale-95 group border border-white/10"
+                        title="Acionar IA para identificar pendências de alta confiança"
+                    >
+                        <SparklesIcon className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
+                        <span>Conciliação Inteligente</span>
+                    </button>
+
+                    <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1"></div>
+
+                    {/* TOOLSET (Update, Download, Print) - Ajustado para altura das pílulas */}
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-0.5 border border-slate-200 dark:border-slate-700 shadow-sm">
                         <button 
-                            onClick={() => setActiveView('upload')} // REDIRECT TO UPLOAD VIEW
+                            onClick={() => setActiveView('upload')}
                             className="p-1.5 rounded-full text-slate-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-700 transition-all"
-                            title="Atualizar Fonte de Dados (Gerenciar Arquivos)"
+                            title="Atualizar Fonte de Dados"
                         >
-                            <ArrowPathIcon className="w-4 h-4" />
+                            <ArrowPathIcon className="w-3.5 h-3.5" />
                         </button>
-                        <div className="w-px h-3 bg-slate-300 dark:bg-slate-600"></div>
                         <button 
                             onClick={handleDownload}
                             className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all"
                             title="Baixar CSV"
                         >
-                            <DocumentArrowDownIcon className="w-4 h-4" />
+                            <DocumentArrowDownIcon className="w-3.5 h-3.5" />
                         </button>
-                        <div className="w-px h-3 bg-slate-300 dark:bg-slate-600"></div>
                         <button 
                             onClick={handlePrint}
                             className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all"
                             title="Imprimir"
                         >
-                            <PrinterIcon className="w-4 h-4" />
+                            <PrinterIcon className="w-3.5 h-3.5" />
                         </button>
                     </div>
 
@@ -481,7 +493,7 @@ export const ReportsView: React.FC = () => {
                     {activeReportId && (
                         <button 
                             onClick={saveCurrentReportChanges}
-                            className="relative flex items-center justify-center gap-2 px-4 py-2 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 transition-all active:scale-95"
+                            className="relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-md shadow-orange-500/20 hover:-translate-y-0.5 transition-all active:scale-95 border border-white/10"
                         >
                             <FloppyDiskIcon className="w-3.5 h-3.5" />
                             <span>Salvar Alt.</span>
@@ -491,7 +503,7 @@ export const ReportsView: React.FC = () => {
                     {/* Botão Salvar Novo Relatório */}
                     <button 
                         onClick={handleSaveReport}
-                        className="relative flex items-center justify-center gap-2 px-6 py-2 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 transition-all active:scale-95"
+                        className="relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 transition-all active:scale-95 border border-white/10"
                     >
                         <DocumentDuplicateIcon className="w-3.5 h-3.5" />
                         <span>{t('reports.saveReport')}</span>
@@ -513,7 +525,7 @@ export const ReportsView: React.FC = () => {
             )}
 
             {/* 3. REPORT CONTENT (Maximized Vertical Space) */}
-            <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col relative">
+            <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative">
                 
                 {/* 3.1. Report Header / Stats Strip (Condensed) */}
                 <div className="px-4 py-2 bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0 backdrop-blur-sm">
@@ -582,7 +594,7 @@ export const ReportsView: React.FC = () => {
                         <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block"></div>
 
                         <div className="relative group">
-                            <MagnifyingGlassIcon className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors" />
+                            <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors" />
                             <input 
                                 type="text" 
                                 placeholder="Pesquisar..." 

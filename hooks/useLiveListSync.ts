@@ -15,7 +15,10 @@ export const useLiveListSync = ({
     const [isCleaning, setIsCleaning] = useState(false);
 
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        if (!user || isHydrating.current || isCleaning) return;
+        if (!user || isCleaning) return;
+        
+        // Permite que chamadas sequenciais ocorram, evitando o travamento da UI 
+        // caso o estado isHydrating fique "preso"
         isHydrating.current = true;
         
         try {
@@ -29,7 +32,6 @@ export const useLiveListSync = ({
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile(() => []);
                 setSelectedBankIds(() => []);
-                isHydrating.current = false;
                 return;
             }
 
@@ -80,21 +82,23 @@ export const useLiveListSync = ({
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
         if (!user) return { added: 0, skipped: 0, total: transactions.length };
         const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
+        // Pequena espera para garantir que o banco persistiu antes de ler de volta
+        await new Promise(resolve => setTimeout(resolve, 500));
         await hydrate();
         return stats;
     }, [user, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
         if (!user) return;
-        setIsCleaning(true); // Bloqueia hidratação
+        setIsCleaning(true);
         try {
-            setBankStatementFile(() => []); // Limpa UI imediatamente
+            setBankStatementFile(() => []);
             setSelectedBankIds(() => []);
             await consolidationService.deletePendingTransactions(user.id, bankId);
             console.log("[Lista Viva] Banco limpo com sucesso.");
         } finally {
             setIsCleaning(false);
-            await hydrate(true); // Tenta hidratar após limpeza
+            await hydrate(true);
         }
     }, [user, setBankStatementFile, setSelectedBankIds, hydrate]);
 
