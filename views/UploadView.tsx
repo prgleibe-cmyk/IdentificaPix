@@ -8,26 +8,20 @@ import { useUI } from '../contexts/UIContext';
 import { FileUploader, FileUploaderHandle } from '../components/FileUploader';
 import { 
     BanknotesIcon, 
-    UserIcon, 
     TrashIcon, 
-    InformationCircleIcon, 
-    BoltIcon, 
-    WhatsAppIcon, 
     EllipsisVerticalIcon, 
     PlusCircleIcon, 
     ArrowPathIcon, 
-    EnvelopeIcon, 
     CheckCircleIcon, 
     DocumentDuplicateIcon, 
     ArrowsRightLeftIcon, 
-    XMarkIcon 
+    XMarkIcon,
+    SparklesIcon
 } from '../components/Icons';
-import { GmailModal } from '../features/gmail/GmailModal';
-import { InitialComparisonModal } from '../components/modals/InitialComparisonModal';
 import { processFileContent } from '../services/processingService';
 import { LaunchService } from '../services/LaunchService';
+import { GmailButton } from '../features/gmail/GmailButton';
 
-// --- SMART BANK CARD COMPONENT ---
 const SmartBankCard: React.FC<{ bank: any }> = ({ bank }) => {
     const { 
         activeBankFiles,
@@ -105,8 +99,6 @@ const SmartBankCard: React.FC<{ bank: any }> = ({ bank }) => {
             }
 
             const launchResult = await LaunchService.launchToBank(user.id, bank.id, newTransactions);
-            
-            // Critical fix: Always hydrate to sync UI with database state
             await hydrate();
 
             if (launchResult.added > 0) {
@@ -250,11 +242,9 @@ const SmartBankCard: React.FC<{ bank: any }> = ({ bank }) => {
 
 export const UploadView: React.FC = () => {
     const { 
-        banks, churches, contributorFiles, handleContributorsUpload, removeContributorFile,
-        resetReconciliation, activeReportId, selectedBankIds
+        banks, activeReportId, selectedBankIds, handleCompare
     } = useContext(AppContext);
     const { t } = useTranslation();
-    const [showConfig, setShowConfig] = useState(false);
 
     const hasSelection = selectedBankIds.length > 0;
     const canProcess = hasSelection || !!activeReportId;
@@ -263,67 +253,51 @@ export const UploadView: React.FC = () => {
         <div className="flex flex-col h-full animate-fade-in gap-6 pb-4 px-1">
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 flex-shrink-0">
                 <div>
-                    <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('upload.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">{t('upload.subtitle')}</p>
+                    <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">Lançar Dados</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">Selecione seus extratos para identificação automática inteligente.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={resetReconciliation} className="flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 shadow-lg shadow-rose-500/20 transition-all border border-white/10"><TrashIcon className="w-3.5 h-3.5" /><span className="hidden sm:inline">Nova Conciliação</span></button>
+                    <GmailButton />
                 </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col relative overflow-hidden group">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl text-brand-blue border border-blue-100 dark:border-blue-800"><BanknotesIcon className="w-6 h-6" /></div>
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 flex justify-center">
+                <div className="w-full max-w-4xl h-fit">
+                    {/* PAINEL ÚNICO: EXTRATOS */}
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                        <div className="flex items-center gap-4 mb-8 relative z-10">
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl text-brand-blue border border-blue-100 dark:border-blue-800 shadow-sm"><BanknotesIcon className="w-8 h-8" /></div>
                             <div>
-                                <h3 className="font-bold text-slate-800 dark:text-white text-sm">1. {t('upload.statementTitle')}</h3>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">Vincule os extratos bancários para começar.</p>
+                                <h3 className="font-black text-slate-800 dark:text-white text-lg uppercase tracking-tight">Extratos para Processamento</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">Selecione ou carregue as listas que deseja conciliar agora.</p>
                             </div>
                         </div>
-                        <div className="flex-1 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-1">
-                            {banks.map(bank => (
-                                <SmartBankCard key={bank.id} bank={bank} />
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col relative overflow-hidden group">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl text-indigo-600 border border-indigo-100 dark:border-indigo-800"><UserIcon className="w-6 h-6" /></div>
-                            <div>
-                                <h3 className="font-bold text-slate-800 dark:text-white text-sm">2. {t('upload.contributorsTitle')}</h3>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{t('upload.contributorsSubtitle')}</p>
-                            </div>
-                        </div>
-                        <div className="flex-1 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-1">
-                            {churches.map(church => {
-                                const isUploaded = !!contributorFiles.find(f => f.churchId === church.id);
-                                return (
-                                    <div key={church.id} className={`p-3 rounded-2xl border transition-all duration-300 flex items-center justify-between gap-3 ${isUploaded ? 'bg-indigo-50/50 border-indigo-200 dark:bg-indigo-900/10 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-700'}`}>
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            {church.logoUrl && <img src={church.logoUrl} alt="" className="w-6 h-6 rounded-md object-cover bg-white" />}
-                                            <span className="font-bold text-xs text-slate-700 dark:text-slate-200 truncate">{church.name}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <FileUploader id={`church-${church.id}`} title={t('upload.contributorsButton')} onFileUpload={(content, fileName) => handleContributorsUpload(content, fileName, church.id)} isUploaded={isUploaded} uploadedFileName={null} />
-                                            {isUploaded && <button onClick={() => removeContributorFile(church.id)} className="p-1.5 text-slate-400 hover:text-red-500 bg-white dark:bg-slate-800 rounded-lg shadow-sm transition-colors"><TrashIcon className="w-3 h-3" /></button>}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                        <div className="flex flex-col gap-4 relative z-10">
+                            {banks.length > 0 ? (
+                                banks.map(bank => (
+                                    <SmartBankCard key={bank.id} bank={bank} />
+                                ))
+                            ) : (
+                                <div className="p-10 text-center border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-3xl">
+                                    <p className="text-slate-400 text-sm font-medium">Nenhum banco cadastrado. Vá em "Cadastro" para adicionar.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div className="flex justify-end pt-2 flex-shrink-0">
-                <button onClick={() => setShowConfig(true)} disabled={!canProcess} className="flex items-center gap-3 px-8 py-3.5 text-white rounded-full shadow-lg hover:-translate-y-1 transition-all disabled:opacity-50 text-xs font-bold uppercase tracking-widest bg-gradient-to-r from-amber-500 to-orange-600 border border-white/10">
-                    <BoltIcon className="w-5 h-5" />
-                    {activeReportId ? "Atualizar Relatório" : "Configurar & Processar"}
+            <div className="flex justify-center pt-2 flex-shrink-0">
+                <button 
+                    onClick={handleCompare} 
+                    disabled={!canProcess} 
+                    className="flex items-center gap-4 px-12 py-4 text-white rounded-full shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-50 text-sm font-black uppercase tracking-widest bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 border border-white/20 group"
+                >
+                    <SparklesIcon className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                    {activeReportId ? "Atualizar Relatório" : "Processar com Inteligência"}
                 </button>
             </div>
-            {showConfig && <InitialComparisonModal onClose={() => setShowConfig(false)} />}
         </div>
     );
 };

@@ -49,7 +49,6 @@ export const useReconciliation = ({
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
     
-    // Novo Estado para Itens Lançados
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
@@ -82,7 +81,6 @@ export const useReconciliation = ({
                 showToast(`Sucesso! ${feedback}`, "success");
             }
             
-            // Força hidratação final
             await hydrate();
         } catch (error) {
             console.error("[Reconciliation] Upload Fail:", error);
@@ -132,15 +130,25 @@ export const useReconciliation = ({
     }, [clearRemoteList, showToast, setActiveView, setIsLoading]);
 
     const markAsLaunched = useCallback((txId: string) => {
+        // Busca o item no estado atual antes de qualquer mutação
         setMatchResults(prev => {
-            const item = prev.find(r => r.transaction.id === txId);
-            if (item) {
-                setLaunchedResults(launched => [{ ...item, launchedAt: new Date().toISOString() }, ...launched]);
-                const next = prev.filter(r => r.transaction.id !== txId);
-                regenerateReportPreview(next);
-                return next;
-            }
-            return prev;
+            const itemIndex = prev.findIndex(r => r.transaction.id === txId);
+            if (itemIndex === -1) return prev;
+
+            const item = prev[itemIndex];
+            
+            // Adiciona aos lançados (Fora do ciclo de render se possível, mas mantendo a lógica de negócio)
+            setLaunchedResults(launched => [{ 
+                ...item, 
+                launchedAt: new Date().toISOString() 
+            }, ...launched]);
+
+            const next = prev.filter(r => r.transaction.id !== txId);
+            
+            // Agenda a regeneração do preview para o próximo tick para evitar loops de estado
+            setTimeout(() => regenerateReportPreview(next), 0);
+            
+            return next;
         });
     }, [setMatchResults, setLaunchedResults, regenerateReportPreview]);
 
@@ -169,14 +177,29 @@ export const useReconciliation = ({
         handleCompare: async () => {
             setIsLoading(true);
             const allTransactions = activeBankFiles.filter(f => selectedBankIds.includes(f.bankId)).flatMap(f => f.processedTransactions || []);
-            if (allTransactions.length === 0) { showToast("Sem dados para comparar.", "error"); setIsLoading(false); return; }
-            const results = matchTransactions(allTransactions, contributorFiles, { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, learnedAssociations, churches, customIgnoreKeywords);
+            
+            if (allTransactions.length === 0) { 
+                showToast("Sem dados para processar.", "error"); 
+                setIsLoading(false); 
+                return; 
+            }
+
+            // O matchTransactions agora lida internamente com o fato de haver ou não listas de contribuintes
+            const results = matchTransactions(
+                allTransactions, 
+                contributorFiles, 
+                { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, 
+                learnedAssociations, 
+                churches, 
+                customIgnoreKeywords
+            );
+
             setMatchResults(results);
             regenerateReportPreview(results);
             setHasActiveSession(true);
             setActiveView('reports');
             setIsLoading(false);
-            showToast("Conciliação concluída!", "success");
+            showToast("Processamento concluído!", "success");
         },
         resetReconciliation,
         updateReportData: (updatedRow: MatchResult) => {

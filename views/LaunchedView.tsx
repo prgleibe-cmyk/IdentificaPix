@@ -11,12 +11,17 @@ import {
     CalendarIcon, 
     BanknotesIcon, 
     BuildingOfficeIcon,
-    XMarkIcon
+    XMarkIcon,
+    ArrowPathIcon,
+    DocumentArrowDownIcon,
+    PrinterIcon,
+    DocumentDuplicateIcon
 } from '../components/Icons';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { ExportService } from '../services/ExportService';
 
 export const LaunchedView: React.FC = () => {
-    const { launchedResults, deleteLaunchedItem } = useContext(AppContext);
+    const { launchedResults, deleteLaunchedItem, hydrate, openSaveReportModal } = useContext(AppContext);
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [searchTerm, setSearchTerm] = useState('');
@@ -38,6 +43,26 @@ export const LaunchedView: React.FC = () => {
         }, 0);
     }, [filtered]);
 
+    const handleDownload = () => {
+        ExportService.downloadCsv(filtered, `lancados_${new Date().toISOString().slice(0,10)}.csv`);
+    };
+
+    const handlePrint = () => {
+        const summary = {
+            count: filtered.length,
+            total: totalValue
+        };
+        ExportService.printHtml(filtered, 'Relatório de Itens Lançados', summary, language);
+    };
+
+    const handleSaveReport = () => {
+        openSaveReportModal({
+            type: 'global',
+            results: filtered,
+            groupName: 'Itens Lançados'
+        });
+    };
+
     if (launchedResults.length === 0) {
         return (
             <div className="flex-1 flex items-center justify-center">
@@ -56,10 +81,46 @@ export const LaunchedView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-4 pb-4 px-1">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
-                <div>
-                    <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('launched.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">{t('launched.subtitle')}</p>
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 flex-shrink-0">
+                <div className="flex items-center gap-4">
+                    <div>
+                        <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('launched.title')}</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">{t('launched.subtitle')}</p>
+                    </div>
+
+                    {/* TOOLSET (Update, Download, Print) */}
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-0.5 border border-slate-200 dark:border-slate-700 shadow-sm ml-2">
+                        <button 
+                            onClick={() => hydrate()}
+                            className="p-1.5 rounded-full text-slate-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-700 transition-all"
+                            title="Sincronizar"
+                        >
+                            <ArrowPathIcon className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                            onClick={handleDownload}
+                            className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all"
+                            title="Baixar CSV"
+                        >
+                            <DocumentArrowDownIcon className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                            onClick={handlePrint}
+                            className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all"
+                            title="Imprimir"
+                        >
+                            <PrinterIcon className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    {/* Botão Salvar Novo Relatório */}
+                    <button 
+                        onClick={handleSaveReport}
+                        className="relative flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 transition-all active:scale-95 border border-white/10"
+                    >
+                        <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+                        <span>{t('reports.saveReport')}</span>
+                    </button>
                 </div>
                 
                 <div className="flex items-center gap-3">
