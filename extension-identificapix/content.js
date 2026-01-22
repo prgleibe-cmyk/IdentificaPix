@@ -1,59 +1,50 @@
 
-// content.js - Sensores de interface v1.0.2
+// content.js - Sensores de interface v1.0.3
 
 let localTrainingState = { active: false };
 const isIdentificaPixPage = window.location.href.includes("identificapix.com.br") || window.location.hostname === "localhost";
 
-// Função segura para enviar mensagens
+// Função para verificar se a extensão ainda é válida
+function isExtensionValid() {
+    return !!(chrome.runtime && chrome.runtime.id);
+}
+
 function safeSendMessage(message) {
+    if (!isExtensionValid()) return;
     try {
-        if (chrome.runtime && chrome.runtime.id) {
-            chrome.runtime.sendMessage(message);
-        }
+        chrome.runtime.sendMessage(message);
     } catch (e) {
-        if (e.message.includes("context invalidated")) {
-            console.warn("[IdentificaPix IA] Extensão atualizada. Por favor, recarregue a página (F5).");
-        } else {
-            console.error("[IdentificaPix IA] Erro ao enviar mensagem:", e);
-        }
+        // Silencia erros de contexto invalidado
     }
 }
 
-// Sincroniza estado inicial e mudanças
+// Sincroniza estado inicial
 function syncState() {
+    if (!isExtensionValid()) return;
     try {
         chrome.storage.local.get(['trainingState'], (result) => {
             if (chrome.runtime.lastError) return;
             if (result.trainingState) {
                 localTrainingState = result.trainingState;
-                if (localTrainingState.active) {
-                    console.log("[IdentificaPix IA] Modo Treino está ATIVO nesta aba.");
-                }
             }
         });
-    } catch (e) { /* Silencia erro de contexto */ }
+    } catch (e) {}
 }
 
-chrome.storage.onChanged.addListener((changes) => {
-    if (changes.trainingState) {
-        localTrainingState = changes.trainingState.newValue;
-    }
-});
+if (isExtensionValid()) {
+    chrome.storage.onChanged.addListener((changes) => {
+        if (changes.trainingState) {
+            localTrainingState = changes.trainingState.newValue;
+        }
+    });
+    syncState();
+}
 
-syncState();
-
-// Bridge: Mensagens do Background -> WebApp
+// Bridge: Background -> WebApp
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "SAVE_TRAINING" && isIdentificaPixPage) {
-        console.log("%c[IdentificaPix IA] Recebido SAVE_TRAINING. Repassando ao App...", "color: #8b5cf6; font-weight: bold;");
-        window.postMessage({ 
-            source: "IdentificaPixExt", 
-            type: "SAVE_TRAINING", 
-            payload: msg.payload 
-        }, "*");
+        window.postMessage({ source: "IdentificaPixExt", type: "SAVE_TRAINING", payload: msg.payload }, "*");
     }
-    
-    // Encaminha fim de execução para o App
     if (msg.type === "ITEM_DONE" && isIdentificaPixPage) {
         window.postMessage({ source: "IdentificaPixExt", type: "ITEM_DONE", payload: msg.payload }, "*");
     }
@@ -65,17 +56,12 @@ window.addEventListener("message", (event) => {
     safeSendMessage(event.data);
 });
 
-// CAPTURA DE CLIQUES
+// CAPTURA DE CLIQUES (Melhorada)
 document.addEventListener("click", (e) => {
-    if (!localTrainingState.active) return;
-    
-    if (isIdentificaPixPage) {
-        console.log("[IdentificaPix IA] Clique ignorado (dentro do IdentificaPix)");
-        return;
-    }
+    if (!localTrainingState.active || isIdentificaPixPage) return;
 
     const selector = generateSelector(e.target);
-    console.log("%c[IdentificaPix IA] Capturando Clique no Alvo: " + selector, "color: #10b981; font-weight: bold;");
+    console.log("%c[IdentificaPix IA] Capturando Clique: " + selector, "color: #10b981; font-weight: bold;");
     
     safeSendMessage({
         type: "ACTION_CAPTURED",
@@ -92,16 +78,16 @@ document.addEventListener("input", (e) => {
     const value = el.value;
     let mappedProperty = null;
 
-    // Tenta mapear o valor digitado ao item de exemplo do treino
     const sample = localTrainingState.sampleItem;
     if (sample) {
-        const valStr = String(value).toLowerCase();
-        if (valStr === String(sample.name).toLowerCase()) mappedProperty = "name";
-        else if (valStr === String(sample.amount).toLowerCase()) mappedProperty = "amount";
-        else if (valStr === String(sample.date).toLowerCase()) mappedProperty = "date";
+        const valStr = String(value).toLowerCase().trim();
+        if (valStr === String(sample.name).toLowerCase().trim()) mappedProperty = "name";
+        else if (valStr === String(sample.amount).toLowerCase().trim()) mappedProperty = "amount";
+        else if (valStr === String(sample.date).toLowerCase().trim()) mappedProperty = "date";
+        else if (valStr === String(sample.church).toLowerCase().trim()) mappedProperty = "church";
     }
 
-    console.log("%c[IdentificaPix IA] Capturando Digitação no Alvo: " + selector, "color: #3b82f6; font-weight: bold;");
+    console.log("%c[IdentificaPix IA] Capturando Texto: " + selector, "color: #3b82f6; font-weight: bold;");
     
     safeSendMessage({
         type: "ACTION_CAPTURED",
@@ -112,15 +98,32 @@ document.addEventListener("input", (e) => {
 function generateSelector(el) {
     if (!el) return "unknown";
     if (el.id) return "#" + el.id;
+    
+    // Tenta por nome (comum em formulários de banco)
     if (el.name) return `[name="${el.name}"]`;
     
+    // Tenta por ARIA label
+    const aria = el.getAttribute('aria-label');
+    if (aria) return `[aria-label="${aria}"]`;
+
     let selector = el.tagName.toLowerCase();
     if (el.className && typeof el.className === "string") {
+        // Filtra classes dinâmicas ou muito longas (comum em SPAs)
         const classes = el.className.trim()
             .split(/\s+/)
-            .filter(c => !c.includes(':') && c.length > 0 && !/^\d/.test(c) && !c.includes('[') && !c.includes('/'))
+            .filter(c => c.length > 0 && c.length < 30 && !/\d/.test(c) && !c.includes(':') && !c.includes('[') && !c.includes('/'))
             .join('.');
         if (classes) selector += "." + classes;
     }
+
+    // Se o seletor for muito genérico (ex: "div"), adiciona o texto interno se for curto
+    if (selector === "span" || selector === "button" || selector === "div") {
+        const text = el.innerText?.trim();
+        if (text && text.length > 0 && text.length < 20) {
+            // Seletor por texto é frágil, mas melhor que nada para botões sem ID
+            return `${selector}:contains("${text}")`; // Nota: :contains é interpretado pelo nosso executor
+        }
+    }
+
     return selector;
 }
