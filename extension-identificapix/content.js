@@ -6,6 +6,9 @@ let executionMode = false;
 let successObserver = null;
 const SUCCESS_KEYWORDS = ["sucesso", "salvo", "concluido", "finalizado", "realizado", "gravado", "success", "saved"];
 
+// Trava de segurança: Não grava ações se estivermos dentro do IdentificaPix
+const isIdentificaPixPage = window.location.href.includes("identificapix.com.br") || window.location.hostname === "localhost";
+
 // Sincroniza estado de treino do storage continuamente
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.trainingState) {
@@ -24,31 +27,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log("[IdentificaPix IA] Mensagem recebida do Background:", msg.type);
 
   if (msg.type === "SAVE_TRAINING") {
-    // Tenta postar a mensagem para a janela atual (WebApp)
-    window.postMessage({ 
-      source: "IdentificaPixExt", 
-      type: "SAVE_TRAINING", 
-      payload: msg.payload 
-    }, "*");
-    console.log("[IdentificaPix IA] Encaminhado SAVE_TRAINING para o App via window.postMessage");
+    // Tenta postar a mensagem para a janela atual (WebApp) apenas se for a página do app
+    if (isIdentificaPixPage) {
+        window.postMessage({ 
+          source: "IdentificaPixExt", 
+          type: "SAVE_TRAINING", 
+          payload: msg.payload 
+        }, "*");
+        console.log("[IdentificaPix IA] Encaminhado SAVE_TRAINING para o App");
+    }
   }
   
-  if (msg.type === "EXECUTE_ITEM") {
+  if (msg.type === "EXECUTE_ITEM" && !isIdentificaPixPage) {
     executeItemInPage(msg.payload);
   }
 
-  if (msg.type === "ITEM_DONE") {
+  if (msg.type === "ITEM_DONE" && isIdentificaPixPage) {
      window.postMessage({ source: "IdentificaPixExt", type: "ITEM_DONE", payload: msg.payload }, "*");
   }
 });
 
 // --- BRIDGE: WEBAPP -> EXTENSION ---
 window.addEventListener("message", (event) => {
-  // Ignora mensagens de outras origens não identificadas
   if (!event.data || event.data.source !== "IdentificaPixIA") return;
   
   console.log("[IdentificaPix IA] Comando vindo do App:", event.data.type);
-  // Encaminha ordens do App para o Background da Extensão
   chrome.runtime.sendMessage(event.data);
 });
 
@@ -60,16 +63,16 @@ function generateSelector(el) {
   
   let selector = el.tagName.toLowerCase();
   if (el.className && typeof el.className === "string") {
-    const classes = el.className.trim().split(/\s+/).filter(c => !c.includes(':')).join('.');
+    const classes = el.className.trim().split(/\s+/).filter(c => !c.includes(':') && !c.includes('.') && c.length > 0).join('.');
     if (classes) selector += "." + classes;
   }
   return selector;
 }
 
 document.addEventListener("click", (e) => {
-  if (!localTrainingState.active) return;
+  if (!localTrainingState.active || isIdentificaPixPage) return;
   const selector = generateSelector(e.target);
-  console.log("[IdentificaPix IA] Capturando Clique:", selector);
+  console.log("[IdentificaPix IA] Capturando Clique no Alvo:", selector);
   chrome.runtime.sendMessage({
     type: "ACTION_CAPTURED",
     payload: { type: "click", selector, timestamp: new Date().toISOString() }
@@ -77,7 +80,7 @@ document.addEventListener("click", (e) => {
 }, true);
 
 document.addEventListener("input", (e) => {
-  if (!localTrainingState.active) return;
+  if (!localTrainingState.active || isIdentificaPixPage) return;
   const el = e.target;
   const selector = generateSelector(el);
   const value = el.value;
@@ -91,7 +94,7 @@ document.addEventListener("input", (e) => {
     else if (value === String(sample.church)) mappedProperty = "church";
   }
 
-  console.log("[IdentificaPix IA] Capturando Input:", selector, value);
+  console.log("[IdentificaPix IA] Capturando Input no Alvo:", selector);
   chrome.runtime.sendMessage({
     type: "ACTION_CAPTURED",
     payload: { type: "input", selector, value, mappedProperty, timestamp: new Date().toISOString() }
@@ -104,15 +107,12 @@ async function executeItemInPage(payload) {
   executionMode = true;
   startSuccessObserver();
 
-  console.log("[IdentificaPix IA] Iniciando automação real...");
+  console.log("[IdentificaPix IA] Iniciando automação no alvo...");
 
   for (const step of macro.steps) {
     if (!executionMode) break;
     const element = document.querySelector(step.selector);
-    if (!element) {
-        console.warn("[IdentificaPix IA] Elemento não encontrado:", step.selector);
-        continue;
-    }
+    if (!element) continue;
 
     await new Promise(r => setTimeout(r, 600));
 
@@ -129,13 +129,8 @@ async function executeItemInPage(payload) {
       element.value = valueToInject;
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
-      element.dispatchEvent(new Event('blur', { bubbles: true }));
     }
   }
-
-  setTimeout(() => {
-    if (executionMode) notifyDone(data.id);
-  }, 1000);
 }
 
 function notifyDone(id) {
