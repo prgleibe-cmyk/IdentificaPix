@@ -2,7 +2,7 @@
 {
   "manifest_version": 3,
   "name": "IdentificaPix - Lançamento Automático IA",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Executor inteligente para o Lançamento Automático do IdentificaPix.",
   "permissions": [
     "storage",

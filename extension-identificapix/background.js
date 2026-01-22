@@ -1,80 +1,99 @@
 
-// background.js - O cérebro da extensão
+// background.js - O cérebro persistente da extensão
 
-let trainingState = {
-  active: false,
-  bankName: "",
-  steps: [],
-  appTabId: null,
-  sampleItem: null
-};
+// Função auxiliar para gerenciar o estado no storage (Necessário no Manifest V3)
+async function getTrainingState() {
+  const result = await chrome.storage.local.get(['trainingState']);
+  return result.trainingState || { active: false, steps: [], appTabId: null };
+}
 
-// Listener para mensagens de qualquer aba (App ou Banco)
+async function updateTrainingState(newState) {
+  await chrome.storage.local.set({ trainingState: newState });
+}
+
+// Listener para mensagens
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   
-  // 1. Início do Treino (Vem do WebApp)
-  if (msg.type === "START_TRAINING") {
-    trainingState = {
-      active: true,
-      bankName: msg.payload.bankName,
-      steps: [],
-      appTabId: sender.tab.id,
-      sampleItem: msg.payload.sampleItem
-    };
-    chrome.storage.local.set({ trainingState });
-    console.log("[IdentificaPix BG] Treino Iniciado na aba:", sender.tab.id);
-  }
+  (async () => {
+    let state = await getTrainingState();
 
-  // 2. Captura de Ação (Vem do Content Script do Banco)
-  if (msg.type === "ACTION_CAPTURED" && trainingState.active) {
-    trainingState.steps.push(msg.payload);
-    chrome.storage.local.set({ trainingState });
-  }
-
-  // 3. Fim do Treino (Vem do WebApp)
-  if (msg.type === "STOP_TRAINING") {
-    const finalMacro = {
-      bankName: trainingState.bankName,
-      steps: trainingState.steps,
-      targetUrl: msg.payload.targetUrl
-    };
-    
-    trainingState.active = false;
-    chrome.storage.local.set({ trainingState });
-
-    if (trainingState.appTabId) {
-      chrome.tabs.sendMessage(trainingState.appTabId, {
-        type: "SAVE_TRAINING",
-        payload: finalMacro
-      }, () => {
-          if (chrome.runtime.lastError) {
-              console.warn("[IdentificaPix BG] Aba do app não respondeu ao salvamento.");
-          }
-      });
+    // 1. Início do Treino
+    if (msg.type === "START_TRAINING") {
+      state = {
+        active: true,
+        bankName: msg.payload.bankName || "Sistema Alvo",
+        steps: [],
+        appTabId: sender.tab.id,
+        sampleItem: msg.payload.sampleItem
+      };
+      await updateTrainingState(state);
+      console.log("[IdentificaPix BG] Treino Iniciado e Persistido. Tab App:", sender.tab.id);
     }
-  }
 
-  // 4. Execução de Lançamento (Vem do WebApp)
-  if (msg.type === "EXECUTE_ITEM") {
-    chrome.tabs.query({}, (tabs) => {
-        tabs.forEach(tab => {
-            // Envia apenas para abas que NÃO são a do aplicativo
-            if (tab.id !== sender.tab.id) {
-                chrome.tabs.sendMessage(tab.id, msg, () => {
-                    if (chrome.runtime.lastError) { /* Silencia erro se a aba não tiver o listener */ }
-                });
+    // 2. Captura de Ação
+    if (msg.type === "ACTION_CAPTURED" && state.active) {
+      state.steps.push(msg.payload);
+      await updateTrainingState(state);
+      console.log("[IdentificaPix BG] Ação gravada. Total de passos:", state.steps.length);
+    }
+
+    // 3. Fim do Treino
+    if (msg.type === "STOP_TRAINING") {
+      console.log("[IdentificaPix BG] Finalizando treino. Passos capturados:", state.steps.length);
+      
+      const finalMacro = {
+        bankName: state.bankName,
+        steps: state.steps,
+        targetUrl: sender.tab.url // Salva a URL onde o treino ocorreu
+      };
+      
+      const appTabId = state.appTabId;
+
+      // Reseta estado
+      await updateTrainingState({ active: false, steps: [], appTabId: null });
+
+      if (appTabId) {
+        chrome.tabs.sendMessage(appTabId, {
+          type: "SAVE_TRAINING",
+          payload: finalMacro
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error("[IdentificaPix BG] Erro ao enviar para o App:", chrome.runtime.lastError.message);
+            } else {
+                console.log("[IdentificaPix BG] Macro enviada para o App com sucesso.");
             }
         });
-    });
-  }
+      }
+    }
 
-  // 5. Item Concluído (Vem do Banco -> Volta pro App)
-  if (msg.type === "ITEM_DONE" && trainingState.appTabId) {
-    chrome.tabs.sendMessage(trainingState.appTabId, msg, () => {
-        if (chrome.runtime.lastError) { /* Silencia erro */ }
-    });
-  }
+    // 4. Execução de Lançamento (Automático)
+    if (msg.type === "EXECUTE_ITEM") {
+      chrome.tabs.query({}, (tabs) => {
+          tabs.forEach(tab => {
+              if (tab.id !== sender.tab.id) {
+                  chrome.tabs.sendMessage(tab.id, msg, () => {
+                      if (chrome.runtime.lastError) { /* Ignora abas sem script */ }
+                  });
+              }
+          });
+      });
+    }
 
-  sendResponse({ status: "ok" });
-  return true;
+    // 5. Item Concluído
+    if (msg.type === "ITEM_DONE") {
+      const currentState = await getTrainingState();
+      // Tenta enviar para a aba do app que estava gravada ou para qualquer aba do identificapix aberta
+      chrome.tabs.query({url: ["*://*.identificapix.com.br/*", "*://localhost/*"]}, (tabs) => {
+          tabs.forEach(tab => {
+              chrome.tabs.sendMessage(tab.id, msg, () => {
+                  if (chrome.runtime.lastError) { /* ignore */ }
+              });
+          });
+      });
+    }
+
+    sendResponse({ status: "processed" });
+  })();
+
+  return true; // Mantém o canal aberto para o async
 });
