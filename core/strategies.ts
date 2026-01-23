@@ -5,78 +5,92 @@ import { Fingerprinter } from './processors/Fingerprinter';
 import { DateResolver } from './processors/DateResolver';
 import { AmountResolver } from './processors/AmountResolver';
 import { TypeResolver } from './processors/TypeResolver';
+import { NameResolver } from './processors/NameResolver';
+import { Logger } from '../services/monitoringService';
+
+export interface StrategyResult {
+    transactions: Transaction[];
+    strategyName: string;
+    status?: 'MODEL_REQUIRED';
+    fileName?: string;
+    fingerprint?: any;
+    preview?: string;
+}
 
 export interface BankStrategy {
     name: string;
-    canHandle(filename: string, content: string, models?: FileModel[]): boolean;
-    parse(content: string, yearAnchor: number, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
+    canHandle(filename: string, content: any, models?: FileModel[]): boolean;
+    parse(content: any, yearAnchor: number, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
 }
 
 /**
- * 🛡️ PIPELINE SOURCE RESOLVER (INTEGRAL V6)
- * Processamento via Modelo Aprendido usando o ContractExecutor.
+ * 🛡️ ESTRATÉGIA DE CONTRATO (V1 - PRIORIDADE MÁXIMA)
+ * Garante que modelos aprendidos sejam aplicados com 100% de fidelidade.
  */
 export const DatabaseModelStrategy: BankStrategy = {
     name: 'Modelo Aprendido',
     canHandle: (filename, content, models) => {
         if (!models || models.length === 0) return false;
-        const fileFp = Fingerprinter.generate(content);
+        const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
+        const fileFp = Fingerprinter.generate(rawText);
         if (!fileFp) return false;
 
         return models.some(m => 
-            m.is_active && (
-                (m.fingerprint.headerHash === fileFp.headerHash && m.fingerprint.headerHash !== null) ||
-                (m.fingerprint.structuralPattern === fileFp.structuralPattern && m.fingerprint.structuralPattern !== 'UNKNOWN') ||
-                (m.fingerprint.canonicalSignature === fileFp.canonicalSignature)
-            )
+            m.is_active && 
+            (m.fingerprint.headerHash === fileFp.headerHash)
         );
     },
     parse: async (content, yearAnchor, models, globalKeywords = []) => {
-        const fileFp = Fingerprinter.generate(content);
+        const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
+        const fileFp = Fingerprinter.generate(rawText);
+        
         const model = models?.find(m => 
-            m.is_active && (
-                (m.fingerprint.headerHash === fileFp?.headerHash) || 
-                (m.fingerprint.structuralPattern === fileFp?.structuralPattern) ||
-                (m.fingerprint.canonicalSignature === fileFp?.canonicalSignature)
-            )
+            m.is_active && 
+            (m.fingerprint.headerHash === fileFp?.headerHash)
         );
 
         if (!model) return [];
 
-        // EXECUÇÃO DIRETA E BLINDADA
-        const result = await ContractExecutor.apply(model, content);
-        return result;
+        console.log(`[Strategy:CONTRACT] Aplicando padrão gravado: "${model.name}" (v${model.version})`);
+        return await ContractExecutor.apply(model, content);
     }
 };
 
 export const GenericStrategy: BankStrategy = {
-    name: 'Genérico',
+    name: 'Genérico (Virtual)',
     canHandle: () => true,
     parse: (content, yearAnchor, models, globalKeywords = []) => {
-        const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+        const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
+        const lines = rawText.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
         if (lines.length === 0) return [];
+        
         const delimiter = Fingerprinter.detectDelimiter(lines[0]);
-        const grid = lines.map(l => l.split(delimiter));
+        const grid = lines.map((l: string) => l.split(delimiter));
+        
         const dateIdx = DateResolver.identifyDateColumn(grid);
         const amountIdx = AmountResolver.identifyAmountColumn(grid, [dateIdx]);
-        const nameIdx = TypeResolver.identifyTypeColumn(grid, [dateIdx, amountIdx]);
+        const nameIdx = NameResolver.identifyNameColumn(grid, [dateIdx, amountIdx]);
+        
         const transactions: Transaction[] = [];
+        
         grid.forEach((cols, index) => {
-            const rawDate = cols[dateIdx] || '';
-            const rawDesc = cols[nameIdx] || cols.join(' ');
-            const rawAmount = cols[amountIdx] || '';
+            const rawDate = dateIdx !== -1 ? (cols[dateIdx] || '') : '';
+            const rawAmount = amountIdx !== -1 ? (cols[amountIdx] || '') : '';
+            const rawDesc = nameIdx !== -1 ? (cols[nameIdx] || '') : cols.join(' ');
+
             const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
             const stdAmount = AmountResolver.clean(rawAmount);
             const numVal = parseFloat(stdAmount);
-            if (isoDate && !isNaN(numVal) && stdAmount !== "0.00") {
+
+            if (isoDate && !isNaN(numVal)) {
                 transactions.push({
                     id: `gen-${index}-${Date.now()}`,
                     date: isoDate,
-                    description: rawDesc,
-                    rawDescription: rawDesc,
+                    description: rawDesc.trim(),
+                    rawDescription: cols.join('|'),
                     amount: numVal,
                     originalAmount: rawAmount,
-                    cleanedDescription: rawDesc,
+                    cleanedDescription: NameResolver.clean(rawDesc, globalKeywords),
                     contributionType: TypeResolver.resolveFromDescription(rawDesc)
                 });
             }
@@ -87,29 +101,38 @@ export const GenericStrategy: BankStrategy = {
 
 export const StrategyEngine = {
     strategies: [DatabaseModelStrategy, GenericStrategy],
-    process: async (filename: string, content: string, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): Promise<{ transactions: Transaction[], strategyName: string }> => {
-        const yearAnchor = DateResolver.discoverAnchorYear(content);
+    process: async (filename: string, content: any, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): Promise<StrategyResult> => {
+        const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
+        const source = content?.__source || 'unknown';
         
-        let targetModel = overrideModel;
-
-        if (!targetModel) {
-            const fileFp = Fingerprinter.generate(content);
-            targetModel = models.find(m => 
-                m.is_active && (
-                    (m.fingerprint.headerHash === fileFp?.headerHash && m.fingerprint.headerHash !== null) ||
-                    (m.fingerprint.structuralPattern === fileFp?.structuralPattern) ||
-                    (m.fingerprint.canonicalSignature === fileFp?.canonicalSignature)
-                )
-            );
+        // 1. Prioridade Absoluta: Modelo forçado ou Reconhecido
+        if (overrideModel) {
+            const txs = await DatabaseModelStrategy.parse(content, 2025, [overrideModel], []);
+            return { transactions: txs, strategyName: `Treino: ${overrideModel.name}` };
         }
 
-        // SE HOUVER MODELO, O FLUXO É EXCLUSIVO. NÃO HÁ FALLBACK PARA GENÉRICO.
+        const fileFp = Fingerprinter.generate(rawText);
+        const targetModel = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp?.headerHash);
+        
         if (targetModel) {
-            const txs = await DatabaseModelStrategy.parse(content, yearAnchor, [targetModel], globalKeywords);
-            return { transactions: txs, strategyName: targetModel.name };
+            const txs = await DatabaseModelStrategy.parse(content, 2025, [targetModel], []);
+            return { transactions: txs, strategyName: `Contrato: ${targetModel.name}` };
         }
 
-        const genResult = GenericStrategy.parse(content, yearAnchor, models, globalKeywords) as Transaction[];
-        return { transactions: genResult, strategyName: 'Genérico' };
+        // 2. Se não tem modelo e não é virtual, BLOQUEIA
+        if (source !== 'virtual' && source !== 'gmail') {
+            return { 
+                status: 'MODEL_REQUIRED',
+                fileName: filename,
+                fingerprint: fileFp,
+                preview: rawText.substring(0, 500),
+                transactions: [], 
+                strategyName: 'Bloqueio: Sem Modelo'
+            };
+        }
+
+        // 3. Fallback apenas para dados virtuais
+        const txs = GenericStrategy.parse(content, 2025, [], globalKeywords) as Transaction[];
+        return { transactions: txs, strategyName: 'Genérico' };
     }
 };

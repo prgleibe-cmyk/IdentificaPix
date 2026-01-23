@@ -75,14 +75,10 @@ export const modelService = {
 
             // 3. Preparação Atômica de Linhagem
             if (model.lineage_id) {
-                const { error: deactivateError } = await supabase.from('file_models')
+                await supabase.from('file_models')
                     .update({ is_active: false })
                     .eq('lineage_id', model.lineage_id)
                     .eq('user_id', session.user.id);
-                
-                if (deactivateError) {
-                    Logger.warn("[Model:LINEAGE_FIX] Falha ao desativar versão anterior, prosseguindo com insert.", deactivateError);
-                }
             }
 
             // 4. Execução da Persistência Remota
@@ -99,10 +95,11 @@ export const modelService = {
                 snippet: model.snippet || null
             };
 
+            // Blindagem: Select explícito '*' para evitar conflito com columns padrão do client
             const { data, error, status } = await supabase
                 .from('file_models')
                 .insert([dbPayload])
-                .select()
+                .select('*')
                 .single();
 
             // 5. Tratamento de Erro HTTP/PostgREST
@@ -129,10 +126,12 @@ export const modelService = {
     getUserModels: async (userId: string): Promise<FileModel[]> => {
         let remoteModels: FileModel[] = [];
         try {
+            // Blindagem: Select único e explícito no início
             const { data, error } = await supabase
                 .from('file_models')
                 .select('*')
-                .eq('is_active', true);
+                .eq('is_active', true)
+                .eq('user_id', userId);
             
             if (data) {
                 remoteModels = data.map(mapDbRowToModel);
@@ -144,14 +143,19 @@ export const modelService = {
         const localModels = await getConsolidatedLocalModels();
         const uniqueModels = new Map<string, FileModel>();
         
-        [...remoteModels, ...localModels].forEach(m => {
+        // Prioritize remote models over local cache if available
+        [...localModels, ...remoteModels].forEach(m => {
             const existing = uniqueModels.get(m.lineage_id);
-            if (!existing || new Date(m.createdAt) > new Date(existing.createdAt)) {
+            if (!existing || new Date(m.createdAt) >= new Date(existing.createdAt)) {
                 uniqueModels.set(m.lineage_id, m);
             }
         });
 
-        return Array.from(uniqueModels.values());
+        const finalModels = Array.from(uniqueModels.values()).filter(m => m.is_active);
+        // Sync local storage with filtered active models
+        await set(PERSISTENT_STORAGE_KEY, finalModels);
+
+        return finalModels;
     },
 
     deleteModel: async (id: string) => {
@@ -164,10 +168,18 @@ export const modelService = {
             .eq('id', id)
             .eq('user_id', session.user.id);
             
-        return !error;
+        if (!error) {
+            // Invalida cache local ao excluir
+            const currentLocals = await getConsolidatedLocalModels();
+            const updatedLocals = currentLocals.filter(m => m.id !== id);
+            await set(PERSISTENT_STORAGE_KEY, updatedLocals);
+            return true;
+        }
+        return false;
     },
 
     getAllModelsAdmin: async (): Promise<FileModel[]> => {
+        // Blindagem: Select explícito '*' no início da query builder
         const { data, error } = await supabase
             .from('file_models')
             .select('*')
@@ -187,6 +199,13 @@ export const modelService = {
             .eq('id', id)
             .eq('user_id', session.user.id);
             
-        return !error;
+        if (!error) {
+            // Sincroniza local
+            const currentLocals = await getConsolidatedLocalModels();
+            const updatedLocals = currentLocals.map(m => m.id === id ? { ...m, name } : m);
+            await set(PERSISTENT_STORAGE_KEY, updatedLocals);
+            return true;
+        }
+        return false;
     }
 };

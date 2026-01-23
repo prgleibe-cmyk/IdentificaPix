@@ -2,9 +2,9 @@
 import { CanonicalDocumentNormalizer } from './CanonicalDocumentNormalizer';
 
 /**
- * SERVIÇO DE DOMÍNIO: FINGERPRINTER (V5 - ESTABILIDADE DE DNA)
+ * SERVIÇO DE DOMÍNIO: FINGERPRINTER (V6 - DNA BLINDADO)
  * --------------------------------------------------------------------------
- * Gera a identidade estrutural (DNA) de qualquer conteúdo tabular.
+ * Gera a identidade estrutural definitiva. Uma vez salvo, este DNA é a lei.
  */
 
 export interface StructuralFingerprint {
@@ -17,9 +17,6 @@ export interface StructuralFingerprint {
 }
 
 export const Fingerprinter = {
-    /**
-     * Detecta o delimitador de forma estatística.
-     */
     detectDelimiter: (line: string): string => {
         if (!line) return ';';
         const candidates = [';', ',', '\t', '|'];
@@ -32,7 +29,8 @@ export const Fingerprinter = {
     },
 
     /**
-     * Gera o DNA estrutural para reconhecimento independente de formato.
+     * Gera o DNA estrutural blindado. 
+     * Remove ruídos agressivamente para garantir que "Layout igual" = "Hash igual".
      */
     generate: (content: string): StructuralFingerprint | null => {
         if (!content || typeof content !== 'string') return null;
@@ -44,46 +42,28 @@ export const Fingerprinter = {
         const delimiter = Fingerprinter.detectDelimiter(firstLine);
         const cells = firstLine.split(delimiter);
         
-        // 🚀 DNA ESTÁVEL (V5): 
-        // Removemos TODOS os espaços e caracteres especiais para gerar o Hash.
-        // Isso garante que "NOME   VALOR" e "NOME;VALOR" gerem o mesmo DNA de Identidade.
+        // 🛡️ NORMALIZAÇÃO CIRÚRGICA: 
+        // Remove tudo que não for Alfanumérico puro. 
+        // Isso impede que variações de delimitadores ou espaços quebrem o reconhecimento.
         const cleanHeader = firstLine
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '') 
-            .replace(/[^A-Z0-9]/gi, '') // Remove espaços, pontos, vírgulas e delimitadores do Hash
+            .replace(/[^A-Z0-9]/gi, '') 
             .toUpperCase();
 
-        // Gerador de hash simples e estável
-        let hash = 0;
+        let hash = 5381;
         for (let i = 0; i < cleanHeader.length; i++) {
-            const char = cleanHeader.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
+            hash = ((hash << 5) + hash) + cleanHeader.charCodeAt(i);
         }
         const headerHash = Math.abs(hash).toString(36);
 
-        // 2. ASSINATURA CANÔNICA
-        const canonicalSignature = CanonicalDocumentNormalizer.generateSignature(lines);
         const structuralPattern = CanonicalDocumentNormalizer.generateStructuralPattern(lines);
-
-        // 3. TOPOLOGIA DE DADOS (DNA de Tipos)
-        const dataRows = lines.slice(1, 10);
-        const representativeRow = dataRows.find(r => r.split(delimiter).length >= 2) || firstLine;
-
-        const topologyString = representativeRow.split(delimiter).map(c => {
-            const val = c.trim().replace(/[R$\s]/g, '').replace(',', '.');
-            if (/^\d{1,4}[/-]\d{1,2}/.test(val)) return 'D'; 
-            if (!isNaN(parseFloat(val)) && /\d/.test(val)) return 'N';
-            if (val.length === 0) return 'E';
-            return 'S';
-        }).join('');
 
         return { 
             columnCount: cells.length, 
             delimiter, 
             headerHash, 
-            dataTopology: topologyString,
-            canonicalSignature,
+            dataTopology: 'FIXED_CONTRACT', // Força a topologia ao contrato salvo
             structuralPattern
         };
     }

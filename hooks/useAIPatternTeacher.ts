@@ -26,35 +26,40 @@ export const useAIPatternTeacher = ({
     const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any } | null>(null);
 
     /**
-     * APLICAR PADRÃO (Fluxo Blindado UI -> Learn -> UI)
-     * Garante resolução explícita e retorno de controle para a interface.
+     * APLICAR PADRÃO (V16):
+     * Refinado para aprender REGRAS DE TRANSFORMAÇÃO (Sanitização de descrição).
      */
     const handleApplyCorrectionPattern = useCallback(async (): Promise<LearningPackage | null> => {
         if (!learnedPatternSource || gridData.length === 0) return null;
         
-        console.log("[Learn:START] Iniciando re-análise estrutural via IA...");
+        console.log("[Learn:AI] Iniciando aprendizado de transformação...");
         setIsInferringMapping(true);
 
         try {
             const { originalRaw, corrected } = learnedPatternSource;
-            // Pega uma amostra significativa para o aprendizado contextual
-            const rawSnippet = gridData.slice(0, 300).map(row => row.join(';')).join('\n');
             
-            const userExample = `O usuário corrigiu uma linha manualmente. Aprenda este padrão estrutural:
-               LINHA ORIGINAL: [${originalRaw.join(' | ')}] 
-               CORREÇÃO DESEJADA: 
-               - Data: ${corrected.date}
-               - Descrição: ${corrected.cleanedDescription}
-               - Valor: ${corrected.amount}
-               - Tipo: ${corrected.contributionType}
-               - Forma (Pagamento): ${corrected.paymentMethod}
+            // Contexto amplo para detectar vizinhança e padrões repetitivos
+            const rawSnippet = gridData.slice(0, 350).map(row => row.join(';')).join('\n');
+            
+            const userExample = `O usuário definiu um PADRÃO DE REFINAMENTO MANUAL.
                
-               Instrução: Re-analise o snippet de dados e extraia TODAS as linhas seguindo este padrão de colunas.`;
+               REGRA DE OURO (EXEMPLO DO USUÁRIO):
+               1. LINHA BRUTA ORIGINAL DO EXTRATO: [${originalRaw.join(' | ')}]
+               2. RESULTADO DESEJADO (DESCRIÇÃO LIMPA): "${corrected.cleanedDescription}"
+               
+               DEDUZA A REGRA:
+               - Observe que o usuário removeu ruídos como prefixos bancários, códigos ou palavras repetitivas.
+               - O objetivo é extrair APENAS o nome limpo do pagador/contribuinte.
+               - Aplique esta mesma lógica de 'LIMPEZA CIRÚRGICA' em todas as outras transações do documento.
+               - Se houver blocos multi-linha, agrupe-os e extraia o nome conforme o exemplo acima.
+               - Retorne o mapeamento e a nova grade de dados.`;
             
             const result = await extractStructuredDataByExample(rawSnippet, userExample);
             
-            if (result?.rows?.length > 0) {
-                // 1. Converte retorno da IA para grade estruturada
+            if (result && result.rows && result.rows.length > 0) {
+                console.log(`[Learn:AI] Padrão aprendido! ${result.rows.length} linhas refinadas.`);
+
+                // 1. Atualiza a grade com a limpeza aplicada pela IA
                 const reStructuredGrid = result.rows.map((r: any) => [
                     String(r.date || ''), 
                     String(r.description || ''), 
@@ -63,43 +68,39 @@ export const useAIPatternTeacher = ({
                     String(r.paymentMethod || 'OUTROS')
                 ]);
 
-                // 2. Atualiza a grade visual imediatamente (Bypass Pipeline)
                 setGridData(reStructuredGrid);
                 
-                // 3. Define novo contrato de mapeamento baseado na nova grade
-                const refinedMapping = { 
+                // 2. Trava o mapeamento para formato fixo pós-IA
+                const mapping = { 
                     dateColumnIndex: 0, 
                     descriptionColumnIndex: 1, 
                     amountColumnIndex: 2, 
-                    paymentMethodColumnIndex: 4,
                     typeColumnIndex: 3,
+                    paymentMethodColumnIndex: 4,
+                    extractionMode: 'COLUMNS' as const,
                     skipRowsStart: 0,
                     skipRowsEnd: 0,
                     decimalSeparator: '.' as const,
-                    thousandsSeparator: '' as const,
-                    extractionMode: 'COLUMNS' as const
+                    thousandsSeparator: '' as const
                 };
 
-                setActiveMapping(refinedMapping);
-                
-                // 4. Limpeza de estado e resolução
+                setActiveMapping(mapping);
+                showToast("Inteligência de refinamento aplicada com sucesso!", "success");
                 setLearnedPatternSource(null); 
-                console.log("[Learn:DONE] Padrão aplicado e grade reconstruída.");
-                showToast("Inteligência aplicada! Verifique os resultados na grade.", "success");
 
                 return {
-                    model: { mapping: refinedMapping },
+                    model: { mapping },
                     sampleTransactions: [], 
-                    confidence: 0.99
+                    confidence: 1.0
                 };
             }
             
-            console.warn("[Learn:ERROR] IA retornou conjunto vazio.");
+            showToast("Não foi possível generalizar o refinamento. Verifique se o exemplo está claro.", "error");
             return null;
 
         } catch (e: any) { 
-            console.error("[Learn:CRITICAL]", e);
-            showToast("Erro ao processar padrão estrutural.", "error"); 
+            console.error("[Learn:FAIL]", e);
+            showToast("Erro técnico ao processar refinamento.", "error"); 
             return null;
         } finally { 
             setIsInferringMapping(false); 

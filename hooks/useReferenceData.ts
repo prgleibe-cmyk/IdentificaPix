@@ -86,10 +86,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
+        // OBRIGATÓRIO: Log de auditoria de recarga segura
+        console.log("[ModelRegistry] Refresh executado antes do processamento.");
         try {
             const models = await modelService.getUserModels(user.id);
             setFileModels(models);
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("[ModelRegistry] Erro ao recarregar modelos:", e); 
+        }
     }, [user]);
 
     useEffect(() => { fetchModels(); }, [fetchModels]);

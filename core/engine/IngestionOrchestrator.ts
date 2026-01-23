@@ -4,12 +4,12 @@ import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V10 - BLINDAGEM DE VOLUME TOTAL)
+ * 🎛️ INGESTION ORCHESTRATOR (V11 - NORMALIZAÇÃO HÍBRIDA)
  */
 export const IngestionOrchestrator = {
     /**
-     * Fonte da Verdade: Normaliza espaços duplos em delimitadores virtuais.
-     * Crucial para que arquivos PDF/TXT tenham a mesma grade no treino e na execução.
+     * Normalização linha a linha: Essencial para extratos PDF onde o texto 
+     * extraído não possui delimitadores nativos, apenas espaços.
      */
     normalizeRawContent(content: string): string {
         if (!content) return "";
@@ -19,10 +19,18 @@ export const IngestionOrchestrator = {
                 const trimmed = line.trim();
                 if (!trimmed) return "";
                 
-                // Se não tem delimitador mas tem espaços duplos, cria grade virtual
-                if (!trimmed.includes(';') && !trimmed.includes('\t') && trimmed.includes('  ')) {
+                // Se a linha tem múltiplos espaços e NÃO tem ponto-e-vírgula/tab,
+                // transformamos em CSV virtual. Isso resolve o problema de leitura do Sicoob.
+                if (trimmed.includes('  ') && !trimmed.includes(';') && !trimmed.includes('\t')) {
                     return trimmed.replace(/\s{2,}/g, ';');
                 }
+                
+                // Se a linha já tem delimitador mas ainda tem espaços duplos residuais, 
+                // limpamos para evitar colunas vazias fantasmas.
+                if (trimmed.includes(';')) {
+                    return trimmed.split(';').map(cell => cell.trim()).join(';');
+                }
+
                 return trimmed;
             })
             .filter(l => l.length > 0);
@@ -39,47 +47,51 @@ export const IngestionOrchestrator = {
         const fileNameLower = file.name.toLowerCase();
         const isExcel = fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls');
         
-        // 1. Normalização OBRIGATÓRIA SEM LIMITES
+        // Normalização agressiva para garantir que o conteúdo seja tabular
         const processedContent = isExcel ? content : this.normalizeRawContent(content);
         const lineCount = processedContent.split('\n').length;
 
-        // 2. GERAÇÃO DE DNA sobre o conteúdo integral
         const fingerprint = Fingerprinter.generate(processedContent);
         
-        console.log(`[Pipeline:INGESTION] Arquivo: ${file.name} | Linhas Normalizadas: ${lineCount}`);
+        console.log(`[Pipeline:INGESTION] Processando: ${file.name} | Linhas: ${lineCount}`);
         
-        // 3. ROTEAMENTO PARA O ENGINE (Garante entrega do documento completo)
         const result = await StrategyEngine.process(
             file.name, 
-            processedContent, 
+            { __rawText: processedContent, __source: 'file' }, 
             models, 
             globalKeywords
         );
         
-        console.log(`[Pipeline:INGESTION] Processamento Concluído | Linhas Entregues ao Modelo: ${lineCount} | Transações Extraídas: ${result.transactions.length}`);
+        console.log(`[Pipeline:INGESTION] Extração concluída: ${result.transactions.length} itens encontrados.`);
 
         return {
             source: 'upload',
             transactions: result.transactions,
-            strategyUsed: result.strategyName,
-            fingerprint: fingerprint || { columnCount: 0 }
+            status: result.status,
+            fileName: result.fileName,
+            fingerprint: result.fingerprint || fingerprint || { columnCount: 0 },
+            preview: result.preview,
+            strategyUsed: result.strategyName
         };
     },
 
-    /**
-     * Processa dados virtuais (como Gmail) gerando fingerprint e garantindo estrutura de transações.
-     */
     async processVirtualData(
         sourceName: string,
         transactions: Transaction[],
         globalKeywords: string[]
     ): Promise<any> {
-        // Gera um conteúdo sintético para o Fingerprinter reconhecer o DNA
         const virtualContent = transactions.slice(0, 10).map(t => 
             `${t.date};${t.description};${t.amount}`
         ).join('\n');
 
         const fingerprint = Fingerprinter.generate(virtualContent);
+
+        const result = await StrategyEngine.process(
+            sourceName,
+            { __rawText: virtualContent, __source: 'virtual' },
+            [],
+            globalKeywords
+        );
 
         return {
             source: 'virtual',

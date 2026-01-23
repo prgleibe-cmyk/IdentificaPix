@@ -44,7 +44,7 @@ body {
 /* --- SUPER PREMIUM UTILITIES --- */
 
 .glass-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6;
+  @apply fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6;
   @apply bg-[#020610]/60 backdrop-blur-[6px];
   @apply transition-all duration-500 ease-out;
 }
@@ -72,6 +72,11 @@ body {
 }
 
 /* Animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.8; }
@@ -86,6 +91,10 @@ body {
   0% { width: 0%; }
   50% { width: 70%; }
   100% { width: 100%; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
 }
 
 .animate-pulse-soft {

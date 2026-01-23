@@ -46,6 +46,7 @@ export const ExportService = {
             const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             const name = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
             const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+            const isNegative = amountVal < 0;
             const amount = formatCurrency(amountVal, language);
             const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
@@ -58,7 +59,7 @@ export const ExportService = {
                     <td style="font-size: 9px;">${churchName}</td>
                     <td style="text-align: center;">${type}</td>
                     <td style="text-align: center;">${status}</td>
-                    <td style="text-align: right;">${amount}</td>
+                    <td style="text-align: right; font-weight: bold; font-family: monospace; ${isNegative ? 'color: #dc2626;' : ''}">${amount}</td>
                 </tr>
             `;
         }).join('');
@@ -91,7 +92,7 @@ export const ExportService = {
                         </div>
                         <div class="summary-item">
                             <span class="summary-label">Total</span>
-                            <span class="summary-value">${formatCurrency(summary.total, language)}</span>
+                            <span class="summary-value" style="${summary.total < 0 ? 'color: #dc2626;' : ''}">${formatCurrency(summary.total, language)}</span>
                         </div>
                     </div>
                     <table>

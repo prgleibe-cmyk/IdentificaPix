@@ -1,53 +1,40 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Contributor, Transaction } from '../types';
 import { Logger } from "./monitoringService";
 
 const getAIClient = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
+    if (!process.env.API_KEY) {
         console.error("CRITICAL: Gemini API Key is missing.");
         throw new Error("Chave de API do Gemini não configurada.");
     }
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 /**
- * 🛡️ JSON SHIELD (V8): Sanitiza, repara e valida a saída da IA.
- * Capaz de recuperar JSONs truncados e tratar diferentes formatos de resposta do SDK.
+ * 🛡️ JSON SHIELD (V12): Sanitiza, repara e valida a saída da IA.
  */
 const safeJsonParse = (input: any, fallback: any = []) => {
     if (!input) return fallback;
-    
-    // Se o SDK já retornou um objeto (via responseSchema), usa direto
     if (typeof input === 'object' && !Array.isArray(input)) {
         return input.rows || input.transactions || input;
     }
 
     let sanitized = String(input).trim();
-    
-    // 1. Limpeza de Markdown
     sanitized = sanitized.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
 
-    // 2. TENTATIVA DE REPARO DE TRUNCAMENTO (Algoritmo de Fechamento)
     try {
-        return JSON.parse(sanitized);
+        const parsed = JSON.parse(sanitized);
+        return parsed.rows || parsed.transactions || parsed;
     } catch (e) {
-        console.warn("[IA:REPAIR] JSON quebrado detectado. Iniciando auto-reparo...");
-        
-        let repaired = sanitized;
-        // Fecha aspas abertas se terminar em caractere alfanumérico
-        if ((repaired.match(/"/g) || []).length % 2 !== 0) repaired += '"';
-        // Fecha estruturas básicas na ordem inversa
-        if (!repaired.endsWith(']') && repaired.startsWith('[')) repaired += ']';
-        if (!repaired.endsWith('}') && repaired.startsWith('{')) repaired += '}';
-        
-        try {
-            return JSON.parse(repaired);
-        } catch (inner) {
-            // Se o reparo estrutural falhar, tenta extrair o que for possível via Regex
-            Logger.error("IA enviou JSON irreparável. Verifique limites de token.", { raw: sanitized.substring(0, 200) });
-            return fallback;
+        console.warn("[IA:REPAIR] Tentando reparar JSON...");
+        if (sanitized.includes('"rows": [')) {
+            let repaired = sanitized;
+            if (!repaired.endsWith(']')) repaired += ']';
+            if (!repaired.endsWith('}')) repaired += '}';
+            try { return JSON.parse(repaired).rows; } catch (inner) {}
         }
+        return fallback;
     }
 };
 
@@ -56,6 +43,7 @@ async function callWithSimpleRetry(fn: () => Promise<any>, retries = 2): Promise
         return await fn();
     } catch (error: any) {
         if (retries > 0) {
+            console.log(`[IA:RETRY] Falha na chamada, tentando novamente... (${retries} restantes)`);
             await new Promise(r => setTimeout(r, 2000));
             return callWithSimpleRetry(fn, retries - 1);
         }
@@ -63,35 +51,27 @@ async function callWithSimpleRetry(fn: () => Promise<any>, retries = 2): Promise
     }
 };
 
-export const extractTransactionsFromComplexBlock = async (rawText: string): Promise<any[]> => {
-    console.log("[IA:EXECUTE] Extraindo bloco...");
+export const extractTransactionsWithModel = async (rawText: string, modelContext?: string): Promise<any> => {
     return await callWithSimpleRetry(async () => {
         const ai = getAIClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Extraia transações deste extrato. Retorne APENAS o JSON Array. 
-            IMPORTANTE: Identifique valores negativos baseando-se no contexto contábil (saídas, débitos, pagamentos, ou valores entre parênteses), mesmo que o sinal de menos '-' não esteja explícito no texto bruto. Se uma linha representa uma saída de dinheiro, o valor deve ser negativo.\n\n${rawText.substring(0, 10000)}`,
-            config: {
-                temperature: 0,
-                responseMimeType: "application/json"
-            }
-        });
-        return safeJsonParse(response.text, []);
-    });
-};
+        
+        const referencePrompt = modelContext 
+            ? `USE ESTE APRENDIZADO COMO GABARITO ESTRUTURAL E DE LIMPEZA:
+               --- INÍCIO DO GABARITO ---
+               ${modelContext}
+               --- FIM DO GABARITO ---
+               
+               OBSERVAÇÃO IMPORTANTE: 
+               1. Uma transação pode estar dividida em várias linhas consecutivas.
+               2. REGRA DE NEGATIVIDADE: Valores que no original aparecem em VERMELHO, ou que representam saídas, pagamentos, débitos ou transferências enviadas, DEVEM ser retornados como números NEGATIVOS (ex: -150.00), mesmo que o caractere "-" não esteja presente no texto.`
+            : "Extraia transações deste extrato bancário. IMPORTANTE: Valores de saídas/débitos devem ser NEGATIVOS.";
 
-export const extractStructuredDataByExample = async (rawText: string, instruction: string): Promise<any> => {
-    console.log("[IA:LEARN] Aprendendo novo padrão...");
-    return await callWithSimpleRetry(async () => {
-        const ai = getAIClient();
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Você é um especialista em análise de extratos bancários. ${instruction}
+            model: 'gemini-3-pro-preview',
+            contents: `${referencePrompt}
             
-            REGRA CRÍTICA DE NEGÓCIO: Identifique valores negativos mesmo na ausência do sinal de menos (-) explícito. Considere o contexto da transação (ex: Termos como 'DÉBITO', 'SAÍDA', 'PAGAMENTO', 'TARIFA' ou valores que no documento original estavam em vermelho/parênteses). Se o exemplo do usuário indica um valor como negativo, aplique essa lógica para todas as transações similares.
-            
-            TEXTO PARA ANÁLISE:
-            ${rawText.substring(0, 8000)}`,
+            TEXTO PARA PROCESSAR:
+            ${rawText.substring(0, 18000)}`,
             config: {
                 temperature: 0,
                 responseMimeType: "application/json",
@@ -105,17 +85,114 @@ export const extractStructuredDataByExample = async (rawText: string, instructio
                                 properties: {
                                     date: { type: Type.STRING },
                                     description: { type: Type.STRING },
-                                    amount: { type: Type.NUMBER },
+                                    amount: { type: Type.NUMBER, description: "Valor da transação. Negativo para saídas/vermelhos, positivo para entradas." },
                                     type: { type: Type.STRING },
                                     paymentMethod: { type: Type.STRING }
-                                }
+                                },
+                                required: ["date", "description", "amount"]
                             }
                         }
                     }
                 }
             }
         });
-        // Aqui o Gemini 3 já retorna o texto no formato JSON válido baseado no Schema
+        
+        return safeJsonParse(response.text, { rows: [] });
+    });
+};
+
+export const extractTransactionsFromComplexBlock = async (rawText: string): Promise<any> => {
+    return await callWithSimpleRetry(async () => {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: `Analise o texto e extraia todas as transações financeiras. 
+            MUITO IMPORTANTE: 
+            1. Note que em extratos como do Sicoob, a transação começa em uma linha com data e valor, mas o nome do pagador está abaixo. Agrupe-os.
+            2. REGRA DE OURO: Valores que representam saídas (Pagamentos, TED Enviada, Pix Enviado, Débitos) ou que estariam em VERMELHO no papel, devem ser obrigatoriamente NEGATIVOS no seu retorno numérico.
+            
+            TEXTO:
+            ${rawText.substring(0, 18000)}`,
+            config: {
+                temperature: 0,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        rows: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    date: { type: Type.STRING },
+                                    description: { type: Type.STRING },
+                                    amount: { type: Type.NUMBER, description: "Número real. Saídas DEVEM ser negativas." },
+                                    type: { type: Type.STRING },
+                                    paymentMethod: { type: Type.STRING }
+                                },
+                                required: ["date", "description", "amount"]
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        return safeJsonParse(response.text, { rows: [] });
+    });
+};
+
+export const extractStructuredDataByExample = async (rawText: string, instruction: string): Promise<any> => {
+    return await callWithSimpleRetry(async () => {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: `Você é um motor de IA ultra-inteligente especializado em aprender padrões de transformação de dados.
+            O usuário forneceu um exemplo de como uma linha bruta deve ser limpa e estruturada.
+            
+            SUA TAREFA:
+            1. Analise o exemplo do usuário e entenda a 'Função de Transformação'.
+            2. REGRA CRÍTICA: Se o contexto da linha indicar uma saída/despesa (ou cor vermelha no documento implícita), converta o valor para NEGATIVO.
+            
+            ${instruction}
+
+            TEXTO COMPLETO PARA PROCESSAR (SNIPPET):
+            ${rawText.substring(0, 15000)}`,
+            config: {
+                temperature: 0,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        inferredMapping: {
+                            type: Type.OBJECT,
+                            properties: {
+                                dateColumnIndex: { type: Type.NUMBER },
+                                descriptionColumnIndex: { type: Type.NUMBER },
+                                amountColumnIndex: { type: Type.NUMBER },
+                                typeColumnIndex: { type: Type.NUMBER },
+                                paymentMethodColumnIndex: { type: Type.NUMBER },
+                                transformationRegex: { type: Type.STRING, description: "Regex ou regra lógica deduzida para limpar o nome" }
+                            }
+                        },
+                        rows: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    date: { type: Type.STRING },
+                                    description: { type: Type.STRING },
+                                    amount: { type: Type.NUMBER, description: "Valores negativos para saídas." },
+                                    type: { type: Type.STRING },
+                                    paymentMethod: { type: Type.STRING }
+                                },
+                                required: ["date", "description", "amount"]
+                            }
+                        }
+                    }
+                }
+            }
+        });
         return safeJsonParse(response.text, { rows: [] });
     });
 };
@@ -124,25 +201,17 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
     return await callWithSimpleRetry(async () => {
         const ai = getAIClient();
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Analise as colunas deste arquivo e retorne os índices (0-based). Considere que algumas colunas de valor podem conter saídas (negativos) sem sinal explícito. JSON Format:\n\n${sampleText.substring(0, 4000)}`,
+            model: 'gemini-3-pro-preview',
+            contents: `Analise as colunas e o formato visual. Detecte se é um extrato de colunas fixas ou blocos multi-linha.
+            Identifique também qual coluna ou padrão indica saídas (negativos/vermelhos).
+            
+            AMOSTRA:
+            ${sampleText.substring(0, 5000)}`,
             config: { 
                 temperature: 0, 
                 responseMimeType: "application/json"
             }
         });
         return safeJsonParse(response.text, null);
-    });
-};
-
-export const getAISuggestion = async (transaction: Transaction, contributors: Contributor[]): Promise<string> => {
-    return await callWithSimpleRetry(async () => {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Dada a transação "${transaction.description}", qual contribuinte melhor se encaixa? Lista: [${contributors.map(c => c.name).join(', ')}]. Responda apenas o nome.`,
-            config: { temperature: 0.1 }
-        });
-        return response.text?.trim() || "Nenhuma sugestão";
     });
 };

@@ -4,9 +4,9 @@ import { Transaction } from "../types";
 import { Logger } from "./monitoringService";
 
 const getAIClient = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key missing");
-    return new GoogleGenAI({ apiKey });
+    // Fix: Use process.env.API_KEY directly in initialization as per guidelines
+    if (!process.env.API_KEY) throw new Error("API Key missing");
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const parseEmailBatch = async (emails: { id: string, snippet: string, body: string, date: string, subject: string }[]): Promise<Transaction[]> => {
@@ -19,7 +19,8 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
         const prompt = `Extraia transações bancárias (Pix, Transferências) destes e-mails. Entradas positivas, Saídas negativas. Retorne JSON Array de objetos {id, date, description, amount, type}.`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            // Fix: Upgraded to gemini-3-pro-preview for complex multi-email transaction extraction
+            model: 'gemini-3-pro-preview',
             contents: `${prompt}\n\n${emailData}`,
             config: {
                 temperature: 0.1,

@@ -1,8 +1,8 @@
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Transaction } from '../types';
 import { DateResolver } from '../core/processors/DateResolver';
 import { AmountResolver } from '../core/processors/AmountResolver';
-import { RowValidator } from '../core/processors/RowValidator';
 import { TypeResolver } from '../core/processors/TypeResolver';
 import { extractTransactionsFromComplexBlock } from '../services/geminiService';
 
@@ -37,7 +37,6 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
         setIsSimulating(true);
 
         try {
-            // MODO: EXTRAÇÃO DE BLOCO (Contextual IA)
             if (mapping.extractionMode === 'BLOCK') {
                 const textForAi = gridData.slice(0, 1000).map(row => row.join(' ')).join('\n');
                 const aiResult = await extractTransactionsFromComplexBlock(textForAi);
@@ -57,65 +56,59 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
                 } else {
                     setProcessedTransactions([]);
                 }
-                return;
-            }
-
-            // MODO TRADICIONAL: COLUNAS FIXAS
-            const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
-            const newTransactions: SafeTransaction[] = [];
-            const yearAnchor = DateResolver.discoverAnchorYear(gridData);
-            
-            gridData.forEach((cols, index) => {
-                if (!RowValidator.isPotentialRow(cols)) return;
-                const isSkipped = index < (skipRowsStart || 0);
+            } else {
+                const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
+                const newTransactions: SafeTransaction[] = [];
+                const yearAnchor = DateResolver.discoverAnchorYear(gridData);
                 
-                if (dateColumnIndex === -1 && descriptionColumnIndex === -1 && amountColumnIndex === -1) {
+                gridData.forEach((cols, index) => {
+                    const isSkipped = index < (skipRowsStart || 0);
+                    
+                    if (dateColumnIndex === -1 && descriptionColumnIndex === -1 && amountColumnIndex === -1) {
+                        newTransactions.push({ 
+                            id: `sim-raw-${index}`, 
+                            date: "---", 
+                            description: cols.join(' | ').substring(0, 80), 
+                            rawDescription: cols.join('|'), 
+                            amount: 0, 
+                            originalAmount: "0.00", 
+                            cleanedDescription: cols.join(' | '), 
+                            contributionType: "", 
+                            paymentMethod: "", 
+                            sourceIndex: index, 
+                            isValid: false, 
+                            status: 'pending' 
+                        });
+                        return;
+                    }
+
+                    const rawDate = (dateColumnIndex !== -1 && cols[dateColumnIndex] !== undefined) ? (cols[dateColumnIndex] || '').trim() : '';
+                    const rawDesc = (descriptionColumnIndex !== -1 && cols[descriptionColumnIndex] !== undefined) ? (cols[descriptionColumnIndex] || '').trim() : '';
+                    const rawAmount = (amountColumnIndex !== -1 && cols[amountColumnIndex] !== undefined) ? (cols[amountColumnIndex] || '').trim() : '';
+
+                    if (!rawDate && !rawDesc && !rawAmount) return;
+
+                    const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor) || rawDate;
+                    const amountStr = AmountResolver.clean(rawAmount);
+                    const amountValue = parseFloat(amountStr);
+                    
                     newTransactions.push({ 
-                        id: `sim-raw-${index}`, 
-                        date: "---", 
-                        description: cols.join(' | ').substring(0, 80), 
-                        rawDescription: cols.join('|'), 
-                        amount: 0, 
-                        originalAmount: "0.00", 
-                        cleanedDescription: cols.join(' | '), 
-                        contributionType: "", 
-                        paymentMethod: "", 
+                        id: `sim-${index}-${Date.now()}`,
+                        date: isoDate || rawDate || "---", 
+                        description: rawDesc || "---", 
+                        rawDescription: rawDesc || "---", 
+                        paymentMethod: (paymentMethodColumnIndex !== undefined && cols[paymentMethodColumnIndex]) ? cols[paymentMethodColumnIndex] : TypeResolver.resolveFromDescription(rawDesc),
+                        amount: isNaN(amountValue) ? 0 : amountValue, 
+                        originalAmount: rawAmount, 
+                        cleanedDescription: rawDesc, 
+                        contributionType: 'AUTO', 
                         sourceIndex: index, 
-                        isValid: false, 
-                        status: 'pending' 
+                        isValid: true, 
+                        status: isSkipped ? 'ignored' : 'valid'
                     });
-                    return;
-                }
-
-                const rawDate = (cols[dateColumnIndex] || '').trim();
-                const rawDesc = (cols[descriptionColumnIndex] || '').trim();
-                const rawAmount = (cols[amountColumnIndex] || '').trim();
-                
-                const rawForm = (paymentMethodColumnIndex !== undefined && cols[paymentMethodColumnIndex])
-                    ? cols[paymentMethodColumnIndex].trim().toUpperCase()
-                    : TypeResolver.resolveFromDescription(rawDesc);
-
-                const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
-                const amountStr = AmountResolver.clean(rawAmount);
-                const amount = parseFloat(amountStr);
-                const isValid = RowValidator.isValid(isoDate, rawDesc, amountStr) && !isSkipped;
-                
-                newTransactions.push({ 
-                    id: `sim-${index}-${Date.now()}`,
-                    date: isoDate || rawDate || "---", 
-                    description: rawDesc || "---", 
-                    rawDescription: rawDesc || "---", 
-                    paymentMethod: rawForm || "",
-                    amount: isNaN(amount) ? 0 : amount, 
-                    originalAmount: rawAmount, 
-                    cleanedDescription: rawDesc,
-                    contributionType: 'AUTO', 
-                    sourceIndex: index, 
-                    isValid, 
-                    status: isSkipped ? 'ignored' : (isValid ? 'valid' : 'error') 
                 });
-            });
-            setProcessedTransactions(newTransactions);
+                setProcessedTransactions(newTransactions);
+            }
         } catch (e) {
             console.error("Simulation error:", e);
         } finally {
@@ -142,7 +135,6 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
         setEditingRowData,
         startEdit: (tx: any, idx: number) => { 
             setEditingRowIndex(idx); 
-            // 🛡️ Blindagem: Garante que strings opcionais nunca sejam undefined no estado de edição
             setEditingRowData({ 
                 ...tx,
                 contributionType: tx.contributionType || '',

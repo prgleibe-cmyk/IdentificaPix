@@ -18,7 +18,6 @@ import {
     CheckCircleIcon,
     BuildingOfficeIcon
 } from '../Icons';
-import { formatIncomeDescription } from '../../services/processingService';
 import { BulkActionToolbar } from '../BulkActionToolbar';
 
 type SortDirection = 'asc' | 'desc';
@@ -65,7 +64,6 @@ const IncomeRow = memo(({
     onEdit, 
     onDelete, 
     onUndo,
-    ignoreKeywords,
     isSelected,
     onToggleSelection
 }: any) => {
@@ -73,9 +71,11 @@ const IncomeRow = memo(({
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
     const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
+    const isExpense = displayAmount < 0;
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
-    const txDescFormatted = formatIncomeDescription(row.transaction.description, ignoreKeywords);
-    const displayName = row.contributor?.name || row.contributor?.cleanedName || txDescFormatted;
+    
+    // FIDELIDADE: Usa o que veio do modelo sem limpar novamente no frontend
+    const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
     const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
 
     return (
@@ -108,9 +108,13 @@ const IncomeRow = memo(({
             <td className="px-4 py-2.5 text-center">
                 {isIdentified ? <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span> : <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>}
             </td>
-            <td className="px-4 py-2.5"><span className="text-[9px] font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || '---'}</span></td>
+            <td className="px-4 py-2.5"><span className="text-[9px] font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span></td>
             <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
-            <td className="px-4 py-2.5 text-right font-mono text-xs font-bold">{formatCurrency(displayAmount, language)}</td>
+            <td className="px-4 py-2.5 text-right font-mono text-xs font-bold tabular-nums">
+                <span className={isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}>
+                    {formatCurrency(displayAmount, language)}
+                </span>
+            </td>
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     {!isIdentified && !isGhost ? (

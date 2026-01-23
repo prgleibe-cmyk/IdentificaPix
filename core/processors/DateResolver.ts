@@ -1,6 +1,6 @@
 
 /**
- * ESPECIALISTA EM INTELIGÊNCIA CRONOLÓGICA (Core Engine v3)
+ * ESPECIALISTA EM INTELIGÊNCIA CRONOLÓGICA (Core Engine v3.1)
  * Implementa regras universais para identificação e normalização de datas.
  */
 export class DateResolver {
@@ -30,8 +30,8 @@ export class DateResolver {
     });
 
     const maxScore = Math.max(...scores);
-    // FIX: Retorna -1 se não atingir o limiar de confiança, permitindo listas sem data
-    return maxScore > (sample.length * 0.35) ? scores.indexOf(maxScore) : -1;
+    // Threshold reduzido para 20% para aceitar extratos com muitos headers (Sicoob/Inter)
+    return maxScore > (sample.length * 0.20) ? scores.indexOf(maxScore) : -1;
   }
 
   /**
@@ -53,12 +53,10 @@ export class DateResolver {
 
   /**
    * Normalização Universal para ISO YYYY-MM-DD.
-   * Garante datas completas mesmo a partir de fragmentos.
    */
   static resolveToISO(rawDate: string, anchorYear: number): string {
     if (!rawDate) return '';
     
-    // Suporta 1 ou 2 dígitos para dia/mês
     const dateMatch = rawDate.match(/(\d{1,4})[/-](\d{1,2})([/-](\d{1,4}))?/);
     if (!dateMatch) return '';
 
@@ -69,12 +67,10 @@ export class DateResolver {
     let day: string, month: string, year: string;
 
     if (part1.length === 4) {
-      // Formato YYYY-MM-DD
       year = part1;
       month = part2;
       day = part3 || '01';
     } else {
-      // Formato DD-MM-YYYY ou D-M-YY
       day = part1.padStart(2, '0');
       month = part2.padStart(2, '0');
       
@@ -98,7 +94,7 @@ export class DateResolver {
 
   private static isValidDatePattern(val: string): boolean {
     const clean = val.trim();
-    if (clean.length < 3) return false; // Reduzido de 4 para 3 (ex: 1/5)
+    if (clean.length < 3) return false;
     return this.DATE_PATTERNS.some(regex => regex.test(clean));
   }
 }

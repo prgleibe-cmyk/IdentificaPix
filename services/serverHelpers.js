@@ -40,7 +40,8 @@ export async function extractTransactionsFromEmails(ai, emails) {
     const emailContext = emails.map(e => `ID: ${e.id}\nDATA: ${e.date}\nCORPO: ${e.body}`).join('\n---\n');
 
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        // Fix: Upgraded to gemini-3-pro-preview for complex transaction extraction from email bodies
+        model: 'gemini-3-pro-preview',
         contents: `Extraia transações financeiras destes e-mails para um JSON array:\n\n${emailContext}`,
         config: {
             temperature: 0,
@@ -78,7 +79,8 @@ export function convertToCsv(transactions) {
 export async function generateAiSuggestion(ai, transactionDescription, contributorNames) {
     if (!ai) throw new Error("AI Client missing");
     const response = await ai.models.generateContent({ 
-        model: 'gemini-3-flash-preview', 
+        // Fix: Upgraded to gemini-3-pro-preview for higher accuracy in matching descriptions to contributor names
+        model: 'gemini-3-pro-preview', 
         contents: `Descrição: "${transactionDescription}". Qual destes é o melhor match? [${contributorNames.join(', ')}]. Responda apenas o nome.`,
         config: { temperature: 0.1 }
     });

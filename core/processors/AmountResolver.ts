@@ -1,6 +1,6 @@
 
 /**
- * ESPECIALISTA EM INTELIGÊNCIA MONETÁRIA (Core Engine v3.1)
+ * ESPECIALISTA EM INTELIGÊNCIA MONETÁRIA (Core Engine v3.3)
  */
 export class AmountResolver {
   static identifyAmountColumn(rows: string[][], excludedIndices: number[] = []): number {
@@ -22,7 +22,7 @@ export class AmountResolver {
     });
 
     const validCandidates = Array.from(candidateScores.entries())
-      .filter(([_, stats]) => stats.count > (sample.length * 0.15));
+      .filter(([_, stats]) => stats.count > (sample.length * 0.10));
 
     if (validCandidates.length === 0) return -1;
 
@@ -37,17 +37,24 @@ export class AmountResolver {
 
   static clean(rawAmount: any): string {
     if (rawAmount === null || rawAmount === undefined) return "0.00";
+    
+    // Se já for um número negativo vindo da IA, preserva o sinal
+    if (typeof rawAmount === 'number') {
+        return rawAmount.toFixed(2);
+    }
+
     let strAmount = String(rawAmount).trim();
     if (!strAmount || strAmount === '') return "0.00";
 
-    // PROTEÇÃO V11.1: Detecta sinal negativo em extratos PDF complexos
+    // Detecta indicadores de negatividade (Sinais, parênteses ou sufixo/prefixo 'D')
     const isNegative = 
         strAmount.includes('-') || 
         strAmount.includes('(') || 
         strAmount.toUpperCase().endsWith('D') ||
-        strAmount.toUpperCase().startsWith('D');
+        strAmount.toUpperCase().startsWith('D') ||
+        strAmount.toLowerCase().includes('saída') ||
+        strAmount.toLowerCase().includes('débito');
 
-    // Remove tudo exceto números, pontos e vírgulas
     let cleaned = strAmount.replace(/[^0-9.,]/g, '');
 
     const hasComma = cleaned.includes(',');
@@ -92,7 +99,6 @@ export class AmountResolver {
     const val = parseFloat(cleaned);
     if (isNaN(val)) return "0.00";
 
-    // Retorna string formatada preservando o sinal
     return (isNegative ? -Math.abs(val) : Math.abs(val)).toFixed(2);
   }
 

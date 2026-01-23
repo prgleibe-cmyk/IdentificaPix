@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { 
     MatchResult, 
     Transaction, 
@@ -27,6 +27,7 @@ export const useReconciliation = ({
     churches,
     banks,
     fileModels,
+    fetchModels,
     similarityLevel,
     dayTolerance,
     customIgnoreKeywords,
@@ -48,8 +49,11 @@ export const useReconciliation = ({
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
+    const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
+
+    const processingFilesRef = useRef<Set<string>>(new Set());
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
@@ -70,34 +74,73 @@ export const useReconciliation = ({
     }, []);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File) => {
-        try {
-            const result = await processFileContent(content, fileName, fileModels, customIgnoreKeywords);
-            const stats = await persistTransactions(bankId, result.transactions);
-            const feedback = `Total: ${stats.total} | Novos: ${stats.added} | Já Existentes: ${stats.skipped}`;
-
-            if (stats.added === 0) {
-                showToast(`Lista Sincronizada.\n${feedback}`, "success");
-            } else {
-                showToast(`Sucesso! ${feedback}`, "success");
-            }
-            
-            await hydrate();
-        } catch (error) {
-            console.error("[Reconciliation] Upload Fail:", error);
-            showToast("Erro no processamento.", "error");
+        const processKey = `${bankId}-${fileName}`;
+        if (processingFilesRef.current.has(processKey)) {
+            return;
         }
-    }, [fileModels, customIgnoreKeywords, persistTransactions, showToast, hydrate]);
+
+        processingFilesRef.current.add(processKey);
+        setIsLoading(true);
+
+        try {
+            // RECARGA SEGURA DE MODELOS
+            if (fetchModels) await fetchModels();
+
+            // EXECUÇÃO DO PIPELINE
+            const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords);
+            
+            // GOVERNANÇA: Bloqueio de Lançamento se não houver modelo ou se o resultado for vazio em arquivo físico
+            const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
+            
+            if (executorResult.status === 'MODEL_REQUIRED' || (transactions.length === 0 && bankId !== 'gmail-sync')) {
+                console.log("[Pipeline:GOV] Interrompendo por falta de modelo ou extração vazia.");
+                setModelRequiredData({
+                    ...executorResult,
+                    status: 'MODEL_REQUIRED',
+                    fileName,
+                    bankId
+                });
+                setIsLoading(false);
+                processingFilesRef.current.delete(processKey);
+                return;
+            }
+
+            if (transactions.length === 0) {
+                showToast("Nenhuma transação extraída do arquivo.", "error");
+                setIsLoading(false);
+                processingFilesRef.current.delete(processKey);
+                return;
+            }
+
+            const stats = await persistTransactions(bankId, transactions);
+            showToast(stats.added === 0 ? "Lista Sincronizada." : `Sucesso! Total: ${stats.total}`, "success");
+            await hydrate();
+            
+        } catch (error: any) {
+            console.error("[Pipeline:ERROR] Falha crítica no upload:", error);
+            showToast("Erro no processamento do arquivo.", "error");
+        } finally {
+            processingFilesRef.current.delete(processKey);
+            setIsLoading(false);
+        }
+    }, [fileModels, fetchModels, customIgnoreKeywords, persistTransactions, showToast, hydrate, setIsLoading]);
 
     const importGmailTransactions = useCallback(async (transactions: Transaction[]) => {
         if (!user || transactions.length === 0) return;
+        
+        const gmailKey = `gmail-sync-active`;
+        if (processingFilesRef.current.has(gmailKey)) return;
+        
+        processingFilesRef.current.add(gmailKey);
         setIsLoading(true);
+        
         try {
             const result = await IngestionOrchestrator.processVirtualData('Gmail', transactions, customIgnoreKeywords);
             const stats = await persistTransactions('gmail-sync', result.transactions);
-            const feedback = `Total: ${stats.total} | Novos: ${stats.added}`;
-            showToast(`Gmail sincronizado! ${feedback}`, "success");
+            showToast(`Gmail sincronizado! Total: ${stats.total}`, "success");
             await hydrate();
         } finally {
+            processingFilesRef.current.delete(gmailKey);
             setIsLoading(false);
         }
     }, [user, customIgnoreKeywords, persistTransactions, showToast, setIsLoading, hydrate]);
@@ -130,24 +173,19 @@ export const useReconciliation = ({
     }, [clearRemoteList, showToast, setActiveView, setIsLoading]);
 
     const markAsLaunched = useCallback((txId: string) => {
-        // Busca o item no estado atual antes de qualquer mutação
         setMatchResults(prev => {
             const itemIndex = prev.findIndex(r => r.transaction.id === txId);
             if (itemIndex === -1) return prev;
 
             const item = prev[itemIndex];
             
-            // Adiciona aos lançados (Fora do ciclo de render se possível, mas mantendo a lógica de negócio)
             setLaunchedResults(launched => [{ 
                 ...item, 
                 launchedAt: new Date().toISOString() 
             }, ...launched]);
 
             const next = prev.filter(r => r.transaction.id !== txId);
-            
-            // Agenda a regeneração do preview para o próximo tick para evitar loops de estado
             setTimeout(() => regenerateReportPreview(next), 0);
-            
             return next;
         });
     }, [setMatchResults, setLaunchedResults, regenerateReportPreview]);
@@ -163,6 +201,7 @@ export const useReconciliation = ({
         comparisonType, setComparisonType, selectedBankIds,
         manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
+        modelRequiredData, setModelRequiredData,
         launchedResults, setLaunchedResults, markAsLaunched, deleteLaunchedItem,
         importGmailTransactions, handleStatementUpload, 
         handleContributorsUpload: (content: string, fileName: string, churchId: string) => {
@@ -184,7 +223,6 @@ export const useReconciliation = ({
                 return; 
             }
 
-            // O matchTransactions agora lida internamente com o fato de haver ou não listas de contribuintes
             const results = matchTransactions(
                 allTransactions, 
                 contributorFiles, 

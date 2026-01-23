@@ -23,6 +23,8 @@ interface FileUploaderProps {
   useLocalLoadingOnly?: boolean; 
 }
 
+const SUPPORTED_FORMATS = ".pdf,.xlsx,.xls,.csv,.txt";
+
 export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({ 
     title, 
     onFileUpload, 
@@ -39,9 +41,11 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
   const [isParsing, setIsParsing] = useState(false);
   const { setIsLoading, setParsingProgress } = useUI() as any;
 
+  const isBusyRef = useRef(false);
+
   useImperativeHandle(ref, () => ({
       open: () => {
-          if (!disabled && !isParsing) {
+          if (!disabled && !isParsing && !isBusyRef.current) {
               fileInputRef.current?.click();
           }
       }
@@ -67,23 +71,25 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
   useEffect(() => { ensureLibsLoaded(); }, []);
 
   useEffect(() => {
-      if (onParsingStatusChange) {
-          onParsingStatusChange(isParsing);
-      }
-      if (!useLocalLoadingOnly) {
-          setIsLoading(isParsing);
-      }
+      if (onParsingStatusChange) onParsingStatusChange(isParsing);
+      if (!useLocalLoadingOnly) setIsLoading(isParsing);
   }, [isParsing, onParsingStatusChange, setIsLoading, useLocalLoadingOnly]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    processFile(file);
+    if (!file || isBusyRef.current) return;
+    
+    await processFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const processFile = async (file: File) => {
+    if (isBusyRef.current) return;
+    
+    isBusyRef.current = true;
     setIsParsing(true);
-    if (setParsingProgress) setParsingProgress({ current: 0, total: 0, label: 'Iniciando...' });
+    
+    if (setParsingProgress) setParsingProgress({ current: 0, total: 0, label: 'Iniciando leitura...' });
     
     try {
         await ensureLibsLoaded();
@@ -96,18 +102,41 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
              const loadingTask = pdfjsLib.getDocument(new Uint8Array(fileBuffer));
              const pdf = await loadingTask.promise;
              const totalPages = pdf.numPages;
+             const textParts: string[] = [];
              
-             console.log(`[Ingestion:PDF] Iniciando leitura integral de ${file.name}. Total de páginas: ${totalPages}`);
+             console.log(`[Ingestion:PDF] Lendo ${file.name}. Páginas: ${totalPages}`);
 
              for (let i = 1; i <= totalPages; i++) {
-                 if (setParsingProgress) setParsingProgress({ current: i, total: totalPages, label: `Extraindo texto: Página ${i}/${totalPages}` });
+                 // YIELD: Libera o thread principal para processar eventos de UI (barra de progresso)
+                 await new Promise(resolve => setTimeout(resolve, 0));
+
+                 if (setParsingProgress) {
+                    setParsingProgress({ 
+                        current: i, 
+                        total: totalPages, 
+                        label: `Lendo página ${i} de ${totalPages}...` 
+                    });
+                 }
+
                  const page = await pdf.getPage(i);
                  const textContent = await page.getTextContent();
                  const items = textContent.items as any[];
-                 extractedText += items.map(it => it.str).join(' ') + '\n';
+                 
+                 const lineMap: { [key: number]: any[] } = {};
+                 items.forEach(item => {
+                     const y = Math.round(item.transform[5]);
+                     if (!lineMap[y]) lineMap[y] = [];
+                     lineMap[y].push(item);
+                 });
+
+                 const sortedY = Object.keys(lineMap).map(Number).sort((a, b) => b - a);
+                 sortedY.forEach(y => {
+                     const sortedItems = lineMap[y].sort((a, b) => a.transform[4] - b.transform[4]);
+                     const lineText = sortedItems.map(it => it.str).join(' ');
+                     if (lineText.trim()) textParts.push(lineText);
+                 });
              }
-             
-             console.log(`[Ingestion:PDF] Leitura concluída. Linhas brutas extraídas: ${extractedText.split('\n').length}`);
+             extractedText = textParts.join('\n');
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
             if (!XLSX) throw new Error("Excel lib missing");
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
@@ -117,27 +146,35 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
             extractedText = new TextDecoder('utf-8').decode(fileBuffer);
         }
 
-        // CRÍTICO: Aguardar o término do upload para garantir que o loadingGlobal não seja interrompido
+        console.log(`[Ingestion:DONE] Extração concluída. Enviando para pipeline.`);
+        
+        // [Ingestion:CHECKPOINT] Auditoria de Payload para Blindagem do Pipeline
+        console.log('[Ingestion:CHECKPOINT] Tipo:', typeof extractedText);
+        console.log('[Ingestion:CHECKPOINT] É Array:', Array.isArray(extractedText));
+        console.log('[Ingestion:CHECKPOINT] Tamanho:', extractedText?.length);
+        console.log('[Ingestion:CHECKPOINT] Amostra:', (extractedText as any)?.slice?.(0, 3));
+
         await onFileUpload(extractedText, file.name, file);
 
     } catch (error: any) {
-        alert(`Erro: ${error.message}`);
+        console.error("[Uploader] Fail:", error);
+        alert(`Erro ao carregar arquivo: ${error.message}`);
     } finally {
+        isBusyRef.current = false;
         setIsParsing(false);
         if (setParsingProgress) setParsingProgress(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!disabled && !isParsing) fileInputRef.current?.click();
+    if (!disabled && !isParsing && !isBusyRef.current) fileInputRef.current?.click();
   };
 
   if (customTrigger) {
       return (
           <div className="flex-shrink-0">
-              <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept=".csv,.txt,.xlsx,.xls,.pdf" />
+              <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={SUPPORTED_FORMATS} />
               {customTrigger({ onClick: handleClick, disabled: disabled || isParsing, isParsing })}
           </div>
       );
@@ -145,9 +182,9 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
 
   return (
     <div className="flex-shrink-0">
-      <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept=".csv,.txt,.xlsx,.xls,.pdf" />
+      <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={SUPPORTED_FORMATS} />
       <button type="button" onClick={handleClick} disabled={disabled || isParsing} className={`group inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all ${disabled ? 'bg-slate-100 text-slate-400' : 'text-white bg-emerald-600 hover:bg-emerald-500 shadow-sm'}`}>
-         {isParsing ? <><svg className="animate-spin h-3 w-3 text-white mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Processando...</span></> : <><UploadIcon className="w-3 h-3" /><span>{title}</span></>}
+         {isParsing ? <><svg className="animate-spin h-3 w-3 text-white mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Extraindo...</span></> : <><UploadIcon className="w-3 h-3" /><span>{title}</span></>}
       </button>
     </div>
   );

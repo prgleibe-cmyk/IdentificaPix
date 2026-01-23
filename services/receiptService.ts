@@ -1,11 +1,12 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { ReceiptAnalysisResult } from "../types";
 import { Logger } from "./monitoringService";
 
 const getAIClient = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key missing");
-    return new GoogleGenAI({ apiKey });
+    // Fix: Use process.env.API_KEY directly in initialization as per guidelines
+    if (!process.env.API_KEY) throw new Error("API Key missing");
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Retry logic adapted for Receipt Service
@@ -53,7 +54,8 @@ export const analyzeReceipt = async (file: File): Promise<ReceiptAnalysisResult>
         const ai = getAIClient(); // Instantiate inside retry loop
         
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          // Fix: Upgraded to gemini-3-pro-preview for complex receipt analysis and authentication
+          model: 'gemini-3-pro-preview',
           contents: {
             parts: [
               {

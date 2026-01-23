@@ -19,11 +19,14 @@ export const extractSnippet = (content: string): string => {
     return content.split(/\r?\n/).slice(0, 20).join('\n');
 };
 
+/**
+ * Normalização usada apenas para busca e matching interno.
+ */
 export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
     if (!str) return '';
-    let cleaned = NameResolver.clean(str, ignoreKeywords);
-    if (!cleaned || cleaned.trim().length === 0) cleaned = str;
-    return NameResolver.normalize(cleaned).toLowerCase();
+    // No modo modelo, ignoreKeywords será vazio, mantendo a string original para o match
+    if (ignoreKeywords.length === 0) return NameResolver.normalize(str);
+    return NameResolver.normalize(NameResolver.clean(str, ignoreKeywords));
 };
 
 export const parseDate = (dateString: string): Date | null => {
@@ -39,16 +42,15 @@ export const parseDate = (dateString: string): Date | null => {
     return null;
 };
 
-export const cleanTransactionDescriptionForDisplay = (description: string, ignoreKeywords: string[] = []): string => {
-    const cleaned = NameResolver.clean(description, ignoreKeywords);
-    if (!cleaned || cleaned.trim().length === 0) return description;
-    return cleaned;
+// FUNÇÕES DE EXIBIÇÃO: Retornam o texto original sem modificações
+export const cleanTransactionDescriptionForDisplay = (description: string): string => {
+    return description || '';
 };
 
-export const formatIncomeDescription = (description: string, ignoreKeywords: string[] = []): string => {
-    return cleanTransactionDescriptionForDisplay(description, ignoreKeywords);
+export const formatIncomeDescription = (description: string): string => {
+    return description || '';
 };
 
 export const formatExpenseDescription = (description: string): string => {
-    return NameResolver.clean(description);
+    return description || '';
 };

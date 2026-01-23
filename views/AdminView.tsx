@@ -16,25 +16,51 @@ import {
     XCircleIcon,
     ArrowsRightLeftIcon,
     BrainIcon,
-    ClipboardDocumentIcon,
-    EyeIcon
+    ClipboardDocumentIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminAuditTab } from '../components/admin/AdminAuditTab';
 import { AdminModelsTab } from '../components/admin/AdminModelsTab';
-import { AdminObservationTab } from '../components/admin/AdminObservationTab';
 
-type AdminTab = 'settings' | 'users' | 'audit' | 'models' | 'observation';
+type AdminTab = 'settings' | 'users' | 'audit' | 'models';
 
 const FIX_SQL = `
 -- ============================================================
--- SCRIPT DE CORREÇÃO DEFINITIVA (V7 - Automação)
+-- SCRIPT DE CORREÇÃO DEFINITIVA (V8 - Lista Viva & Persistência)
 -- ============================================================
 
 BEGIN;
 
--- 1. Tabela de Macros de Automação
+-- 1. Garantir que a tabela consolidated_transactions tem as colunas corretas
+CREATE TABLE IF NOT EXISTS public.consolidated_transactions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    transaction_date DATE NOT NULL,
+    amount NUMERIC(15,2) NOT NULL,
+    description TEXT NOT NULL,
+    type TEXT CHECK (type IN ('income', 'expense')),
+    pix_key TEXT,
+    source TEXT DEFAULT 'file',
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'identified', 'resolved')),
+    bank_id UUID REFERENCES public.banks(id) ON DELETE SET NULL,
+    row_hash TEXT
+);
+
+-- Adicionar colunas caso a tabela já exista mas esteja incompleta
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='bank_id') THEN
+        ALTER TABLE public.consolidated_transactions ADD COLUMN bank_id UUID REFERENCES public.banks(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='row_hash') THEN
+        ALTER TABLE public.consolidated_transactions ADD COLUMN row_hash TEXT;
+    END IF;
+END $$;
+
+-- 2. Tabela de Macros de Automação
 CREATE TABLE IF NOT EXISTS public.automation_macros (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -47,12 +73,17 @@ CREATE TABLE IF NOT EXISTS public.automation_macros (
 
 -- Políticas RLS para Automação
 ALTER TABLE public.automation_macros ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.consolidated_transactions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can manage their own macros" ON public.automation_macros;
 CREATE POLICY "Users can manage their own macros" ON public.automation_macros
     FOR ALL USING (auth.uid() = user_id);
 
--- 2. Correções Existentes
+DROP POLICY IF EXISTS "Users can manage their own transactions" ON public.consolidated_transactions;
+CREATE POLICY "Users can manage their own transactions" ON public.consolidated_transactions
+    FOR ALL USING (auth.uid() = user_id);
+
+-- 3. Correções de Modelos
 ALTER TABLE file_models ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'draft';
 ALTER TABLE file_models ADD COLUMN IF NOT EXISTS parsing_rules JSONB DEFAULT '{"ignoredKeywords": [], "rowFilters": []}'::jsonb;
 
@@ -69,18 +100,13 @@ export const AdminView: React.FC = () => {
     const { user } = useAuth();
     const { showToast } = useUI();
     const { t } = useTranslation();
-    const [showSqlModal, setShowSqlModal] = useState(false);
     const [showDiagModal, setShowDiagModal] = useState(false);
     const [diagResult, setDiagResult] = useState<any>(null);
     const [isLoadingDiag, setIsLoadingDiag] = useState(false);
 
-    const handleSync = () => {
-        showToast("Dados sincronizados com sucesso.", "success");
-    };
-
     const copySql = () => {
         navigator.clipboard.writeText(FIX_SQL);
-        showToast("SQL V7 copiado! Execute no Supabase SQL Editor.", "success");
+        showToast("SQL V8 copiado! Execute no Supabase SQL Editor.", "success");
     };
 
     const runDiagnostics = async () => {
@@ -143,12 +169,11 @@ export const AdminView: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
                         <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
                         <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                         <AdminTabButton id="models" label="Laboratório" icon={BrainIcon} colorTheme="violet" />
-                        <AdminTabButton id="observation" label="Observação" icon={EyeIcon} colorTheme="indigo" />
                     </div>
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
                     <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20 hover:-translate-y-0.5 transition-all">
@@ -162,7 +187,6 @@ export const AdminView: React.FC = () => {
                 {activeTab === 'users' && <AdminUsersTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
                 {activeTab === 'models' && <AdminModelsTab />}
-                {activeTab === 'observation' && <AdminObservationTab />}
             </div>
             {showDiagModal && (
                 <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
@@ -177,10 +201,10 @@ export const AdminView: React.FC = () => {
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.geminiKey ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><span className="text-xs font-bold text-slate-700">Chave Gemini (process.env)</span>{diagResult.geminiKey ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.supabaseStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão Supabase</span>{diagResult.supabaseError && <span className="text-[10px] text-red-500 mt-1">{diagResult.supabaseError}</span>}</div>{diagResult.supabaseStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
-                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V7)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">NOVA TABELA</span></div>
+                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V8)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">NOVA VERSÃO</span></div>
                                         <div className="mt-1">
-                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script cria a tabela de macros necessária para a automação funcionar.</p>
-                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V7</button>
+                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script atualiza a tabela de transações para suportar a Lista Viva e correções de sincronia.</p>
+                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V8</button>
                                         </div>
                                     </div>
                                 </div>
