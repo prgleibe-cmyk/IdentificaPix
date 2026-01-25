@@ -141,7 +141,11 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
             if (!XLSX) throw new Error("Excel lib missing");
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            extractedText = XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }); 
+            
+            // MODIFICAÇÃO CRÍTICA PARA PARIDADE COM LABORATÓRIO:
+            // Não usamos sheet_to_csv porque ele adiciona aspas e foge do padrão join(';') do treinamento.
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+            extractedText = jsonData.map(row => row.join(';')).join('\n');
         } else {
             extractedText = new TextDecoder('utf-8').decode(fileBuffer);
         }
