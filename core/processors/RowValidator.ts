@@ -1,4 +1,3 @@
-
 import { NameResolver } from './NameResolver';
 
 /**
@@ -40,12 +39,5 @@ export class RowValidator {
     // Nota: Linhas de controle (Saldos/Totais) SÃO VÁLIDAS estruturalmente, 
     // mas serão marcadas na UI para o usuário confirmar a exclusão.
     return true;
-  }
-
-  /**
-   * Verifica se a linha é suspeita de ser saldo ou total (lógica delegada).
-   */
-  static isControlRow(description: string): boolean {
-    return NameResolver.isControlRow(description);
   }
 }

@@ -24,8 +24,8 @@ export interface BankStrategy {
 }
 
 /**
- * 🛡️ ESTRATÉGIA DE CONTRATO (V1 - PRIORIDADE MÁXIMA)
- * Garante que modelos aprendidos sejam aplicados com 100% de fidelidade.
+ * 🛡️ ESTRATÉGIA DE CONTRATO (V2 - PADRONIZAÇÃO GLOBAL)
+ * Garante que modelos aprendidos sejam aplicados com limpeza de palavras-chaves.
  */
 export const DatabaseModelStrategy: BankStrategy = {
     name: 'Modelo Aprendido',
@@ -51,8 +51,8 @@ export const DatabaseModelStrategy: BankStrategy = {
 
         if (!model) return [];
 
-        console.log(`[Strategy:CONTRACT] Aplicando padrão gravado: "${model.name}" (v${model.version})`);
-        return await ContractExecutor.apply(model, content);
+        console.log(`[Strategy:CONTRACT] Executando: "${model.name}" com higienização de palavras-chaves.`);
+        return await ContractExecutor.apply(model, content, globalKeywords);
     }
 };
 
@@ -83,14 +83,15 @@ export const GenericStrategy: BankStrategy = {
             const numVal = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numVal)) {
+                const cleaned = NameResolver.clean(rawDesc, globalKeywords);
                 transactions.push({
                     id: `gen-${index}-${Date.now()}`,
                     date: isoDate,
-                    description: rawDesc.trim(),
+                    description: cleaned,
                     rawDescription: cols.join('|'),
                     amount: numVal,
                     originalAmount: rawAmount,
-                    cleanedDescription: NameResolver.clean(rawDesc, globalKeywords),
+                    cleanedDescription: cleaned,
                     contributionType: TypeResolver.resolveFromDescription(rawDesc)
                 });
             }
@@ -105,9 +106,8 @@ export const StrategyEngine = {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const source = content?.__source || 'unknown';
         
-        // 1. Prioridade Absoluta: Modelo forçado ou Reconhecido
         if (overrideModel) {
-            const txs = await DatabaseModelStrategy.parse(content, 2025, [overrideModel], []);
+            const txs = await DatabaseModelStrategy.parse(content, 2025, [overrideModel], globalKeywords);
             return { transactions: txs, strategyName: `Treino: ${overrideModel.name}` };
         }
 
@@ -115,11 +115,10 @@ export const StrategyEngine = {
         const targetModel = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp?.headerHash);
         
         if (targetModel) {
-            const txs = await DatabaseModelStrategy.parse(content, 2025, [targetModel], []);
+            const txs = await DatabaseModelStrategy.parse(content, 2025, [targetModel], globalKeywords);
             return { transactions: txs, strategyName: `Contrato: ${targetModel.name}` };
         }
 
-        // 2. Se não tem modelo e não é virtual, BLOQUEIA
         if (source !== 'virtual' && source !== 'gmail') {
             return { 
                 status: 'MODEL_REQUIRED',
@@ -131,7 +130,6 @@ export const StrategyEngine = {
             };
         }
 
-        // 3. Fallback apenas para dados virtuais
         const txs = GenericStrategy.parse(content, 2025, [], globalKeywords) as Transaction[];
         return { transactions: txs, strategyName: 'Genérico' };
     }

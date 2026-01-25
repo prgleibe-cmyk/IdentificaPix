@@ -144,7 +144,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
                                                 {(contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                                                <span className={`text-xs font-bold leading-tight ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>{primaryName}</span>
+                                                <span className={`text-xs font-bold leading-tight break-words ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>{primaryName}</span>
                                             </div>
                                             {isGhost && <span className="text-[9px] text-red-400 pl-5 font-medium italic">Não encontrado no extrato</span>}
                                         </div>
@@ -152,7 +152,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                     <td className="px-4 py-2.5">
                                         <div className="flex items-center gap-2">
                                             <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${status === 'IDENTIFICADO' ? 'text-indigo-400' : 'text-slate-300'}`} />
-                                            <span className={`text-[10px] font-bold uppercase truncate max-w-[120px] ${status === 'IDENTIFICADO' ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
+                                            <span className={`text-[10px] font-bold uppercase break-words ${status === 'IDENTIFICADO' ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
                                                 {church?.name || '---'}
                                             </span>
                                         </div>

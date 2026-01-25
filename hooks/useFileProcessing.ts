@@ -63,8 +63,10 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     
                     if (initialModel?.mapping) {
                         setActiveMapping(initialModel.mapping);
-                    } else if (!activeMapping) {
+                    } else {
+                        // FIX: Sempre inicializa mapping para evitar undefined
                         setActiveMapping({
+                            extractionMode: 'COLUMNS',
                             dateColumnIndex: -1,
                             descriptionColumnIndex: -1,
                             amountColumnIndex: -1,

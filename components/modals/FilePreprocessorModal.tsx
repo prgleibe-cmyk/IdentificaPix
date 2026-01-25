@@ -6,7 +6,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { modelService } from '../../services/modelService';
 import { FileModel, Transaction } from '../../types';
-import { CloudArrowUpIcon, DocumentArrowDownIcon, SparklesIcon, TableCellsIcon, ShieldCheckIcon, BrainIcon } from '../Icons';
+import { CloudArrowUpIcon, DocumentArrowDownIcon, SparklesIcon, TableCellsIcon, ShieldCheckIcon, BrainIcon, BoltIcon, PencilIcon } from '../Icons';
 
 // Sub-componentes
 import { SpreadsheetRenderer } from './preprocessor/SpreadsheetRenderer';
@@ -31,12 +31,15 @@ export const FilePreprocessorModal: React.FC<{
 }> = ({ onClose, initialFile, initialModel, onSuccess, mode = 'create' }) => {
     const { showToast } = useUI();
     const { user } = useAuth(); 
-    const { effectiveIgnoreKeywords, contributionKeywords, fetchModels } = useContext(AppContext);
+    const context = useContext(AppContext);
     
-    // Estado para o arquivo sendo trabalhado
+    // Blindagem de Contexto: Garante que os iteráveis existam mesmo se o context falhar momentaneamente
+    const effectiveIgnoreKeywords = context?.effectiveIgnoreKeywords || [];
+    const contributionKeywords = context?.contributionKeywords || [];
+    const fetchModels = context?.fetchModels;
+
     const [uploadedFile, setUploadedFile] = useState<{ content: string, fileName: string, rawFile?: File } | null>(null);
 
-    // Efeito para carregar dados do modelo existente se estiver em modo Reaprender
     useEffect(() => {
         if (mode === 'refine' && initialModel && !uploadedFile && !initialFile) {
             setUploadedFile({
@@ -48,9 +51,13 @@ export const FilePreprocessorModal: React.FC<{
     }, [mode, initialModel, uploadedFile, initialFile]);
     
     const activeFile = initialFile || uploadedFile || null;
-    
     const isPdf = useMemo(() => /\.pdf$/i.test(activeFile?.fileName || ''), [activeFile]);
-    const cleaningKeywords = useMemo(() => [...effectiveIgnoreKeywords, ...contributionKeywords], [effectiveIgnoreKeywords, contributionKeywords]);
+    
+    // FIX: Spread seguro com fallbacks para arrays vazios
+    const cleaningKeywords = useMemo(() => [
+        ...(effectiveIgnoreKeywords || []), 
+        ...(contributionKeywords || [])
+    ], [effectiveIgnoreKeywords, contributionKeywords]);
 
     const { 
         gridData, setGridData, isGridLoading,
@@ -64,7 +71,13 @@ export const FilePreprocessorModal: React.FC<{
 
     const {
         isInferringMapping, learnedPatternSource, setLearnedPatternSource, handleApplyCorrectionPattern
-    } = useAIPatternTeacher({ gridData, setGridData, setActiveMapping, showToast });
+    } = useAIPatternTeacher({ 
+        gridData, 
+        setGridData, 
+        setActiveMapping, 
+        showToast,
+        fullFileText: activeFile?.content 
+    });
 
     const [isSavingModel, setIsSavingModel] = useState(false);
     const [showNameModal, setShowNameModal] = useState(false);
@@ -76,12 +89,8 @@ export const FilePreprocessorModal: React.FC<{
         
         setIsSavingModel(true);
         try {
-            // REMOVIDO LIMITE DE 100 LINHAS: Garantimos fidelidade total ao documento original
             const finalSnippet = gridData.map(row => row.join(';')).join('\n');
             
-            // [Model:UI_COUNT] Auditoria na UI antes de chamar o Service
-            console.log(`[Model:UI_COUNT] Nome: ${finalName} | Linhas na Grade: ${gridData.length} | Linhas no Snippet: ${gridData.length}`);
-
             const modelData: any = { 
                 name: finalName, 
                 user_id: user.id, 
@@ -135,16 +144,9 @@ export const FilePreprocessorModal: React.FC<{
                             />
                         </div>
                         
-                        <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-slate-800 px-4 py-1.5 rounded-2xl border border-indigo-100 dark:border-indigo-900 shadow-sm font-mono text-[9px]">
-                            <div className="flex flex-col">
-                                <span className="text-slate-400 uppercase font-black">DNA Estrutural:</span>
-                                <span className="text-indigo-600 dark:text-indigo-400 font-bold">{detectedFingerprint?.headerHash || '---'}</span>
-                            </div>
-                            <div className="w-px h-6 bg-slate-100 dark:bg-slate-700"></div>
-                            <div className="flex flex-col">
-                                <span className="text-slate-400 uppercase font-black">Colunas:</span>
-                                <span className="text-emerald-600 dark:text-emerald-400 font-bold">{detectedFingerprint?.columnCount || 0}</span>
-                            </div>
+                        <div className="hidden lg:flex items-center gap-2 bg-white dark:bg-slate-800 px-4 py-1.5 rounded-2xl border border-indigo-100 dark:border-indigo-900 shadow-sm font-mono text-[9px]">
+                            <span className="text-slate-400 uppercase font-black">DNA:</span>
+                            <span className="text-indigo-600 dark:text-indigo-400 font-bold">{detectedFingerprint?.headerHash || '---'}</span>
                         </div>
                     </div>
                 )}
@@ -169,20 +171,34 @@ export const FilePreprocessorModal: React.FC<{
                     </section>
 
                     <section className="flex-1 flex flex-col min-h-0 bg-white dark:bg-[#0F172A] relative">
-                         <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-2 shrink-0">
-                            <SparklesIcon className="w-4 h-4 text-indigo-500" />
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Simulação de Extração</span>
+                         <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-2">
+                                <SparklesIcon className="w-4 h-4 text-indigo-500" />
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Resultado da Extração</span>
+                            </div>
                         </div>
-                        <TeachingBanner isVisible={!!learnedPatternSource} isProcessing={isInferringMapping} onApply={handleApplyCorrectionPattern} />
+
+                        <TeachingBanner isVisible={!!learnedPatternSource} isProcessing={isInferringMapping} onApply={() => handleApplyCorrectionPattern()} />
+                        
                         <div className="flex-1 overflow-auto custom-scrollbar">
-                            <SimulatedResultsTable transactions={processedTransactions} activeMapping={!!activeMapping} isTestMode={mode === 'test'} editingRowIndex={editingRowIndex} editingRowData={editingRowData} onStartEdit={startEdit} onSaveRow={() => saveRow((original, corrected) => setLearnedPatternSource({ originalRaw: original, corrected }))} onCancelEdit={cancelEdit} onUpdateEditingData={setEditingRowData} />
+                            <SimulatedResultsTable 
+                                transactions={processedTransactions} 
+                                activeMapping={!!activeMapping} 
+                                isTestMode={mode === 'test'} 
+                                editingRowIndex={editingRowIndex} 
+                                editingRowData={editingRowData} 
+                                onStartEdit={startEdit} 
+                                onSaveRow={() => saveRow((raw, corr) => setLearnedPatternSource({ originalRaw: raw, corrected: corr }))} 
+                                onCancelEdit={cancelEdit} 
+                                onUpdateEditingData={setEditingRowData} 
+                            />
                         </div>
                     </section>
                 </div>
                 
                 {showNameModal && (
                     <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm border border-white/10 animate-scale-in text-center">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-2xl w-full max-w-sm border border-white/10 animate-scale-in text-center">
                             <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">Nomear Padrão</h3>
                             <p className="text-xs text-slate-500 mb-6 font-medium">Como deseja chamar este layout?</p>
                             <input type="text" autoFocus value={modelName} onChange={e => setModelName(e.target.value)} className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white mb-6 outline-none font-bold shadow-inner" />

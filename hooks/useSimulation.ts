@@ -4,7 +4,7 @@ import { Transaction } from '../types';
 import { DateResolver } from '../core/processors/DateResolver';
 import { AmountResolver } from '../core/processors/AmountResolver';
 import { TypeResolver } from '../core/processors/TypeResolver';
-import { extractTransactionsFromComplexBlock } from '../services/geminiService';
+import { NameResolver } from '../core/processors/NameResolver';
 
 interface SafeTransaction extends Transaction {
     sourceIndex?: number;
@@ -27,91 +27,68 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
     const lastDataRef = useRef<string>('');
     const lastMappingRef = useRef<string>('');
 
-    const runSimulation = useCallback(async () => {
+    const runSimulation = useCallback(() => {
         if (!gridData || gridData.length === 0) {
             setProcessedTransactions([]);
             return;
         }
 
-        const mapping = activeMapping || { extractionMode: 'COLUMNS', dateColumnIndex: -1, descriptionColumnIndex: -1, amountColumnIndex: -1, skipRowsStart: 0 };
-        setIsSimulating(true);
+        const mapping = activeMapping || { extractionMode: 'BLOCK' };
+        const isManualMappingComplete = mapping.dateColumnIndex >= 0 && mapping.amountColumnIndex >= 0;
 
-        try {
-            if (mapping.extractionMode === 'BLOCK') {
-                const textForAi = gridData.slice(0, 1000).map(row => row.join(' ')).join('\n');
-                const aiResult = await extractTransactionsFromComplexBlock(textForAi);
-                
-                if (aiResult && aiResult.length > 0) {
-                    setProcessedTransactions(aiResult.map((tx, i) => ({
-                        ...tx,
-                        id: `block-sim-${i}-${Date.now()}`,
-                        rawDescription: tx.description,
-                        cleanedDescription: tx.description,
-                        originalAmount: String(tx.amount),
-                        contributionType: tx.type || '',
-                        paymentMethod: tx.paymentMethod || '',
-                        isValid: true,
-                        status: 'valid'
-                    })));
-                } else {
-                    setProcessedTransactions([]);
-                }
-            } else {
-                const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
-                const newTransactions: SafeTransaction[] = [];
-                const yearAnchor = DateResolver.discoverAnchorYear(gridData);
-                
-                gridData.forEach((cols, index) => {
-                    const isSkipped = index < (skipRowsStart || 0);
-                    
-                    if (dateColumnIndex === -1 && descriptionColumnIndex === -1 && amountColumnIndex === -1) {
-                        newTransactions.push({ 
-                            id: `sim-raw-${index}`, 
-                            date: "---", 
-                            description: cols.join(' | ').substring(0, 80), 
-                            rawDescription: cols.join('|'), 
-                            amount: 0, 
-                            originalAmount: "0.00", 
-                            cleanedDescription: cols.join(' | '), 
-                            contributionType: "", 
-                            paymentMethod: "", 
-                            sourceIndex: index, 
-                            isValid: false, 
-                            status: 'pending' 
-                        });
-                        return;
-                    }
+        // MODO BLOCO INICIAL (INSTANTÂNEO): Apenas mostra as linhas como estão
+        if (mapping.extractionMode === 'BLOCK' && !isManualMappingComplete) {
+            // Desativamos qualquer sinal de "IA pensando" aqui para ser imediato
+            const initialPreview = gridData.slice(0, 100).map((row, i) => ({
+                id: `raw-${i}-${Date.now()}`,
+                date: "---",
+                description: row.join(' ').substring(0, 150),
+                rawDescription: row.join(';'),
+                amount: 0,
+                originalAmount: "0.00",
+                isValid: false,
+                status: 'pending' as const,
+                sourceIndex: i
+            }));
+            setProcessedTransactions(initialPreview);
+            setIsSimulating(false);
+        } 
+        // MODO ESTRUTURADO (DETERMINÍSTICO): Aplica regras de colunas
+        else {
+            setIsSimulating(true);
+            const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
+            const newTransactions: SafeTransaction[] = [];
+            const yearAnchor = DateResolver.discoverAnchorYear(gridData);
+            
+            gridData.forEach((cols, index) => {
+                const isSkipped = index < (skipRowsStart || 0);
+                const rawDate = dateColumnIndex >= 0 ? (cols[dateColumnIndex] || '') : '';
+                const rawDesc = descriptionColumnIndex >= 0 ? (cols[descriptionColumnIndex] || '') : '';
+                const rawAmount = amountColumnIndex >= 0 ? (cols[amountColumnIndex] || '') : '';
 
-                    const rawDate = (dateColumnIndex !== -1 && cols[dateColumnIndex] !== undefined) ? (cols[dateColumnIndex] || '').trim() : '';
-                    const rawDesc = (descriptionColumnIndex !== -1 && cols[descriptionColumnIndex] !== undefined) ? (cols[descriptionColumnIndex] || '').trim() : '';
-                    const rawAmount = (amountColumnIndex !== -1 && cols[amountColumnIndex] !== undefined) ? (cols[amountColumnIndex] || '').trim() : '';
+                if (!rawDate && !rawDesc && !rawAmount) return;
 
-                    if (!rawDate && !rawDesc && !rawAmount) return;
+                const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
+                const amountStr = AmountResolver.clean(rawAmount);
+                const amountValue = parseFloat(amountStr);
+                const finalDesc = rawDesc.trim();
 
-                    const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor) || rawDate;
-                    const amountStr = AmountResolver.clean(rawAmount);
-                    const amountValue = parseFloat(amountStr);
-                    
-                    newTransactions.push({ 
-                        id: `sim-${index}-${Date.now()}`,
-                        date: isoDate || rawDate || "---", 
-                        description: rawDesc || "---", 
-                        rawDescription: rawDesc || "---", 
-                        paymentMethod: (paymentMethodColumnIndex !== undefined && cols[paymentMethodColumnIndex]) ? cols[paymentMethodColumnIndex] : TypeResolver.resolveFromDescription(rawDesc),
-                        amount: isNaN(amountValue) ? 0 : amountValue, 
-                        originalAmount: rawAmount, 
-                        cleanedDescription: rawDesc, 
-                        contributionType: 'AUTO', 
-                        sourceIndex: index, 
-                        isValid: true, 
-                        status: isSkipped ? 'ignored' : 'valid'
-                    });
+                newTransactions.push({ 
+                    id: `sim-${index}-${Date.now()}`,
+                    date: isoDate || rawDate || "---", 
+                    description: finalDesc, 
+                    rawDescription: rawDesc || "---", 
+                    paymentMethod: (paymentMethodColumnIndex !== undefined && paymentMethodColumnIndex >= 0 && cols[paymentMethodColumnIndex]) ? cols[paymentMethodColumnIndex] : TypeResolver.resolveFromDescription(rawDesc),
+                    amount: isNaN(amountValue) ? 0 : amountValue, 
+                    originalAmount: rawAmount, 
+                    cleanedDescription: finalDesc, 
+                    contributionType: 'AUTO', 
+                    sourceIndex: index, 
+                    isValid: !!isoDate && !isNaN(amountValue), 
+                    status: isSkipped ? 'ignored' : 'valid'
                 });
-                setProcessedTransactions(newTransactions);
-            }
-        } catch (e) {
-            console.error("Simulation error:", e);
-        } finally {
+            });
+            setProcessedTransactions(newTransactions);
             setIsSimulating(false);
         }
     }, [gridData, activeMapping]);
@@ -135,17 +112,23 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
         setEditingRowData,
         startEdit: (tx: any, idx: number) => { 
             setEditingRowIndex(idx); 
-            setEditingRowData({ 
-                ...tx,
-                contributionType: tx.contributionType || '',
-                paymentMethod: tx.paymentMethod || ''
-            }); 
+            setEditingRowData({ ...tx }); 
         },
-        saveRow: (onLearned?: any) => {
+        saveRow: (onLearned?: (raw: string[], corrected: any) => void) => {
             if (editingRowIndex !== null && editingRowData) {
                 const updatedTx = { ...editingRowData, status: 'edited' as const, isValid: true };
-                setProcessedTransactions(prev => { const n = [...prev]; n[editingRowIndex] = updatedTx; return n; });
-                if (onLearned && editingRowData.sourceIndex !== undefined) onLearned(gridData[editingRowData.sourceIndex], updatedTx);
+                
+                if (onLearned) {
+                    const rawLines = (updatedTx as any).sourceRawSnippet || 
+                                     (updatedTx.sourceIndex !== undefined ? gridData[updatedTx.sourceIndex] : []);
+                    onLearned(rawLines, updatedTx);
+                }
+
+                setProcessedTransactions(prev => { 
+                    const n = [...prev]; 
+                    n[editingRowIndex] = updatedTx; 
+                    return n; 
+                });
                 setEditingRowIndex(null);
             }
         },

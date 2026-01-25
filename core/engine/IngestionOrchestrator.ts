@@ -1,41 +1,31 @@
-
 import { Transaction, FileModel } from '../../types';
 import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V11 - NORMALIZAÇÃO HÍBRIDA)
+ * 🎛️ INGESTION ORCHESTRATOR (V12 - PRESERVAÇÃO INTEGRAL)
+ * -------------------------------------------------------
+ * Para garantir 100% de fidelidade em modelos multi-linha (Sicoob/Inter),
+ * NÃO podemos inserir delimitadores artificiais (;) que quebrem a estrutura visual.
  */
 export const IngestionOrchestrator = {
     /**
-     * Normalização linha a linha: Essencial para extratos PDF onde o texto 
-     * extraído não possui delimitadores nativos, apenas espaços.
+     * Normalização: Apenas limpa espaços vazios e garante quebras de linha padrão.
+     * Mantém o layout visual para a IA.
      */
     normalizeRawContent(content: string): string {
         if (!content) return "";
         
-        const lines = content.split(/\r?\n/)
-            .map(line => {
-                const trimmed = line.trim();
-                if (!trimmed) return "";
-                
-                // Se a linha tem múltiplos espaços e NÃO tem ponto-e-vírgula/tab,
-                // transformamos em CSV virtual. Isso resolve o problema de leitura do Sicoob.
-                if (trimmed.includes('  ') && !trimmed.includes(';') && !trimmed.includes('\t')) {
-                    return trimmed.replace(/\s{2,}/g, ';');
-                }
-                
-                // Se a linha já tem delimitador mas ainda tem espaços duplos residuais, 
-                // limpamos para evitar colunas vazias fantasmas.
-                if (trimmed.includes(';')) {
-                    return trimmed.split(';').map(cell => cell.trim()).join(';');
-                }
+        // Se já é CSV (tem ponto e vírgula), mantemos.
+        if (content.includes(';')) return content;
 
-                return trimmed;
-            })
-            .filter(l => l.length > 0);
-
-        return lines.join('\n');
+        // Se é texto puro de PDF/TXT, mantemos o layout visual.
+        // A IA é mais inteligente que um split('  ') para achar o nome em blocos.
+        return content
+            .split(/\r?\n/)
+            .map(line => line.trimEnd())
+            .filter(l => l.trim().length > 0)
+            .join('\n');
     },
 
     async processFile(
@@ -47,13 +37,12 @@ export const IngestionOrchestrator = {
         const fileNameLower = file.name.toLowerCase();
         const isExcel = fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls');
         
-        // Normalização agressiva para garantir que o conteúdo seja tabular
+        // NORMALIZAÇÃO: Preserva o layout visual original
         const processedContent = isExcel ? content : this.normalizeRawContent(content);
-        const lineCount = processedContent.split('\n').length;
-
+        
         const fingerprint = Fingerprinter.generate(processedContent);
         
-        console.log(`[Pipeline:INGESTION] Processando: ${file.name} | Linhas: ${lineCount}`);
+        console.log(`[Pipeline:INGESTION] Processando: ${file.name} | Modo: ${isExcel ? 'Excel' : 'Layout Visual'}`);
         
         const result = await StrategyEngine.process(
             file.name, 
@@ -62,15 +51,13 @@ export const IngestionOrchestrator = {
             globalKeywords
         );
         
-        console.log(`[Pipeline:INGESTION] Extração concluída: ${result.transactions.length} itens encontrados.`);
-
         return {
             source: 'upload',
-            transactions: result.transactions,
+            transactions: result.transactions || [],
             status: result.status,
-            fileName: result.fileName,
+            fileName: result.fileName || file.name,
             fingerprint: result.fingerprint || fingerprint || { columnCount: 0 },
-            preview: result.preview,
+            preview: result.preview || processedContent.substring(0, 500),
             strategyUsed: result.strategyName
         };
     },
@@ -80,24 +67,11 @@ export const IngestionOrchestrator = {
         transactions: Transaction[],
         globalKeywords: string[]
     ): Promise<any> {
-        const virtualContent = transactions.slice(0, 10).map(t => 
-            `${t.date};${t.description};${t.amount}`
-        ).join('\n');
-
-        const fingerprint = Fingerprinter.generate(virtualContent);
-
-        const result = await StrategyEngine.process(
-            sourceName,
-            { __rawText: virtualContent, __source: 'virtual' },
-            [],
-            globalKeywords
-        );
-
         return {
             source: 'virtual',
             transactions: transactions,
             strategyUsed: `Virtual:${sourceName}`,
-            fingerprint: fingerprint || { columnCount: 3 }
+            fingerprint: { columnCount: 3 }
         };
     }
 };

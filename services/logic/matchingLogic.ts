@@ -1,11 +1,21 @@
 
 import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, MatchMethod } from '../../types';
-import { normalizeString, parseDate, PLACEHOLDER_CHURCH, cleanTransactionDescriptionForDisplay } from '../utils/parsingUtils';
+import { normalizeString, extractIdentifyingCode, PLACEHOLDER_CHURCH } from '../utils/parsingUtils';
 
 /**
- * Calcula a similaridade focada apenas no NOME.
+ * Calcula a similaridade valorizando códigos identificadores (DNA Numérico).
  */
 export const calculateNameSimilarity = (description: string, contributor: Contributor, ignoreKeywords: string[] = []): number => {
+    const txCode = extractIdentifyingCode(description);
+    const contribCode = extractIdentifyingCode(contributor.name) || (contributor.id && extractIdentifyingCode(contributor.id));
+
+    // REGRA DE OURO: Se o código numérico (DNA) bater, o match é 100%
+    if (txCode && contribCode && txCode.length >= 4 && contribCode.length >= 4) {
+        if (txCode.includes(contribCode) || contribCode.includes(txCode)) {
+            return 100; // Prioridade absoluta ao código
+        }
+    }
+
     const txNorm = normalizeString(description, ignoreKeywords);
     const contribNorm = contributor.normalizedName || normalizeString(contributor.name, ignoreKeywords);
     
@@ -27,7 +37,7 @@ export const calculateNameSimilarity = (description: string, contributor: Contri
 
 export const matchTransactions = (
     transactions: Transaction[],
-    contributorFiles: any[] = [], // Agora opcional com default vazio
+    contributorFiles: any[] = [],
     options: { similarityThreshold: number; dayTolerance: number; },
     learnedAssociations: any[],
     churches: Church[],
@@ -35,7 +45,6 @@ export const matchTransactions = (
 ): MatchResult[] => {
     const contributorsByChurch = new Map<string, any[]>();
     
-    // Prepara as listas de contribuintes apenas se os arquivos existirem
     if (contributorFiles && contributorFiles.length > 0) {
         contributorFiles.forEach((file: any) => {
             const churchId = file.church.id;
@@ -55,6 +64,7 @@ export const matchTransactions = (
 
     transactions.forEach(tx => {
         const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
+        const currentBankId = tx.bank_id || 'virtual';
         
         let matchResult: MatchResult = {
             transaction: tx,
@@ -66,8 +76,12 @@ export const matchTransactions = (
             paymentMethod: tx.paymentMethod
         };
 
-        // PRIORIDADE 1: Associações Aprendidas (Cérebro do Sistema)
-        const learned = learnedAssociations.find((la: any) => la.normalizedDescription === txDescNormalized);
+        // PRIORIDADE 1: Aprendizado Individual por Lista Viva (bankId)
+        const learned = learnedAssociations.find((la: any) => 
+            la.normalizedDescription === txDescNormalized && 
+            (la.bankId === currentBankId || la.bankId === 'global')
+        );
+
         if (learned && learned.churchId) {
             const church = churches.find(c => c.id === learned.churchId);
             if (church) {
@@ -89,7 +103,7 @@ export const matchTransactions = (
             }
         }
 
-        // PRIORIDADE 2: Match por Similaridade (se houver listas carregadas)
+        // PRIORIDADE 2: Match por Similaridade com DNA Numérico
         if (allContributorsFlat.length > 0) {
             let bestMatch: any = null;
             let highestScore = 0;
@@ -102,7 +116,7 @@ export const matchTransactions = (
                 }
             });
 
-            if (bestMatch && highestScore >= (options.similarityThreshold || 90)) {
+            if (bestMatch && highestScore >= (options.similarityThreshold || 55)) {
                 usedContributors.add(bestMatch._internalId);
                 matchResult = {
                     ...matchResult,
@@ -124,7 +138,6 @@ export const matchTransactions = (
         finalResults.push(matchResult);
     });
 
-    // Registros "Fantasmas" só fazem sentido se houver listas de membros carregadas
     if (allContributorsFlat.length > 0) {
         allContributorsFlat.forEach((contrib: any) => {
             if (!usedContributors.has(contrib._internalId)) {

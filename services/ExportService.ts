@@ -76,9 +76,9 @@ export const ExportService = {
                         .summary-item { display: flex; flex-direction: column; }
                         .summary-label { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; }
                         .summary-value { font-size: 14px; font-weight: bold; color: #0f172a; }
-                        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                        table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
                         th { text-align: left; background: #f1f5f9; padding: 8px; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; font-size: 10px; color: #475569; }
-                        td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+                        td { padding: 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: top; }
                         tr:nth-child(even) { background: #f8fafc; }
                     </style>
                 </head>

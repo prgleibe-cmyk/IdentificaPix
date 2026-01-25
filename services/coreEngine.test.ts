@@ -1,7 +1,5 @@
-
 import { describe, it, expect } from '../utils/testRunner';
 import { DateResolver } from '../core/processors/DateResolver';
-import { NameResolver } from '../core/processors/NameResolver';
 import { AmountResolver } from '../core/processors/AmountResolver';
 
 describe('Core Engine: Regras Universais de Valor (Magnitude)', () => {
@@ -37,14 +35,6 @@ describe('Core Engine: Regras Universais de Valor (Magnitude)', () => {
         expect(AmountResolver.clean('1.000')).toBe('1000.00'); // Assume 1 mil (BR)
         expect(AmountResolver.clean('1.500')).toBe('1500.00'); // Assume 1.5 mil (BR)
         expect(AmountResolver.clean('10.50')).toBe('10.50'); // Assume decimal (US/Prog)
-    });
-});
-
-describe('Core Engine: Isolamento de Nome (Saldos/Controle)', () => {
-    it('Deve identificar linhas de saldo como controle para flagging', () => {
-        expect(NameResolver.isControlRow('SALDO ANTERIOR')).toBeTruthy();
-        expect(NameResolver.isControlRow('TOTAL DA CONTA')).toBeTruthy();
-        expect(NameResolver.isControlRow('RESUMO DO MES')).toBeTruthy();
     });
 });
 

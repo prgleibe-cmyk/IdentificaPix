@@ -10,7 +10,7 @@ export interface SystemSettings {
     baseAiLimit: number;
     baseSlots: number;
     supportNumber: string;
-    globalIgnoreKeywords: string[];
+    ignoredKeywords: string[];
 }
 
 export interface AuthContextType {
@@ -25,7 +25,6 @@ export interface AuthContextType {
   incrementAiUsage: () => Promise<void>;
   updateLimits: (slots: number, aiPacks: number) => Promise<void>;
   systemSettings: SystemSettings;
-  // Fix: changed updateSystemSettings to return Promise<void> to match implementation in useSystemSettings.ts
   updateSystemSettings: (settings: Partial<SystemSettings>) => Promise<void>;
 }
 
@@ -38,9 +37,5 @@ export const DEFAULT_SETTINGS: SystemSettings = {
     baseAiLimit: 100,
     baseSlots: 2,
     supportNumber: '5565996835098',
-    globalIgnoreKeywords: [
-        'PIX', 'TED', 'DOC', 'TRANSFERENCIA', 'PAGAMENTO', 'RECEBIMENTO', 
-        'DEPOSITO', 'CREDITO', 'DEBITO', 'RESGATE', 'APLICACAO', 
-        'SALDO', 'EXTRATO', 'CONTA', 'AUTOMATICO'
-    ]
+    ignoredKeywords: ['PIX', 'TED', 'DOC', 'TRANSFERENCIA', 'RECEBIMENTO', 'PAGAMENTO']
 };

@@ -14,24 +14,32 @@ export const DEFAULT_CONTRIBUTION_KEYWORDS = [
     'DÍZIMO', 'DÍZIMOS', 'OFERTA', 'OFERTAS', 'COLETA', 'COLETAS', 'MISSÃO', 'MISSÕES', 'VOTOS', 'CAMPANHA'
 ];
 
-export const extractSnippet = (content: string): string => {
-    if (!content) return '';
-    return content.split(/\r?\n/).slice(0, 20).join('\n');
+/**
+ * Extrai códigos numéricos significativos de uma string (DNA identificador).
+ * Busca sequências de 4 ou mais dígitos que costumam ser partes fixas de CPF/CNPJ.
+ */
+export const extractIdentifyingCode = (str: string): string | null => {
+    if (!str) return null;
+    // Busca sequências de números. Ignora pontos, traços e barras.
+    const cleanNumbers = str.replace(/\D/g, '');
+    
+    // Se a string tem uma sequência longa de números, essa é a nossa âncora
+    const matches = str.match(/\d{4,14}/g);
+    if (matches && matches.length > 0) {
+        // Retorna a maior sequência numérica encontrada como código de identificação
+        return matches.sort((a, b) => b.length - a.length)[0];
+    }
+    return null;
 };
 
-/**
- * Normalização usada apenas para busca e matching interno.
- */
 export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
     if (!str) return '';
-    // No modo modelo, ignoreKeywords será vazio, mantendo a string original para o match
-    if (ignoreKeywords.length === 0) return NameResolver.normalize(str);
-    return NameResolver.normalize(NameResolver.clean(str, ignoreKeywords));
+    return NameResolver.normalize(str);
 };
 
 export const parseDate = (dateString: string): Date | null => {
     if (!dateString) return null;
-    const clean = dateString.trim().replace(/\//g, '-');
+    const clean = dateString.trim().replace(/\/|\\/g, '-');
     if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return new Date(clean);
 
     const parts = clean.split('-');
@@ -42,15 +50,6 @@ export const parseDate = (dateString: string): Date | null => {
     return null;
 };
 
-// FUNÇÕES DE EXIBIÇÃO: Retornam o texto original sem modificações
 export const cleanTransactionDescriptionForDisplay = (description: string): string => {
-    return description || '';
-};
-
-export const formatIncomeDescription = (description: string): string => {
-    return description || '';
-};
-
-export const formatExpenseDescription = (description: string): string => {
     return description || '';
 };

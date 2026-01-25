@@ -27,8 +27,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { automationMacros, fetchMacros } = useAutomationSync({ user, setIsLoading, showToast });
 
     const effectiveIgnoreKeywords = useMemo(() => {
-        return [...(referenceData.customIgnoreKeywords || []), ...(systemSettings.globalIgnoreKeywords || [])];
-    }, [referenceData.customIgnoreKeywords, systemSettings.globalIgnoreKeywords]);
+        return referenceData.customIgnoreKeywords || [];
+    }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
         user, churches: referenceData.churches, banks: referenceData.banks,

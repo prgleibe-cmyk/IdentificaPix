@@ -93,14 +93,14 @@ const IncomeRow = memo(({
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                         {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
-                        <span className={`text-xs font-bold truncate max-w-[250px] ${isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
+                        <span className={`text-xs font-bold break-words ${isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
                 </div>
             </td>
             <td className="px-4 py-2.5">
                 <div className="flex items-center gap-2">
                     <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${isIdentified ? 'text-indigo-400' : 'text-slate-300'}`} />
-                    <span className={`text-[11px] font-bold truncate max-w-[150px] ${isIdentified ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
+                    <span className={`text-[11px] font-bold break-words ${isIdentified ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}`}>
                         {row.church?.name || '---'}
                     </span>
                 </div>

@@ -44,7 +44,8 @@ export interface Transaction {
   originalAmount?: string;
   cleanedDescription?: string;
   contributionType?: string;
-  paymentMethod?: string; // Nova Coluna: FORMA
+  paymentMethod?: string;
+  bank_id?: string; // Vinculação com a Lista Viva
 }
 
 export interface Contributor {
@@ -56,7 +57,7 @@ export interface Contributor {
   date?: string;
   originalAmount?: string;
   contributionType?: string;
-  paymentMethod?: string; // Suporte na lista de membros
+  paymentMethod?: string;
   _churchName?: string;
   _churchId?: string;
   _internalId?: string;
@@ -71,7 +72,7 @@ export interface MatchResult {
   similarity?: number;
   contributorAmount?: number;
   contributionType?: string;
-  paymentMethod?: string; // FORMA consolidada
+  paymentMethod?: string;
   divergence?: {
     expectedChurch: Church;
     actualChurch: Church;
@@ -85,6 +86,7 @@ export interface LearnedAssociation {
   normalizedDescription: string;
   contributorNormalizedName: string;
   churchId: string;
+  bankId: string; // NOVO: Individualiza o aprendizado por Lista Viva
   user_id: string;
 }
 
