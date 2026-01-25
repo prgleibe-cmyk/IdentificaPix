@@ -44,11 +44,17 @@ const SortableHeader: React.FC<{
     sortConfig: SortConfig | null;
     onSort: (key: string) => void;
     className?: string;
-}> = memo(({ sortKey, title, sortConfig, onSort, className = '' }) => {
+    align?: 'left' | 'center' | 'right';
+}> = memo(({ sortKey, title, sortConfig, onSort, className = '', align = 'left' }) => {
     const isSorted = sortConfig?.key === sortKey;
+    const justifyClass = align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start';
+    
     return (
-        <th scope="col" className={`px-4 py-3 text-left text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider ${className}`}>
-            <button onClick={() => onSort(sortKey)} className="flex items-center gap-1.5 group hover:text-black dark:hover:text-white transition-colors focus:outline-none w-full justify-center">
+        <th scope="col" className={`px-4 py-3 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider ${className}`}>
+            <button 
+                onClick={() => onSort(sortKey)} 
+                className={`flex items-center gap-1.5 group hover:text-black dark:hover:text-white transition-colors focus:outline-none w-full ${justifyClass}`}
+            >
                 <span>{title}</span>
                 <span className={`transition-all duration-200 ${isSorted ? 'opacity-100 text-brand-blue dark:text-blue-400' : 'opacity-0 group-hover:opacity-50'}`}>
                     {sortConfig?.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
@@ -175,14 +181,21 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
                                 />
                             </th>
-                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[10%]" />
-                            <SortableHeader sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} sortConfig={sortConfig} onSort={onSort} className="w-[25%]" />
-                            <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[15%]" />
-                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="text-center w-[10%]" />
-                            <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
-                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" />
-                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="text-right w-[13%]" />
-                            <th className="px-4 py-3 text-center text-[10px] font-bold uppercase text-slate-700">Ações</th>
+                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="left" />
+                            <SortableHeader 
+                                sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} 
+                                title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} 
+                                sortConfig={sortConfig} 
+                                onSort={onSort} 
+                                className="w-[25%]" 
+                                align="left"
+                            />
+                            <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[15%]" align="left" />
+                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="center" />
+                            <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="left" />
+                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="left" />
+                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[13%]" align="right" />
+                            <SortableHeader sortKey="status" title="Ações" sortConfig={sortConfig} onSort={onSort} className="w-[8%]" align="center" />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">

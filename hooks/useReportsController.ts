@@ -97,7 +97,12 @@ export const useReportsController = () => {
         return [...activeData].sort((a, b) => {
             let valA: any, valB: any;
             const key = sortConfig.key;
-            if (key.includes('.')) {
+
+            // Lógica Especial para Nome/Descrição (Smart Sort)
+            if (key === 'contributor.name' || key === 'transaction.description') {
+                valA = a.contributor?.name || a.contributor?.cleanedName || a.transaction.cleanedDescription || a.transaction.description || '';
+                valB = b.contributor?.name || b.contributor?.cleanedName || b.transaction.cleanedDescription || b.transaction.description || '';
+            } else if (key.includes('.')) {
                 const parts = key.split('.');
                 valA = parts.reduce((obj: any, k) => obj?.[k], a);
                 valB = parts.reduce((obj: any, k) => obj?.[k], b);
@@ -105,8 +110,16 @@ export const useReportsController = () => {
                 valA = (a as any)[key];
                 valB = (b as any)[key];
             }
-            valA = (valA ?? ''); valB = (valB ?? '');
-            if (typeof valA === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
+
+            // Normalização segura para comparação
+            valA = (valA ?? ''); 
+            valB = (valB ?? '');
+            
+            if (typeof valA === 'string' && typeof valB === 'string') { 
+                valA = valA.toLowerCase(); 
+                valB = valB.toLowerCase(); 
+            }
+
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
