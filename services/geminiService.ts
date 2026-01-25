@@ -38,8 +38,7 @@ async function callWithSimpleRetry(fn: () => Promise<any>, retries = 2): Promise
 };
 
 /**
- * MOTOR DE EXTRAÇÃO POR CONTRATO (V24 - OBEDIÊNCIA MÁXIMA)
- * Este motor é otimizado para NÃO adivinhar. Ele replica a lógica do exemplo.
+ * MOTOR DE EXTRAÇÃO POR CONTRATO (V25 - SUPORTE A FATIAMENTO)
  */
 export const extractTransactionsWithModel = async (rawText: string, modelContext?: string): Promise<any> => {
     return await callWithSimpleRetry(async () => {
@@ -60,13 +59,13 @@ export const extractTransactionsWithModel = async (rawText: string, modelContext
             Retorne apenas JSON seguindo o esquema.
 
             NOVO TEXTO PARA PROCESSAR:
-            ${rawText.substring(0, 25000)}`;
+            ${rawText}`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview', // Uso do modelo PRO para garantir execução por regra
+            model: 'gemini-3-pro-preview',
             contents: finalPrompt,
             config: {
-                temperature: 0, // Temperatura zero = Sem criatividade, apenas regra
+                temperature: 0,
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
