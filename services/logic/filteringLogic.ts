@@ -10,16 +10,23 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
     const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
 
     // Prepare data for matching
-    const dateIso = tx.date ? tx.date.toLowerCase() : '';
+    const rawDate = tx.date || '';
+    const dateNormalized = rawDate.replace(/-/g, '/');
+    const dateParts = dateNormalized.split('/');
+    
     let dateBr = '';
     let dateShort = '';
     
-    if (tx.date) {
-        const parts = tx.date.split('-'); // ISO YYYY-MM-DD
-        if (parts.length === 3) {
-            dateBr = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/AAAA
-            dateShort = `${parts[2]}/${parts[1]}`; // DD/MM
+    if (dateParts.length === 3) {
+        if (dateParts[0].length === 4) { // ISO YYYY/MM/DD
+            dateBr = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+            dateShort = `${dateParts[2]}/${dateParts[1]}`;
+        } else { // DD/MM/YYYY
+            dateBr = dateNormalized;
+            dateShort = `${dateParts[0]}/${dateParts[1]}`;
         }
+    } else if (dateParts.length === 2) {
+        dateShort = dateNormalized;
     }
 
     const descStr = (tx.cleanedDescription || tx.description || '').toLowerCase();
@@ -36,16 +43,15 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
         if (descStr.includes(term)) return true;
         if (typeStr.includes(term)) return true;
 
-        // 2. Amount Match
+        // 2. Amount Match (Suporta padrão brasileiro 1.234,56)
+        const termAsAmount = term.replace(/\./g, ''); // Remove separador de milhar para comparação
         if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term)) return true;
+        if (amountStrComma.includes(term) || amountStrComma.includes(termAsAmount)) return true;
         if (amountStrRaw.includes(term)) return true;
 
         // 3. Date Match (Robust)
-        // Normalize term for date matching (allow 10-10 or 10.10 to match 10/10)
         const dateTerm = term.replace(/[-.]/g, '/');
-        
-        if (dateIso.includes(term)) return true;
+        if (rawDate.toLowerCase().includes(term)) return true;
         if (dateBr.includes(dateTerm)) return true;
         if (dateShort.includes(dateTerm)) return true;
 
@@ -63,17 +69,23 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
     const tx = result.transaction;
     
     // Dates (Prefer Contributor Date if matched, else Tx Date)
-    const rawDate = result.contributor?.date || tx.date;
-    const dateIso = rawDate ? rawDate.toLowerCase() : '';
+    const rawDate = result.contributor?.date || tx.date || '';
+    const dateNormalized = rawDate.replace(/-/g, '/');
+    const dateParts = dateNormalized.split('/');
+    
     let dateBr = '';
     let dateShort = '';
     
-    if (rawDate) {
-        const parts = rawDate.split('-'); // ISO YYYY-MM-DD
-        if (parts.length === 3) {
-            dateBr = `${parts[2]}/${parts[1]}/${parts[0]}`; // DD/MM/AAAA
-            dateShort = `${parts[2]}/${parts[1]}`; // DD/MM
+    if (dateParts.length === 3) {
+        if (dateParts[0].length === 4) { // ISO YYYY/MM/DD
+            dateBr = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+            dateShort = `${dateParts[2]}/${dateParts[1]}`;
+        } else { // DD/MM/YYYY
+            dateBr = dateNormalized;
+            dateShort = `${dateParts[0]}/${dateParts[1]}`;
         }
+    } else if (dateParts.length === 2) {
+        dateShort = dateNormalized;
     }
 
     // Text Fields
@@ -97,15 +109,15 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         if (churchName.includes(term)) return true;
         if (typeStr.includes(term)) return true;
 
-        // 2. Amount Match
+        // 2. Amount Match (Suporta padrão brasileiro 1.234,56)
+        const termAsAmount = term.replace(/\./g, ''); 
         if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term)) return true;
+        if (amountStrComma.includes(term) || amountStrComma.includes(termAsAmount)) return true;
         if (amountStrRaw.includes(term)) return true;
 
         // 3. Date Match (Robust)
         const dateTerm = term.replace(/[-.]/g, '/');
-        
-        if (dateIso.includes(term)) return true;
+        if (rawDate.toLowerCase().includes(term)) return true;
         if (dateBr.includes(dateTerm)) return true;
         if (dateShort.includes(dateTerm)) return true;
 

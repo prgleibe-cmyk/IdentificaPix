@@ -12,6 +12,8 @@ const DEFAULT_IGNORE_KEYWORDS = [
     'Transferência', 'Pagamento', 'Recebimento', 'Depósito', 'Contribuição'
 ];
 
+const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
+
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     const { subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
@@ -23,10 +25,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     const [customIgnoreKeywords] = usePersistentState<string[]>(`identificapix-ignore-keywords${userSuffix}`, DEFAULT_IGNORE_KEYWORDS);
     
-    // Estado para Palavras-chave de Contribuição (Dízimo, Oferta, etc)
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(
         `identificapix-contrib-keywords${userSuffix}`, 
         DEFAULT_CONTRIBUTION_KEYWORDS
+    );
+
+    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(
+        `identificapix-payment-methods${userSuffix}`,
+        DEFAULT_PAYMENT_METHODS
     );
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
@@ -34,7 +40,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
-    // Sincronização de dados iniciais
     useEffect(() => {
         if (!user) return;
         const syncData = async () => {
@@ -106,7 +111,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return false;
     }, [user, churches, subscription.maxChurches, setChurches, showToast]);
 
-    // Métodos para gerenciar palavras-chave de contribuição
     const addContributionKeyword = useCallback((keyword: string) => {
         const upper = keyword.trim().toUpperCase();
         if (!contributionKeywords.includes(upper)) {
@@ -120,7 +124,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast("Palavra removida.", "success");
     }, [setContributionKeywords, showToast]);
 
-    // Aprendizado Inteligente e Escopado
+    const addPaymentMethod = useCallback((method: string) => {
+        const upper = method.trim().toUpperCase();
+        if (!paymentMethods.includes(upper)) {
+            setPaymentMethods(prev => [...prev, upper]);
+            showToast(`Forma "${upper}" adicionada.`, 'success');
+        }
+    }, [paymentMethods, setPaymentMethods, showToast]);
+
+    const removePaymentMethod = useCallback((method: string) => {
+        setPaymentMethods(prev => prev.filter(m => m !== method));
+        showToast("Forma removida.", "success");
+    }, [setPaymentMethods, showToast]);
+
     useEffect(() => {
         if (!user) return;
         const fetchAssociations = async () => {
@@ -196,16 +212,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     return useMemo(() => ({
         banks, churches, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         customIgnoreKeywords, contributionKeywords, addContributionKeyword, removeContributionKeyword,
+        paymentMethods, addPaymentMethod, removePaymentMethod,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
-        customIgnoreKeywords, contributionKeywords, learnedAssociations, learnAssociation, 
+        customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
     ]);
 };

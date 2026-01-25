@@ -50,6 +50,7 @@ export const useReconciliation = ({
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
+    const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
@@ -61,6 +62,10 @@ export const useReconciliation = ({
         setSelectedBankIds,
         showToast
     });
+
+    const findMatchResult = useCallback((txId: string) => {
+        return matchResults.find(r => r.transaction.id === txId);
+    }, [matchResults]);
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         const uniqueResults = Array.from(new Map(results.map(r => [r.transaction.id, r])).values());
@@ -83,13 +88,10 @@ export const useReconciliation = ({
         setIsLoading(true);
 
         try {
-            // RECARGA SEGURA DE MODELOS
             if (fetchModels) await fetchModels();
 
-            // EXECUÇÃO DO PIPELINE
             const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords);
             
-            // GOVERNANÇA: Bloqueio de Lançamento se não houver modelo ou se o resultado for vazio em arquivo físico
             const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
             
             if (executorResult.status === 'MODEL_REQUIRED' || (transactions.length === 0 && bankId !== 'gmail-sync')) {
@@ -157,6 +159,7 @@ export const useReconciliation = ({
         }
     }, [clearRemoteList, showToast, setIsLoading]);
 
+    // Fix: Corrected syntax for resetReconciliation callback by removing duplicate async keyword and incorrect nesting
     const resetReconciliation = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -190,6 +193,27 @@ export const useReconciliation = ({
         });
     }, [setMatchResults, setLaunchedResults, regenerateReportPreview]);
 
+    const undoLaunch = useCallback((txId: string) => {
+        setLaunchedResults(prevLaunched => {
+            const item = prevLaunched.find(r => r.transaction.id === txId);
+            if (!item) return prevLaunched;
+
+            // Remove from launched
+            const nextLaunched = prevLaunched.filter(r => r.transaction.id !== txId);
+
+            // Add back to matchResults if it doesn't already exist (unlikely but safe)
+            setMatchResults(prevResults => {
+                if (prevResults.some(r => r.transaction.id === txId)) return prevResults;
+                const updatedResults = [...prevResults, item];
+                setTimeout(() => regenerateReportPreview(updatedResults), 0);
+                return updatedResults;
+            });
+
+            return nextLaunched;
+        });
+        showToast("Lançamento desfeito.", "success");
+    }, [setMatchResults, setLaunchedResults, regenerateReportPreview, showToast]);
+
     const deleteLaunchedItem = useCallback((txId: string) => {
         setLaunchedResults(prev => prev.filter(r => r.transaction.id !== txId));
         showToast("Item removido do histórico de lançados.", "success");
@@ -202,7 +226,8 @@ export const useReconciliation = ({
         manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
         modelRequiredData, setModelRequiredData,
-        launchedResults, setLaunchedResults, markAsLaunched, deleteLaunchedItem,
+        loadingAiId, setLoadingAiId, findMatchResult,
+        launchedResults, setLaunchedResults, markAsLaunched, undoLaunch, deleteLaunchedItem,
         importGmailTransactions, handleStatementUpload, 
         handleContributorsUpload: (content: string, fileName: string, churchId: string) => {
              const church = churches.find((c: any) => c.id === churchId);

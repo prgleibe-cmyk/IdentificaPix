@@ -1,6 +1,7 @@
 
 import { supabase } from './supabaseClient';
 import { Database } from '../types/supabase';
+import { DateResolver } from '../core/processors/DateResolver';
 
 type ConsolidatedTransactionInsert = Database['public']['Tables']['consolidated_transactions']['Insert'];
 
@@ -16,7 +17,16 @@ export const consolidationService = {
                 .map(t => {
                     const amount = Number(t.amount);
                     let finalDate = t.transaction_date;
-                    if (!/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
+
+                    // AJUSTE: Tenta normalizar a data caso não esteja no formato ISO YYYY-MM-DD
+                    // Isso evita que datas extraídas pela IA (ex: DD/MM/YYYY) sejam substituídas por "Hoje"
+                    if (finalDate && !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
+                        const resolved = DateResolver.resolveToISO(finalDate, new Date().getFullYear());
+                        if (resolved) finalDate = resolved;
+                    }
+
+                    // Fallback para data atual apenas se a data for nula ou inválida após tentativa de resolução
+                    if (!finalDate || !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
                         finalDate = new Date().toISOString().split('T')[0];
                     }
 

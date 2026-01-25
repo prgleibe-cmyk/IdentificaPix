@@ -15,13 +15,14 @@ import {
     ArrowPathIcon,
     DocumentArrowDownIcon,
     PrinterIcon,
-    DocumentDuplicateIcon
+    DocumentDuplicateIcon,
+    ArrowUturnLeftIcon
 } from '../components/Icons';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { ExportService } from '../services/ExportService';
 
 export const LaunchedView: React.FC = () => {
-    const { launchedResults, deleteLaunchedItem, hydrate, openSaveReportModal } = useContext(AppContext);
+    const { launchedResults, deleteLaunchedItem, undoLaunch, hydrate, openSaveReportModal } = useContext(AppContext);
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [searchTerm, setSearchTerm] = useState('');
@@ -151,7 +152,7 @@ export const LaunchedView: React.FC = () => {
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pessoa / Descrição</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Igreja</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor</th>
-                                <th className="px-6 py-4 text-center"></th>
+                                <th className="px-6 py-4 text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -190,13 +191,22 @@ export const LaunchedView: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <button 
-                                            onClick={() => deleteLaunchedItem(item.transaction.id)}
-                                            className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                            title="Remover do histórico"
-                                        >
-                                            <TrashIcon className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button 
+                                                onClick={() => undoLaunch(item.transaction.id)}
+                                                className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                title="Desfazer lançamento"
+                                            >
+                                                <ArrowUturnLeftIcon className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => deleteLaunchedItem(item.transaction.id)}
+                                                className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Remover do histórico"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

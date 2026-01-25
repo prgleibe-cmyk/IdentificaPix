@@ -5,6 +5,7 @@ import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { MatchResult } from '../types';
 import { ExportService } from '../services/ExportService';
+import { filterByUniversalQuery } from '../services/processingService';
 
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
 
@@ -85,13 +86,8 @@ export const useReportsController = () => {
             data = reportPreviewData.income[selectedReportId] || [];
         }
 
-        if (searchTerm) {
-            const lower = searchTerm.toLowerCase();
-            data = data.filter(r => 
-                (r.transaction.description || '').toLowerCase().includes(lower) ||
-                (r.contributor?.name || '').toLowerCase().includes(lower) ||
-                (r.contributor?.cleanedName || '').toLowerCase().includes(lower)
-            );
+        if (searchTerm.trim()) {
+            data = data.filter(r => filterByUniversalQuery(r, searchTerm));
         }
         return data;
     }, [reportPreviewData, selectedReportId, activeCategory, searchTerm]);
@@ -117,7 +113,6 @@ export const useReportsController = () => {
         });
     }, [activeData, sortConfig]);
 
-    // Fix: Added handleSort to manage sorting state by column key
     const handleSort = (key: string) => {
         setSortConfig(prev => ({
             key,
@@ -154,7 +149,6 @@ export const useReportsController = () => {
         selectedReportId, setSelectedReportId,
         searchTerm, setSearchTerm,
         sortConfig, setSortConfig,
-        // Fix: Added handleSort to the returned object
         handleSort,
         churchList, counts, activeSummary, sortedData,
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,

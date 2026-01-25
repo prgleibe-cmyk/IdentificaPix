@@ -1,3 +1,5 @@
+
+import { MatchResult, Transaction } from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -10,7 +12,6 @@ import { useDataDeletion } from '../hooks/useDataDeletion';
 import { useAutomationSync } from '../hooks/useAutomationSync';
 import { useAiAutoIdentify } from '../hooks/useAiAutoIdentify';
 import { useSummaryData } from '../hooks/useSummaryData';
-import { MatchResult, Transaction } from '../types';
 
 export const AppContext = createContext<any>(null!);
 
@@ -75,7 +76,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...referenceData, effectiveIgnoreKeywords, ...reportManager, ...reconciliation,
         ...reconciliationActions, ...modalController, automationMacros, fetchMacros,
         initialDataLoaded, summary, activeSpreadsheetData, saveSmartEdit, isSyncing,
-        handleGmailSyncSuccess, confirmDeletion, openManualIdentify, runAiAutoIdentification
+        handleGmailSyncSuccess, confirmDeletion, openManualIdentify, runAiAutoIdentification,
+        findMatchResult: reconciliation.findMatchResult,
+        loadingAiId: reconciliation.loadingAiId
     }), [
         referenceData, effectiveIgnoreKeywords, reportManager, reconciliation, reconciliationActions,
         modalController, automationMacros, fetchMacros, initialDataLoaded, summary, activeSpreadsheetData, 
