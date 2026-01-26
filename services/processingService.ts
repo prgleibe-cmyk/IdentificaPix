@@ -1,3 +1,4 @@
+
 import { Transaction, FileModel } from '../types';
 import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
@@ -10,14 +11,14 @@ export * from './logic/filteringLogic';
 export const generateFingerprint = Fingerprinter.generate;
 
 /**
- * 🛠️ ADAPTER ESTRUTURAL (V1)
+ * 🛠️ ADAPTER ESTRUTURAL (V2)
  */
 function normalizeIngestionInput(input: any) {
     if (Array.isArray(input)) return input;
     if (typeof input === 'string') {
         return {
             __rawText: input,
-            __source: 'ingestion_string'
+            __source: 'file' // Força identificação como arquivo para ativar bloqueios do motor
         };
     }
     return input;
@@ -27,29 +28,16 @@ export const findMatchingModel = (content: string, models: FileModel[]): { model
     if (!models || models.length === 0) return null;
     const fileFp = Fingerprinter.generate(content);
     if (!fileFp) return null;
-    let bestMatch: FileModel | null = null;
-    let bestScore = 0;
     
-    for (const model of models) {
-        if (!model.is_active) continue;
-        const modelFp = model.fingerprint;
-        let score = 0;
-        
-        if (modelFp.headerHash && fileFp.headerHash && modelFp.headerHash === fileFp.headerHash) score += 85;
-        else if (modelFp.structuralPattern && fileFp.structuralPattern && modelFp.structuralPattern === fileFp.structuralPattern) score += 70;
-        
-        if (modelFp.columnCount === fileFp.columnCount) score += 10;
-
-        if (score > bestScore && score >= 80) { 
-            bestScore = score; 
-            bestMatch = model; 
-        }
-    }
-    return bestMatch ? { model: bestMatch, score: bestScore } : null;
+    // RIGOR ABSOLUTO: O match deve ser baseado no HeaderHash (DNA estrutural).
+    // Não permitimos mais "score aproximado" para evitar que um banco use o modelo de outro.
+    const bestMatch = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
+    
+    return bestMatch ? { model: bestMatch, score: 100 } : null;
 };
 
 /**
- * PROCESSADOR DE PIPELINE (V13 - GOVERNANÇA DE MODELO)
+ * PROCESSADOR DE PIPELINE (V14 - SEGURANÇA E FIDELIDADE)
  */
 export const processFileContent = async (
     content: string, 
@@ -64,6 +52,7 @@ export const processFileContent = async (
 
     const adaptedInput = normalizeIngestionInput(normalizedContent);
 
+    // O StrategyEngine agora decide se processa ou se pede modelo.
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 

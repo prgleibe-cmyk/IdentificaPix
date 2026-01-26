@@ -4,9 +4,7 @@ import { ContractExecutor } from './engine/ContractExecutor';
 import { Fingerprinter } from './processors/Fingerprinter';
 import { DateResolver } from './processors/DateResolver';
 import { AmountResolver } from './processors/AmountResolver';
-import { TypeResolver } from './processors/TypeResolver';
 import { NameResolver } from './processors/NameResolver';
-import { Logger } from '../services/monitoringService';
 
 export interface StrategyResult {
     transactions: Transaction[];
@@ -20,13 +18,9 @@ export interface StrategyResult {
 export interface BankStrategy {
     name: string;
     canHandle(filename: string, content: any, models?: FileModel[]): boolean;
-    parse(content: any, yearAnchor: number, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
+    parse(content: any, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
 }
 
-/**
- * 🛡️ ESTRATÉGIA DE CONTRATO (V2 - PADRONIZAÇÃO GLOBAL)
- * Garante que modelos aprendidos sejam aplicados com limpeza de palavras-chaves.
- */
 export const DatabaseModelStrategy: BankStrategy = {
     name: 'Modelo Aprendido',
     canHandle: (filename, content, models) => {
@@ -37,100 +31,61 @@ export const DatabaseModelStrategy: BankStrategy = {
 
         return models.some(m => 
             m.is_active && 
-            (m.fingerprint.headerHash === fileFp.headerHash)
+            m.fingerprint.headerHash === fileFp.headerHash &&
+            m.fingerprint.columnCount === fileFp.columnCount
         );
     },
-    parse: async (content, yearAnchor, models, globalKeywords = []) => {
+    parse: async (content, models, globalKeywords = []) => {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const fileFp = Fingerprinter.generate(rawText);
         
         const model = models?.find(m => 
             m.is_active && 
-            (m.fingerprint.headerHash === fileFp?.headerHash)
+            m.fingerprint.headerHash === fileFp?.headerHash &&
+            m.fingerprint.columnCount === fileFp?.columnCount
         );
 
         if (!model) return [];
 
-        console.log(`[Strategy:CONTRACT] Executando: "${model.name}" com higienização de palavras-chaves.`);
+        console.log(`[StrategyEngine] 🎯 Aplicando Modelo: "${model.name}" (v${model.version}) | DNA: ${model.fingerprint.headerHash}`);
         return await ContractExecutor.apply(model, content, globalKeywords);
     }
 };
 
-export const GenericStrategy: BankStrategy = {
-    name: 'Genérico (Virtual)',
-    canHandle: () => true,
-    parse: (content, yearAnchor, models, globalKeywords = []) => {
-        const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
-        const lines = rawText.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
-        if (lines.length === 0) return [];
-        
-        const delimiter = Fingerprinter.detectDelimiter(lines[0]);
-        const grid = lines.map((l: string) => l.split(delimiter));
-        
-        const dateIdx = DateResolver.identifyDateColumn(grid);
-        const amountIdx = AmountResolver.identifyAmountColumn(grid, [dateIdx]);
-        const nameIdx = NameResolver.identifyNameColumn(grid, [dateIdx, amountIdx]);
-        
-        const transactions: Transaction[] = [];
-        
-        grid.forEach((cols, index) => {
-            const rawDate = dateIdx !== -1 ? (cols[dateIdx] || '') : '';
-            const rawAmount = amountIdx !== -1 ? (cols[amountIdx] || '') : '';
-            const rawDesc = nameIdx !== -1 ? (cols[nameIdx] || '') : cols.join(' ');
-
-            const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
-            const stdAmount = AmountResolver.clean(rawAmount);
-            const numVal = parseFloat(stdAmount);
-
-            if (isoDate && !isNaN(numVal)) {
-                const cleaned = NameResolver.clean(rawDesc, globalKeywords);
-                transactions.push({
-                    id: `gen-${index}-${Date.now()}`,
-                    date: isoDate,
-                    description: cleaned,
-                    rawDescription: cols.join('|'),
-                    amount: numVal,
-                    originalAmount: rawAmount,
-                    cleanedDescription: cleaned,
-                    contributionType: TypeResolver.resolveFromDescription(rawDesc)
-                });
-            }
-        });
-        return transactions;
-    }
-};
-
 export const StrategyEngine = {
-    strategies: [DatabaseModelStrategy, GenericStrategy],
     process: async (filename: string, content: any, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): Promise<StrategyResult> => {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const source = content?.__source || 'unknown';
         
         if (overrideModel) {
-            const txs = await DatabaseModelStrategy.parse(content, 2025, [overrideModel], globalKeywords);
+            const txs = await DatabaseModelStrategy.parse(content, [overrideModel], globalKeywords);
             return { transactions: txs, strategyName: `Treino: ${overrideModel.name}` };
         }
 
         const fileFp = Fingerprinter.generate(rawText);
-        const targetModel = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp?.headerHash);
+        const targetModel = models.find(m => 
+            m.is_active && 
+            m.fingerprint.headerHash === fileFp?.headerHash &&
+            m.fingerprint.columnCount === fileFp?.columnCount
+        );
         
         if (targetModel) {
-            const txs = await DatabaseModelStrategy.parse(content, 2025, [targetModel], globalKeywords);
+            const txs = await DatabaseModelStrategy.parse(content, [targetModel], globalKeywords);
             return { transactions: txs, strategyName: `Contrato: ${targetModel.name}` };
         }
 
-        if (source !== 'virtual' && source !== 'gmail') {
+        if (source === 'file' || source === 'unknown') {
+            console.warn(`[StrategyEngine] ⚠️ Bloqueio: Nenhum modelo compatível para DNA ${fileFp?.headerHash}`);
             return { 
                 status: 'MODEL_REQUIRED',
                 fileName: filename,
                 fingerprint: fileFp,
                 preview: rawText.substring(0, 500),
                 transactions: [], 
-                strategyName: 'Bloqueio: Sem Modelo'
+                strategyName: 'Requisitar Modelo'
             };
         }
 
-        const txs = GenericStrategy.parse(content, 2025, [], globalKeywords) as Transaction[];
-        return { transactions: txs, strategyName: 'Genérico' };
+        return { transactions: [], strategyName: 'Inconclusivo' };
     }
 };

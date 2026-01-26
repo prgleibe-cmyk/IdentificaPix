@@ -2,90 +2,72 @@
 import { Transaction, FileModel } from '../../types';
 import { DateResolver } from '../processors/DateResolver';
 import { AmountResolver } from '../processors/AmountResolver';
-import { NameResolver } from '../processors/NameResolver';
 import { TypeResolver } from '../processors/TypeResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V26 - MOTOR DE FATIAMENTO PARA GRANDES ARQUIVOS)
- * --------------------------------------------------------------------------
- * Divide arquivos gigantes em partes menores para garantir processamento 100% fiel.
+ * 📜 CONTRACT EXECUTOR (V38 - VELOCIDADE FLASH + FIDELIDADE TOTAL)
  */
-
 export const ContractExecutor = {
-    /**
-     * Aplica as coordenadas do contrato ao conteúdo bruto.
-     */
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
         const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
         if (!rawText.trim()) return [];
 
-        // 🧠 EXECUÇÃO COGNITIVA COM FATIAMENTO (MODO BLOCO)
-        if (model.mapping.extractionMode === 'BLOCK') {
-            console.log(`[Executor:CHUNKED] Iniciando processamento em fatias para: "${model.name}"`);
-            
-            const snippet = model.snippet || "";
-            const trainingContext = `EXEMPLOS DE TREINO:\n${snippet.substring(0, 1500)}`;
-            
-            // Divide o texto em linhas para evitar cortar uma transação no meio
-            const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
-            const CHUNK_CHAR_LIMIT = 10000; // Limite seguro de caracteres por chamada de IA
-            
-            let currentChunkLines: string[] = [];
-            let currentChunkSize = 0;
-            const chunks: string[] = [];
+        const { mapping } = model;
+        const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
 
-            for (const line of lines) {
-                if (currentChunkSize + line.length > CHUNK_CHAR_LIMIT && currentChunkLines.length > 0) {
-                    chunks.push(currentChunkLines.join('\n'));
-                    currentChunkLines = [];
-                    currentChunkSize = 0;
-                }
-                currentChunkLines.push(line);
-                currentChunkSize += line.length;
-            }
-            if (currentChunkLines.length > 0) {
-                chunks.push(currentChunkLines.join('\n'));
+        // 🧠 MODO BLOCO (IA FLASH PARALELA - VELOCIDADE + FIDELIDADE)
+        // Se o modelo foi treinado no Laboratório, usamos a IA para garantir que a limpeza (Ex: remover RECEBIMENTO PIX) seja executada.
+        if (mapping.extractionMode === 'BLOCK') {
+            const trainingContext = `### CONTRATO DE LIMPEZA E EXTRAÇÃO (GABARITO):\n${model.snippet?.substring(0, 3000)}\n\nIMPORTANTE: Siga o exemplo acima. Se o exemplo remove 'RECEBIMENTO PIX', você DEVE remover.`;
+            
+            // Lotes de 150 linhas para o Gemini 3 Flash processar com máxima eficiência
+            const LINES_PER_BATCH = 150;
+            const batches: string[] = [];
+            for (let i = 0; i < lines.length; i += LINES_PER_BATCH) {
+                batches.push(lines.slice(i, i + LINES_PER_BATCH).join('\n'));
             }
 
-            console.log(`[Executor:CHUNKED] Arquivo dividido em ${chunks.length} partes.`);
+            console.log(`[ContractExecutor] Iniciando processamento paralelo de ${batches.length} blocos via Flash...`);
 
-            const allResults: Transaction[] = [];
-
-            for (let i = 0; i < chunks.length; i++) {
-                console.log(`[Executor:CHUNKED] Processando parte ${i + 1} de ${chunks.length}...`);
-                const aiResult = await extractTransactionsWithModel(chunks[i], trainingContext);
-                
-                if (aiResult && aiResult.length > 0) {
-                    const mapped = aiResult.map((tx: any, idx: number) => {
-                        const originalDesc = tx.description?.trim();
-                        return {
-                            id: `exec-chunk-${model.id}-${i}-${idx}-${Date.now()}`,
+            // Execução paralela real para matar a lentidão
+            const batchPromises = batches.map(async (batchText, batchIdx) => {
+                try {
+                    const aiResult = await extractTransactionsWithModel(batchText, trainingContext);
+                    if (aiResult && aiResult.length > 0) {
+                        return aiResult.map((tx: any, idx: number) => ({
+                            id: `exec-f-${model.id}-${batchIdx}-${idx}-${Date.now()}`,
                             date: tx.date,
-                            description: originalDesc,
+                            description: tx.description,
                             rawDescription: tx.description,
                             amount: tx.amount,
                             originalAmount: String(tx.amount),
-                            cleanedDescription: originalDesc,
+                            cleanedDescription: tx.description,
                             contributionType: tx.type || 'AUTO',
                             paymentMethod: tx.paymentMethod || 'OUTROS'
-                        };
-                    });
-                    allResults.push(...mapped);
+                        }));
+                    }
+                    return [];
+                } catch (e) {
+                    console.error(`[ContractExecutor] Erro no bloco ${batchIdx}:`, e);
+                    return [];
                 }
-            }
+            });
 
-            console.log(`[Executor:CHUNKED] Concluído! Total extraído: ${allResults.length} registros.`);
+            const resultsArray = await Promise.all(batchPromises);
+            const allResults = resultsArray.flat();
+            
+            console.log(`[ContractExecutor] Concluído! ${allResults.length} linhas processadas com fidelidade.`);
             return allResults;
         }
 
-        // 🚀 EXECUÇÃO DETERMINÍSTICA (MODO COLUNAS CLÁSSICO)
-        const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
-        const { mapping } = model;
-        const yearAnchor = DateResolver.discoverAnchorYear(rawText);
+        // 🚀 MODO COLUNAS (DETERMINÍSTICO - INSTANTÂNEO)
+        // Usado apenas se não houver necessidade de limpeza complexa por IA.
+        console.log(`[ContractExecutor] Executando extração local (Modo Colunas).`);
         const results: Transaction[] = [];
+        const currentYear = new Date().getFullYear();
 
         lines.forEach((line, idx) => {
             if (idx < (mapping.skipRowsStart || 0)) return;
@@ -97,29 +79,27 @@ export const ContractExecutor = {
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
-            const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
+            const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
             const stdAmount = AmountResolver.clean(rawAmount);
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                const finalDesc = rawDesc.trim();
                 results.push({
-                    id: `exec-${model.id}-${idx}-${Date.now()}`,
+                    id: `exec-l-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
-                    description: finalDesc,
+                    description: rawDesc.trim(),
                     rawDescription: line,
                     amount: numAmount,
                     originalAmount: rawAmount,
-                    cleanedDescription: finalDesc, 
+                    cleanedDescription: rawDesc.trim(),
                     contributionType: TypeResolver.resolveFromDescription(rawDesc),
                     paymentMethod: mapping.paymentMethodColumnIndex !== undefined && cells[mapping.paymentMethodColumnIndex] 
                         ? cells[mapping.paymentMethodColumnIndex] 
-                        : 'OUTROS'
+                        : TypeResolver.resolveFromDescription(rawDesc)
                 });
             }
         });
 
-        console.log(`[Executor:COL] ${results.length} registros extraídos.`);
         return results;
     }
 };

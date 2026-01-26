@@ -30,7 +30,7 @@ async function callWithSimpleRetry(fn: () => Promise<any>, retries = 2): Promise
         return await fn();
     } catch (error: any) {
         if (retries > 0) {
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 1000));
             return callWithSimpleRetry(fn, retries - 1);
         }
         throw error;
@@ -38,31 +38,24 @@ async function callWithSimpleRetry(fn: () => Promise<any>, retries = 2): Promise
 };
 
 /**
- * MOTOR DE EXTRAÇÃO POR CONTRATO (V25 - SUPORTE A FATIAMENTO)
+ * MOTOR DE EXTRAÇÃO MASSIVA (V29 - FLASH PARALLEL READY)
  */
 export const extractTransactionsWithModel = async (rawText: string, modelContext?: string): Promise<any> => {
     return await callWithSimpleRetry(async () => {
         const ai = getAIClient();
         
-        const finalPrompt = `VOCÊ É UM PARSER LÓGICO DE DADOS BRUTOS. 
-            NÃO TENTE ADIVINHAR OU USAR CONHECIMENTO PRÉVIO.
+        const finalPrompt = `Transforme o texto em JSON. 
+            FOCO: LIMPEZA DE DESCRIÇÃO.
+            Siga o exemplo de limpeza do CONTRATO abaixo. 
+            Se o CONTRATO remove 'RECEBIMENTO PIX' ou 'PAGAMENTO', você DEVE remover também.
             
-            USE O "CONTRATO DE EXEMPLO" ABAIXO COMO REGRA ABSOLUTA DE FATIAMENTO:
-            ${modelContext ? `\n--- CONTRATO (REGRA DE TRANSFORMAÇÃO) ---\n${modelContext}\n` : ''}
+            ${modelContext ? `CONTRATO:\n${modelContext}\n` : ''}
 
-            SUA TAREFA:
-            1. Analise como a linha bruta do exemplo foi transformada na linha corrigida.
-            2. Identifique o padrão de fatiamento (delimitadores, posições, remoção de ruídos).
-            3. Aplique essa EXATA REGRA para extrair as transações do novo texto.
-            4. Se o exemplo remover o ano ou converter termos (ex: 'Recebimento Pix' -> 'Pix'), faça o mesmo.
-            
-            Retorne apenas JSON seguindo o esquema.
-
-            NOVO TEXTO PARA PROCESSAR:
+            TEXTO:
             ${rawText}`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-3-flash-preview',
             contents: finalPrompt,
             config: {
                 temperature: 0,

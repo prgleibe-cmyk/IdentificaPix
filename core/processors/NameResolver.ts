@@ -1,7 +1,6 @@
 
 /**
- * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL
- * Centraliza toda a lógica de sanitização de nomes e descrições.
+ * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V4 - ULTRA CLEAN)
  */
 export class NameResolver {
   
@@ -24,8 +23,7 @@ export class NameResolver {
   }
 
   /**
-   * LIMPEZA (DESATIVADA): Retorna o texto original conforme solicitado pelo usuário.
-   * Não remove mais códigos, caracteres ou símbolos automaticamente na ingestão.
+   * LIMPEZA (DESATIVADA): Retorna o texto original conforme solicitado.
    */
   static clean(rawName: string, userKeywords: string[] = []): string {
     if (!rawName) return '';
@@ -33,22 +31,27 @@ export class NameResolver {
   }
 
   /**
-   * FORMATAÇÃO VISUAL: Remove códigos como ***981201** para exibição ao usuário.
-   * Mantém a integridade interna para a IA, mas limpa a interface.
+   * FORMATAÇÃO VISUAL (MÁSCARA): Usada apenas na exibição dos relatórios.
+   * Remove sequências numéricas longas (IDs/CPF) e máscaras de asteriscos.
    */
   static formatDisplayName(name: string): string {
     if (!name) return '';
-    // Remove padrões como ***123456**, *123*, ou números isolados longos no início/fim
-    // que comumente são fragmentos de CPF/CNPJ em extratos.
+    
     return name
-      .replace(/\*+[\d.Xx-]*\*+/g, '') // Remove asteriscos com números/letras dentro
-      .replace(/\s+/g, ' ')           // Colapsa espaços múltiplos
-      .trim();
+      // 1. Remove apenas sequências de números longas (8 ou mais dígitos) - IDs de transação e CPFs sem pontos
+      .replace(/\d{8,}/g, '')
+      // 2. Remove asteriscos e caracteres de máscara (ex: ***.456.*** ou ***123***)
+      .replace(/\*+[\d.Xx-]*\*+/g, '')
+      // 3. Remove traços ou pontos isolados que sobraram entre espaços
+      .replace(/\s[-.]\s/g, ' ')
+      // 4. Limpeza final de espaços múltiplos e trims
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
   }
 
   /**
-   * NORMALIZAÇÃO: Usada apenas para MATCHING (comparar nomes internamente).
-   * Mantém o padrão de uppercase e remoção de acentos para busca, mas não altera o dado final.
+   * NORMALIZAÇÃO: Usada apenas para MATCHING interno (Remoção de acentos).
    */
   static normalize(text: string): string {
     if (!text) return '';

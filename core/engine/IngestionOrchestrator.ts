@@ -4,24 +4,30 @@ import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V14 - NORMALIZAÇÃO ESTRUTURAL FIEL)
+ * 🎛️ INGESTION ORCHESTRATOR (V17 - PASS-THROUGH)
  * -------------------------------------------------------
- * Mantém a integridade das linhas mesmo em arquivos com delimitadores puros.
+ * Mantém a integridade total do arquivo original.
  */
 export const IngestionOrchestrator = {
     /**
-     * Normalização: Remove espaços em branco nas pontas e filtra apenas linhas 100% vazias.
-     * Preserva linhas que possuem delimitadores (ex: ";;;") para não quebrar o mapeamento.
+     * Retorna o conteúdo exatamente como recebido.
      */
     normalizeRawContent(content: string): string {
-        if (!content) return "";
-        
-        return content
-            .split(/\r?\n/)
-            .map(line => line.trimEnd())
-            // Filtra apenas se a linha estiver vazia após o trim (não remove ";;;")
-            .filter(l => l.trim().length > 0)
-            .join('\n');
+        return content || "";
+    },
+
+    async processVirtualData(
+        sourceName: string, 
+        transactions: Transaction[], 
+        globalKeywords: string[]
+    ): Promise<any> {
+        return {
+            source: 'virtual',
+            transactions: transactions || [],
+            status: 'SUCCESS',
+            fileName: sourceName,
+            strategyUsed: 'Virtual Injection'
+        };
     },
 
     async processFile(
@@ -30,17 +36,14 @@ export const IngestionOrchestrator = {
         models: FileModel[], 
         globalKeywords: string[]
     ): Promise<any> {
-        const fileNameLower = file.name.toLowerCase();
+        // Usa o conteúdo BRUTO para garantir match de Hash
+        const fingerprint = Fingerprinter.generate(content);
         
-        // NORMALIZAÇÃO FIEL
-        const processedContent = this.normalizeRawContent(content);
-        const fingerprint = Fingerprinter.generate(processedContent);
-        
-        console.log(`[Pipeline:INGESTION] Processando: ${file.name} | Amostra Normalizada: ${processedContent.substring(0, 30)}`);
+        console.log(`[Pipeline:INGESTION] Processando arquivo: ${file.name} | DNA: ${fingerprint?.headerHash}`);
         
         const result = await StrategyEngine.process(
             file.name, 
-            { __rawText: processedContent, __source: 'file' }, 
+            { __rawText: content, __source: 'file' }, 
             models, 
             globalKeywords
         );
@@ -51,21 +54,8 @@ export const IngestionOrchestrator = {
             status: result.status,
             fileName: result.fileName || file.name,
             fingerprint: result.fingerprint || fingerprint || { columnCount: 0 },
-            preview: result.preview || processedContent.substring(0, 500),
+            preview: result.preview || content.substring(0, 500),
             strategyUsed: result.strategyName
-        };
-    },
-
-    async processVirtualData(
-        sourceName: string,
-        transactions: Transaction[],
-        globalKeywords: string[]
-    ): Promise<any> {
-        return {
-            source: 'virtual',
-            transactions: transactions,
-            strategyUsed: `Virtual:${sourceName}`,
-            fingerprint: { columnCount: 3 }
         };
     }
 };

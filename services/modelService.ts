@@ -1,209 +1,118 @@
+
 import { supabase } from './supabaseClient';
 import { FileModel } from '../types';
 import { Logger } from './monitoringService';
-import { get, set } from 'idb-keyval';
+import { get, set, del } from 'idb-keyval';
 
-const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v11';
-
-const getConsolidatedLocalModels = async (): Promise<FileModel[]> => {
-    try {
-        const currentModels = await get(PERSISTENT_STORAGE_KEY);
-        return Array.isArray(currentModels) ? currentModels : [];
-    } catch (e) { 
-        return []; 
-    }
-};
-
-const mapDbRowToModel = (row: any): FileModel => {
-    const parseJson = (val: any) => {
-        if (typeof val === 'string') {
-            try { return JSON.parse(val); } catch (e) { return val; }
-        }
-        return val;
-    };
-
-    const model = {
-        id: row.id,
-        name: row.name,
-        user_id: row.user_id,
-        version: row.version || 1,
-        lineage_id: row.lineage_id || row.id,
-        is_active: row.is_active,
-        status: row.status || 'draft',
-        fingerprint: parseJson(row.fingerprint),
-        mapping: parseJson(row.mapping),
-        parsingRules: row.parsing_rules ? parseJson(row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] },
-        snippet: row.snippet,
-        createdAt: row.created_at || new Date().toISOString(),
-        lastUsedAt: row.last_used_at
-    };
-
-    return model;
-};
+const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v12';
 
 export const modelService = {
     /**
-     * SALVAMENTO BLINDADO (V12)
-     * Garante integridade absoluta antes de enviar ao Supabase.
+     * Recupera os modelos do usuário.
+     * V12: Sincronia total com o servidor para eliminar modelos excluídos (ghosts).
      */
-    saveModel: async (model: Omit<FileModel, 'id' | 'createdAt'>): Promise<FileModel | null> => {
-        try {
-            // 1. Validação de Sessão Ativa
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session || !session.access_token) {
-                Logger.error("[Model:SAVE_ABORT] Sessão inexistente ou token ausente.");
-                throw new Error("Sessão expirada. Faça login novamente.");
-            }
-
-            // 2. Validação de Payload (Campos Obrigatórios)
-            const snippetLines = (model.snippet || "").split(/\r?\n/).filter(l => l.trim().length > 0);
-            
-            if (!model.user_id || model.user_id !== session.user.id) {
-                Logger.error("[Model:SAVE_ABORT] Inconsistência de UserID.", { modelUser: model.user_id, sessionUser: session.user.id });
-                throw new Error("Erro de permissão: Dados do usuário divergentes.");
-            }
-
-            if (!model.name || model.name.trim().length < 3) {
-                Logger.error("[Model:SAVE_ABORT] Nome inválido ou muito curto.");
-                throw new Error("O nome do modelo é obrigatório.");
-            }
-
-            if (snippetLines.length === 0) {
-                Logger.error("[Model:SAVE_ABORT] Snippet vazio ou inválido.");
-                throw new Error("Não é possível salvar um modelo sem exemplos de linhas.");
-            }
-
-            // 3. Preparação Atômica de Linhagem
-            if (model.lineage_id) {
-                await supabase.from('file_models')
-                    .update({ is_active: false })
-                    .eq('lineage_id', model.lineage_id)
-                    .eq('user_id', session.user.id);
-            }
-
-            // 4. Execução da Persistência Remota
-            const dbPayload = {
-                name: model.name,
-                user_id: session.user.id,
-                version: model.version || 1,
-                lineage_id: model.lineage_id,
-                is_active: true,
-                status: model.status || 'approved',
-                fingerprint: model.fingerprint,
-                mapping: model.mapping,
-                parsing_rules: model.parsingRules || { ignoredKeywords: [], rowFilters: [] },
-                snippet: model.snippet || null
-            };
-
-            // Blindagem: Select explícito '*' para evitar conflito com columns padrão do client
-            const { data, error, status } = await supabase
-                .from('file_models')
-                .insert([dbPayload])
-                .select('*')
-                .single();
-
-            // 5. Tratamento de Erro HTTP/PostgREST
-            if (error || !data || (status !== 201 && status !== 200)) {
-                Logger.error(`[Model:SAVE_ERROR] Status: ${status}`, error, { payloadPreview: model.name });
-                throw new Error(error?.message || `Erro na gravação remota (${status})`);
-            }
-
-            // 6. Confirmação e Sincronia Local
-            const savedModel = mapDbRowToModel(data);
-            const currentLocals = await getConsolidatedLocalModels();
-            const updatedLocals = [savedModel, ...currentLocals.filter(m => m.lineage_id !== model.lineage_id)];
-            await set(PERSISTENT_STORAGE_KEY, updatedLocals);
-
-            console.log(`[Model:SAVE_OK] ${savedModel.name} | v${savedModel.version} | ${snippetLines.length} linhas`);
-            return savedModel;
-
-        } catch (error: any) {
-            Logger.error("Erro crítico no serviço de modelo", error);
-            throw error;
-        }
-    },
-
     getUserModels: async (userId: string): Promise<FileModel[]> => {
-        let remoteModels: FileModel[] = [];
         try {
-            // Blindagem: Select único e explícito no início
+            // 1. Busca a verdade absoluta no servidor
             const { data, error } = await supabase
                 .from('file_models')
                 .select('*')
                 .eq('is_active', true)
                 .eq('user_id', userId);
             
-            if (data) {
-                remoteModels = data.map(mapDbRowToModel);
-            }
+            if (error) throw error;
+
+            const mapDbRowToModel = (row: any): FileModel => ({
+                id: row.id,
+                name: row.name,
+                user_id: row.user_id,
+                version: row.version || 1,
+                lineage_id: row.lineage_id || row.id,
+                is_active: row.is_active,
+                status: row.status || 'draft',
+                fingerprint: typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint,
+                mapping: typeof row.mapping === 'string' ? JSON.parse(row.mapping) : row.mapping,
+                parsingRules: row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] },
+                snippet: row.snippet,
+                createdAt: row.created_at || new Date().toISOString(),
+                lastUsedAt: row.last_used_at
+            });
+
+            const remoteModels = data ? data.map(mapDbRowToModel) : [];
+            
+            // 2. Sobrescreve o cache local com a lista limpa do servidor
+            await set(PERSISTENT_STORAGE_KEY, remoteModels);
+            
+            console.log(`[ModelService] Sincronizado: ${remoteModels.length} modelos ativos encontrados.`);
+            return remoteModels;
+
         } catch (e) {
-            console.error("Falha ao ler modelos remotos", e);
+            console.warn("[ModelService] Falha na rede, tentando ler cache local...", e);
+            const cached = await get(PERSISTENT_STORAGE_KEY);
+            return Array.isArray(cached) ? cached : [];
         }
+    },
 
-        const localModels = await getConsolidatedLocalModels();
-        const uniqueModels = new Map<string, FileModel>();
-        
-        // Prioritize remote models over local cache if available
-        [...localModels, ...remoteModels].forEach(m => {
-            const existing = uniqueModels.get(m.lineage_id);
-            if (!existing || new Date(m.createdAt) >= new Date(existing.createdAt)) {
-                uniqueModels.set(m.lineage_id, m);
+    saveModel: async (model: Omit<FileModel, 'id' | 'createdAt'>): Promise<FileModel | null> => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Sessão expirada.");
+
+            // Desativa versões anteriores da mesma linhagem
+            if (model.lineage_id) {
+                await supabase.from('file_models')
+                    .update({ is_active: false })
+                    .eq('lineage_id', model.lineage_id);
             }
-        });
 
-        const finalModels = Array.from(uniqueModels.values()).filter(m => m.is_active);
-        // Sync local storage with filtered active models
-        await set(PERSISTENT_STORAGE_KEY, finalModels);
+            const { data, error } = await supabase
+                .from('file_models')
+                .insert([{
+                    name: model.name,
+                    user_id: session.user.id,
+                    version: model.version || 1,
+                    lineage_id: model.lineage_id,
+                    is_active: true,
+                    status: model.status || 'approved',
+                    fingerprint: model.fingerprint,
+                    mapping: model.mapping,
+                    parsing_rules: model.parsingRules,
+                    snippet: model.snippet
+                }])
+                .select('*')
+                .single();
 
-        return finalModels;
+            if (error) throw error;
+
+            // Invalida cache local para forçar refresh na próxima leitura
+            await del(PERSISTENT_STORAGE_KEY);
+            
+            return data;
+        } catch (error) {
+            Logger.error("Erro ao salvar modelo", error);
+            throw error;
+        }
     },
 
     deleteModel: async (id: string) => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return false;
-
-        const { error } = await supabase
-            .from('file_models')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', session.user.id);
-            
+        const { error } = await supabase.from('file_models').delete().eq('id', id);
         if (!error) {
-            // Invalida cache local ao excluir
-            const currentLocals = await getConsolidatedLocalModels();
-            const updatedLocals = currentLocals.filter(m => m.id !== id);
-            await set(PERSISTENT_STORAGE_KEY, updatedLocals);
+            await del(PERSISTENT_STORAGE_KEY); // Limpa cache
             return true;
         }
         return false;
     },
 
     getAllModelsAdmin: async (): Promise<FileModel[]> => {
-        // Blindagem: Select explícito '*' no início da query builder
-        const { data, error } = await supabase
-            .from('file_models')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
+        const { data, error } = await supabase.from('file_models').select('*').order('created_at', { ascending: false });
         if (error) return [];
-        return data.map(mapDbRowToModel);
+        return data as any[];
     },
 
     updateModelName: async (id: string, name: string) => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return false;
-
-        const { error } = await supabase
-            .from('file_models')
-            .update({ name })
-            .eq('id', id)
-            .eq('user_id', session.user.id);
-            
+        const { error } = await supabase.from('file_models').update({ name }).eq('id', id);
         if (!error) {
-            // Sincroniza local
-            const currentLocals = await getConsolidatedLocalModels();
-            const updatedLocals = currentLocals.map(m => m.id === id ? { ...m, name } : m);
-            await set(PERSISTENT_STORAGE_KEY, updatedLocals);
+            await del(PERSISTENT_STORAGE_KEY);
             return true;
         }
         return false;

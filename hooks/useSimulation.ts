@@ -33,27 +33,29 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
             return;
         }
 
-        const mapping = activeMapping || { extractionMode: 'BLOCK' };
+        const mapping = activeMapping || { extractionMode: 'COLUMNS' };
         const isManualMappingComplete = mapping.dateColumnIndex >= 0 && mapping.amountColumnIndex >= 0;
 
-        // MODO BLOCO INICIAL (INSTANTÂNEO): Apenas mostra as linhas como estão
+        // MODO BLOCO INICIAL
         if (mapping.extractionMode === 'BLOCK' && !isManualMappingComplete) {
-            // Desativamos qualquer sinal de "IA pensando" aqui para ser imediato
-            const initialPreview = gridData.slice(0, 100).map((row, i) => ({
-                id: `raw-${i}-${Date.now()}`,
-                date: "---",
-                description: row.join(' ').substring(0, 150),
-                rawDescription: row.join(';'),
-                amount: 0,
-                originalAmount: "0.00",
-                isValid: false,
-                status: 'pending' as const,
-                sourceIndex: i
-            }));
+            const initialPreview = gridData.slice(0, 100).map((row, i) => {
+                const rawDesc = row.join(' ');
+                return {
+                    id: `raw-${i}-${Date.now()}`,
+                    date: "---",
+                    description: rawDesc.substring(0, 150),
+                    rawDescription: row.join(';'),
+                    amount: 0,
+                    originalAmount: "0.00",
+                    isValid: false,
+                    status: 'pending' as const,
+                    sourceIndex: i
+                };
+            });
             setProcessedTransactions(initialPreview);
             setIsSimulating(false);
         } 
-        // MODO ESTRUTURADO (DETERMINÍSTICO): Aplica regras de colunas
+        // MODO ESTRUTURADO
         else {
             setIsSimulating(true);
             const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
@@ -71,17 +73,17 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
                 const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
                 const amountStr = AmountResolver.clean(rawAmount);
                 const amountValue = parseFloat(amountStr);
-                const finalDesc = rawDesc.trim();
-
+                
+                // NO LABORATÓRIO, MANTÉM A DESCRIÇÃO ORIGINAL PARA TREINAMENTO FIEL
                 newTransactions.push({ 
                     id: `sim-${index}-${Date.now()}`,
                     date: isoDate || rawDate || "---", 
-                    description: finalDesc, 
+                    description: rawDesc, 
                     rawDescription: rawDesc || "---", 
                     paymentMethod: (paymentMethodColumnIndex !== undefined && paymentMethodColumnIndex >= 0 && cols[paymentMethodColumnIndex]) ? cols[paymentMethodColumnIndex] : TypeResolver.resolveFromDescription(rawDesc),
                     amount: isNaN(amountValue) ? 0 : amountValue, 
                     originalAmount: rawAmount, 
-                    cleanedDescription: finalDesc, 
+                    cleanedDescription: rawDesc, 
                     contributionType: 'AUTO', 
                     sourceIndex: index, 
                     isValid: !!isoDate && !isNaN(amountValue), 

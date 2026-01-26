@@ -27,34 +27,27 @@ export const useAIPatternTeacher = ({
     const [isInferringMapping, setIsInferringMapping] = useState(false);
     const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any, context?: string[][] } | null>(null);
 
-    /**
-     * APLICAR PADRÃO (V29 - ENSINO POR GABARITO RÍGIDO)
-     */
     const handleApplyCorrectionPattern = useCallback(async (): Promise<LearningPackage | null> => {
         if (gridData.length === 0) return null;
         
         setIsInferringMapping(true);
 
         try {
-            // Contexto das linhas brutas do laboratório
             const rawSnippet = gridData.slice(0, 150).map((row, i) => `[ID:${i}]: ${row.join(' ; ')}`).join('\n');
-            const globalHeaderContext = fullFileText ? `### CONTEXTO DO ARQUIVO (REFERÊNCIA DE ANO/BANCO):\n${fullFileText.substring(0, 2000)}\n\n` : "";
-
-            let contractContext = globalHeaderContext;
+            
+            let instruction = "ConverTA o texto bruto em JSON seguindo este exemplo exato:\n";
             
             if (learnedPatternSource) {
-                contractContext += `### GABARITO DE REGRA (O MODELO A SEGUIR) ###\n`;
-                contractContext += `LINHA BRUTA ORIGINAL: "${learnedPatternSource.originalRaw.join(' | ')}"\n`;
-                contractContext += `COMO DEVE FICAR (ALGORITMO): ${JSON.stringify({
-                    data: learnedPatternSource.corrected.date,
-                    descricao_limpa: learnedPatternSource.corrected.description,
-                    valor_final: learnedPatternSource.corrected.amount,
-                    forma: learnedPatternSource.corrected.paymentMethod
+                instruction += `LINHA DE REFERÊNCIA: "${learnedPatternSource.originalRaw.join(' ; ')}"\n`;
+                instruction += `RESULTADO ESPERADO: ${JSON.stringify({
+                    date: learnedPatternSource.corrected.date,
+                    description: learnedPatternSource.corrected.description,
+                    amount: learnedPatternSource.corrected.amount
                 })}\n`;
-                contractContext += `\nREPLIQUE A LÓGICA DESTE GABARITO PARA TODO O RESTO DO TEXTO.\n`;
+                instruction += "Não tente adivinhar outros campos ou regras. Use este mapeamento para processar o restante.";
             }
 
-            const result = await extractTransactionsWithModel(rawSnippet, contractContext);
+            const result = await extractTransactionsWithModel(rawSnippet, instruction);
             
             if (result && result.length > 0) {
                 const reStructuredGrid = result.map((r: any) => [
@@ -67,6 +60,7 @@ export const useAIPatternTeacher = ({
 
                 setGridData(reStructuredGrid);
                 
+                // FIX: Added missing required properties 'skipRowsEnd' and 'thousandsSeparator' to satisfy the FileModel mapping type.
                 const mapping = { 
                     extractionMode: 'BLOCK' as const,
                     dateColumnIndex: 0, 
@@ -81,20 +75,18 @@ export const useAIPatternTeacher = ({
                 };
 
                 setActiveMapping(mapping);
-                showToast("Inteligência de linha-modelo aplicada!", "success");
+                showToast("Padrão aplicado com base no seu exemplo.", "success");
                 return { model: { mapping }, sampleTransactions: [], confidence: 1.0 };
             }
             
-            showToast("IA não conseguiu identificar a regra através do seu exemplo.", "error");
             return null;
-
         } catch (e: any) { 
-            showToast("Erro na IA: " + (e.message || "Indisponível"), "error"); 
+            showToast("Falha na IA ao aplicar exemplo.", "error"); 
             return null;
         } finally { 
             setIsInferringMapping(false); 
         }
-    }, [learnedPatternSource, gridData, fullFileText, setGridData, setActiveMapping, showToast]);
+    }, [learnedPatternSource, gridData, setGridData, setActiveMapping, showToast]);
 
     return {
         isInferringMapping,

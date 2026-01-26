@@ -10,17 +10,22 @@ export class ExcelAdapter extends BaseAdapter<string[][]> {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(new Uint8Array(buffer), { 
       type: 'array',
-      cellDates: false, // Mantém datas como strings originais
-      cellText: true,   // Prioriza o texto formatado da célula
-      raw: false        // Garante que pegamos o que o usuário "vê"
+      cellDates: false, 
+      cellText: true,   
+      raw: false        
     });
     
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(firstSheet, { 
       header: 1,
       defval: '' 
-    }) as string[][];
+    }) as any[][];
 
-    return this.createRawDocument(file, data);
+    // Converte para string[][] respeitando o conteúdo original de cada célula
+    const mappedData = data.map(row => 
+        row.map(cell => cell === null || cell === undefined ? '' : String(cell).trim())
+    );
+
+    return this.createRawDocument(file, mappedData);
   }
 }

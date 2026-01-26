@@ -135,19 +135,18 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             
-            // Fidelidade Total: Obtém os dados sem filtragem de colunas ou linhas intermediárias.
-            // defval: '' garante que células vazias sejam mantidas como strings vazias para join(';')
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
             
+            // CONVERSÃO BRUTA: Sem remover colunas vazias
             extractedText = jsonData
-                .map(row => row.join(';'))
-                .filter(line => line.replace(/;/g, '').trim().length > 0) // Remove apenas linhas 100% vazias (sem dados nem delimitadores preenchidos)
+                .map(row => row.map(cell => cell === null || cell === undefined ? '' : String(cell).trim()).join(';'))
+                .filter(line => line.replace(/;/g, '').trim().length > 0)
                 .join('\n');
         } else {
             extractedText = new TextDecoder('utf-8').decode(fileBuffer);
         }
 
-        console.log(`[Ingestion:DONE] Extração concluída. Amostra: ${extractedText.substring(0, 30)}`);
+        console.log(`[Ingestion:DONE] Extração concluída. Tamanho: ${extractedText.length} bytes`);
         await onFileUpload(extractedText, file.name, file);
 
     } catch (error: any) {
