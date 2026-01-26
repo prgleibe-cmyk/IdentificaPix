@@ -1,29 +1,25 @@
+
 import { Transaction, FileModel } from '../../types';
 import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V12 - PRESERVAÇÃO INTEGRAL)
+ * 🎛️ INGESTION ORCHESTRATOR (V14 - NORMALIZAÇÃO ESTRUTURAL FIEL)
  * -------------------------------------------------------
- * Para garantir 100% de fidelidade em modelos multi-linha (Sicoob/Inter),
- * NÃO podemos inserir delimitadores artificiais (;) que quebrem a estrutura visual.
+ * Mantém a integridade das linhas mesmo em arquivos com delimitadores puros.
  */
 export const IngestionOrchestrator = {
     /**
-     * Normalização: Apenas limpa espaços vazios e garante quebras de linha padrão.
-     * Mantém o layout visual para a IA.
+     * Normalização: Remove espaços em branco nas pontas e filtra apenas linhas 100% vazias.
+     * Preserva linhas que possuem delimitadores (ex: ";;;") para não quebrar o mapeamento.
      */
     normalizeRawContent(content: string): string {
         if (!content) return "";
         
-        // Se já é CSV (tem ponto e vírgula), mantemos.
-        if (content.includes(';')) return content;
-
-        // Se é texto puro de PDF/TXT, mantemos o layout visual.
-        // A IA é mais inteligente que um split('  ') para achar o nome em blocos.
         return content
             .split(/\r?\n/)
             .map(line => line.trimEnd())
+            // Filtra apenas se a linha estiver vazia após o trim (não remove ";;;")
             .filter(l => l.trim().length > 0)
             .join('\n');
     },
@@ -35,14 +31,12 @@ export const IngestionOrchestrator = {
         globalKeywords: string[]
     ): Promise<any> {
         const fileNameLower = file.name.toLowerCase();
-        const isExcel = fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls');
         
-        // NORMALIZAÇÃO: Preserva o layout visual original
-        const processedContent = isExcel ? content : this.normalizeRawContent(content);
-        
+        // NORMALIZAÇÃO FIEL
+        const processedContent = this.normalizeRawContent(content);
         const fingerprint = Fingerprinter.generate(processedContent);
         
-        console.log(`[Pipeline:INGESTION] Processando: ${file.name} | Modo: ${isExcel ? 'Excel' : 'Layout Visual'}`);
+        console.log(`[Pipeline:INGESTION] Processando: ${file.name} | Amostra Normalizada: ${processedContent.substring(0, 30)}`);
         
         const result = await StrategyEngine.process(
             file.name, 

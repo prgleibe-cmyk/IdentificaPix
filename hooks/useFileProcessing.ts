@@ -44,12 +44,18 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                 if (activeFile.rawFile && (activeFile.fileName.toLowerCase().endsWith('xls') || activeFile.fileName.toLowerCase().endsWith('xlsx'))) {
                     const buffer = await activeFile.rawFile.arrayBuffer();
                     const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
-                    loadedRows = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    // Fidelidade: defval: '' e header: 1 preservam a grade original
+                    const rawData = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
+                    
+                    // Filtra apenas linhas 100% vazias para manter paridade com o uploader
+                    loadedRows = rawData
+                        .filter(row => row.join('').trim().length > 0)
+                        .map(row => row.map(cell => String(cell || '').trim()));
                 } 
                 else {
                     const content = activeFile.content || "";
                     if (content.trim()) {
-                        // USA A MESMA LÓGICA DA PRODUÇÃO
                         const normalized = IngestionOrchestrator.normalizeRawContent(content);
                         loadedRows = normalized.split('\n').map(line => line.split(';'));
                     }
@@ -64,7 +70,6 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     if (initialModel?.mapping) {
                         setActiveMapping(initialModel.mapping);
                     } else {
-                        // FIX: Sempre inicializa mapping para evitar undefined
                         setActiveMapping({
                             extractionMode: 'COLUMNS',
                             dateColumnIndex: -1,

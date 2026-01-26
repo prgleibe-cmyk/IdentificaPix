@@ -104,12 +104,8 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
              const totalPages = pdf.numPages;
              const textParts: string[] = [];
              
-             console.log(`[Ingestion:PDF] Lendo ${file.name}. Páginas: ${totalPages}`);
-
              for (let i = 1; i <= totalPages; i++) {
-                 // YIELD: Libera o thread principal para processar eventos de UI (barra de progresso)
                  await new Promise(resolve => setTimeout(resolve, 0));
-
                  if (setParsingProgress) {
                     setParsingProgress({ 
                         current: i, 
@@ -117,18 +113,15 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
                         label: `Lendo página ${i} de ${totalPages}...` 
                     });
                  }
-
                  const page = await pdf.getPage(i);
                  const textContent = await page.getTextContent();
                  const items = textContent.items as any[];
-                 
                  const lineMap: { [key: number]: any[] } = {};
                  items.forEach(item => {
                      const y = Math.round(item.transform[5]);
                      if (!lineMap[y]) lineMap[y] = [];
                      lineMap[y].push(item);
                  });
-
                  const sortedY = Object.keys(lineMap).map(Number).sort((a, b) => b - a);
                  sortedY.forEach(y => {
                      const sortedItems = lineMap[y].sort((a, b) => a.transform[4] - b.transform[4]);
@@ -142,22 +135,19 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             
-            // MODIFICAÇÃO CRÍTICA PARA PARIDADE COM LABORATÓRIO:
-            // Não usamos sheet_to_csv porque ele adiciona aspas e foge do padrão join(';') do treinamento.
+            // Fidelidade Total: Obtém os dados sem filtragem de colunas ou linhas intermediárias.
+            // defval: '' garante que células vazias sejam mantidas como strings vazias para join(';')
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
-            extractedText = jsonData.map(row => row.join(';')).join('\n');
+            
+            extractedText = jsonData
+                .map(row => row.join(';'))
+                .filter(line => line.replace(/;/g, '').trim().length > 0) // Remove apenas linhas 100% vazias (sem dados nem delimitadores preenchidos)
+                .join('\n');
         } else {
             extractedText = new TextDecoder('utf-8').decode(fileBuffer);
         }
 
-        console.log(`[Ingestion:DONE] Extração concluída. Enviando para pipeline.`);
-        
-        // [Ingestion:CHECKPOINT] Auditoria de Payload para Blindagem do Pipeline
-        console.log('[Ingestion:CHECKPOINT] Tipo:', typeof extractedText);
-        console.log('[Ingestion:CHECKPOINT] É Array:', Array.isArray(extractedText));
-        console.log('[Ingestion:CHECKPOINT] Tamanho:', extractedText?.length);
-        console.log('[Ingestion:CHECKPOINT] Amostra:', (extractedText as any)?.slice?.(0, 3));
-
+        console.log(`[Ingestion:DONE] Extração concluída. Amostra: ${extractedText.substring(0, 30)}`);
         await onFileUpload(extractedText, file.name, file);
 
     } catch (error: any) {
