@@ -1,6 +1,6 @@
 
 /**
- * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V4 - ULTRA CLEAN)
+ * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V5 - LIMPEZA DINÂMICA)
  */
 export class NameResolver {
   
@@ -23,35 +23,50 @@ export class NameResolver {
   }
 
   /**
-   * LIMPEZA (DESATIVADA): Retorna o texto original conforme solicitado.
+   * LIMPEZA DETERMINÍSTICA: Remove termos de ruído aprendidos ou globais.
    */
-  static clean(rawName: string, userKeywords: string[] = []): string {
+  static clean(rawName: string, modelKeywords: string[] = [], globalKeywords: string[] = []): string {
     if (!rawName) return '';
-    return rawName.trim();
+    
+    let cleaned = rawName.toUpperCase();
+    
+    // Une as palavras-chave do modelo (aprendidas no Lab) com as globais (Configurações)
+    const allKeywords = Array.from(new Set([...modelKeywords, ...globalKeywords]));
+
+    // Remove cada termo de ruído
+    allKeywords.forEach(kw => {
+        if (!kw) return;
+        const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+        cleaned = cleaned.replace(regex, '');
+    });
+
+    // Limpeza de caracteres residuais comuns em extratos
+    cleaned = cleaned
+        .replace(/[\-\:]/g, ' ') // Remove traços e dois pontos
+        .replace(/\s+/g, ' ')    // Remove espaços duplos
+        .trim();
+
+    return cleaned;
   }
 
   /**
-   * FORMATAÇÃO VISUAL (MÁSCARA): Usada apenas na exibição dos relatórios.
-   * Remove sequências numéricas longas (IDs/CPF) e máscaras de asteriscos.
+   * FORMATAÇÃO VISUAL (MÁSCARA): Usada apenas na exibição final.
    */
   static formatDisplayName(name: string): string {
     if (!name) return '';
     
     return name
-      // 1. Remove apenas sequências de números longas (8 ou mais dígitos) - IDs de transação e CPFs sem pontos
       .replace(/\d{8,}/g, '')
-      // 2. Remove asteriscos e caracteres de máscara (ex: ***.456.*** ou ***123***)
       .replace(/\*+[\d.Xx-]*\*+/g, '')
-      // 3. Remove traços ou pontos isolados que sobraram entre espaços
       .replace(/\s[-.]\s/g, ' ')
-      // 4. Limpeza final de espaços múltiplos e trims
       .replace(/\s+/g, ' ')
       .trim()
       .toUpperCase();
   }
 
   /**
-   * NORMALIZAÇÃO: Usada apenas para MATCHING interno (Remoção de acentos).
+   * NORMALIZAÇÃO: Usada apenas para MATCHING interno.
    */
   static normalize(text: string): string {
     if (!text) return '';

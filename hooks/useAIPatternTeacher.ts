@@ -1,13 +1,7 @@
 
 import { useState, useCallback } from 'react';
-import { extractTransactionsWithModel } from '../services/geminiService';
+import { GoogleGenAI } from "@google/genai";
 import { FileModel, Transaction } from '../types';
-
-export interface LearningPackage {
-    model: Partial<FileModel>;
-    sampleTransactions: Transaction[];
-    confidence: number;
-}
 
 interface UseAIPatternTeacherProps {
     gridData: string[][];
@@ -21,72 +15,53 @@ export const useAIPatternTeacher = ({
     gridData,
     setGridData,
     setActiveMapping,
-    showToast,
-    fullFileText
+    showToast
 }: UseAIPatternTeacherProps) => {
     const [isInferringMapping, setIsInferringMapping] = useState(false);
-    const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any, context?: string[][] } | null>(null);
+    const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any } | null>(null);
 
-    const handleApplyCorrectionPattern = useCallback(async (): Promise<LearningPackage | null> => {
-        if (gridData.length === 0) return null;
+    const handleApplyCorrectionPattern = useCallback(async () => {
+        if (!learnedPatternSource) return;
         
         setIsInferringMapping(true);
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
         try {
-            const rawSnippet = gridData.slice(0, 150).map((row, i) => `[ID:${i}]: ${row.join(' ; ')}`).join('\n');
+            const prompt = `Compare a linha bruta com a correção do usuário.
+            Linha Bruta: "${learnedPatternSource.originalRaw.join(' ; ')}"
+            Nome Corrigido: "${learnedPatternSource.corrected.description}"
             
-            let instruction = "ConverTA o texto bruto em JSON seguindo este exemplo exato:\n";
+            Identifique quais palavras da linha bruta são RUÍDO (não fazem parte do nome real) e devem ser ignoradas no futuro.
+            Retorne um JSON com:
+            - ignoredKeywords: string[] (ex: ["RECEBIMENTO", "PIX"])
+            - dateColumnIndex, descriptionColumnIndex, amountColumnIndex (índices base zero)`;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
+                config: { temperature: 0, responseMimeType: "application/json" }
+            });
+
+            const result = JSON.parse(response.text || "{}");
             
-            if (learnedPatternSource) {
-                instruction += `LINHA DE REFERÊNCIA: "${learnedPatternSource.originalRaw.join(' ; ')}"\n`;
-                instruction += `RESULTADO ESPERADO: ${JSON.stringify({
-                    date: learnedPatternSource.corrected.date,
-                    description: learnedPatternSource.corrected.description,
-                    amount: learnedPatternSource.corrected.amount
-                })}\n`;
-                instruction += "Não tente adivinhar outros campos ou regras. Use este mapeamento para processar o restante.";
+            if (result) {
+                setActiveMapping((prev: any) => ({
+                    ...prev,
+                    dateColumnIndex: result.dateColumnIndex ?? prev.dateColumnIndex,
+                    descriptionColumnIndex: result.descriptionColumnIndex ?? prev.descriptionColumnIndex,
+                    amountColumnIndex: result.amountColumnIndex ?? prev.amountColumnIndex,
+                    // Armazena as palavras aprendidas no mapeamento para persistência
+                    ignoredKeywords: Array.from(new Set([...(prev.ignoredKeywords || []), ...(result.ignoredKeywords || [])]))
+                }));
+                showToast("IA aprendeu as palavras de ruído e o mapeamento.", "success");
             }
-
-            const result = await extractTransactionsWithModel(rawSnippet, instruction);
-            
-            if (result && result.length > 0) {
-                const reStructuredGrid = result.map((r: any) => [
-                    String(r.date || ''), 
-                    String(r.description || ''), 
-                    String(r.amount || '0'),
-                    String(r.type || 'AUTO'),
-                    String(r.paymentMethod || 'OUTROS')
-                ]);
-
-                setGridData(reStructuredGrid);
-                
-                // FIX: Added missing required properties 'skipRowsEnd' and 'thousandsSeparator' to satisfy the FileModel mapping type.
-                const mapping = { 
-                    extractionMode: 'BLOCK' as const,
-                    dateColumnIndex: 0, 
-                    descriptionColumnIndex: 1, 
-                    amountColumnIndex: 2, 
-                    typeColumnIndex: 3,
-                    paymentMethodColumnIndex: 4,
-                    skipRowsStart: 0,
-                    skipRowsEnd: 0,
-                    decimalSeparator: ',' as const,
-                    thousandsSeparator: '.' as const
-                };
-
-                setActiveMapping(mapping);
-                showToast("Padrão aplicado com base no seu exemplo.", "success");
-                return { model: { mapping }, sampleTransactions: [], confidence: 1.0 };
-            }
-            
-            return null;
-        } catch (e: any) { 
-            showToast("Falha na IA ao aplicar exemplo.", "error"); 
-            return null;
-        } finally { 
-            setIsInferringMapping(false); 
+        } catch (e) {
+            showToast("Falha ao aprender com o exemplo.", "error");
+        } finally {
+            setIsInferringMapping(false);
+            setLearnedPatternSource(null);
         }
-    }, [learnedPatternSource, gridData, setGridData, setActiveMapping, showToast]);
+    }, [learnedPatternSource, setActiveMapping, showToast]);
 
     return {
         isInferringMapping,
