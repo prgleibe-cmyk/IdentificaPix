@@ -22,26 +22,37 @@ const safeJsonParse = (input: any, fallback: any = []) => {
 };
 
 /**
- * INFERÊNCIA DE MAPEAMENTO (V41 - FOCO EM REGRAS DE LIMPEZA)
+ * INFERÊNCIA DE MAPEAMENTO (V42 - RIGOR ESTRUTURAL)
  */
 export const inferMappingFromSample = async (sampleText: string): Promise<any> => {
     const ai = getAIClient();
-    const prompt = `Analise este extrato bancário e identifique a estrutura.
-    Retorne um JSON com:
-    - extractionMode: 'COLUMNS' ou 'BLOCK'
-    - dateColumnIndex, descriptionColumnIndex, amountColumnIndex (índices base zero)
-    - suggestedIgnoredKeywords: Lista de termos de ruído que aparecem nas descrições e não são nomes (ex: 'RECEBIMENTO PIX', 'PAGAMENTO', 'TRANSFERENCIA').
-    - skipRowsStart: quantas linhas de cabeçalho pular.
-    
-    TEXTO:
+    const prompt = `Analise este extrato bancário e identifique a estrutura de colunas e padrões de limpeza.
+    Amostra do Extrato:
     ${sampleText}`;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: prompt,
         config: { 
             temperature: 0, 
-            responseMimeType: "application/json"
+            thinkingConfig: { thinkingBudget: 2000 },
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    extractionMode: { type: Type.STRING, description: "'COLUMNS' para arquivos tabulares (Excel/CSV) ou 'BLOCK' para texto corrido/PDFs complexos" },
+                    dateColumnIndex: { type: Type.INTEGER },
+                    descriptionColumnIndex: { type: Type.INTEGER },
+                    amountColumnIndex: { type: Type.INTEGER },
+                    suggestedIgnoredKeywords: { 
+                        type: Type.ARRAY, 
+                        items: { type: Type.STRING },
+                        description: "Termos repetitivos que não fazem parte do nome do pagador/recebedor"
+                    },
+                    skipRowsStart: { type: Type.INTEGER, description: "Número de linhas de cabeçalho a pular" }
+                },
+                required: ["extractionMode", "dateColumnIndex", "descriptionColumnIndex", "amountColumnIndex", "skipRowsStart"]
+            }
         }
     });
 
@@ -54,7 +65,7 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
 
 export const extractTransactionsWithModel = async (rawText: string, modelContext?: string): Promise<any> => {
     const ai = getAIClient();
-    const finalPrompt = `Transforme o TEXTO em JSON seguindo o CONTRATO.
+    const finalPrompt = `Transforme o TEXTO em JSON seguindo o CONTRATO fornecido.
         ${modelContext ? `CONTRATO:\n${modelContext}\n` : ''}
         TEXTO:
         ${rawText}`;
