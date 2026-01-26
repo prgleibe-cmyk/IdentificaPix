@@ -1,5 +1,6 @@
 
 import { Transaction, MatchResult } from '../../types';
+import { NameResolver } from '../../core/processors/NameResolver';
 
 /**
  * Lógica de filtragem UNIVERSAL e ROBUSTA (Idêntica ao SmartEditModal).
@@ -29,7 +30,8 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
         dateShort = dateNormalized;
     }
 
-    const descStr = (tx.cleanedDescription || tx.description || '').toLowerCase();
+    // VISUAL SEARCH: Busca no nome limpo
+    const displayDesc = NameResolver.formatDisplayName(tx.cleanedDescription || tx.description || '').toLowerCase();
     const typeStr = (tx.contributionType || '').toLowerCase();
     
     // Flexible Amount Matching
@@ -40,7 +42,7 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
 
     return terms.every(term => {
         // 1. Text Match
-        if (descStr.includes(term)) return true;
+        if (displayDesc.includes(term)) return true;
         if (typeStr.includes(term)) return true;
 
         // 2. Amount Match (Suporta padrão brasileiro 1.234,56)
@@ -88,10 +90,12 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         dateShort = dateNormalized;
     }
 
-    // Text Fields
-    const descStr = (tx.cleanedDescription || tx.description || '').toLowerCase();
-    const contribName = (result.contributor?.name || '').toLowerCase();
-    const contribCleanedName = (result.contributor?.cleanedName || '').toLowerCase();
+    // Text Fields - VISUAL SEARCH (Busca contra nomes limpos)
+    const displayDesc = NameResolver.formatDisplayName(tx.cleanedDescription || tx.description || '').toLowerCase();
+    
+    const rawContributorName = result.contributor?.cleanedName || result.contributor?.name || '';
+    const displayContributorName = NameResolver.formatDisplayName(rawContributorName).toLowerCase();
+    
     const churchName = (result.church?.name || '').toLowerCase();
     const typeStr = (result.contributor?.contributionType || result.contributionType || '').toLowerCase();
     
@@ -103,9 +107,8 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
 
     return terms.every(term => {
         // 1. Text Match
-        if (descStr.includes(term)) return true;
-        if (contribName.includes(term)) return true;
-        if (contribCleanedName.includes(term)) return true;
+        if (displayDesc.includes(term)) return true;
+        if (displayContributorName.includes(term)) return true;
         if (churchName.includes(term)) return true;
         if (typeStr.includes(term)) return true;
 

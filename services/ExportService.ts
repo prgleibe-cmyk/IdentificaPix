@@ -1,6 +1,7 @@
 
 import { MatchResult, Language } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { NameResolver } from '../core/processors/NameResolver';
 
 export const ExportService = {
     /**
@@ -13,7 +14,10 @@ export const ExportService = {
             ...data.map(r => {
                 const isGhost = r.status === 'PENDENTE';
                 const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
-                const desc = (r.contributor?.cleanedName || r.transaction.description).replace(/;/g, ' ');
+                
+                const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
+                const desc = NameResolver.formatDisplayName(rawName).replace(/;/g, ' ');
+                
                 const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
                 const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
                 const church = (r.church?.name || '---').replace(/;/g, ' ');
@@ -44,7 +48,10 @@ export const ExportService = {
         const tableRows = data.map(r => {
             const isGhost = r.status === 'PENDENTE';
             const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
-            const name = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
+            
+            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
+            const name = NameResolver.formatDisplayName(rawName);
+
             const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
             const isNegative = amountVal < 0;
             const amount = formatCurrency(amountVal, language);

@@ -6,6 +6,7 @@ import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, ExclamationTriangleIcon, BanknotesIcon, UserIcon, CheckCircleIcon, BuildingOfficeIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
+import { NameResolver } from '../core/processors/NameResolver';
 
 interface ResultsTableProps {
   results: MatchResult[];
@@ -125,7 +126,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                             const rawDate = isGhost ? (contributor?.date || transaction.date) : transaction.date;
                             const displayDate = formatDate(rawDate);
                             
-                            const primaryName = contributor?.cleanedName || contributor?.name || transaction.cleanedDescription || transaction.description;
+                            const rawName = contributor?.cleanedName || contributor?.name || transaction.cleanedDescription || transaction.description;
+                            const primaryName = NameResolver.formatDisplayName(rawName);
+                            
                             const displayType = contributor?.contributionType || contributionType || transaction.contributionType || '---';
                             const displayForm = contributor?.paymentMethod || paymentMethod || transaction.paymentMethod || '---';
 

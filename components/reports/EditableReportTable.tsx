@@ -19,6 +19,7 @@ import {
     BuildingOfficeIcon
 } from '../Icons';
 import { BulkActionToolbar } from '../BulkActionToolbar';
+import { NameResolver } from '../../core/processors/NameResolver';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -80,8 +81,10 @@ const IncomeRow = memo(({
     const isExpense = displayAmount < 0;
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     
-    // FIDELIDADE: Usa o que veio do modelo sem limpar novamente no frontend
-    const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
+    // VISUAL PROJECTION: Limpa o nome apenas para exibição
+    const rawName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
+    const displayName = NameResolver.formatDisplayName(rawName);
+
     const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
 
     return (
