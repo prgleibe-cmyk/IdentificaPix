@@ -43,7 +43,7 @@ export interface Transaction {
   cleanedDescription?: string;
   contributionType?: string;
   paymentMethod?: string;
-  bank_id?: string; // Vinculação com a Lista Viva
+  bank_id?: string;
 }
 
 export interface Contributor {
@@ -85,7 +85,7 @@ export interface LearnedAssociation {
   normalizedDescription: string;
   contributorNormalizedName: string;
   churchId: string;
-  bankId: string; // Individualiza o aprendizado por Lista Viva
+  bankId: string;
   user_id: string;
 }
 

@@ -6,10 +6,9 @@ import { CheckCircleIcon, XCircleIcon, BoltIcon } from '../components/Icons';
 // Execução dinâmica das suítes de teste
 const runTests = async () => {
     clearTestResults();
-    // Importa apenas as suítes de teste que permanecem no projeto
     try {
         await import('../services/processingService.test');
-        await import('../services/coreEngine.test');
+        // coreEngine.test removido pois foi deletado do projeto
     } catch (e) {
         console.error("Erro ao carregar suíte de testes:", e);
     }
@@ -30,8 +29,7 @@ export const TestView: React.FC = () => {
     const passedCount = results.filter(r => r.passed).length;
     const failedCount = results.length - passedCount;
 
-    // Agrupamento com tipagem explícita para evitar inferência como 'unknown'
-    const groupedResults: Record<string, TestResult[]> = results.reduce((acc, result) => {
+    const groupedResults = results.reduce((acc, result) => {
         if (!acc[result.suite]) {
             acc[result.suite] = [];
         }
@@ -39,7 +37,8 @@ export const TestView: React.FC = () => {
         return acc;
     }, {} as Record<string, TestResult[]>);
 
-    const groupedEntries = Object.entries(groupedResults);
+    // Cast explícito para evitar erro "Property 'map' does not exist on type 'unknown'"
+    const groupedEntries = Object.entries(groupedResults) as [string, TestResult[]][];
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-4 pb-6 overflow-y-auto custom-scrollbar">
