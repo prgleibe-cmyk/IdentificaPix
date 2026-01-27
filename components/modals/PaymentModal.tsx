@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePaymentController } from './payment/usePaymentController';
@@ -44,8 +45,8 @@ export const PaymentModal: React.FC = () => {
                     handleClose={controller.handleClose}
                 />
 
-                {/* Camada Decorativa de Ruído para Visual Premium */}
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
+                {/* Camada Decorativa de Ruído Local para Visual Premium (Substituída URL Vercel) */}
+                <div className="absolute inset-0 bg-noise opacity-[0.05] pointer-events-none mix-blend-overlay"></div>
             </div>
         </div>
     );
