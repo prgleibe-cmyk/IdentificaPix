@@ -33,11 +33,13 @@ export const useAIPatternTeacher = ({
             const isBlockMode = extractionMode === 'BLOCK';
             
             const instruction = isBlockMode 
-            ? `VOCÊ É UM ENGENHEIRO DE REPRODUÇÃO ESTRUTURAL. O Admin editou uma linha modelo para te ensinar como extrair dados.
-            --- LINHA MODELO ---
-            Bruto: "${learnedPatternSource.originalRaw.join(' | ')}"
-            Esperado: Date:"${learnedPatternSource.corrected.date}" | Desc:"${learnedPatternSource.corrected.description}" | Amount:"${learnedPatternSource.corrected.amount}"
-            Gere a "blockRecipe" JSON com a regra algorítmica e "confidence".`
+            ? `VOCÊ É UM ENGENHEIRO DE REPRODUÇÃO ESTRUTURAL. O Admin editou uma linha modelo para te ensinar o padrão visual de extração.
+            --- PADRÃO DE REFERÊNCIA (APRENDA ESTA ESTRUTURA) ---
+            Texto Bruto no Documento: "${learnedPatternSource.originalRaw.join(' | ')}"
+            Extração Correta: Date:"${learnedPatternSource.corrected.date}" | Desc:"${learnedPatternSource.corrected.description}" | Amount:"${learnedPatternSource.corrected.amount}"
+            
+            SUA TAREFA: Analisar esta relação e gerar uma "blockRecipe" JSON que descreva como encontrar TODAS as transações similares neste documento. 
+            Não extraia apenas esta linha; aprenda a lógica para extrair o documento todo.`
             
             : `VOCÊ É UM EXTRATOR DE ÍNDICES DE COLUNA. Determine os índices de 0 a N correspondentes:
             BRUTO: "${learnedPatternSource.originalRaw.join(' ; ')}"
@@ -53,14 +55,13 @@ export const useAIPatternTeacher = ({
                     }
                 });
             } else if (fullFileText) {
-                // FATIAMENTO: Envia apenas os primeiros 5000 caracteres como contexto para economizar tokens
                 contents.parts.push({ text: `CONTEÚDO DO DOCUMENTO (AMOSTRA):\n${fullFileText.substring(0, 5000)}` });
             }
 
             contents.parts.push({ text: instruction });
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview', // Uso de modelo Flash para economia no treinamento
+                model: 'gemini-3-flash-preview', 
                 contents: contents,
                 config: { 
                     temperature: 0,
@@ -89,11 +90,16 @@ export const useAIPatternTeacher = ({
 
             const result = JSON.parse(response.text || "{}");
             
+            // Ordem crítica: primeiro define o novo mapeamento (gatilho de simulação)
             setActiveMapping((prev: any) => {
+                const base = {
+                    ...prev,
+                    extractionMode: isBlockMode ? 'BLOCK' : 'COLUMNS'
+                };
+
                 if (isBlockMode) {
                     return {
-                        ...prev,
-                        extractionMode: 'BLOCK',
+                        ...base,
                         blockContract: `CONTRATO RÍGIDO: [${learnedPatternSource.originalRaw.join(' | ')}] -> Date:${learnedPatternSource.corrected.date} | Desc:${learnedPatternSource.corrected.description} | Amount:${learnedPatternSource.corrected.amount}. REGRA: ${result.blockRecipe}`,
                         dateColumnIndex: -1,
                         descriptionColumnIndex: -1,
@@ -102,8 +108,7 @@ export const useAIPatternTeacher = ({
                 }
 
                 return {
-                    ...prev,
-                    extractionMode: 'COLUMNS',
+                    ...base,
                     dateColumnIndex: result.dateColumnIndex,
                     descriptionColumnIndex: result.descriptionColumnIndex,
                     amountColumnIndex: result.amountColumnIndex,
@@ -111,13 +116,14 @@ export const useAIPatternTeacher = ({
                 };
             });
 
+            // Feedback e limpeza de fonte de ensino após a propagação do mapeamento
             showToast("Padrão aprendido!", "success");
+            setLearnedPatternSource(null);
         } catch (e: any) {
             console.error("[PatternTeacher] Fail:", e);
             showToast("Erro ao aprender o padrão.", "error");
         } finally {
             setIsInferringMapping(false);
-            setLearnedPatternSource(null);
         }
     }, [learnedPatternSource, isInferringMapping, rawBase64, fullFileText, setActiveMapping, showToast]);
 

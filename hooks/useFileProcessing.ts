@@ -24,43 +24,54 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
     const processingRef = useRef<string | null>(null);
 
     useEffect(() => {
-        if (!activeFile) {
-            setGridData([]);
-            setActiveMapping(null);
-            setDetectedFingerprint(null);
-            setRawBase64(undefined);
-            processingRef.current = null;
-            return;
-        }
-
-        setRawBase64(activeFile.base64);
-
         const loadContent = async () => {
             setIsGridLoading(true);
             let loadedRows: string[][] = [];
 
             try {
-                if (isPdf) {
-                    // Para PDF, não tentamos quebrar em grade. 
-                    // Enviamos uma linha mestre para habilitar a interface de ensino.
+                // Prioridade 1: Modelo Sendo Refinado (Snippet)
+                if (initialModel && !activeFile?.rawFile) {
+                    const content = initialModel.snippet || "";
+                    if (content.trim()) {
+                        const normalized = IngestionOrchestrator.normalizeRawContent(content);
+                        loadedRows = normalized.split('\n').map(line => line.split(';'));
+                        
+                        // Reconstrói base64 se o modelo original for PDF (se disponível no snippet ou meta)
+                        if (initialModel.mapping?.extractionMode === 'BLOCK' && content.includes('[DOCUMENTO_')) {
+                           // No refine, o gridData terá o placeholder, o simulador usará o gridData para rodar o contrato
+                        }
+                    }
+                } 
+                // Prioridade 2: Novo Arquivo PDF
+                else if (isPdf && activeFile) {
                     loadedRows = [['[DOCUMENTO_VISUAL]', 'Analise Visual Ativa', 'IA']];
-                } else if (activeFile.rawFile && (activeFile.fileName.toLowerCase().endsWith('xls') || activeFile.fileName.toLowerCase().endsWith('xlsx'))) {
+                    setRawBase64(activeFile.base64);
+                } 
+                // Prioridade 3: Novo Arquivo Excel
+                else if (activeFile?.rawFile && (activeFile.fileName.toLowerCase().endsWith('xls') || activeFile.fileName.toLowerCase().endsWith('xlsx'))) {
                     const buffer = await activeFile.rawFile.arrayBuffer();
                     const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
                     const rawData = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
                     loadedRows = rawData.filter(row => row.join('').trim().length > 0).map(row => row.map(cell => String(cell || '').trim()));
-                } else {
+                } 
+                // Prioridade 4: Novo Arquivo Texto/CSV
+                else if (activeFile) {
                     const content = activeFile.content || "";
                     if (content.trim()) {
                         const normalized = IngestionOrchestrator.normalizeRawContent(content);
                         loadedRows = normalized.split('\n').map(line => line.split(';'));
                     }
+                    setRawBase64(activeFile.base64);
                 }
 
                 if (loadedRows.length > 0) {
                     setGridData(loadedRows);
-                    const sampleContentForFp = isPdf ? activeFile.fileName : loadedRows.slice(0, 30).map(r => r.join(';')).join('\n');
+                    
+                    const sampleContentForFp = isPdf || loadedRows[0]?.[0].includes('[DOCUMENTO_') 
+                        ? (activeFile?.fileName || initialModel?.name || "pdf-doc") 
+                        : loadedRows.slice(0, 30).map(r => r.join(';')).join('\n');
+                    
                     const fp = generateFingerprint(sampleContentForFp);
                     setDetectedFingerprint(fp);
                     
@@ -77,6 +88,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     }
                 }
             } catch (err) {
+                console.error("[FileProcessing] Load fail:", err);
                 showToast("Erro ao ler estrutura do arquivo.", "error");
             } finally {
                 setIsGridLoading(false);

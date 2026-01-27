@@ -29,27 +29,35 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
     
     const lastDataRef = useRef<string>('');
     const lastMappingRef = useRef<string>('');
+    const lastContractRef = useRef<string | undefined>(undefined);
     const initialReadDone = useRef<string | null>(null);
+    const isRunningRef = useRef(false);
+    
+    const semanticBlocksRef = useRef<string[]>([]);
 
     const runSimulation = useCallback(async () => {
-        if (!gridData || gridData.length === 0) {
-            setProcessedTransactions([]);
+        if (!gridData || gridData.length === 0 || isRunningRef.current) {
+            if (!gridData || gridData.length === 0) setProcessedTransactions([]);
             return;
         }
 
         const mapping = activeMapping || { extractionMode: 'COLUMNS' };
         const isBlockMode = mapping.extractionMode === 'BLOCK';
+        isRunningRef.current = true;
 
-        // 🧱 MODO BLOCO (EXECUÇÃO IA)
+        // 🧱 MODO BLOCO (EXTRAÇÃO POR FATIAMENTO SEMÂNTICO IA)
         if (isBlockMode) {
             const isVisualDoc = gridData[0]?.[0] === '[DOCUMENTO_VISUAL]' || gridData[0]?.[0] === '[DOCUMENTO_PDF_VISUAL]';
             
-            // FASE 1: Dump Bruto (Aguardando Ensino)
+            // FASE 1: Geração de Blocos Semânticos (Dump Bruto)
             if (isVisualDoc && !mapping.blockContract) {
                 if (rawBase64 && initialReadDone.current !== rawBase64.substring(0, 100)) {
                     setIsSimulating(true);
                     try {
+                        console.log("[Simulation] 🧠 INICIANDO FATIAMENTO SEMÂNTICO...");
                         const rawLines = await getRawStructuralDump(rawBase64);
+                        semanticBlocksRef.current = rawLines;
+                        
                         const mapped = rawLines.map((line: string, i: number) => ({
                             id: `raw-dump-${i}-${Date.now()}`,
                             date: "---",
@@ -64,40 +72,65 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                         }));
                         setProcessedTransactions(mapped);
                         initialReadDone.current = rawBase64.substring(0, 100);
+                        lastContractRef.current = undefined;
                     } catch (e) {
-                        console.error("[Simulation] Falha no dump bruto:", e);
+                        console.error("[Simulation] Falha no fatiamento semântico:", e);
                     } finally {
                         setIsSimulating(false);
+                        isRunningRef.current = false;
                     }
+                } else {
+                    isRunningRef.current = false;
                 }
                 return;
             }
 
-            // FASE 2: Execução Real do Padrão Aprendido
-            if (isVisualDoc && mapping.blockContract) {
-                setIsSimulating(true);
-                setProcessedTransactions([]); // Limpa preview para forçar refresh visual
-                try {
-                    console.log("[Simulation] EXECUÇÃO IMEDIATA DO PADRÃO...");
-                    const aiResults = await extractTransactionsWithModel("", mapping.blockContract, rawBase64);
-                    
-                    const mapped = (aiResults || []).map((tx: any, i: number) => ({
-                        id: `ai-extracted-${i}-${Date.now()}`,
-                        date: tx.date || "---",
-                        description: tx.description || "---",
-                        rawDescription: tx.description || "",
-                        amount: tx.amount || 0,
-                        originalAmount: String(tx.amount || "0"),
-                        isValid: true,
-                        status: 'valid' as const,
-                        sourceIndex: 0
-                    }));
+            // FASE 2: Aplicação do Padrão (Reaprender / Execução Real)
+            if (mapping.blockContract) {
+                const contractChanged = mapping.blockContract !== lastContractRef.current;
+                const fileIdentifier = rawBase64 ? rawBase64.substring(0, 100) : 'snippet-only';
+                const fileChanged = initialReadDone.current !== fileIdentifier;
 
-                    setProcessedTransactions(mapped);
-                } catch (e) {
-                    console.error("[Simulation] Falha na extração ensinada:", e);
-                } finally {
-                    setIsSimulating(false);
+                // CRÍTICO: Se o contrato mudou (clique em Aplicar), forçamos re-leitura
+                if (contractChanged || fileChanged) {
+                    setIsSimulating(true);
+                    try {
+                        console.log("[Simulation] 🎯 REAPRENDENDO/EXECUTANDO PADRÃO SOBRE BLOCOS...");
+                        
+                        const rawText = gridData.map(r => r.join(';')).join('\n');
+                        const aiResults = await extractTransactionsWithModel(
+                            rawText, 
+                            mapping.blockContract, 
+                            rawBase64, 
+                            semanticBlocksRef.current.length > 0 ? semanticBlocksRef.current : undefined
+                        );
+                        
+                        if (aiResults && Array.isArray(aiResults) && aiResults.length > 0) {
+                            const mapped = aiResults.map((tx: any, i: number) => ({
+                                id: `ai-extracted-${i}-${Date.now()}`,
+                                date: tx.date || "---",
+                                description: tx.description || "---",
+                                rawDescription: tx.description || "",
+                                amount: tx.amount || 0,
+                                originalAmount: String(tx.amount || "0"),
+                                isValid: true,
+                                status: 'valid' as const,
+                                sourceIndex: 0
+                            }));
+                            setProcessedTransactions(mapped);
+                            initialReadDone.current = fileIdentifier;
+                            lastContractRef.current = mapping.blockContract;
+                        } else {
+                            console.warn("[Simulation] IA não retornou resultados para o novo contrato.");
+                        }
+                    } catch (e) {
+                        console.error("[Simulation] Falha na re-execução do padrão:", e);
+                    } finally {
+                        setIsSimulating(false);
+                        isRunningRef.current = false;
+                    }
+                } else {
+                    isRunningRef.current = false;
                 }
                 return;
             }
@@ -107,63 +140,72 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
         const isManualMappingComplete = mapping.dateColumnIndex >= 0 && mapping.amountColumnIndex >= 0;
 
         if (!isManualMappingComplete) {
-            const initialPreview = gridData.slice(0, 100).map((row, i) => ({
-                id: `raw-${i}-${Date.now()}`,
-                date: "---",
-                description: row.join(' ').substring(0, 150),
-                rawDescription: row.join(';'),
-                amount: 0,
-                originalAmount: "0.00",
-                isValid: false,
-                status: 'pending' as const,
-                sourceIndex: i,
-                sourceRawSnippet: row
-            }));
-            setProcessedTransactions(initialPreview);
+            if (!isBlockMode) {
+                const initialPreview = gridData.slice(0, 100).map((row, i) => ({
+                    id: `raw-${i}-${Date.now()}`,
+                    date: "---",
+                    description: row.join(' ').substring(0, 150),
+                    rawDescription: row.join(';'),
+                    amount: 0,
+                    originalAmount: "0.00",
+                    isValid: false,
+                    status: 'pending' as const,
+                    sourceIndex: i,
+                    sourceRawSnippet: row
+                }));
+                setProcessedTransactions(initialPreview);
+            }
+            isRunningRef.current = false;
             return;
         }
 
         setIsSimulating(true);
-        const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart, ignoredKeywords } = mapping;
-        const newTransactions: SafeTransaction[] = [];
-        const yearAnchor = DateResolver.discoverAnchorYear(gridData);
+        try {
+            const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart, ignoredKeywords } = mapping;
+            const newTransactions: SafeTransaction[] = [];
+            const yearAnchor = DateResolver.discoverAnchorYear(gridData);
 
-        gridData.forEach((cols, index) => {
-            const isSkipped = index < (skipRowsStart || 0);
-            const rawDate = dateColumnIndex >= 0 ? (cols[dateColumnIndex] || '') : '';
-            const rawDesc = descriptionColumnIndex >= 0 ? (cols[descriptionColumnIndex] || '') : '';
-            const rawAmount = amountColumnIndex >= 0 ? (cols[amountColumnIndex] || '') : '';
+            gridData.forEach((cols, index) => {
+                const isSkipped = index < (skipRowsStart || 0);
+                const rawDate = dateColumnIndex >= 0 ? (cols[dateColumnIndex] || '') : '';
+                const rawDesc = descriptionColumnIndex >= 0 ? (cols[descriptionColumnIndex] || '') : '';
+                const rawAmount = amountColumnIndex >= 0 ? (cols[amountColumnIndex] || '') : '';
 
-            if (!rawDate && !rawDesc && !rawAmount) return;
+                if (!rawDate && !rawDesc && !rawAmount) return;
 
-            const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
-            const amountStr = AmountResolver.clean(rawAmount);
-            const amountValue = parseFloat(amountStr);
-            const cleanedName = NameResolver.clean(rawDesc, ignoredKeywords || [], cleaningKeywords);
+                const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
+                const amountStr = AmountResolver.clean(rawAmount);
+                const amountValue = parseFloat(amountStr);
+                const cleanedName = NameResolver.clean(rawDesc, ignoredKeywords || [], cleaningKeywords);
 
-            newTransactions.push({ 
-                id: `sim-${index}-${Date.now()}`,
-                date: isoDate || rawDate || "---", 
-                description: cleanedName, 
-                rawDescription: rawDesc || "---", 
-                paymentMethod: (paymentMethodColumnIndex !== undefined && paymentMethodColumnIndex >= 0 && cols[paymentMethodColumnIndex]) ? cols[paymentMethodColumnIndex] : TypeResolver.resolveFromDescription(rawDesc),
-                amount: isNaN(amountValue) ? 0 : amountValue, 
-                originalAmount: rawAmount, 
-                cleanedDescription: cleanedName, 
-                contributionType: 'AUTO', 
-                sourceIndex: index, 
-                sourceRawSnippet: cols,
-                isValid: !!isoDate && !isNaN(amountValue), 
-                status: isSkipped ? 'ignored' : 'valid'
+                newTransactions.push({ 
+                    id: `sim-${index}-${Date.now()}`,
+                    date: isoDate || rawDate || "---", 
+                    description: cleanedName, 
+                    rawDescription: rawDesc || "---", 
+                    paymentMethod: (paymentMethodColumnIndex !== undefined && paymentMethodColumnIndex >= 0 && cols[paymentMethodColumnIndex]) ? cols[paymentMethodColumnIndex] : TypeResolver.resolveFromDescription(rawDesc),
+                    amount: isNaN(amountValue) ? 0 : amountValue, 
+                    originalAmount: rawAmount, 
+                    cleanedDescription: cleanedName, 
+                    contributionType: 'AUTO', 
+                    sourceIndex: index, 
+                    sourceRawSnippet: cols,
+                    isValid: !!isoDate && !isNaN(amountValue), 
+                    status: isSkipped ? 'ignored' : 'valid'
+                });
             });
-        });
-        setProcessedTransactions(newTransactions);
-        setIsSimulating(false);
+            setProcessedTransactions(newTransactions);
+            lastMappingRef.current = JSON.stringify(activeMapping);
+        } finally {
+            setIsSimulating(false);
+            isRunningRef.current = false;
+        }
     }, [gridData, activeMapping, cleaningKeywords, rawBase64]);
 
     useEffect(() => {
         const dataHash = gridData.length > 0 ? `${gridData.length}-${gridData[0].join('|').substring(0, 50)}` : 'empty';
         const mappingKey = JSON.stringify(activeMapping);
+        
         if (dataHash !== lastDataRef.current || mappingKey !== lastMappingRef.current) {
             lastDataRef.current = dataHash;
             lastMappingRef.current = mappingKey;
