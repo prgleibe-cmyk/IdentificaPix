@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -72,10 +73,6 @@ export const ModalsRenderer: React.FC = () => {
         autoLaunchTarget,
         modelRequiredData
     } = context;
-
-    if (!editingBank && !editingChurch && !manualIdentificationTx && !bulkIdentificationTxs && !deletingItem && !manualMatchState && !savingReportState && !isSearchFiltersOpen && !divergenceConfirmation && !isPaymentModalOpen && !pendingTraining && !smartEditTarget && !autoLaunchTarget && !modelRequiredData) {
-        return null;
-    }
 
     return (
         <>

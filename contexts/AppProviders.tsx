@@ -60,10 +60,8 @@ export const RootProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <ErrorBoundary>
-        <UIProvider>
-            <AppProvider>
-                {children}
-            </AppProvider>
-        </UIProvider>
+        <AppProvider>
+            {children}
+        </AppProvider>
     </ErrorBoundary>
 );
