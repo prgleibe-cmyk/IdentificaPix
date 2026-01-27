@@ -7,58 +7,50 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V44 - REPLICAÇÃO TÉCNICA)
+ * 📜 CONTRACT EXECUTOR (V47 - FIDELIDADE TOTAL AO MODELO)
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
+        // Extraímos os dados brutos do input adaptado
         const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
-        if (!rawText.trim()) return [];
+        const rawBase64 = adaptedInput?.__base64; 
 
-        const { mapping, parsingRules } = model;
+        if (!rawText.trim() && !rawBase64) return [];
+
+        const { mapping } = model;
         
-        // 🧱 MODO BLOCO (MAPIAMENTO RELATIVO)
+        // 🧱 MODO BLOCO (IA)
         if (mapping.extractionMode === 'BLOCK') {
-            console.log(`[ContractExecutor] 🧱 Aplicando Receita Técnica de Bloco: ${model.name}`);
-            
-            const trainingContext = mapping.blockContract || 'Extração por blocos de texto lineares.';
+            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural.';
 
-            // Chunking maior para garantir que blocos inteiros caibam na mesma janela de contexto
-            const lines = rawText.split(/\r?\n/);
-            const CHUNK_SIZE = 250; 
-            const chunks: string[] = [];
-            for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-                chunks.push(lines.slice(i, i + CHUNK_SIZE).join('\n'));
+            try {
+                // Passamos o binário para que a IA possa "olhar" o arquivo original
+                const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
+                
+                return (aiResult || []).map((tx: any, idx: number) => ({
+                    id: `exec-v47-block-${model.id}-${idx}-${Date.now()}`,
+                    date: tx.date,
+                    description: tx.description,
+                    rawDescription: tx.description,
+                    amount: tx.amount,
+                    originalAmount: String(tx.amount),
+                    cleanedDescription: tx.description,
+                    contributionType: 'AUTO',
+                    paymentMethod: 'OUTROS',
+                    bank_id: model.id
+                }));
+            } catch (e) { 
+                console.error("[ContractExecutor] Erro na leitura IA:", e);
+                return []; 
             }
-
-            const batchPromises = chunks.map(async (textChunk, chunkIdx) => {
-                try {
-                    const aiResult = await extractTransactionsWithModel(textChunk, trainingContext);
-                    return (aiResult || []).map((tx: any, idx: number) => ({
-                        id: `exec-v44-block-${model.id}-${chunkIdx}-${idx}-${Date.now()}`,
-                        date: tx.date,
-                        description: tx.description,
-                        rawDescription: tx.description,
-                        amount: tx.amount,
-                        originalAmount: String(tx.amount),
-                        cleanedDescription: tx.description,
-                        contributionType: 'AUTO',
-                        paymentMethod: 'OUTROS',
-                        bank_id: model.id
-                    }));
-                } catch (e) { return []; }
-            });
-
-            const resultsArray = await Promise.all(batchPromises);
-            return resultsArray.flat();
         }
 
         // 🚀 MODO COLUNAS (DETERMINÍSTICO)
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
-        const modelKeywords = parsingRules?.ignoredKeywords || (mapping as any).ignoredKeywords || [];
 
         lines.forEach((line, idx) => {
             if (idx < (mapping.skipRowsStart || 0)) return;
@@ -75,16 +67,16 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                const cleanedName = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
+                const finalDescription = rawDesc.trim();
 
                 results.push({
-                    id: `exec-v44-col-${model.id}-${idx}-${Date.now()}`,
+                    id: `exec-v47-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
-                    description: cleanedName,
+                    description: finalDescription,
                     rawDescription: rawDesc,
                     amount: numAmount,
                     originalAmount: rawAmount,
-                    cleanedDescription: cleanedName,
+                    cleanedDescription: finalDescription,
                     contributionType: TypeResolver.resolveFromDescription(rawDesc),
                     paymentMethod: mapping.paymentMethodColumnIndex !== undefined && cells[mapping.paymentMethodColumnIndex] 
                         ? cells[mapping.paymentMethodColumnIndex] 

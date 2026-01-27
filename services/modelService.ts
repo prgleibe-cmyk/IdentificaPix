@@ -94,6 +94,39 @@ export const modelService = {
         }
     },
 
+    /**
+     * Atualiza um contrato de modelo existente sem criar novo registro.
+     * Usado para o fluxo de Refinamento/Reaprendizado no Laboratório.
+     */
+    updateModel: async (id: string, updates: Omit<FileModel, 'id' | 'createdAt' | 'user_id' | 'lineage_id' | 'version' | 'is_active'>): Promise<FileModel | null> => {
+        try {
+            const { data, error } = await supabase
+                .from('file_models')
+                .update({
+                    name: updates.name,
+                    status: updates.status || 'approved',
+                    fingerprint: updates.fingerprint,
+                    mapping: updates.mapping,
+                    parsing_rules: updates.parsingRules,
+                    snippet: updates.snippet,
+                    last_used_at: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select('*')
+                .single();
+
+            if (error) throw error;
+
+            // Invalida cache local
+            await del(PERSISTENT_STORAGE_KEY);
+            
+            return data;
+        } catch (error) {
+            Logger.error("Erro ao atualizar modelo existente", error);
+            throw error;
+        }
+    },
+
     deleteModel: async (id: string) => {
         const { error } = await supabase.from('file_models').delete().eq('id', id);
         if (!error) {

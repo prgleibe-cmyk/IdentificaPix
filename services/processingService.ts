@@ -11,16 +11,17 @@ export * from './logic/filteringLogic';
 export const generateFingerprint = Fingerprinter.generate;
 
 /**
- * 🛠️ ADAPTER ESTRUTURAL (V2)
+ * 🛠️ ADAPTER ESTRUTURAL (V3 - PRESERVAÇÃO DE BINÁRIO)
  */
 function normalizeIngestionInput(input: any) {
     if (Array.isArray(input)) return input;
     if (typeof input === 'string') {
         return {
             __rawText: input,
-            __source: 'file' // Força identificação como arquivo para ativar bloqueios do motor
+            __source: 'file'
         };
     }
+    // Se já for um objeto (como o vindo do IngestionOrchestrator), preservamos campos especiais como __base64
     return input;
 }
 
@@ -30,27 +31,32 @@ export const findMatchingModel = (content: string, models: FileModel[]): { model
     if (!fileFp) return null;
     
     // RIGOR ABSOLUTO: O match deve ser baseado no HeaderHash (DNA estrutural).
-    // Não permitimos mais "score aproximado" para evitar que um banco use o modelo de outro.
     const bestMatch = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
     
     return bestMatch ? { model: bestMatch, score: 100 } : null;
 };
 
 /**
- * PROCESSADOR DE PIPELINE (V14 - SEGURANÇA E FIDELIDADE)
+ * PROCESSADOR DE PIPELINE (V15 - FLUXO DE VISÃO INTEGRAL)
  */
 export const processFileContent = async (
     content: string, 
     fileName: string, 
     models: FileModel[] = [], 
-    globalKeywords: string[] = []
+    globalKeywords: string[] = [],
+    base64?: string // Adicionado parâmetro opcional para Base64
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
     const normalizedContent = IngestionOrchestrator.normalizeRawContent(content);
     const matchResult = findMatchingModel(normalizedContent, models);
     const targetModel = matchResult?.model;
 
-    const adaptedInput = normalizeIngestionInput(normalizedContent);
+    // Criamos o input adaptado preservando o Base64 se ele existir
+    const adaptedInput = {
+        __rawText: normalizedContent,
+        __base64: base64, // Crucial para o ContractExecutor em modo BLOCK
+        __source: 'file'
+    };
 
     // O StrategyEngine agora decide se processa ou se pede modelo.
     const result = await StrategyEngine.process(

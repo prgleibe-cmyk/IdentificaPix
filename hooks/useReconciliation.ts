@@ -78,7 +78,7 @@ export const useReconciliation = ({
         });
     }, []);
 
-    const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File) => {
+    const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {
         const processKey = `${bankId}-${fileName}`;
         if (processingFilesRef.current.has(processKey)) {
             return;
@@ -90,7 +90,8 @@ export const useReconciliation = ({
         try {
             if (fetchModels) await fetchModels();
 
-            const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords);
+            // V3: Passamos o base64 para o processador garantir visão computacional
+            const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords, base64);
             
             const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
             
@@ -159,7 +160,6 @@ export const useReconciliation = ({
         }
     }, [clearRemoteList, showToast, setIsLoading]);
 
-    // Fix: Corrected syntax for resetReconciliation callback by removing duplicate async keyword and incorrect nesting
     const resetReconciliation = useCallback(async () => {
         setIsLoading(true);
         try {

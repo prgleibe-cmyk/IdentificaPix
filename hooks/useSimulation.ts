@@ -5,6 +5,7 @@ import { DateResolver } from '../core/processors/DateResolver';
 import { AmountResolver } from '../core/processors/AmountResolver';
 import { TypeResolver } from '../core/processors/TypeResolver';
 import { NameResolver } from '../core/processors/NameResolver';
+import { extractTransactionsWithModel, getRawStructuralDump } from '../services/geminiService';
 
 interface SafeTransaction extends Transaction {
     sourceIndex?: number;
@@ -17,9 +18,10 @@ interface UseSimulationProps {
     gridData: string[][];
     activeMapping: any;
     cleaningKeywords: string[];
+    rawBase64?: string;
 }
 
-export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: UseSimulationProps) => {
+export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBase64 }: UseSimulationProps) => {
     const [processedTransactions, setProcessedTransactions] = useState<SafeTransaction[]>([]);
     const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
     const [editingRowData, setEditingRowData] = useState<SafeTransaction | null>(null);
@@ -27,8 +29,9 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
     
     const lastDataRef = useRef<string>('');
     const lastMappingRef = useRef<string>('');
+    const initialReadDone = useRef<string | null>(null);
 
-    const runSimulation = useCallback(() => {
+    const runSimulation = useCallback(async () => {
         if (!gridData || gridData.length === 0) {
             setProcessedTransactions([]);
             return;
@@ -37,35 +40,70 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
         const mapping = activeMapping || { extractionMode: 'COLUMNS' };
         const isBlockMode = mapping.extractionMode === 'BLOCK';
 
-        // MODO BLOCO (SIMULAÇÃO POR JANELA DE CONTEXTO)
+        // 🧱 MODO BLOCO (EXECUÇÃO IA)
         if (isBlockMode) {
-            setIsSimulating(true);
-            // Na simulação, cada linha é um ponto de entrada, mas carrega as próximas 12 linhas como contexto
-            const blockPreview = gridData.map((row, i) => {
-                const text = row.join(' ').trim();
-                // Captura a linha atual + 11 linhas seguintes para o "Teacher" ver o bloco todo
-                const contextWindow = gridData.slice(i, i + 12).map(r => r.join(' '));
-                
-                return {
-                    id: `sim-block-${i}-${Date.now()}`,
-                    date: "---", 
-                    description: text, 
-                    rawDescription: text,
-                    amount: 0,
-                    originalAmount: "---",
-                    isValid: true,
-                    status: 'pending' as const,
-                    sourceIndex: i,
-                    sourceRawSnippet: contextWindow
-                };
-            }).filter(b => b.description.length > 2).slice(0, 100);
+            const isVisualDoc = gridData[0]?.[0] === '[DOCUMENTO_VISUAL]' || gridData[0]?.[0] === '[DOCUMENTO_PDF_VISUAL]';
+            
+            // FASE 1: Dump Bruto (Aguardando Ensino)
+            if (isVisualDoc && !mapping.blockContract) {
+                if (rawBase64 && initialReadDone.current !== rawBase64.substring(0, 100)) {
+                    setIsSimulating(true);
+                    try {
+                        const rawLines = await getRawStructuralDump(rawBase64);
+                        const mapped = rawLines.map((line: string, i: number) => ({
+                            id: `raw-dump-${i}-${Date.now()}`,
+                            date: "---",
+                            description: line, 
+                            rawDescription: line,
+                            amount: 0,
+                            originalAmount: "0.00",
+                            isValid: false,
+                            status: 'pending' as const,
+                            sourceIndex: i,
+                            sourceRawSnippet: [line]
+                        }));
+                        setProcessedTransactions(mapped);
+                        initialReadDone.current = rawBase64.substring(0, 100);
+                    } catch (e) {
+                        console.error("[Simulation] Falha no dump bruto:", e);
+                    } finally {
+                        setIsSimulating(false);
+                    }
+                }
+                return;
+            }
 
-            setProcessedTransactions(blockPreview);
-            setIsSimulating(false);
-            return;
+            // FASE 2: Execução Real do Padrão Aprendido
+            if (isVisualDoc && mapping.blockContract) {
+                setIsSimulating(true);
+                setProcessedTransactions([]); // Limpa preview para forçar refresh visual
+                try {
+                    console.log("[Simulation] EXECUÇÃO IMEDIATA DO PADRÃO...");
+                    const aiResults = await extractTransactionsWithModel("", mapping.blockContract, rawBase64);
+                    
+                    const mapped = (aiResults || []).map((tx: any, i: number) => ({
+                        id: `ai-extracted-${i}-${Date.now()}`,
+                        date: tx.date || "---",
+                        description: tx.description || "---",
+                        rawDescription: tx.description || "",
+                        amount: tx.amount || 0,
+                        originalAmount: String(tx.amount || "0"),
+                        isValid: true,
+                        status: 'valid' as const,
+                        sourceIndex: 0
+                    }));
+
+                    setProcessedTransactions(mapped);
+                } catch (e) {
+                    console.error("[Simulation] Falha na extração ensinada:", e);
+                } finally {
+                    setIsSimulating(false);
+                }
+                return;
+            }
         }
 
-        // MODO COLUNAS (DETERMINÍSTICO)
+        // 🚀 MODO COLUNAS (DETERMINÍSTICO)
         const isManualMappingComplete = mapping.dateColumnIndex >= 0 && mapping.amountColumnIndex >= 0;
 
         if (!isManualMappingComplete) {
@@ -121,7 +159,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
         });
         setProcessedTransactions(newTransactions);
         setIsSimulating(false);
-    }, [gridData, activeMapping, cleaningKeywords]);
+    }, [gridData, activeMapping, cleaningKeywords, rawBase64]);
 
     useEffect(() => {
         const dataHash = gridData.length > 0 ? `${gridData.length}-${gridData[0].join('|').substring(0, 50)}` : 'empty';
@@ -134,25 +172,13 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords }: Use
     }, [gridData, activeMapping, runSimulation]);
 
     return {
-        processedTransactions,
-        isSimulating,
-        runSimulation,
-        editingRowIndex,
-        editingRowData,
-        setEditingRowData,
-        startEdit: (tx: any, idx: number) => { 
-            setEditingRowIndex(idx); 
-            setEditingRowData({ ...tx }); 
-        },
+        processedTransactions, isSimulating, runSimulation, editingRowIndex, editingRowData, setEditingRowData,
+        startEdit: (tx: any, idx: number) => { setEditingRowIndex(idx); setEditingRowData({ ...tx }); },
         saveRow: (onLearned?: (raw: string[], corrected: any) => void) => {
             if (editingRowIndex !== null && editingRowData) {
                 const updatedTx = { ...editingRowData, status: 'edited' as const, isValid: true };
                 if (onLearned) onLearned(updatedTx.sourceRawSnippet || [], updatedTx);
-                setProcessedTransactions(prev => { 
-                    const n = [...prev]; 
-                    n[editingRowIndex] = updatedTx; 
-                    return n; 
-                });
+                setProcessedTransactions(prev => { const n = [...prev]; n[editingRowIndex] = updatedTx; return n; });
                 setEditingRowIndex(null);
             }
         },

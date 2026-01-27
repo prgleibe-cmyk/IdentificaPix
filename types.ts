@@ -37,6 +37,8 @@ export interface FileModel {
   };
   mapping: {
     extractionMode?: 'COLUMNS' | 'BLOCK';
+    // Fix: Added blockContract to support block-based AI extraction patterns
+    blockContract?: string;
     dateColumnIndex: number;
     descriptionColumnIndex: number;
     amountColumnIndex: number;

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PencilIcon, CheckCircleIcon, XMarkIcon, SparklesIcon, TableCellsIcon } from '../../Icons';
+import { PencilIcon, CheckCircleIcon, XMarkIcon, SparklesIcon, TableCellsIcon, ArrowPathIcon } from '../../Icons';
 
 interface SimulatedResultsTableProps {
     transactions: any[];
@@ -8,6 +8,7 @@ interface SimulatedResultsTableProps {
     isTestMode: boolean;
     editingRowIndex: number | null;
     editingRowData: any | null;
+    isSimulating?: boolean;
     onStartEdit: (tx: any, idx: number) => void;
     onSaveRow: () => void;
     onCancelEdit: () => void;
@@ -26,11 +27,27 @@ export const SimulatedResultsTable: React.FC<SimulatedResultsTableProps> = ({
     isTestMode,
     editingRowIndex,
     editingRowData,
+    isSimulating,
     onStartEdit,
     onSaveRow,
     onCancelEdit,
     onUpdateEditingData
 }) => {
+    if (isSimulating) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center bg-white dark:bg-[#0F172A] animate-fade-in">
+                <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse"></div>
+                    <ArrowPathIcon className="w-12 h-12 text-indigo-500 animate-spin relative z-10" />
+                </div>
+                <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-[0.2em] mb-2">IA Lendo Documento</h5>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 max-w-[200px] mx-auto leading-relaxed font-bold">
+                    Aguarde enquanto o Gemini extrai as transações do seu extrato visualmente.
+                </p>
+            </div>
+        );
+    }
+
     if (transactions.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center bg-white dark:bg-[#0F172A]">
@@ -101,7 +118,7 @@ export const SimulatedResultsTable: React.FC<SimulatedResultsTableProps> = ({
                     return (
                         <tr key={tx.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group ${isIgnored ? 'opacity-30 bg-slate-100 dark:bg-slate-900 pointer-events-none grayscale' : isInvalid ? 'opacity-60 bg-red-50/20' : isPending ? 'bg-amber-50/20 dark:bg-amber-900/10' : ''}`}>
                             <td className="p-3 font-mono text-slate-600 dark:text-slate-300">
-                                {activeMapping && tx.date && tx.date.includes('-') ? tx.date.split('-').reverse().join('/') : (tx.date || '---')}
+                                {tx.date && tx.date.includes('-') ? tx.date.split('-').reverse().join('/') : (tx.date || '---')}
                             </td>
                             <td className="p-3">
                                 <div className={`font-bold truncate max-w-[300px] ${isInvalid ? 'text-red-500' : 'text-slate-800 dark:text-slate-200'}`}>

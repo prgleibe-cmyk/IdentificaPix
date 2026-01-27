@@ -7,7 +7,7 @@ import { useUI } from '../contexts/UIContext';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 
 interface UseFileProcessingProps {
-    activeFile: { content: string; fileName: string; rawFile?: File } | null;
+    activeFile: { content: string; fileName: string; rawFile?: File; base64?: string } | null;
     initialModel?: FileModel;
     isPdf: boolean;
 }
@@ -18,8 +18,9 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
     const [isAiProcessing, setIsAiProcessing] = useState(false);
     const [activeMapping, setActiveMapping] = useState<any>(null);
     const [detectedFingerprint, setDetectedFingerprint] = useState<any>(null);
-    const { showToast } = useUI();
+    const [rawBase64, setRawBase64] = useState<string | undefined>(undefined);
     
+    const { showToast } = useUI();
     const processingRef = useRef<string | null>(null);
 
     useEffect(() => {
@@ -27,33 +28,29 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
             setGridData([]);
             setActiveMapping(null);
             setDetectedFingerprint(null);
+            setRawBase64(undefined);
             processingRef.current = null;
             return;
         }
 
-        const fileKey = `${activeFile.fileName}-${activeFile.content?.length || 0}`;
-        if (processingRef.current === fileKey) return;
-        processingRef.current = fileKey;
+        setRawBase64(activeFile.base64);
 
         const loadContent = async () => {
             setIsGridLoading(true);
-            setIsAiProcessing(false);
             let loadedRows: string[][] = [];
 
             try {
-                if (activeFile.rawFile && (activeFile.fileName.toLowerCase().endsWith('xls') || activeFile.fileName.toLowerCase().endsWith('xlsx'))) {
+                if (isPdf) {
+                    // Para PDF, não tentamos quebrar em grade. 
+                    // Enviamos uma linha mestre para habilitar a interface de ensino.
+                    loadedRows = [['[DOCUMENTO_VISUAL]', 'Analise Visual Ativa', 'IA']];
+                } else if (activeFile.rawFile && (activeFile.fileName.toLowerCase().endsWith('xls') || activeFile.fileName.toLowerCase().endsWith('xlsx'))) {
                     const buffer = await activeFile.rawFile.arrayBuffer();
                     const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
-                    // Fidelidade: defval: '' e header: 1 preservam a grade original
                     const rawData = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
-                    
-                    // Filtra apenas linhas 100% vazias para manter paridade com o uploader
-                    loadedRows = rawData
-                        .filter(row => row.join('').trim().length > 0)
-                        .map(row => row.map(cell => String(cell || '').trim()));
-                } 
-                else {
+                    loadedRows = rawData.filter(row => row.join('').trim().length > 0).map(row => row.map(cell => String(cell || '').trim()));
+                } else {
                     const content = activeFile.content || "";
                     if (content.trim()) {
                         const normalized = IngestionOrchestrator.normalizeRawContent(content);
@@ -63,7 +60,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
 
                 if (loadedRows.length > 0) {
                     setGridData(loadedRows);
-                    const sampleContentForFp = loadedRows.slice(0, 30).map(r => r.join(';')).join('\n');
+                    const sampleContentForFp = isPdf ? activeFile.fileName : loadedRows.slice(0, 30).map(r => r.join(';')).join('\n');
                     const fp = generateFingerprint(sampleContentForFp);
                     setDetectedFingerprint(fp);
                     
@@ -71,7 +68,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                         setActiveMapping(initialModel.mapping);
                     } else {
                         setActiveMapping({
-                            extractionMode: 'COLUMNS',
+                            extractionMode: isPdf ? 'BLOCK' : 'COLUMNS',
                             dateColumnIndex: -1,
                             descriptionColumnIndex: -1,
                             amountColumnIndex: -1,
@@ -80,7 +77,6 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     }
                 }
             } catch (err) {
-                console.error("Erro no laboratório:", err);
                 showToast("Erro ao ler estrutura do arquivo.", "error");
             } finally {
                 setIsGridLoading(false);
@@ -91,12 +87,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
     }, [activeFile, isPdf, initialModel, showToast]);
 
     return {
-        gridData,
-        setGridData,
-        isGridLoading,
-        isAiProcessing,
-        activeMapping,
-        setActiveMapping,
-        detectedFingerprint
+        gridData, setGridData, isGridLoading, isAiProcessing,
+        activeMapping, setActiveMapping, detectedFingerprint, rawBase64
     };
 };

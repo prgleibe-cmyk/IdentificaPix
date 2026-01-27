@@ -16,7 +16,8 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
     const { 
         selectedBankIds,
         toggleBankSelection,
-        removeBankStatementFile
+        removeBankStatementFile,
+        handleStatementUpload // Adicionado para referência direta caso necessário
     } = useContext(AppContext);
     
     const { t } = useTranslation();
@@ -32,7 +33,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                     ref={ctrl.uploaderRef}
                     id={`bank-${bank.id}`}
                     title="Upload"
-                    onFileUpload={ctrl.handleFileUploadWrapper}
+                    onFileUpload={(content, fileName, rawFile, base64) => handleStatementUpload(content, fileName, bank.id, rawFile, base64)}
                     isUploaded={false}
                     uploadedFileName={null}
                     onParsingStatusChange={ctrl.setIsUploading}

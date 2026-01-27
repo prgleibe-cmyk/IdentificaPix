@@ -9,19 +9,22 @@ interface UseAIPatternTeacherProps {
     setActiveMapping: (mapping: any) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
     fullFileText?: string;
+    rawBase64?: string; 
 }
 
 export const useAIPatternTeacher = ({
     gridData,
     setGridData,
     setActiveMapping,
-    showToast
+    showToast,
+    fullFileText,
+    rawBase64
 }: UseAIPatternTeacherProps) => {
     const [isInferringMapping, setIsInferringMapping] = useState(false);
     const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any } | null>(null);
 
     const handleApplyCorrectionPattern = useCallback(async (extractionMode: 'COLUMNS' | 'BLOCK' = 'COLUMNS') => {
-        if (!learnedPatternSource) return;
+        if (!learnedPatternSource || isInferringMapping) return;
         
         setIsInferringMapping(true);
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
@@ -29,43 +32,48 @@ export const useAIPatternTeacher = ({
         try {
             const isBlockMode = extractionMode === 'BLOCK';
             
-            const prompt = isBlockMode 
-            ? `VOCÊ É UM PROGRAMADOR DE EXTRATORES DE TEXTO. 
-            O administrador corrigiu uma linha que eu extraí errado. Eu li apenas uma linha, mas ele preencheu dados que estão espalhados em várias linhas seguintes.
-
-            TEXTO BRUTO DE ORIGEM (Janela de 12 linhas):
-            ${learnedPatternSource.originalRaw.map((l, i) => `[LINHA ${i}]: "${l}"`).join('\n')}
-
-            O QUE O HUMANO PREENCHEU (GABARITO):
-            - Data: "${learnedPatternSource.corrected.date}"
-            - Nome/Descrição: "${learnedPatternSource.corrected.description}"
-            - Valor: "${learnedPatternSource.corrected.amount}"
-
-            SUA MISSÃO:
-            1. Encontre em quais índices de [LINHA X] estão cada um dos dados acima.
-            2. Calcule o "TAMANHO DO BLOCO": Quantas linhas (do [LINHA 0] até o final do registro) compõem uma transação completa?
-            3. Gere uma "RECEITA" descrevendo os saltos. Ex: "A transação começa na linha que tem uma data. O nome está 2 linhas abaixo. O registro termina após 5 linhas."
-
-            IMPORTANTE: Responda no formato JSON solicitado.`
+            const instruction = isBlockMode 
+            ? `VOCÊ É UM ENGENHEIRO DE REPRODUÇÃO ESTRUTURAL. O Admin editou uma linha modelo para te ensinar como extrair dados.
+            --- LINHA MODELO ---
+            Bruto: "${learnedPatternSource.originalRaw.join(' | ')}"
+            Esperado: Date:"${learnedPatternSource.corrected.date}" | Desc:"${learnedPatternSource.corrected.description}" | Amount:"${learnedPatternSource.corrected.amount}"
+            Gere a "blockRecipe" JSON com a regra algorítmica e "confidence".`
             
-            : `VOCÊ É UM EXTRATOR DE PADRÕES ESTRUTURAIS LATERAIS.
-            Mapeie os índices de colunas (0 a N) baseando-se na correção:
+            : `VOCÊ É UM EXTRATOR DE ÍNDICES DE COLUNA. Determine os índices de 0 a N correspondentes:
             BRUTO: "${learnedPatternSource.originalRaw.join(' ; ')}"
             GABARITO: Data: "${learnedPatternSource.corrected.date}", Nome: "${learnedPatternSource.corrected.description}", Valor: "${learnedPatternSource.corrected.amount}"`;
 
+            const contents: any = { parts: [] };
+
+            if (isBlockMode && rawBase64) {
+                contents.parts.push({
+                    inlineData: {
+                        data: rawBase64,
+                        mimeType: 'application/pdf'
+                    }
+                });
+            } else if (fullFileText) {
+                // FATIAMENTO: Envia apenas os primeiros 5000 caracteres como contexto para economizar tokens
+                contents.parts.push({ text: `CONTEÚDO DO DOCUMENTO (AMOSTRA):\n${fullFileText.substring(0, 5000)}` });
+            }
+
+            contents.parts.push({ text: instruction });
+
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
-                contents: prompt,
+                model: 'gemini-3-flash-preview', // Uso de modelo Flash para economia no treinamento
+                contents: contents,
                 config: { 
                     temperature: 0,
+                    maxOutputTokens: 800,
+                    thinkingConfig: { thinkingBudget: 0 },
                     responseMimeType: "application/json",
                     responseSchema: isBlockMode ? {
                         type: Type.OBJECT,
                         properties: {
-                            blockRecipe: { type: Type.STRING, description: "Instrução técnica detalhada de como agrupar as linhas" },
-                            linesPerRecord: { type: Type.INTEGER, description: "Número exato de linhas físicas por transação" }
+                            blockRecipe: { type: Type.STRING },
+                            confidence: { type: Type.NUMBER }
                         },
-                        required: ["blockRecipe", "linesPerRecord"]
+                        required: ["blockRecipe"]
                     } : {
                         type: Type.OBJECT,
                         properties: {
@@ -86,17 +94,12 @@ export const useAIPatternTeacher = ({
                     return {
                         ...prev,
                         extractionMode: 'BLOCK',
-                        blockContract: `MAPA POSICIONAL: ${result.blockRecipe} | RITMO: ${result.linesPerRecord} linhas por registro.`,
+                        blockContract: `CONTRATO RÍGIDO: [${learnedPatternSource.originalRaw.join(' | ')}] -> Date:${learnedPatternSource.corrected.date} | Desc:${learnedPatternSource.corrected.description} | Amount:${learnedPatternSource.corrected.amount}. REGRA: ${result.blockRecipe}`,
                         dateColumnIndex: -1,
                         descriptionColumnIndex: -1,
                         amountColumnIndex: -1
                     };
                 }
-
-                const newIgnored = Array.from(new Set([
-                    ...(prev.ignoredKeywords || []), 
-                    ...(result.ignoredKeywords || [])
-                ].map(k => k.trim().toUpperCase()))).filter(k => k.length >= 2);
 
                 return {
                     ...prev,
@@ -104,18 +107,19 @@ export const useAIPatternTeacher = ({
                     dateColumnIndex: result.dateColumnIndex,
                     descriptionColumnIndex: result.descriptionColumnIndex,
                     amountColumnIndex: result.amountColumnIndex,
-                    ignoredKeywords: newIgnored
+                    ignoredKeywords: result.ignoredKeywords || []
                 };
             });
-            showToast("Padrão de bloco aprendido.", "success");
+
+            showToast("Padrão aprendido!", "success");
         } catch (e: any) {
             console.error("[PatternTeacher] Fail:", e);
-            showToast("IA não conseguiu identificar o padrão de agrupamento.", "error");
+            showToast("Erro ao aprender o padrão.", "error");
         } finally {
             setIsInferringMapping(false);
             setLearnedPatternSource(null);
         }
-    }, [learnedPatternSource, setActiveMapping, showToast]);
+    }, [learnedPatternSource, isInferringMapping, rawBase64, fullFileText, setActiveMapping, showToast]);
 
     return {
         isInferringMapping,
