@@ -8,7 +8,7 @@ const runTests = async () => {
     clearTestResults();
     try {
         await import('../services/processingService.test');
-        // coreEngine.test removido pois foi deletado do projeto
+        await import('../services/coreEngine.test');
     } catch (e) {
         console.error("Erro ao carregar suíte de testes:", e);
     }
