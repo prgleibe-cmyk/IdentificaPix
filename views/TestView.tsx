@@ -1,14 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-// Fix: Import TestResult from testRunner
 import { getTestResults, clearTestResults, TestResult } from '../utils/testRunner';
 import { CheckCircleIcon, XCircleIcon, BoltIcon } from '../components/Icons';
 
 // Execução dinâmica das suítes de teste
 const runTests = async () => {
     clearTestResults();
-    // Importa apenas as suítes de teste que foram mantidas
-    await import('../services/processingService.test');
+    // Importa apenas as suítes de teste que permanecem no projeto
+    try {
+        await import('../services/processingService.test');
+    } catch (e) {
+        console.error("Erro ao carregar suíte de testes:", e);
+    }
     return getTestResults();
 };
 
@@ -18,7 +21,6 @@ export const TestView: React.FC = () => {
 
     useEffect(() => {
         runTests().then(res => {
-            // Fix: Cast result to TestResult[]
             setResults(res as TestResult[]);
             setRunning(false);
         });
@@ -42,11 +44,11 @@ export const TestView: React.FC = () => {
             <div className="flex items-center justify-between px-1">
                 <div>
                     <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight">QA & Integridade</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Validação automatizada das regras de negócio do Core Engine.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Validação automatizada das regras de negócio.</p>
                 </div>
                 {running ? (
                     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase animate-pulse">
-                        <BoltIcon className="w-3 h-3" /> Executando Testes...
+                        <BoltIcon className="w-3 h-3" /> Executando...
                     </div>
                 ) : (
                     <div className="flex items-center gap-3">
@@ -89,6 +91,11 @@ export const TestView: React.FC = () => {
                         </div>
                     </div>
                 ))}
+                {!running && results.length === 0 && (
+                    <div className="text-center py-12 text-slate-400 italic text-sm">
+                        Nenhuma suíte de teste encontrada.
+                    </div>
+                )}
             </div>
         </div>
     );
