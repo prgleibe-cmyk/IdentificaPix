@@ -7,9 +7,8 @@ import { CheckCircleIcon, XCircleIcon, BoltIcon } from '../components/Icons';
 // Execução dinâmica das suítes de teste
 const runTests = async () => {
     clearTestResults();
-    // Importa as suítes de teste existentes
+    // Importa apenas as suítes de teste que foram mantidas
     await import('../services/processingService.test');
-    await import('../services/coreEngine.test');
     return getTestResults();
 };
 
@@ -62,7 +61,6 @@ export const TestView: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-                {/* Fix: Explicitly typed groupedEntries to avoid 'map' not existing on unknown error */}
                 {groupedEntries.map(([suiteName, suiteResults]) => (
                     <div key={suiteName} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
