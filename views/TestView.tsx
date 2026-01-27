@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { getTestResults, clearTestResults, TestResult } from '../utils/testRunner';
 import { CheckCircleIcon, XCircleIcon, BoltIcon } from '../components/Icons';
@@ -9,6 +8,7 @@ const runTests = async () => {
     // Importa apenas as suítes de teste que permanecem no projeto
     try {
         await import('../services/processingService.test');
+        await import('../services/coreEngine.test');
     } catch (e) {
         console.error("Erro ao carregar suíte de testes:", e);
     }
@@ -21,7 +21,7 @@ export const TestView: React.FC = () => {
 
     useEffect(() => {
         runTests().then(res => {
-            setResults(res as TestResult[]);
+            setResults(res);
             setRunning(false);
         });
     }, []);
@@ -37,7 +37,7 @@ export const TestView: React.FC = () => {
         return acc;
     }, {} as Record<string, TestResult[]>);
 
-    const groupedEntries = Object.entries(groupedResults) as [string, TestResult[]][];
+    const groupedEntries = Object.entries(groupedResults);
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-4 pb-6 overflow-y-auto custom-scrollbar">
@@ -48,7 +48,7 @@ export const TestView: React.FC = () => {
                 </div>
                 {running ? (
                     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase animate-pulse">
-                        <BoltIcon className="w-3 h-3" /> Executando...
+                        <BoltIcon className="w-3" /> Executando...
                     </div>
                 ) : (
                     <div className="flex items-center gap-3">
@@ -63,12 +63,14 @@ export const TestView: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-                {groupedEntries.map(([suiteName, suiteResults]) => (
+                {/* suiteResults was being inferred as unknown, added explicit typing below to fix TS error */}
+                {groupedEntries.map(([suiteName, suiteResults]: [string, TestResult[]]) => (
                     <div key={suiteName} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="px-5 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{suiteName}</h4>
                         </div>
                         <div className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                            {/* suiteResults is now correctly typed as TestResult[] ensuring .map exists */}
                             {suiteResults.map((result, index) => (
                                 <div key={index} className="px-5 py-3 flex items-start gap-4 group hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
                                     {result.passed ? (

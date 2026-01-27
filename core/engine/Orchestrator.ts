@@ -1,7 +1,7 @@
 
 /**
  * ORCHESTRATOR LEGADO (DESATIVADO)
- * Mantido apenas como casca para retrocompatibilidade de tipos se necessário.
+ * Mantido apenas como casca para retrocompatibilidade de tipos.
  * O sistema atual utiliza IngestionOrchestrator.ts
  */
 export class Orchestrator {
