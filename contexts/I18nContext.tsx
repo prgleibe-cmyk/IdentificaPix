@@ -1,6 +1,5 @@
 
-import React, { createContext, useState, useCallback, useContext } from 'react';
-import { usePersistentState } from '../hooks/usePersistentState';
+import React, { createContext, useCallback, useContext } from 'react';
 import { translations } from '../lib/translations';
 import { Language } from '../types';
 
@@ -27,12 +26,18 @@ export const useTranslation = () => {
 
 // Provider component that wraps the application
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [language, setLanguage] = usePersistentState<Language>('identificapix-lang', 'pt');
+    // Locked to 'pt' as support for other languages was removed
+    const language: Language = 'pt';
 
     // useCallback ensures the translation function 't' is memoized
     const t = useCallback((key: TranslationKey) => {
         return translations[language][key] || key;
     }, [language]);
+    
+    // setLanguage is now a no-op as there are no other languages to switch to
+    const setLanguage = useCallback((lang: Language) => {
+        console.warn("Language switching is disabled. IdentificaPix is currently PT-BR only.");
+    }, []);
     
     const value = { t, setLanguage, language };
 

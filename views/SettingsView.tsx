@@ -1,3 +1,4 @@
+
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
@@ -25,12 +26,8 @@ import {
 const PreferencesTab: React.FC = () => {
     const { openDeleteConfirmation, deleteOldReports, savedReports } = useContext(AppContext);
     const { theme, toggleTheme } = useUI();
-    const { t, language, setLanguage } = useTranslation();
+    const { t } = useTranslation();
     const [monthsToKeep, setMonthsToKeep] = useState(6);
-
-    const handleLanguageChange = (lang: Language) => {
-        setLanguage(lang);
-    };
 
     const handleCleanOldReports = () => {
         const date = new Date();
@@ -98,26 +95,6 @@ const PreferencesTab: React.FC = () => {
                                     <div className="bg-white w-5 h-5 rounded-full shadow-sm"></div>
                                 </div>
                             </button>
-
-                            <div className="relative group">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-full text-emerald-600 dark:text-emerald-400 pointer-events-none">
-                                    <GlobeAltIcon className="w-4 h-4" />
-                                </div>
-                                <select 
-                                    onChange={(e) => handleLanguageChange(e.target.value as Language)} 
-                                    value={language} 
-                                    className="block w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 text-brand-graphite dark:text-white text-xs font-bold shadow-sm focus:border-emerald-500 focus:ring-emerald-500 outline-none cursor-pointer appearance-none hover:border-emerald-200 transition-all"
-                                >
-                                    <option value="pt">Português (Brasil)</option>
-                                    <option value="en">English (US)</option>
-                                    <option value="es">Español</option>
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                        {language.toUpperCase()}
-                                    </span>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
