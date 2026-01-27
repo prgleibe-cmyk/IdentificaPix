@@ -20,52 +20,59 @@ export const useAIPatternTeacher = ({
     const [isInferringMapping, setIsInferringMapping] = useState(false);
     const [learnedPatternSource, setLearnedPatternSource] = useState<{ originalRaw: string[], corrected: any } | null>(null);
 
-    const handleApplyCorrectionPattern = useCallback(async () => {
+    const handleApplyCorrectionPattern = useCallback(async (extractionMode: 'COLUMNS' | 'BLOCK' = 'COLUMNS') => {
         if (!learnedPatternSource) return;
         
         setIsInferringMapping(true);
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
         try {
-            // Prompts mais rígidos e explicativos para evitar alucinações da IA
-            const prompt = `Você é um Engenheiro de Dados especialista em extratos bancários.
-            O Usuário Admin está te ENSINANDO um padrão fixo de extração através de um EXEMPLO REAL (Modelo de Ouro).
+            const isBlockMode = extractionMode === 'BLOCK';
             
-            DADOS DO EXEMPLO:
-            - Linha Bruta (colunas separadas por ';'): "${learnedPatternSource.originalRaw.join(' ; ')}"
-            - Como deve ficar o Nome/Descrição final: "${learnedPatternSource.corrected.description}"
-            - Como deve ficar o Valor final: "${learnedPatternSource.corrected.amount}"
-            - Como deve ficar a Data final: "${learnedPatternSource.corrected.date}"
+            const prompt = isBlockMode 
+            ? `VOCÊ É UM PROGRAMADOR DE EXTRATORES DE TEXTO. 
+            O administrador corrigiu uma linha que eu extraí errado. Eu li apenas uma linha, mas ele preencheu dados que estão espalhados em várias linhas seguintes.
+
+            TEXTO BRUTO DE ORIGEM (Janela de 12 linhas):
+            ${learnedPatternSource.originalRaw.map((l, i) => `[LINHA ${i}]: "${l}"`).join('\n')}
+
+            O QUE O HUMANO PREENCHEU (GABARITO):
+            - Data: "${learnedPatternSource.corrected.date}"
+            - Nome/Descrição: "${learnedPatternSource.corrected.description}"
+            - Valor: "${learnedPatternSource.corrected.amount}"
+
+            SUA MISSÃO:
+            1. Encontre em quais índices de [LINHA X] estão cada um dos dados acima.
+            2. Calcule o "TAMANHO DO BLOCO": Quantas linhas (do [LINHA 0] até o final do registro) compõem uma transação completa?
+            3. Gere uma "RECEITA" descrevendo os saltos. Ex: "A transação começa na linha que tem uma data. O nome está 2 linhas abaixo. O registro termina após 5 linhas."
+
+            IMPORTANTE: Responda no formato JSON solicitado.`
             
-            SUA TAREFA:
-            1. Identifique os índices exatos (base zero) das colunas de Data, Descrição e Valor na linha bruta.
-            2. Analise a coluna de descrição bruta e identifique quais partes o admin removeu para chegar no "Nome Corrigido". 
-               Essas partes são "Palavras de Ruído" (ex: "PIX RECEBIDO", "TRANSF", "DOCTO").
-            3. Crie uma regra de extração DETERMINÍSTICA baseada APENAS nestas posições. 
-            
-            REGRAS CRÍTICAS:
-            - NUNCA tente adivinhar dados que não existem.
-            - NUNCA sugira palavras de ruído que não apareçam claramente na linha bruta.
-            - Seja extremamente conservador: o objetivo é fidelidade absoluta ao que o Admin ensinou.`;
+            : `VOCÊ É UM EXTRATOR DE PADRÕES ESTRUTURAIS LATERAIS.
+            Mapeie os índices de colunas (0 a N) baseando-se na correção:
+            BRUTO: "${learnedPatternSource.originalRaw.join(' ; ')}"
+            GABARITO: Data: "${learnedPatternSource.corrected.date}", Nome: "${learnedPatternSource.corrected.description}", Valor: "${learnedPatternSource.corrected.amount}"`;
 
             const response = await ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
                 contents: prompt,
                 config: { 
                     temperature: 0,
-                    thinkingConfig: { thinkingBudget: 4000 },
                     responseMimeType: "application/json",
-                    responseSchema: {
+                    responseSchema: isBlockMode ? {
                         type: Type.OBJECT,
                         properties: {
-                            dateColumnIndex: { type: Type.INTEGER, description: "Índice da coluna de data" },
-                            descriptionColumnIndex: { type: Type.INTEGER, description: "Índice da coluna de descrição/nome" },
-                            amountColumnIndex: { type: Type.INTEGER, description: "Índice da coluna de valor monetário" },
-                            ignoredKeywords: { 
-                                type: Type.ARRAY, 
-                                items: { type: Type.STRING },
-                                description: "Lista de termos fixos identificados como ruído na descrição" 
-                            }
+                            blockRecipe: { type: Type.STRING, description: "Instrução técnica detalhada de como agrupar as linhas" },
+                            linesPerRecord: { type: Type.INTEGER, description: "Número exato de linhas físicas por transação" }
+                        },
+                        required: ["blockRecipe", "linesPerRecord"]
+                    } : {
+                        type: Type.OBJECT,
+                        properties: {
+                            dateColumnIndex: { type: Type.INTEGER },
+                            descriptionColumnIndex: { type: Type.INTEGER },
+                            amountColumnIndex: { type: Type.INTEGER },
+                            ignoredKeywords: { type: Type.ARRAY, items: { type: Type.STRING } }
                         },
                         required: ["dateColumnIndex", "descriptionColumnIndex", "amountColumnIndex", "ignoredKeywords"]
                     }
@@ -74,24 +81,36 @@ export const useAIPatternTeacher = ({
 
             const result = JSON.parse(response.text || "{}");
             
-            if (result && typeof result.dateColumnIndex === 'number') {
-                setActiveMapping((prev: any) => ({
+            setActiveMapping((prev: any) => {
+                if (isBlockMode) {
+                    return {
+                        ...prev,
+                        extractionMode: 'BLOCK',
+                        blockContract: `MAPA POSICIONAL: ${result.blockRecipe} | RITMO: ${result.linesPerRecord} linhas por registro.`,
+                        dateColumnIndex: -1,
+                        descriptionColumnIndex: -1,
+                        amountColumnIndex: -1
+                    };
+                }
+
+                const newIgnored = Array.from(new Set([
+                    ...(prev.ignoredKeywords || []), 
+                    ...(result.ignoredKeywords || [])
+                ].map(k => k.trim().toUpperCase()))).filter(k => k.length >= 2);
+
+                return {
                     ...prev,
-                    extractionMode: 'COLUMNS', // Força modo determinístico após aprendizado
+                    extractionMode: 'COLUMNS',
                     dateColumnIndex: result.dateColumnIndex,
                     descriptionColumnIndex: result.descriptionColumnIndex,
                     amountColumnIndex: result.amountColumnIndex,
-                    // Une as palavras aprendidas agora com as que o modelo já tinha, sem duplicar
-                    ignoredKeywords: Array.from(new Set([
-                        ...(prev.ignoredKeywords || []), 
-                        ...(result.ignoredKeywords || [])
-                    ].map(k => k.trim().toUpperCase()))).filter(k => k.length > 2)
-                }));
-                showToast("Padrão aprendido com sucesso! Aplicando regra rígida.", "success");
-            }
+                    ignoredKeywords: newIgnored
+                };
+            });
+            showToast("Padrão de bloco aprendido.", "success");
         } catch (e: any) {
-            console.error("[Teacher] Fail:", e);
-            showToast("IA não conseguiu processar o padrão deste exemplo.", "error");
+            console.error("[PatternTeacher] Fail:", e);
+            showToast("IA não conseguiu identificar o padrão de agrupamento.", "error");
         } finally {
             setIsInferringMapping(false);
             setLearnedPatternSource(null);

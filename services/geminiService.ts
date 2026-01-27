@@ -15,19 +15,17 @@ const safeJsonParse = (input: any, fallback: any = []) => {
 
     try {
         const parsed = JSON.parse(sanitized);
-        return parsed.rows || parsed.transactions || (Array.isArray(parsed) ? parsed : fallback);
+        if (parsed.rows) return parsed.rows;
+        return Array.isArray(parsed) ? parsed : fallback;
     } catch (e) {
         return fallback;
     }
 };
 
-/**
- * INFERÊNCIA DE MAPEAMENTO (V42 - RIGOR ESTRUTURAL)
- */
 export const inferMappingFromSample = async (sampleText: string): Promise<any> => {
     const ai = getAIClient();
-    const prompt = `Analise este extrato bancário e identifique a estrutura de colunas e padrões de limpeza.
-    Amostra do Extrato:
+    const prompt = `Analise a estrutura física e topologia deste arquivo bancário.
+    TEXTO:
     ${sampleText}`;
 
     const response = await ai.models.generateContent({
@@ -35,40 +33,50 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
         contents: prompt,
         config: { 
             temperature: 0, 
-            thinkingConfig: { thinkingBudget: 2000 },
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
-                    extractionMode: { type: Type.STRING, description: "'COLUMNS' para arquivos tabulares (Excel/CSV) ou 'BLOCK' para texto corrido/PDFs complexos" },
+                    extractionMode: { type: Type.STRING },
                     dateColumnIndex: { type: Type.INTEGER },
                     descriptionColumnIndex: { type: Type.INTEGER },
                     amountColumnIndex: { type: Type.INTEGER },
-                    suggestedIgnoredKeywords: { 
-                        type: Type.ARRAY, 
-                        items: { type: Type.STRING },
-                        description: "Termos repetitivos que não fazem parte do nome do pagador/recebedor"
-                    },
-                    skipRowsStart: { type: Type.INTEGER, description: "Número de linhas de cabeçalho a pular" }
+                    skipRowsStart: { type: Type.INTEGER }
                 },
                 required: ["extractionMode", "dateColumnIndex", "descriptionColumnIndex", "amountColumnIndex", "skipRowsStart"]
             }
         }
     });
-
-    try {
-        return JSON.parse(response.text || "{}");
-    } catch (e) {
-        return null;
-    }
+    return JSON.parse(response.text || "{}");
 };
 
 export const extractTransactionsWithModel = async (rawText: string, modelContext?: string): Promise<any> => {
     const ai = getAIClient();
-    const finalPrompt = `Transforme o TEXTO em JSON seguindo o CONTRATO fornecido.
-        ${modelContext ? `CONTRATO:\n${modelContext}\n` : ''}
-        TEXTO:
-        ${rawText}`;
+    
+    // SISTEMA DE REPLICAÇÃO RÍGIDA (V7 - BLINDAGEM DE BLOCO)
+    const isBlockPattern = modelContext?.includes("RITMO");
+
+    const finalPrompt = isBlockPattern 
+    ? `VOCÊ É UM MOTOR DE EXTRAÇÃO DE BLOCOS RÍGIDOS.
+       PROIBIDO: Não trate cada linha de texto como um registro.
+       PROIBIDO: Não invente dados.
+       
+       CONTRATO DE AGRUPAMENTO (RECEITA):
+       ${modelContext}
+       
+       TEXTO BRUTO PARA PROCESSAR:
+       ${rawText}
+
+       INSTRUÇÕES DE EXECUÇÃO:
+       1. Identifique o início de uma transação (geralmente uma linha com data).
+       2. Use a RECEITA acima para saltar o número exato de linhas e capturar o Nome e o Valor.
+       3. Combine as informações capturadas em várias linhas em um único objeto JSON por transação.
+       4. Avance para o próximo bloco somente após processar todas as linhas do bloco atual.`
+    
+    : `REPLIQUE O PADRÃO DE COLUNAS:
+       ${modelContext}
+       TEXTO:
+       ${rawText}`;
 
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -86,9 +94,7 @@ export const extractTransactionsWithModel = async (rawText: string, modelContext
                             properties: {
                                 date: { type: Type.STRING },
                                 description: { type: Type.STRING },
-                                amount: { type: Type.NUMBER },
-                                type: { type: Type.STRING },
-                                paymentMethod: { type: Type.STRING }
+                                amount: { type: Type.NUMBER }
                             },
                             required: ["date", "description", "amount"]
                         }

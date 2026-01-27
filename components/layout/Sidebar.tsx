@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo, useContext } from 'react';
+import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
@@ -24,7 +23,9 @@ import {
     DocumentDuplicateIcon,
     TableCellsIcon,
     BanknotesIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -34,8 +35,27 @@ export const Sidebar: React.FC = () => {
     const { openPaymentModal, isSyncing } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
+
+    useEffect(() => {
+        const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFsChange);
+        return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    }, []);
+
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(e => {
+                console.error(`Error attempting to enable full-screen mode: ${e.message}`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    };
 
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [
@@ -137,23 +157,34 @@ export const Sidebar: React.FC = () => {
                 </nav>
 
                 <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>
-                    <div className={`flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
+                    <div className={`flex flex-col gap-2`}>
+                        <div className={`flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
+                            <button 
+                                onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
+                                className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}
+                                title="Suporte WhatsApp"
+                            >
+                                <WhatsAppIcon className="w-4 h-4" />
+                                {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
+                            </button>
+                            
+                            <button 
+                                onClick={openPaymentModal} 
+                                className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
+                                title={isCollapsed ? `${subscription.daysRemaining} dias restantes` : ''}
+                            >
+                                <StatusIcon className="w-4 h-4" />
+                                {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
+                            </button>
+                        </div>
+
                         <button 
-                            onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
-                            className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}
-                            title="Suporte WhatsApp"
+                            onClick={toggleFullscreen} 
+                            className={`flex items-center justify-center rounded-full text-slate-400 hover:text-brand-blue bg-white/5 border border-white/10 hover:bg-white/10 transition-all ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
+                            title={isFullscreen ? 'Sair de Tela Cheia' : 'Tela Cheia'}
                         >
-                            <WhatsAppIcon className="w-4 h-4" />
-                            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
-                        </button>
-                        
-                        <button 
-                            onClick={openPaymentModal} 
-                            className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
-                            title={isCollapsed ? `${subscription.daysRemaining} dias restantes` : ''}
-                        >
-                            <StatusIcon className="w-4 h-4" />
-                            {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
+                            {isFullscreen ? <ArrowsPointingInIcon className="w-4 h-4" /> : <ArrowsPointingOutIcon className="w-4 h-4" />}
+                            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">{isFullscreen ? 'Sair Tela Cheia' : 'Tela Cheia'}</span>}
                         </button>
                     </div>
 

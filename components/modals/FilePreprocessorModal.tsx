@@ -33,7 +33,6 @@ export const FilePreprocessorModal: React.FC<{
     const { user } = useAuth(); 
     const context = useContext(AppContext);
     
-    // Blindagem de Contexto: Garante que os iteráveis existam mesmo se o context falhar momentaneamente
     const effectiveIgnoreKeywords = context?.effectiveIgnoreKeywords || [];
     const contributionKeywords = context?.contributionKeywords || [];
     const fetchModels = context?.fetchModels;
@@ -53,7 +52,6 @@ export const FilePreprocessorModal: React.FC<{
     const activeFile = initialFile || uploadedFile || null;
     const isPdf = useMemo(() => /\.pdf$/i.test(activeFile?.fileName || ''), [activeFile]);
     
-    // FIX: Spread seguro com fallbacks para arrays vazios
     const cleaningKeywords = useMemo(() => [
         ...(effectiveIgnoreKeywords || []), 
         ...(contributionKeywords || [])
@@ -91,6 +89,9 @@ export const FilePreprocessorModal: React.FC<{
         try {
             const finalSnippet = gridData.map(row => row.join(';')).join('\n');
             
+            // Extrai as palavras aprendidas do mapeamento temporário para as parsingRules permanentes
+            const learnedKeywords = activeMapping.ignoredKeywords || [];
+            
             const modelData: any = { 
                 name: finalName, 
                 user_id: user.id, 
@@ -101,8 +102,14 @@ export const FilePreprocessorModal: React.FC<{
                     ...detectedFingerprint,
                     delimiter: detectedFingerprint.delimiter || ';'
                 }, 
-                mapping: activeMapping, 
-                parsingRules: { ignoredKeywords: [], rowFilters: [] }, 
+                mapping: {
+                    ...activeMapping,
+                    ignoredKeywords: undefined // Remove do mapeamento principal para manter limpo
+                }, 
+                parsingRules: { 
+                    ignoredKeywords: learnedKeywords, 
+                    rowFilters: [] 
+                }, 
                 snippet: finalSnippet, 
                 status: approvalStatus 
             };

@@ -192,3 +192,25 @@ export const PhotoIcon: React.FC<any> = (props) => (
         <polyline points="21 15 16 10 5 21" />
     </BaseIcon>
 );
+
+export const ArrowsPointingOutIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="m15 3 6 6" />
+        <path d="m9 21-6-6" />
+        <path d="M21 3v6h-6" />
+        <path d="M3 21v-6h6" />
+        <path d="M21 3 14.5 9.5" />
+        <path d="M3 21 9.5 14.5" />
+    </BaseIcon>
+);
+
+export const ArrowsPointingInIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="m2 2 6 6" />
+        <path d="m22 22-6-6" />
+        <path d="M8 2v6H2" />
+        <path d="M16 22v-6h6" />
+        <path d="m12 12 10-10" />
+        <path d="m12 12-10 10" />
+    </BaseIcon>
+);

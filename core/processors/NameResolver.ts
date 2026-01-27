@@ -1,6 +1,6 @@
 
 /**
- * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V5 - LIMPEZA DINÂMICA)
+ * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V6 - RIGOR ABSOLUTO)
  */
 export class NameResolver {
   
@@ -12,6 +12,7 @@ export class NameResolver {
         row.forEach((cell, index) => {
             if (excludedIndices.includes(index)) return;
             const val = String(cell || '').trim();
+            // Pontua colunas que não parecem números puros e têm tamanho razoável
             if (val.length > 4 && !/^[\d.,R$\s\-()]+$/.test(val)) {
                 scores[index] += 1;
                 if (val.split(' ').length > 1) scores[index] += 0.5;
@@ -24,57 +25,74 @@ export class NameResolver {
 
   /**
    * LIMPEZA DETERMINÍSTICA: Remove termos de ruído aprendidos ou globais.
+   * Não adivinha, apenas remove o que foi explicitamente solicitado.
    */
   static clean(rawName: string, modelKeywords: string[] = [], globalKeywords: string[] = []): string {
     if (!rawName) return '';
     
+    // Converte para uppercase para comparação case-insensitive
     let cleaned = rawName.toUpperCase();
     
-    // Une as palavras-chave do modelo (aprendidas no Lab) com as globais (Configurações)
-    const allKeywords = Array.from(new Set([...modelKeywords, ...globalKeywords]));
+    // Une termos aprendidos no Laboratório com termos globais
+    const allKeywords = Array.from(new Set([
+        ...modelKeywords.map(k => k.trim().toUpperCase()), 
+        ...globalKeywords.map(k => k.trim().toUpperCase())
+    ])).filter(k => k.length > 0);
 
-    // Remove cada termo de ruído
+    // Ordena por tamanho descendente para evitar que remover "PIX" quebre "PIX RECEBIDO"
+    allKeywords.sort((a, b) => b.length - a.length);
+
+    // Remoção Literal de Termos
     allKeywords.forEach(kw => {
         if (!kw) return;
+        // Escapa caracteres especiais de regex
         const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
-        cleaned = cleaned.replace(regex, '');
+        
+        // Tenta remover como palavra inteira primeiro (\b)
+        const wordRegex = new RegExp(`\\b${escaped}\\b`, 'gi');
+        cleaned = cleaned.replace(wordRegex, '');
+
+        // Se a palavra ainda estiver lá (emendada em números/símbolos comuns em extratos),
+        // remove de forma literal para garantir o padrão ensinado
+        if (cleaned.includes(kw)) {
+           cleaned = cleaned.split(kw).join('');
+        }
     });
 
-    // Limpeza de caracteres residuais comuns em extratos
+    // Sanitização de caracteres residuais e espaços duplos
     cleaned = cleaned
-        .replace(/[\-\:]/g, ' ') // Remove traços e dois pontos
-        .replace(/\s+/g, ' ')    // Remove espaços duplos
+        .replace(/[\-\:\.]/g, ' ') // Remove traços, dois pontos e pontos residuais
+        .replace(/\s+/g, ' ')      // Normaliza espaços
         .trim();
 
     return cleaned;
   }
 
   /**
-   * FORMATAÇÃO VISUAL (MÁSCARA): Usada apenas na exibição final.
+   * FORMATAÇÃO VISUAL (MÁSCARA): Usada apenas na exibição final (UI).
    */
   static formatDisplayName(name: string): string {
     if (!name) return '';
     
     return name
-      .replace(/\d{8,}/g, '')
-      .replace(/\*+[\d.Xx-]*\*+/g, '')
-      .replace(/\s[-.]\s/g, ' ')
-      .replace(/\s+/g, ' ')
+      .replace(/\d{8,}/g, '')            // Remove longas sequências numéricas (CPFs/Contas)
+      .replace(/\*+[\d.Xx-]*\*+/g, '')   // Remove máscaras de segurança *****
+      .replace(/\s[-.]\s/g, ' ')         // Remove símbolos isolados
+      .replace(/\s+/g, ' ')              // Limpa espaços
       .trim()
       .toUpperCase();
   }
 
   /**
-   * NORMALIZAÇÃO: Usada apenas para MATCHING interno.
+   * NORMALIZAÇÃO: Usada apenas para algoritmos de MATCHING interno.
    */
   static normalize(text: string): string {
     if (!text) return '';
     return text
       .toUpperCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') 
-      .replace(/\s+/g, ' ')           
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/\s+/g, ' ')           // Normaliza espaços
       .trim();
   }
 }
