@@ -51,6 +51,7 @@ export const useLiveListSync = ({
                     amount: t.amount,
                     originalAmount: String(t.amount.toFixed(2)),
                     contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
+                    paymentMethod: t.pix_key || 'OUTROS', // RESTAURA A FORMA DE PAGAMENTO DO BANCO
                     cleanedDescription: t.description
                 };
                 if (!groupedByBank[bankId]) groupedByBank[bankId] = [];

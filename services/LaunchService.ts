@@ -60,6 +60,7 @@ export const LaunchService = {
                         amount: item.amount,
                         description: item.description, // FONTE ÚNICA: Usa a descrição extraída sem re-limpeza
                         type: (item.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
+                        pix_key: item.paymentMethod || null, // TRANSPORTA O CAMPO "FORMA" PARA O BANCO
                         source: source,
                         user_id: userId,
                         bank_id: currentBankId,

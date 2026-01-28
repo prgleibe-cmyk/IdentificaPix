@@ -133,9 +133,10 @@ export const consolidationService = {
             if (!userId) return [];
             
             // Blindagem: Select explícito com lista de campos, seguido de filtros
+            // AJUSTE: Incluída a coluna pix_key para recuperar o campo "Forma"
             const { data, error } = await supabase
                 .from('consolidated_transactions')
-                .select('id, transaction_date, amount, description, type, bank_id, row_hash')
+                .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key')
                 .eq('user_id', userId)
                 .eq('status', 'pending')
                 .order('transaction_date', { ascending: false });
