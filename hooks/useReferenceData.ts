@@ -7,15 +7,10 @@ import { normalizeString, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/util
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
 
-const DEFAULT_IGNORE_KEYWORDS = [
-    'DÍZIMOS', 'OFERTAS', 'MISSÕES', 'PIX', 'TED', 'DOC',
-    'Transferência', 'Pagamento', 'Recebimento', 'Depósito', 'Contribuição'
-];
-
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription } = useAuth();
+    const { subscription, systemSettings } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
@@ -23,7 +18,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [fileModels, setFileModels] = useState<FileModel[]>([]);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
-    const [customIgnoreKeywords] = usePersistentState<string[]>(`identificapix-ignore-keywords${userSuffix}`, DEFAULT_IGNORE_KEYWORDS);
+    
+    // 🔥 SINCRONIA GLOBAL: customIgnoreKeywords agora reflete sempre o que o Admin configurou no systemSettings
+    const customIgnoreKeywords = useMemo(() => {
+        return systemSettings?.ignoredKeywords || [];
+    }, [systemSettings?.ignoredKeywords]);
     
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(
         `identificapix-contrib-keywords${userSuffix}`, 

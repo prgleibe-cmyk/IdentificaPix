@@ -32,9 +32,18 @@ export const extractIdentifyingCode = (str: string): string | null => {
     return null;
 };
 
+/**
+ * Normalização Robusta: Primeiro limpa termos ignorados, depois normaliza caracteres.
+ */
 export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
     if (!str) return '';
-    return NameResolver.normalize(str);
+    
+    // 1. Limpeza de termos ignorados (Ex: "PIX", "DÍZIMO")
+    // Note: NameResolver.clean já faz o uppercase e a limpeza física
+    const cleaned = NameResolver.clean(str, [], ignoreKeywords);
+    
+    // 2. Normalização final de caracteres (Acentos, Espaços)
+    return NameResolver.normalize(cleaned);
 };
 
 export const parseDate = (dateString: string): Date | null => {

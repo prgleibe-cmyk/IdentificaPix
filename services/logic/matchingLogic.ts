@@ -52,7 +52,7 @@ export const matchTransactions = (
                 ...c, 
                 church: file.church,
                 _churchId: churchId,
-                _internalId: c.id || `contrib-${churchId}-${normalizeString(c.name).replace(/\s/g, '')}`
+                _internalId: c.id || `contrib-${churchId}-${normalizeString(c.name, customIgnoreKeywords).replace(/\s/g, '')}`
             }));
             contributorsByChurch.set(churchId, list);
         });
@@ -141,8 +141,6 @@ export const matchTransactions = (
     if (allContributorsFlat.length > 0) {
         allContributorsFlat.forEach((contrib: any) => {
             if (!usedContributors.has(contrib._internalId)) {
-                // FIX: O amount da transaction virtual do Ghost DEVE refletir o sinal do contribuinte
-                // Isso evita que itens negativos (saídas) caiam na aba de entradas por terem amount 0.
                 const ghostAmount = contrib.amount || 0;
                 
                 finalResults.push({
@@ -151,7 +149,7 @@ export const matchTransactions = (
                         date: contrib.date || new Date().toISOString().split('T')[0],
                         description: contrib.name,
                         rawDescription: contrib.name,
-                        amount: ghostAmount, // Antes era 0 fixo, causando erro de filtragem
+                        amount: ghostAmount,
                         cleanedDescription: contrib.name,
                         contributionType: contrib.contributionType,
                         paymentMethod: contrib.paymentMethod,
