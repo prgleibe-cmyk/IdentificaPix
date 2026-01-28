@@ -1,4 +1,3 @@
-
 import { Transaction, FileModel } from '../types';
 import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
@@ -37,14 +36,14 @@ export const findMatchingModel = (content: string, models: FileModel[]): { model
 };
 
 /**
- * PROCESSADOR DE PIPELINE (V15 - FLUXO DE VISÃO INTEGRAL)
+ * PROCESSADOR DE PIPELINE (V16 - SINCRONIA TOTAL COM LAB)
  */
 export const processFileContent = async (
     content: string, 
     fileName: string, 
     models: FileModel[] = [], 
     globalKeywords: string[] = [],
-    base64?: string // Adicionado parâmetro opcional para Base64
+    base64?: string 
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
     const normalizedContent = IngestionOrchestrator.normalizeRawContent(content);
@@ -54,16 +53,17 @@ export const processFileContent = async (
     // Criamos o input adaptado preservando o Base64 se ele existir
     const adaptedInput = {
         __rawText: normalizedContent,
-        __base64: base64, // Crucial para o ContractExecutor em modo BLOCK
+        __base64: base64, 
         __source: 'file'
     };
 
     // O StrategyEngine agora decide se processa ou se pede modelo.
+    // MODIFICAÇÃO V16: Sempre passamos globalKeywords para manter paridade com useSimulation (Lab).
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 
         models, 
-        targetModel ? [] : globalKeywords,
+        globalKeywords, 
         targetModel
     );
 

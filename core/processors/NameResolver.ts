@@ -1,6 +1,6 @@
 /**
- * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V9 - NEUTRALIZADA)
- * Feature de "Palavras Ignoradas" removida para garantir integridade total da Descrição.
+ * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V10 - RE-ATIVADA)
+ * Esta classe é responsável por garantir a paridade absoluta entre a Simulação e a Lista Viva.
  */
 export class NameResolver {
   
@@ -12,7 +12,6 @@ export class NameResolver {
         row.forEach((cell, index) => {
             if (excludedIndices.includes(index)) return;
             const val = String(cell || '').trim();
-            // Pontua colunas que não parecem números puros e têm tamanho razoável
             if (val.length > 4 && !/^[\d.,R$\s\-()]+$/.test(val)) {
                 scores[index] += 1;
                 if (val.split(' ').length > 1) scores[index] += 0.5;
@@ -24,44 +23,54 @@ export class NameResolver {
   }
 
   /**
-   * LIMPEZA DETERMINÍSTICA (NEUTRALIZADA V9):
-   * Não remove mais nenhum termo baseado em palavras-chave aprendidas ou globais.
-   * Garante que a Descrição permaneça fiel ao extrato original.
+   * LIMPEZA DETERMINÍSTICA:
+   * Remove as palavras-chave aprendidas do modelo e as globais do sistema.
+   * Única fonte da 'Verdade' para a descrição secundária na Lista Viva.
    */
-  static clean(rawName: string, _modelKeywords: string[] = [], _globalKeywords: string[] = []): string {
+  static clean(rawName: string, modelKeywords: string[] = [], globalKeywords: string[] = []): string {
     if (!rawName) return '';
     
-    // Converte para uppercase apenas para padronização visual e de matching,
-    // mas não altera o conteúdo léxico (não remove palavras).
     let cleaned = rawName.toUpperCase();
 
-    // Sanitização física mínima para preservar layout e remover caracteres de controle
+    // 1. Sanitização física
     cleaned = cleaned
-        .replace(/[\t\r\n]/g, ' ') // Remove tabs e quebras de linha
-        .replace(/\s+/g, ' ')      // Normaliza espaços duplos
+        .replace(/[\t\r\n]/g, ' ') 
+        .replace(/\s+/g, ' ')      
         .trim();
 
-    return cleaned;
+    // 2. Remoção de Palavras Ignoradas (O "Aprendizado")
+    // Combina keywords do modelo e globais, removendo duplicatas
+    const allKeywords = Array.from(new Set([
+        ...modelKeywords.map(k => k.toUpperCase()),
+        ...globalKeywords.map(k => k.toUpperCase())
+    ])).filter(k => k.length > 0);
+
+    // Ordena por tamanho descendente para remover termos mais específicos primeiro
+    allKeywords.sort((a, b) => b.length - a.length);
+
+    allKeywords.forEach(keyword => {
+        if (!keyword) return;
+        // Escapa caracteres especiais para Regex e garante match de palavra inteira ou prefixo
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escapedKeyword}\\b|${escapedKeyword}\\s+`, 'g');
+        cleaned = cleaned.replace(regex, ' ');
+    });
+
+    // 3. Limpeza final de espaços
+    return cleaned.replace(/\s+/g, ' ').trim() || rawName.toUpperCase().trim();
   }
 
-  /**
-   * FORMATAÇÃO VISUAL (MÁSCARA): DESATIVADA (V7)
-   * Agora retorna o nome exatamente como processado pelo modelo, sem modificações adicionais.
-   */
   static formatDisplayName(name: string): string {
     return name || '';
   }
 
-  /**
-   * NORMALIZAÇÃO: Usada apenas para algoritmos de MATCHING interno.
-   */
   static normalize(text: string): string {
     if (!text) return '';
     return text
       .toUpperCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-      .replace(/\s+/g, ' ')           // Normaliza espaços
+      .replace(/[\u0300-\u036f]/g, '') 
+      .replace(/\s+/g, ' ')           
       .trim();
   }
 }

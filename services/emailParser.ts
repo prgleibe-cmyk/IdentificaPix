@@ -1,10 +1,9 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction } from "../types";
 import { Logger } from "./monitoringService";
+import { NameResolver } from "../core/processors/NameResolver";
 
 const getAIClient = () => {
-    // Fix: Use process.env.API_KEY directly in initialization as per guidelines
     if (!process.env.API_KEY) throw new Error("API Key missing");
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
@@ -19,7 +18,6 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
         const prompt = `Extraia transações bancárias (Pix, Transferências) destes e-mails. Entradas positivas, Saídas negativas. Retorne JSON Array de objetos {id, date, description, amount, type}.`;
 
         const response = await ai.models.generateContent({
-            // Fix: Upgraded to gemini-3-pro-preview for complex multi-email transaction extraction
             model: 'gemini-3-pro-preview',
             contents: `${prompt}\n\n${emailData}`,
             config: {
@@ -44,16 +42,19 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
 
         const extracted = response.text ? JSON.parse(response.text) : [];
 
-        return extracted.map((item: any) => ({
-            id: `gmail-${item.id}`,
-            date: item.date,
-            description: item.description,
-            rawDescription: `GMAIL: ${item.description}`,
-            cleanedDescription: item.description, 
-            amount: item.amount,
-            originalAmount: String(item.amount),
-            contributionType: item.type || 'PIX'
-        }));
+        return extracted.map((item: any) => {
+            const cleanedDesc = NameResolver.clean(item.description || "");
+            return {
+                id: `gmail-${item.id}`,
+                date: item.date,
+                description: cleanedDesc,
+                rawDescription: cleanedDesc, // Zero fallback para texto original
+                cleanedDescription: cleanedDesc, 
+                amount: item.amount,
+                originalAmount: String(item.amount),
+                contributionType: item.type || 'PIX'
+            };
+        });
 
     } catch (error) {
         Logger.error("Erro ao parsear e-mails com IA", error);
