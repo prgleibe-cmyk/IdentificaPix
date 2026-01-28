@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -23,9 +24,7 @@ import {
     DocumentDuplicateIcon,
     TableCellsIcon,
     BanknotesIcon,
-    CheckCircleIcon,
-    ArrowsPointingOutIcon,
-    ArrowsPointingInIcon
+    CheckCircleIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -35,27 +34,8 @@ export const Sidebar: React.FC = () => {
     const { openPaymentModal, isSyncing } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [isFullscreen, setIsFullscreen] = useState(false);
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
-
-    useEffect(() => {
-        const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-        document.addEventListener('fullscreenchange', handleFsChange);
-        return () => document.removeEventListener('fullscreenchange', handleFsChange);
-    }, []);
-
-    const toggleFullscreen = () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(e => {
-                console.error(`Error attempting to enable full-screen mode: ${e.message}`);
-            });
-        } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            }
-        }
-    };
 
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [
@@ -177,15 +157,6 @@ export const Sidebar: React.FC = () => {
                                 {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
                             </button>
                         </div>
-
-                        <button 
-                            onClick={toggleFullscreen} 
-                            className={`flex items-center justify-center rounded-full text-slate-400 hover:text-brand-blue bg-white/5 border border-white/10 hover:bg-white/10 transition-all ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
-                            title={isFullscreen ? 'Sair de Tela Cheia' : 'Tela Cheia'}
-                        >
-                            {isFullscreen ? <ArrowsPointingInIcon className="w-4 h-4" /> : <ArrowsPointingOutIcon className="w-4 h-4" />}
-                            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">{isFullscreen ? 'Sair Tela Cheia' : 'Tela Cheia'}</span>}
-                        </button>
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/5">
