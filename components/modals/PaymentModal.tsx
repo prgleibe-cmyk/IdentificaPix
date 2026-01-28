@@ -45,7 +45,7 @@ export const PaymentModal: React.FC = () => {
                     handleClose={controller.handleClose}
                 />
 
-                {/* Camada Decorativa de Ruído Local para Visual Premium (Substituída URL Vercel) */}
+                {/* Camada Decorativa de Ruído Local para Visual Premium */}
                 <div className="absolute inset-0 bg-noise opacity-[0.05] pointer-events-none mix-blend-overlay"></div>
             </div>
         </div>
