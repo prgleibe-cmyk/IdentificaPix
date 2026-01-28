@@ -141,24 +141,28 @@ export const matchTransactions = (
     if (allContributorsFlat.length > 0) {
         allContributorsFlat.forEach((contrib: any) => {
             if (!usedContributors.has(contrib._internalId)) {
+                // FIX: O amount da transaction virtual do Ghost DEVE refletir o sinal do contribuinte
+                // Isso evita que itens negativos (saídas) caiam na aba de entradas por terem amount 0.
+                const ghostAmount = contrib.amount || 0;
+                
                 finalResults.push({
                     transaction: {
                         id: `ghost-${contrib._internalId}`,
                         date: contrib.date || new Date().toISOString().split('T')[0],
                         description: contrib.name,
                         rawDescription: contrib.name,
-                        amount: 0,
+                        amount: ghostAmount, // Antes era 0 fixo, causando erro de filtragem
                         cleanedDescription: contrib.name,
                         contributionType: contrib.contributionType,
                         paymentMethod: contrib.paymentMethod,
-                        originalAmount: "0.00"
+                        originalAmount: String(ghostAmount)
                     },
                     contributor: { ...contrib, cleanedName: contrib.name },
                     status: ReconciliationStatus.PENDING,
                     church: contrib.church,
                     matchMethod: MatchMethod.MANUAL,
                     similarity: 0,
-                    contributorAmount: contrib.amount
+                    contributorAmount: ghostAmount
                 });
             }
         });

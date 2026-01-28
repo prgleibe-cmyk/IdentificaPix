@@ -73,8 +73,10 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
 /**
  * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO BLOCO)
  * Consome os blocos identificados e aplica o contrato aprendido em todo o conjunto.
- * @frozen-block: EXTRACTION_TOKEN_ECONOMY_V1
- * PROIBIDO ALTERAR: Garante a obediência ao contrato e o limite de 50 registros para economia de custos.
+ * @frozen-block: EXTRACTION_TOKEN_ECONOMY_V2 (Refatorado para suportar Lista Viva Integral)
+ * AJUSTE: O limite de registros e a truncagem de texto agora dependem da presença do parâmetro 'limit'.
+ * - Laboratório (Simulation): 'limit' é passado, restringindo o volume.
+ * - Lista Viva (Execution): 'limit' é undefined, processando o documento integralmente.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -89,9 +91,16 @@ export const extractTransactionsWithModel = async (
     try {
         const ai = getAIClient();
         
+        // Identifica se estamos em modo Preview (Simulação) ou Real (Lista Viva)
+        const isPreview = !!limit;
+        
         const dataSource = blocks && blocks.length > 0 
             ? `FONTE DE DADOS (BLOCOS SEMÂNTICOS PARA PROCESSAR):\n${JSON.stringify(blocks)}`
-            : `TEXTO DO DOCUMENTO:\n${rawText.substring(0, 10000)}`;
+            : `TEXTO DO DOCUMENTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}`;
+
+        const limitInstruction = isPreview 
+            ? `6. RESTRICAO DE VOLUME (MODO PREVIEW): Retorne no máximo os primeiros ${limit} registros encontrados.`
+            : `6. PROCESSAMENTO INTEGRAL (MODO PRODUÇÃO): Extraia TODAS as transações válidas encontradas no documento. NÃO se limite aos primeiros registros.`;
 
         const instruction = `VOCÊ É UM SCANNER DE BLOCOS COM OBEDIÊNCIA CEGA AO CONTRATO.
            
@@ -104,7 +113,7 @@ export const extractTransactionsWithModel = async (
            3. FORMA DE PAGAMENTO: Extraia o campo "paymentMethod" rigorosamente conforme ensinado no contrato.
            4. NÃO TENTE CORRIGIR o Admin. Se o contrato diz para extrair X, extraia X exatamente.
            5. Analise cada fragmento da fonte de dados e aplique a regra do contrato.
-           6. RESTRICAO DE VOLUME: Retorne no máximo os primeiros ${limit || 50} registros encontrados.
+           ${limitInstruction}
            
            FORMATO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "paymentMethod" } ] }`;
 

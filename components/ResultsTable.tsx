@@ -121,8 +121,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                         {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, contributionType, paymentMethod, divergence, church }) => {
                             const isGhost = status === 'PENDENTE';
                             const isSelected = selectedIds.includes(transaction.id);
+                            
+                            // FIX: Para Ghosts, o valor efetivo SEMPRE deve vir do contributorAmount
                             const displayAmount = isGhost ? (contributorAmount || contributor?.amount || 0) : transaction.amount;
                             const isExpense = displayAmount < 0;
+                            
                             const rawDate = isGhost ? (contributor?.date || transaction.date) : transaction.date;
                             const displayDate = formatDate(rawDate);
                             

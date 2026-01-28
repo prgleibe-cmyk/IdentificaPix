@@ -70,15 +70,20 @@ export const useReconciliation = ({
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         const uniqueResults = Array.from(new Map(results.map(r => [r.transaction.id, r])).values());
         
-        // FILTRAGEM RÍGIDA POR MONTANTE EFETIVO (Elimina Duplicação Cruzada)
+        // FILTRAGEM RÍGIDA E DEFINITIVA
+        // Para registros PENDING (Ghosts), usamos o valor do contribuinte para decidir a categoria.
         const incomeResults = uniqueResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
-            return val >= 0;
+            const val = r.status === ReconciliationStatus.PENDING 
+                ? (r.contributorAmount || r.contributor?.amount || 0) 
+                : r.transaction.amount;
+            return val > 0; // Estritamente maior que zero para Entradas
         });
         
         const expenseResults = uniqueResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
-            return val < 0;
+            const val = r.status === ReconciliationStatus.PENDING 
+                ? (r.contributorAmount || r.contributor?.amount || 0) 
+                : r.transaction.amount;
+            return val < 0; // Estritamente menor que zero para Saídas
         });
 
         setReportPreviewData({
