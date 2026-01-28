@@ -15,8 +15,9 @@ export const ExportService = {
                 const isGhost = r.status === 'PENDENTE';
                 const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
                 
+                // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
                 const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-                const desc = NameResolver.formatDisplayName(rawName).replace(/;/g, ' ');
+                const desc = String(rawName).replace(/;/g, ' ').toUpperCase();
                 
                 const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
                 const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
@@ -49,8 +50,9 @@ export const ExportService = {
             const isGhost = r.status === 'PENDENTE';
             const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             
+            // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
             const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-            const name = NameResolver.formatDisplayName(rawName);
+            const name = String(rawName).toUpperCase();
 
             const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
             const isNegative = amountVal < 0;

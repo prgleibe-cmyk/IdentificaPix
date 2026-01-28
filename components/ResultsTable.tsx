@@ -129,8 +129,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                             const rawDate = isGhost ? (contributor?.date || transaction.date) : transaction.date;
                             const displayDate = formatDate(rawDate);
                             
-                            const rawName = contributor?.cleanedName || contributor?.name || transaction.cleanedDescription || transaction.description;
-                            const primaryName = NameResolver.formatDisplayName(rawName);
+                            // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
+                            const primaryName = contributor?.cleanedName || contributor?.name || transaction.cleanedDescription || transaction.description;
                             
                             const displayType = contributor?.contributionType || contributionType || transaction.contributionType || '---';
                             const displayForm = contributor?.paymentMethod || paymentMethod || transaction.paymentMethod || '---';
@@ -150,7 +150,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
                                                 {(contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                                                <span className={`text-xs font-bold leading-tight break-words ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>{primaryName}</span>
+                                                <span className={`text-xs font-bold leading-tight break-words uppercase ${isGhost ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>{primaryName}</span>
                                             </div>
                                             {isGhost && <span className="text-[9px] text-red-400 pl-5 font-medium italic">Não encontrado no extrato</span>}
                                         </div>

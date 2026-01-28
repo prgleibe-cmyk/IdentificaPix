@@ -81,9 +81,8 @@ const IncomeRow = memo(({
     const isExpense = displayAmount < 0;
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     
-    // VISUAL PROJECTION: Limpa o nome apenas para exibição
-    const rawName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
-    const displayName = NameResolver.formatDisplayName(rawName);
+    // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo/IA
+    const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
 
     const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
 
@@ -102,7 +101,7 @@ const IncomeRow = memo(({
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                         {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
-                        <span className={`text-xs font-bold break-words ${isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
+                        <span className={`text-xs font-bold break-words uppercase ${isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
                 </div>
             </td>

@@ -34,7 +34,7 @@ export const ContractExecutor = {
                 return rows.map((tx: any, idx: number) => ({
                     id: `exec-v48-block-${model.id}-${idx}-${Date.now()}`,
                     date: tx.date || "",
-                    description: tx.description || "",
+                    description: String(tx.description || "").toUpperCase(),
                     rawDescription: tx.description || "",
                     amount: tx.amount || 0,
                     originalAmount: String(tx.amount || 0),
@@ -69,12 +69,12 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                // RIGOR ABSOLUTO: Aplica a limpeza de termos aprendidos (ex: remove "PIX" da descrição)
-                // Isso evita a "contaminação" da descrição com valores que pertencem à Forma.
+                // RIGOR ABSOLUTO: Aplica APENAS a limpeza de termos aprendidos no modelo.
+                // Ignora globalKeywords para manter o output centralizado no Laboratório.
                 const cleanedName = NameResolver.clean(
                     rawDesc, 
                     mapping.ignoredKeywords || model.parsingRules?.ignoredKeywords || [], 
-                    globalKeywords
+                    [] // Neutraliza globalKeywords
                 );
 
                 results.push({

@@ -69,18 +69,11 @@ export class NameResolver {
   }
 
   /**
-   * FORMATAÇÃO VISUAL (MÁSCARA): Usada apenas na exibição final (UI).
+   * FORMATAÇÃO VISUAL (MÁSCARA): DESATIVADA (V7)
+   * Agora retorna o nome exatamente como processado pelo modelo, sem modificações adicionais.
    */
   static formatDisplayName(name: string): string {
-    if (!name) return '';
-    
-    return name
-      .replace(/\d{8,}/g, '')            // Remove longas sequências numéricas (CPFs/Contas)
-      .replace(/\*+[\d.Xx-]*\*+/g, '')   // Remove máscaras de segurança *****
-      .replace(/\s[-.]\s/g, ' ')         // Remove símbolos isolados
-      .replace(/\s+/g, ' ')              // Limpa espaços
-      .trim()
-      .toUpperCase();
+    return name || '';
   }
 
   /**

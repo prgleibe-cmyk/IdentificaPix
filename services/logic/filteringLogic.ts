@@ -30,8 +30,8 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
         dateShort = dateNormalized;
     }
 
-    // VISUAL SEARCH: Busca no nome limpo
-    const displayDesc = NameResolver.formatDisplayName(tx.cleanedDescription || tx.description || '').toLowerCase();
+    // FIDELIDADE TOTAL: Busca no nome original entregue pelo modelo
+    const displayDesc = (tx.cleanedDescription || tx.description || '').toLowerCase();
     const typeStr = (tx.contributionType || '').toLowerCase();
     
     // Flexible Amount Matching
@@ -90,11 +90,11 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         dateShort = dateNormalized;
     }
 
-    // Text Fields - VISUAL SEARCH (Busca contra nomes limpos)
-    const displayDesc = NameResolver.formatDisplayName(tx.cleanedDescription || tx.description || '').toLowerCase();
+    // Text Fields - FIDELIDADE TOTAL (Busca contra nomes originais)
+    const displayDesc = (tx.cleanedDescription || tx.description || '').toLowerCase();
     
     const rawContributorName = result.contributor?.cleanedName || result.contributor?.name || '';
-    const displayContributorName = NameResolver.formatDisplayName(rawContributorName).toLowerCase();
+    const displayContributorName = rawContributorName.toLowerCase();
     
     const churchName = (result.church?.name || '').toLowerCase();
     const typeStr = (result.contributor?.contributionType || result.contributionType || '').toLowerCase();
