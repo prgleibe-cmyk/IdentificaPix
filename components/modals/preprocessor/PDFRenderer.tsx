@@ -37,8 +37,12 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
                 const pdf = await loadingTask.promise;
                 
                 setPdfInstance(pdf);
-                // Cria um array [1, 2, 3...] para mapear as páginas
-                setPages(Array.from({ length: pdf.numPages }, (_, i) => i + 1));
+                
+                // @frozen-block-start: PDF_PAGE_LIMIT_2
+                const pagesToRender = Math.min(pdf.numPages, 2);
+                setPages(Array.from({ length: pagesToRender }, (_, i) => i + 1));
+                // @frozen-block-end: PDF_PAGE_LIMIT_2
+
             } catch (err: any) {
                 console.error("Erro ao carregar PDF:", err);
                 setError("O ambiente restringiu a visualização. A extração IA ainda funciona normalmente.");
@@ -56,10 +60,10 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
             {!isLoading && !error && pages.length > 0 && (
                 <div className="flex-shrink-0 px-4 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center z-20 shadow-sm">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                        Documento: {pages.length} {pages.length === 1 ? 'Página' : 'Páginas'}
+                        Amostra: {pages.length} {pages.length === 1 ? 'Página' : 'Páginas'} (Visualização Limitada)
                     </span>
                     <div className="px-3 py-1 bg-brand-blue/10 rounded-full">
-                         <span className="text-[9px] font-bold text-brand-blue uppercase">Visualização em Alta Definição</span>
+                         <span className="text-[9px] font-bold text-brand-blue uppercase">Foco Estrutural</span>
                     </div>
                 </div>
             )}
@@ -95,7 +99,7 @@ export const PDFRenderer: React.FC<{ file?: File }> = ({ file }) => {
                 
                 {!isLoading && !error && pages.length > 0 && (
                     <div className="pb-10 pt-4">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">Fim do Documento</span>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">Fim da Amostra Visual</span>
                     </div>
                 )}
             </div>

@@ -21,13 +21,19 @@ interface UseSimulationProps {
     rawBase64?: string;
 }
 
+/**
+ * @frozen-block: SIMULATION_INTEGRITY_LIMITER_V1
+ * BLOCO PROTEGIDO CONTRA REGRESSÃO.
+ * Este hook gerencia a simulação no Laboratório garantindo que tanto o fatiamento 
+ * quanto a aplicação de contrato respeitem o limite de 50 registros.
+ */
 export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBase64 }: UseSimulationProps) => {
     const [processedTransactions, setProcessedTransactions] = useState<SafeTransaction[]>([]);
     const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
     const [editingRowData, setEditingRowData] = useState<SafeTransaction | null>(null);
     const [isSimulating, setIsSimulating] = useState(false);
     
-    const lastDataRef = useRef<string>('');
+    const lastDataHashRef = useRef<string>('');
     const lastMappingRef = useRef<string>('');
     const lastContractRef = useRef<string | undefined>(undefined);
     const initialReadDone = useRef<string | null>(null);
@@ -47,11 +53,12 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
 
         // 🧱 MODO BLOCO (EXTRAÇÃO POR FATIAMENTO SEMÂNTICO IA)
         if (isBlockMode) {
-            const isVisualDoc = gridData[0]?.[0] === '[DOCUMENTO_VISUAL]' || gridData[0]?.[0] === '[DOCUMENTO_PDF_VISUAL]';
+            const isVisualDoc = gridData[0]?.[0] && (gridData[0][0] === '[DOCUMENTO_VISUAL]' || gridData[0][0] === '[DOCUMENTO_PDF_VISUAL]');
             
-            // FASE 1: Geração de Blocos Semânticos (Dump Bruto)
+            // FASE 1: Geração de Blocos Semânticos (Dump Bruto Neutralizado)
             if (isVisualDoc && !mapping.blockContract) {
-                if (rawBase64 && initialReadDone.current !== rawBase64.substring(0, 100)) {
+                const fileIdentifier = rawBase64 ? rawBase64.substring(0, 100) : 'empty';
+                if (rawBase64 && initialReadDone.current !== fileIdentifier) {
                     setIsSimulating(true);
                     try {
                         console.log("[Simulation] 🧠 INICIANDO FATIAMENTO SEMÂNTICO...");
@@ -70,8 +77,10 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                             sourceIndex: i,
                             sourceRawSnippet: [line]
                         }));
-                        setProcessedTransactions(mapped);
-                        initialReadDone.current = rawBase64.substring(0, 100);
+                        // @frozen-block-start: UI_LIMIT_50
+                        setProcessedTransactions(mapped.slice(0, 50));
+                        // @frozen-block-end: UI_LIMIT_50
+                        initialReadDone.current = fileIdentifier;
                         lastContractRef.current = undefined;
                     } catch (e) {
                         console.error("[Simulation] Falha no fatiamento semântico:", e);
@@ -85,27 +94,30 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                 return;
             }
 
-            // FASE 2: Aplicação do Padrão (Reaprender / Execução Real)
+            // FASE 2: Aplicação do Padrão (Obediência ao Contrato Blindado)
             if (mapping.blockContract) {
                 const contractChanged = mapping.blockContract !== lastContractRef.current;
                 const fileIdentifier = rawBase64 ? rawBase64.substring(0, 100) : 'snippet-only';
                 const fileChanged = initialReadDone.current !== fileIdentifier;
 
-                // CRÍTICO: Se o contrato mudou (clique em Aplicar), forçamos re-leitura
                 if (contractChanged || fileChanged) {
                     setIsSimulating(true);
                     try {
-                        console.log("[Simulation] 🎯 REAPRENDENDO/EXECUTANDO PADRÃO SOBRE BLOCOS...");
+                        console.log("[Simulation] 🎯 EXECUTANDO CONTRATO RÍGIDO (LIMITE 50 REGISTROS)...");
                         
                         const rawText = gridData.map(r => r.join(';')).join('\n');
+                        
+                        // @frozen-block-start: AI_CALL_LIMIT_50
                         const aiResults = await extractTransactionsWithModel(
                             rawText, 
                             mapping.blockContract, 
                             rawBase64, 
-                            semanticBlocksRef.current.length > 0 ? semanticBlocksRef.current : undefined
+                            semanticBlocksRef.current,
+                            50 // LIMIT: Solicita apenas os primeiros 50 registros
                         );
+                        // @frozen-block-end: AI_CALL_LIMIT_50
                         
-                        if (aiResults && Array.isArray(aiResults) && aiResults.length > 0) {
+                        if (aiResults && Array.isArray(aiResults)) {
                             const mapped = aiResults.map((tx: any, i: number) => ({
                                 id: `ai-extracted-${i}-${Date.now()}`,
                                 date: tx.date || "---",
@@ -113,6 +125,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                                 rawDescription: tx.description || "",
                                 amount: tx.amount || 0,
                                 originalAmount: String(tx.amount || "0"),
+                                paymentMethod: tx.paymentMethod || 'OUTROS',
                                 isValid: true,
                                 status: 'valid' as const,
                                 sourceIndex: 0
@@ -121,10 +134,10 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                             initialReadDone.current = fileIdentifier;
                             lastContractRef.current = mapping.blockContract;
                         } else {
-                            console.warn("[Simulation] IA não retornou resultados para o novo contrato.");
+                            console.warn("[Simulation] IA não retornou resultados válidos para o contrato.");
                         }
                     } catch (e) {
-                        console.error("[Simulation] Falha na re-execução do padrão:", e);
+                        console.error("[Simulation] Falha na execução do contrato:", e);
                     } finally {
                         setIsSimulating(false);
                         isRunningRef.current = false;
@@ -141,7 +154,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
 
         if (!isManualMappingComplete) {
             if (!isBlockMode) {
-                const initialPreview = gridData.slice(0, 100).map((row, i) => ({
+                const initialPreview = gridData.slice(0, 50).map((row, i) => ({
                     id: `raw-${i}-${Date.now()}`,
                     date: "---",
                     description: row.join(' ').substring(0, 150),
@@ -194,7 +207,8 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                     status: isSkipped ? 'ignored' : 'valid'
                 });
             });
-            setProcessedTransactions(newTransactions);
+            // Mantém paridade visual
+            setProcessedTransactions(newTransactions.slice(0, 50));
             lastMappingRef.current = JSON.stringify(activeMapping);
         } finally {
             setIsSimulating(false);
@@ -203,11 +217,15 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
     }, [gridData, activeMapping, cleaningKeywords, rawBase64]);
 
     useEffect(() => {
-        const dataHash = gridData.length > 0 ? `${gridData.length}-${gridData[0].join('|').substring(0, 50)}` : 'empty';
+        // Gera um hash robusto dos dados do grid para detectar mudanças reais
+        const dataHash = gridData.length > 0 
+            ? `${gridData.length}-${gridData[0].join('|').substring(0, 50)}` 
+            : 'empty';
+            
         const mappingKey = JSON.stringify(activeMapping);
         
-        if (dataHash !== lastDataRef.current || mappingKey !== lastMappingRef.current) {
-            lastDataRef.current = dataHash;
+        if (dataHash !== lastDataHashRef.current || mappingKey !== lastMappingRef.current) {
+            lastDataHashRef.current = dataHash;
             lastMappingRef.current = mappingKey;
             runSimulation();
         }

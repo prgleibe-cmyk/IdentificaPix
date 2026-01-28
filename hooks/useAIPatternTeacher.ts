@@ -12,6 +12,12 @@ interface UseAIPatternTeacherProps {
     rawBase64?: string; 
 }
 
+/**
+ * @frozen-block: PATTERN_TEACHER_ENGINE
+ * PROIBIDO REFATORAR ESTE HOOK SEM AUTORIZAÇÃO EXPLÍCITA.
+ * Este bloco garante a integridade do aprendizado de modelos, protegendo as regras de 
+ * negatividade (débitos bancários) e extração de Forma de Pagamento.
+ */
 export const useAIPatternTeacher = ({
     gridData,
     setGridData,
@@ -32,41 +38,48 @@ export const useAIPatternTeacher = ({
         try {
             const isBlockMode = extractionMode === 'BLOCK';
             
+            // @frozen-block-start: TEACHER_RIGID_PROMPT
+            // ESTA INSTRUÇÃO NÃO DEVE SER ALTERADA. ELA É O ALICERCE DO CONTRATO DE VERDADE ÚNICA.
             const instruction = isBlockMode 
-            ? `VOCÊ É UM ENGENHEIRO DE REPRODUÇÃO ESTRUTURAL. O Admin editou uma linha modelo para te ensinar o padrão visual de extração.
-            --- PADRÃO DE REFERÊNCIA (APRENDA ESTA ESTRUTURA) ---
+            ? `VOCÊ É UM EXECUTOR DE CONTRATOS RÍGIDOS. O Admin editou uma linha modelo que é sua ÚNICA VERDADE ABSOLUTA.
+            
+            --- LINHA MESTRA (GABARITO DO ADMIN) ---
             Texto Bruto no Documento: "${learnedPatternSource.originalRaw.join(' | ')}"
-            Extração Correta: Date:"${learnedPatternSource.corrected.date}" | Desc:"${learnedPatternSource.corrected.description}" | Amount:"${learnedPatternSource.corrected.amount}"
+            Extração Correta Definida pelo Admin: 
+            - Data: "${learnedPatternSource.corrected.date}" 
+            - Descrição: "${learnedPatternSource.corrected.description}" 
+            - Valor: "${learnedPatternSource.corrected.amount}" (Observe rigorosamente o sinal)
+            - Forma: "${learnedPatternSource.corrected.paymentMethod}"
             
-            SUA TAREFA: Analisar esta relação e gerar uma "blockRecipe" JSON que descreva como encontrar TODAS as transações similares neste documento. 
-            Não extraia apenas esta linha; aprenda a lógica para extrair o documento todo.`
+            --- TAREFA E REGRAS CRÍTICAS (BLINDADAS) ---
+            1. PROIBIDO ADIVINHAR: Sua inteligência deve se limitar a replicar a relação física entre o Bruto e o Gabarito.
+            2. CONVENÇÃO BANCÁRIA (DÉBITO): Se o Admin definiu um valor como NEGATIVO e no Bruto ele possui o sufixo "D" ou "DEBITO", aprenda que esse padrão significa multiplicação por -1.
+            3. FORMA DE PAGAMENTO: Extraia a coluna "Forma" seguindo EXATAMENTE a lógica que o Admin aplicou na Linha Mestra.
+            4. FIDELIDADE TOTAL: Gere uma "blockRecipe" JSON técnica que permita encontrar TODAS as linhas similares a esta no documento e transformá-las EXATAMENTE como no gabarito.`
             
-            : `VOCÊ É UM EXTRATOR DE ÍNDICES DE COLUNA. Determine os índices de 0 a N correspondentes:
-            BRUTO: "${learnedPatternSource.originalRaw.join(' ; ')}"
-            GABARITO: Data: "${learnedPatternSource.corrected.date}", Nome: "${learnedPatternSource.corrected.description}", Valor: "${learnedPatternSource.corrected.amount}"`;
+            : `VOCÊ É UM IDENTIFICADOR DE POSIÇÕES FIXAS. 
+            Exemplo Bruto: "${learnedPatternSource.originalRaw.join(' ; ')}"
+            GABARITO ABSOLUTO: Data: "${learnedPatternSource.corrected.date}", Nome: "${learnedPatternSource.corrected.description}", Valor: "${learnedPatternSource.corrected.amount}", Forma: "${learnedPatternSource.corrected.paymentMethod}"
+            Determine os índices de 0 a N correspondentes ao GABARITO. Não adivinhe, use apenas a relação física.`;
+            // @frozen-block-end: TEACHER_RIGID_PROMPT
 
-            const contents: any = { parts: [] };
+            const parts: any[] = [];
 
-            if (isBlockMode && rawBase64) {
-                contents.parts.push({
-                    inlineData: {
-                        data: rawBase64,
-                        mimeType: 'application/pdf'
-                    }
-                });
-            } else if (fullFileText) {
-                contents.parts.push({ text: `CONTEÚDO DO DOCUMENTO (AMOSTRA):\n${fullFileText.substring(0, 5000)}` });
-            }
+            /**
+             * 🛡️ AJUSTE DE ECONOMIA DE TOKENS (JANELA ESQUERDA APENAS)
+             * Em vez de enviar o PDF inteiro ou o texto completo, enviamos apenas o conteúdo processado
+             * que está visível na gridData (limitada a 50 linhas).
+             */
+            const visibleContext = gridData.map(row => row.join(';')).join('\n');
+            parts.push({ text: `AMOSTRA DO DOCUMENTO (CONTEÚDO DA JANELA ESQUERDA):\n${visibleContext}` });
 
-            contents.parts.push({ text: instruction });
+            parts.push({ text: instruction });
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview', 
-                contents: contents,
+                model: 'gemini-3-pro-preview', 
+                contents: { parts },
                 config: { 
                     temperature: 0,
-                    maxOutputTokens: 800,
-                    thinkingConfig: { thinkingBudget: 0 },
                     responseMimeType: "application/json",
                     responseSchema: isBlockMode ? {
                         type: Type.OBJECT,
@@ -81,6 +94,7 @@ export const useAIPatternTeacher = ({
                             dateColumnIndex: { type: Type.INTEGER },
                             descriptionColumnIndex: { type: Type.INTEGER },
                             amountColumnIndex: { type: Type.INTEGER },
+                            paymentMethodColumnIndex: { type: Type.INTEGER },
                             ignoredKeywords: { type: Type.ARRAY, items: { type: Type.STRING } }
                         },
                         required: ["dateColumnIndex", "descriptionColumnIndex", "amountColumnIndex", "ignoredKeywords"]
@@ -90,7 +104,6 @@ export const useAIPatternTeacher = ({
 
             const result = JSON.parse(response.text || "{}");
             
-            // Ordem crítica: primeiro define o novo mapeamento (gatilho de simulação)
             setActiveMapping((prev: any) => {
                 const base = {
                     ...prev,
@@ -100,10 +113,11 @@ export const useAIPatternTeacher = ({
                 if (isBlockMode) {
                     return {
                         ...base,
-                        blockContract: `CONTRATO RÍGIDO: [${learnedPatternSource.originalRaw.join(' | ')}] -> Date:${learnedPatternSource.corrected.date} | Desc:${learnedPatternSource.corrected.description} | Amount:${learnedPatternSource.corrected.amount}. REGRA: ${result.blockRecipe}`,
+                        blockContract: `CONTRATO RIGOROSO (VERDADE DO ADMIN): [${learnedPatternSource.originalRaw.join(' | ')}] -> Data:${learnedPatternSource.corrected.date} | Desc:${learnedPatternSource.corrected.description} | Valor:${learnedPatternSource.corrected.amount} | Forma:${learnedPatternSource.corrected.paymentMethod}. REGRA TÉCNICA: ${result.blockRecipe}`,
                         dateColumnIndex: -1,
                         descriptionColumnIndex: -1,
-                        amountColumnIndex: -1
+                        amountColumnIndex: -1,
+                        paymentMethodColumnIndex: -1
                     };
                 }
 
@@ -112,12 +126,12 @@ export const useAIPatternTeacher = ({
                     dateColumnIndex: result.dateColumnIndex,
                     descriptionColumnIndex: result.descriptionColumnIndex,
                     amountColumnIndex: result.amountColumnIndex,
+                    paymentMethodColumnIndex: result.paymentMethodColumnIndex ?? -1,
                     ignoredKeywords: result.ignoredKeywords || []
                 };
             });
 
-            // Feedback e limpeza de fonte de ensino após a propagação do mapeamento
-            showToast("Padrão aprendido!", "success");
+            showToast("Padrão aprendido com rigor!", "success");
             setLearnedPatternSource(null);
         } catch (e: any) {
             console.error("[PatternTeacher] Fail:", e);
@@ -125,7 +139,7 @@ export const useAIPatternTeacher = ({
         } finally {
             setIsInferringMapping(false);
         }
-    }, [learnedPatternSource, isInferringMapping, rawBase64, fullFileText, setActiveMapping, showToast]);
+    }, [learnedPatternSource, isInferringMapping, gridData, setActiveMapping, showToast]);
 
     return {
         isInferringMapping,

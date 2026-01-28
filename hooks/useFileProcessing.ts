@@ -5,6 +5,7 @@ import { generateFingerprint } from '../services/processingService';
 import { FileModel } from '../types';
 import { useUI } from '../contexts/UIContext';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
+import { Fingerprinter } from '../core/processors/Fingerprinter';
 
 interface UseFileProcessingProps {
     activeFile: { content: string; fileName: string; rawFile?: File; base64?: string } | null;
@@ -21,7 +22,6 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
     const [rawBase64, setRawBase64] = useState<string | undefined>(undefined);
     
     const { showToast } = useUI();
-    const processingRef = useRef<string | null>(null);
 
     useEffect(() => {
         const loadContent = async () => {
@@ -29,21 +29,30 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
             let loadedRows: string[][] = [];
 
             try {
-                // Prioridade 1: Modelo Sendo Refinado (Snippet)
-                if (initialModel && !activeFile?.rawFile) {
+                // @frozen-block-start: INGESTION_LIMIT_50
+                
+                // Prioridade 1: Modelo Sendo Refinado (Restauração de Snippet)
+                if (initialModel && !activeFile?.rawFile && !activeFile?.base64) {
                     const content = initialModel.snippet || "";
                     if (content.trim()) {
                         const normalized = IngestionOrchestrator.normalizeRawContent(content);
-                        loadedRows = normalized.split('\n').map(line => line.split(';'));
+                        const lines = normalized.split(/\r?\n/).filter(l => l.trim().length > 0);
                         
-                        // Reconstrói base64 se o modelo original for PDF (se disponível no snippet ou meta)
-                        if (initialModel.mapping?.extractionMode === 'BLOCK' && content.includes('[DOCUMENTO_')) {
-                           // No refine, o gridData terá o placeholder, o simulador usará o gridData para rodar o contrato
+                        // Detecta delimitador dinamicamente do snippet salvo
+                        const delimiter = lines.length > 0 ? Fingerprinter.detectDelimiter(lines[0]) : ';';
+                        
+                        loadedRows = lines
+                            .slice(0, 50)
+                            .map(line => line.split(delimiter));
+                        
+                        // Preserva metadados se for um documento visual (PDF)
+                        if (content.includes('[DOCUMENTO_')) {
+                             setRawBase64(undefined); 
                         }
                     }
                 } 
                 // Prioridade 2: Novo Arquivo PDF
-                else if (isPdf && activeFile) {
+                else if (isPdf && activeFile && activeFile.rawFile) {
                     loadedRows = [['[DOCUMENTO_VISUAL]', 'Analise Visual Ativa', 'IA']];
                     setRawBase64(activeFile.base64);
                 } 
@@ -53,26 +62,33 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     const wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
                     const rawData = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
-                    loadedRows = rawData.filter(row => row.join('').trim().length > 0).map(row => row.map(cell => String(cell || '').trim()));
+                    loadedRows = rawData
+                        .filter(row => row.join('').trim().length > 0)
+                        .slice(0, 50)
+                        .map(row => row.map(cell => String(cell || '').trim()));
                 } 
                 // Prioridade 4: Novo Arquivo Texto/CSV
                 else if (activeFile) {
                     const content = activeFile.content || "";
                     if (content.trim()) {
                         const normalized = IngestionOrchestrator.normalizeRawContent(content);
-                        loadedRows = normalized.split('\n').map(line => line.split(';'));
+                        const lines = normalized.split(/\r?\n/).filter(l => l.trim().length > 0);
+                        const delimiter = lines.length > 0 ? Fingerprinter.detectDelimiter(lines[0]) : ';';
+                        loadedRows = lines.slice(0, 50).map(line => line.split(delimiter));
                     }
                     setRawBase64(activeFile.base64);
                 }
+                
+                // @frozen-block-end: INGESTION_LIMIT_50
 
                 if (loadedRows.length > 0) {
                     setGridData(loadedRows);
                     
-                    const sampleContentForFp = isPdf || loadedRows[0]?.[0].includes('[DOCUMENTO_') 
+                    const sampleContentForFp = (isPdf && activeFile?.rawFile) || (loadedRows[0]?.[0] && loadedRows[0][0].includes('[DOCUMENTO_'))
                         ? (activeFile?.fileName || initialModel?.name || "pdf-doc") 
                         : loadedRows.slice(0, 30).map(r => r.join(';')).join('\n');
                     
-                    const fp = generateFingerprint(sampleContentForFp);
+                    const fp = initialModel?.fingerprint || generateFingerprint(sampleContentForFp);
                     setDetectedFingerprint(fp);
                     
                     if (initialModel?.mapping) {

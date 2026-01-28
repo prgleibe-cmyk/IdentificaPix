@@ -79,8 +79,8 @@ export const SpreadsheetRenderer: React.FC<SpreadsheetRendererProps> = ({
                     </tr>
                 </thead>
                 <tbody>
-                    {/* AUMENTADO LIMITE VISUAL: Mostra 1000 linhas na grade para suportar arquivos grandes no Lab */}
-                    {data.slice(0, 1000).map((row, rowIndex) => (
+                    {/* @frozen-block-start: VISUAL_LIMIT_50 */}
+                    {data.slice(0, 50).map((row, rowIndex) => (
                         <tr key={rowIndex} className="h-7 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                             <td className="sticky left-0 z-10 bg-[#f0f0f0] dark:bg-[#2d2d2d] border-r border-b border-[#d4d4d4] dark:border-[#555] text-center text-[9px] font-bold text-slate-400 select-none w-10">
                                 {rowIndex}
@@ -95,6 +95,15 @@ export const SpreadsheetRenderer: React.FC<SpreadsheetRendererProps> = ({
                             ))}
                         </tr>
                     ))}
+                    {data.length > 50 && (
+                        <tr>
+                            <td className="sticky left-0 bg-[#f0f0f0] dark:bg-[#2d2d2d] border-r border-[#d4d4d4] dark:border-[#555] h-8"></td>
+                            <td colSpan={maxCols} className="p-3 text-[10px] font-bold text-slate-400 dark:text-slate-500 italic bg-slate-50/30">
+                                ... e mais {data.length - 50} linhas ocultas para economia de processamento.
+                            </td>
+                        </tr>
+                    )}
+                    {/* @frozen-block-end: VISUAL_LIMIT_50 */}
                 </tbody>
             </table>
         </div>

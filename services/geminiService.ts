@@ -27,7 +27,9 @@ const safeJsonParse = (input: any, fallback: any = []) => {
 
 /**
  * 🛠️ DUMP ESTRUTURAL (MODO LABORATÓRIO)
- * Realiza o fatiamento semântico inicial do documento.
+ * Realiza o fatiamento semântico inicial do documento sem classificar dados.
+ * @frozen-block: STRUCTURAL_DUMP_LIMITER_V1
+ * PROIBIDO ALTERAR: Este bloco garante a economia de tokens limitando a análise inicial a 50 chunks.
  */
 export const getRawStructuralDump = async (base64Data: string): Promise<any[]> => {
     if (isAIBusy) return [];
@@ -35,7 +37,10 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
 
     try {
         const ai = getAIClient();
-        const instruction = `VOCÊ É UM ANALISADOR DE CHUNKS. Leia este documento e quebre-o em fragmentos semânticos (blocos de texto que representam linhas ou registros lógicos). Retorne um array JSON "rawLines".`;
+        
+        const instruction = `VOCÊ É UM ANALISADOR DE CHUNKS. Leia este documento e quebre-o em fragmentos semânticos (blocos de texto que representam registros lógicos). 
+        RESTRICAO: Retorne no máximo os primeiros 50 fragmentos encontrados.
+        Retorne apenas o array JSON "rawLines".`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
@@ -47,8 +52,6 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
             },
             config: {
                 temperature: 0,
-                maxOutputTokens: 2000,
-                thinkingConfig: { thinkingBudget: 0 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
@@ -70,12 +73,15 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
 /**
  * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO BLOCO)
  * Consome os blocos identificados e aplica o contrato aprendido em todo o conjunto.
+ * @frozen-block: EXTRACTION_TOKEN_ECONOMY_V1
+ * PROIBIDO ALTERAR: Garante a obediência ao contrato e o limite de 50 registros para economia de custos.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
     modelContext?: string, 
     base64Data?: string,
-    blocks?: string[]
+    blocks?: string[],
+    limit?: number
 ): Promise<any> => {
     if (isAIBusy) return { rows: [] };
     isAIBusy = true;
@@ -87,35 +93,35 @@ export const extractTransactionsWithModel = async (
             ? `FONTE DE DADOS (BLOCOS SEMÂNTICOS PARA PROCESSAR):\n${JSON.stringify(blocks)}`
             : `TEXTO DO DOCUMENTO:\n${rawText.substring(0, 10000)}`;
 
-        const instruction = `VOCÊ É UM SCANNER DE BLOCOS SEMÂNTICOS COM APRENDIZADO REFORÇADO.
+        const instruction = `VOCÊ É UM SCANNER DE BLOCOS COM OBEDIÊNCIA CEGA AO CONTRATO.
            
-           --- CONTRATO DE EXTRAÇÃO OBRIGATÓRIO (GABARITO) ---
+           --- CONTRATO OBRIGATÓRIO (ÚNICA VERDADE ABSOLUTA DO ADMIN) ---
            ${modelContext}
            
-           --- TAREFA CRÍTICA ---
-           1. Use o CONTRATO acima como único guia de estrutura. 
-           2. O usuário corrigiu uma linha para te ensinar que, naquele padrão visual, os dados corretos são os que ele definiu.
-           3. Analise cada fragmento da fonte de dados e extraia transações que sigam EXATAMENTE a lógica do contrato.
-           4. Se o contrato mostra uma limpeza de nome específica (ex: remover "PIX RECEB" e manter o nome da pessoa), você DEVE replicar isso para todas as outras linhas.
+           --- TAREFA CRÍTICA E INVIOLÁVEL ---
+           1. Use o CONTRATO acima como ÚNICO guia de extração. O Admin definiu este padrão manualmente.
+           2. DETECÇÃO DE DÉBITOS: Valores com sufixo "D", "DEBITO" ou destacados em vermelho DEVEM ser convertidos para números NEGATIVOS no campo "amount".
+           3. FORMA DE PAGAMENTO: Extraia o campo "paymentMethod" rigorosamente conforme ensinado no contrato.
+           4. NÃO TENTE CORRIGIR o Admin. Se o contrato diz para extrair X, extraia X exatamente.
+           5. Analise cada fragmento da fonte de dados e aplique a regra do contrato.
+           6. RESTRICAO DE VOLUME: Retorne no máximo os primeiros ${limit || 50} registros encontrados.
            
-           FORMATO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount" } ] }`;
+           FORMATO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "paymentMethod" } ] }`;
 
-        const contents: any = { parts: [] };
+        const parts: any[] = [];
         
         if (base64Data) {
-            contents.parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
+            parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
         }
         
-        contents.parts.push({ text: dataSource });
-        contents.parts.push({ text: instruction });
+        parts.push({ text: dataSource });
+        parts.push({ text: instruction });
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview', // Upgrade para Pro durante refinamento para maior precisão lógica
-            contents: contents,
+            model: 'gemini-3-pro-preview', 
+            contents: { parts },
             config: {
                 temperature: 0,
-                maxOutputTokens: 4000,
-                thinkingConfig: { thinkingBudget: 0 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
@@ -127,9 +133,10 @@ export const extractTransactionsWithModel = async (
                                 properties: {
                                     date: { type: Type.STRING },
                                     description: { type: Type.STRING },
-                                    amount: { type: Type.NUMBER }
+                                    amount: { type: Type.NUMBER },
+                                    paymentMethod: { type: Type.STRING }
                                 },
-                                required: ["date", "description", "amount"]
+                                required: ["date", "description", "amount", "paymentMethod"]
                             }
                         }
                     },
@@ -144,7 +151,7 @@ export const extractTransactionsWithModel = async (
 };
 
 /**
- * INFRE MAPPING FROM SAMPLE
+ * INFER MAPPING FROM SAMPLE (MODO RESTRITO)
  */
 export const inferMappingFromSample = async (sampleText: string): Promise<any> => {
     if (isAIBusy) return null;
@@ -153,15 +160,13 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
     try {
         const ai = getAIClient();
         const slicedText = sampleText.substring(0, 3000);
-        const prompt = `Analise a estrutura física deste documento financeiro. TEXTO: ${slicedText}`;
+        const prompt = `Identifique apenas a TOPOLOGIA ESTRUTURAL física deste texto. NÃO ADIVINHE nomes de colunas, apenas sugira índices funcionais. TEXTO: ${slicedText}`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
             config: { 
                 temperature: 0, 
-                maxOutputTokens: 500,
-                thinkingConfig: { thinkingBudget: 0 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
