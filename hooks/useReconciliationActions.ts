@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod } from '../types';
 // Fixed: Imported groupResultsByChurch from processingService instead of using require
@@ -75,18 +76,17 @@ export const useReconciliationActions = ({
     
     // 5. Força a regeneração do preview (necessário para atualizar as abas de Relatórios)
     if (reconciliation.setReportPreviewData) {
-        // Recalcula o agrupamento por igreja imediatamente
-        const incomeResults = currentResults.filter(r => 
-            r.transaction.amount >= 0 || 
-            r.status === ReconciliationStatus.PENDING
-        );
+        // SEPARAÇÃO RÍGIDA POR MONTANTE EFETIVO (Elimina Duplicação)
+        const incomeResults = currentResults.filter(r => {
+            const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
+            return val >= 0;
+        });
         
-        const expenseResults = currentResults.filter(r => 
-            r.transaction.amount < 0 && 
-            r.status !== ReconciliationStatus.PENDING
-        );
+        const expenseResults = currentResults.filter(r => {
+            const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
+            return val < 0;
+        });
 
-        // Fixed: Removed dynamic require here as it is now imported at the top
         reconciliation.setReportPreviewData({
             income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }

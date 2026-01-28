@@ -1,5 +1,6 @@
+
 import { useCallback } from 'react';
-import { ReconciliationStatus, MatchMethod } from '../types';
+import { ReconciliationStatus, MatchMethod, MatchResult } from '../types';
 import { normalizeString, groupResultsByChurch } from '../services/processingService';
 
 interface UseAiAutoIdentifyProps {
@@ -71,8 +72,17 @@ export const useAiAutoIdentify = ({
 
         if (identifiedCount > 0) {
             reconciliation.setMatchResults(nextResults);
-            const incomeResults = nextResults.filter(r => r.transaction.amount >= 0 || r.status === ReconciliationStatus.PENDING);
-            const expenseResults = nextResults.filter(r => r.transaction.amount < 0 && r.status !== ReconciliationStatus.PENDING);
+            
+            // SEPARAÇÃO RÍGIDA POR MONTANTE EFETIVO
+            const incomeResults = nextResults.filter(r => {
+                const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
+                return val >= 0;
+            });
+            
+            const expenseResults = nextResults.filter(r => {
+                const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
+                return val < 0;
+            });
 
             reconciliation.setReportPreviewData({
                 income: groupResultsByChurch(incomeResults),

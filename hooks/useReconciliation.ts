@@ -69,8 +69,17 @@ export const useReconciliation = ({
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         const uniqueResults = Array.from(new Map(results.map(r => [r.transaction.id, r])).values());
-        const incomeResults = uniqueResults.filter(r => r.transaction.amount >= 0 || r.status === ReconciliationStatus.PENDING);
-        const expenseResults = uniqueResults.filter(r => r.transaction.amount < 0 && r.status !== ReconciliationStatus.PENDING);
+        
+        // FILTRAGEM RÍGIDA POR MONTANTE EFETIVO (Elimina Duplicação Cruzada)
+        const incomeResults = uniqueResults.filter(r => {
+            const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
+            return val >= 0;
+        });
+        
+        const expenseResults = uniqueResults.filter(r => {
+            const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
+            return val < 0;
+        });
 
         setReportPreviewData({
             income: groupResultsByChurch(incomeResults),
