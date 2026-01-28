@@ -8,12 +8,10 @@ const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v12';
 
 export const modelService = {
     /**
-     * Recupera os modelos do usuário.
-     * V12: Sincronia total com o servidor para eliminar modelos excluídos (ghosts).
+     * Recupera os modelos do usuário com integridade total de propriedades.
      */
     getUserModels: async (userId: string): Promise<FileModel[]> => {
         try {
-            // 1. Busca a verdade absoluta no servidor
             const { data, error } = await supabase
                 .from('file_models')
                 .select('*')
@@ -22,27 +20,32 @@ export const modelService = {
             
             if (error) throw error;
 
-            const mapDbRowToModel = (row: any): FileModel => ({
-                id: row.id,
-                name: row.name,
-                user_id: row.user_id,
-                version: row.version || 1,
-                lineage_id: row.lineage_id || row.id,
-                is_active: row.is_active,
-                status: row.status || 'approved',
-                fingerprint: typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint,
-                mapping: typeof row.mapping === 'string' ? JSON.parse(row.mapping) : row.mapping,
-                parsingRules: row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] },
-                snippet: row.snippet,
-                createdAt: row.created_at || new Date().toISOString(),
-                lastUsedAt: row.last_used_at
-            });
+            const mapDbRowToModel = (row: any): FileModel => {
+                // Reidratação segura de campos JSONB
+                const fingerprint = typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint;
+                const mapping = typeof row.mapping === 'string' ? JSON.parse(row.mapping) : row.mapping;
+                const parsingRules = row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] };
+
+                return {
+                    ...row, // Preserva campos não mapeados explicitamente (DNA extra, patterns, etc)
+                    id: row.id,
+                    name: row.name,
+                    user_id: row.user_id,
+                    version: row.version || 1,
+                    lineage_id: row.lineage_id || row.id,
+                    is_active: row.is_active,
+                    status: row.status || 'approved',
+                    fingerprint,
+                    mapping,
+                    parsingRules,
+                    snippet: row.snippet,
+                    createdAt: row.created_at || new Date().toISOString(),
+                    lastUsedAt: row.last_used_at
+                };
+            };
 
             const remoteModels = data ? data.map(mapDbRowToModel) : [];
-            
-            // 2. Sobrescreve o cache local com a lista limpa do servidor
             await set(PERSISTENT_STORAGE_KEY, remoteModels);
-            
             return remoteModels;
 
         } catch (e) {
@@ -57,7 +60,6 @@ export const modelService = {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("Sessão expirada.");
 
-            // Desativa versões anteriores da mesma linhagem se estivermos criando uma nova versão
             if (model.lineage_id) {
                 await supabase.from('file_models')
                     .update({ is_active: false })
@@ -75,7 +77,7 @@ export const modelService = {
                     status: model.status || 'approved',
                     fingerprint: model.fingerprint,
                     mapping: model.mapping,
-                    parsing_rules: model.parsingRules,
+                    parsing_rules: model.parsingRules, // Mantém paridade snake_case
                     snippet: model.snippet
                 }])
                 .select('*')

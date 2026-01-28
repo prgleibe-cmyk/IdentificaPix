@@ -38,14 +38,12 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                         const normalized = IngestionOrchestrator.normalizeRawContent(content);
                         const lines = normalized.split(/\r?\n/).filter(l => l.trim().length > 0);
                         
-                        // Detecta delimitador dinamicamente do snippet salvo
                         const delimiter = lines.length > 0 ? Fingerprinter.detectDelimiter(lines[0]) : ';';
                         
                         loadedRows = lines
                             .slice(0, 50)
                             .map(line => line.split(delimiter));
                         
-                        // Preserva metadados se for um documento visual (PDF)
                         if (content.includes('[DOCUMENTO_')) {
                              setRawBase64(undefined); 
                         }
@@ -53,7 +51,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                 } 
                 // Prioridade 2: Novo Arquivo PDF
                 else if (isPdf && activeFile && activeFile.rawFile) {
-                    loadedRows = [['[DOCUMENTO_VISUAL]', 'Analise Visual Ativa', 'IA']];
+                    loadedRows = [['[DOCUMENTO_PDF_VISUAL]', 'Analise Visual Ativa', 'IA']];
                     setRawBase64(activeFile.base64);
                 } 
                 // Prioridade 3: Novo Arquivo Excel
@@ -84,18 +82,21 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                 if (loadedRows.length > 0) {
                     setGridData(loadedRows);
                     
-                    const sampleContentForFp = (isPdf && activeFile?.rawFile) || (loadedRows[0]?.[0] && loadedRows[0][0].includes('[DOCUMENTO_'))
-                        ? (activeFile?.fileName || initialModel?.name || "pdf-doc") 
+                    // CORREÇÃO DNA (FINGERPRINT):
+                    // Para PDFs, o hash deve ser gerado a partir da string constante que o processador usa, 
+                    // e não do nome do arquivo, garantindo o match automático na Lista Viva.
+                    const sampleContentForFp = isPdf 
+                        ? '[DOCUMENTO_PDF_VISUAL]'
                         : loadedRows.slice(0, 30).map(r => r.join(';')).join('\n');
                     
                     const fp = initialModel?.fingerprint || generateFingerprint(sampleContentForFp);
                     setDetectedFingerprint(fp);
                     
-                    // REIDRATAÇÃO CRÍTICA: Se o modelo inicial tem mapping, restauramos ele integralmente.
+                    // REIDRATAÇÃO CRÍTICA (V18):
+                    // Carrega o objeto mapping integralmente para preservar o blockContract IA.
                     if (initialModel?.mapping) {
                         setActiveMapping({
                             ...initialModel.mapping,
-                            // Garante que ignoredKeywords sejam carregadas se existirem
                             ignoredKeywords: initialModel.mapping.ignoredKeywords || initialModel.parsingRules?.ignoredKeywords || []
                         });
                     } else {

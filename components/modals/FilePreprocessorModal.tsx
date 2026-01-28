@@ -95,10 +95,11 @@ export const FilePreprocessorModal: React.FC<{
         try {
             const finalSnippet = gridData.map(row => row.join(';')).join('\n');
             
-            // Mantém as keywords no mapping para reidratação total
+            // CONTRATO DE PERSISTÊNCIA TOTAL (V18):
+            // Garante que o mapping state seja a base, preservando o blockContract.
+            // Une as regras de parsing originais para não perder seletores ou filtros avançados.
             const learnedKeywords = activeMapping.ignoredKeywords || [];
             
-            // Se estivermos refinando, incrementamos a versão e criamos um novo registro (lineage_id os une)
             const modelData: any = { 
                 name: finalName, 
                 user_id: user.id, 
@@ -106,13 +107,16 @@ export const FilePreprocessorModal: React.FC<{
                 lineage_id: initialModel ? initialModel.lineage_id : `mod-${Date.now()}`, 
                 is_active: true, 
                 fingerprint: { ...detectedFingerprint }, 
-                mapping: { ...activeMapping, ignoredKeywords: learnedKeywords }, 
-                parsingRules: { ignoredKeywords: learnedKeywords, rowFilters: [] }, 
+                mapping: { ...activeMapping }, // PERSISTÊNCIA INTEGRAL DO OBJETO MAPPING
+                parsingRules: { 
+                    ...initialModel?.parsingRules, // Preserva filtros legados
+                    ignoredKeywords: learnedKeywords, 
+                    rowFilters: initialModel?.parsingRules?.rowFilters || [] 
+                }, 
                 snippet: finalSnippet, 
                 status: approvalStatus 
             };
             
-            // Em conformidade com o requisito: Sempre salva como nova versão para histórico e segurança
             const saved = await modelService.saveModel(modelData);
 
             if (saved) {
