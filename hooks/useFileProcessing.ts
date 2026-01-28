@@ -91,8 +91,13 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     const fp = initialModel?.fingerprint || generateFingerprint(sampleContentForFp);
                     setDetectedFingerprint(fp);
                     
+                    // REIDRATAÇÃO CRÍTICA: Se o modelo inicial tem mapping, restauramos ele integralmente.
                     if (initialModel?.mapping) {
-                        setActiveMapping(initialModel.mapping);
+                        setActiveMapping({
+                            ...initialModel.mapping,
+                            // Garante que ignoredKeywords sejam carregadas se existirem
+                            ignoredKeywords: initialModel.mapping.ignoredKeywords || initialModel.parsingRules?.ignoredKeywords || []
+                        });
                     } else {
                         setActiveMapping({
                             extractionMode: isPdf ? 'BLOCK' : 'COLUMNS',

@@ -94,38 +94,35 @@ export const FilePreprocessorModal: React.FC<{
         setIsSavingModel(true);
         try {
             const finalSnippet = gridData.map(row => row.join(';')).join('\n');
+            
+            // Mantém as keywords no mapping para reidratação total
             const learnedKeywords = activeMapping.ignoredKeywords || [];
             
+            // Se estivermos refinando, incrementamos a versão e criamos um novo registro (lineage_id os une)
             const modelData: any = { 
                 name: finalName, 
                 user_id: user.id, 
-                version: initialModel ? initialModel.version : 1, 
+                version: initialModel ? (initialModel.version + 1) : 1, 
                 lineage_id: initialModel ? initialModel.lineage_id : `mod-${Date.now()}`, 
                 is_active: true, 
                 fingerprint: { ...detectedFingerprint }, 
-                mapping: { ...activeMapping }, 
+                mapping: { ...activeMapping, ignoredKeywords: learnedKeywords }, 
                 parsingRules: { ignoredKeywords: learnedKeywords, rowFilters: [] }, 
                 snippet: finalSnippet, 
                 status: approvalStatus 
             };
             
-            let saved;
-            if (initialModel?.id) {
-                // REFINAMENTO: Atualiza o registro existente
-                saved = await modelService.updateModel(initialModel.id, modelData);
-                if (saved) showToast("Contrato de modelo atualizado!", "success");
-            } else {
-                // CRIAÇÃO: Insere um novo registro
-                saved = await modelService.saveModel(modelData);
-                if (saved) showToast("Novo modelo salvo com sucesso!", "success");
-            }
+            // Em conformidade com o requisito: Sempre salva como nova versão para histórico e segurança
+            const saved = await modelService.saveModel(modelData);
 
             if (saved) {
+                showToast(initialModel ? "Padrão refinado com sucesso!" : "Novo modelo salvo com sucesso!", "success");
                 if (fetchModels) await fetchModels();
                 if (onSuccess) onSuccess(saved as FileModel, []);
                 onClose();
             }
         } catch (e: any) { 
+            console.error("[Preprocessor:Persist] Fail:", e);
             showToast("Erro ao salvar padrão.", "error"); 
         } finally { setIsSavingModel(false); }
     }, [activeMapping, detectedFingerprint, user, gridData, initialModel, onSuccess, onClose, showToast, fetchModels]);
@@ -158,7 +155,7 @@ export const FilePreprocessorModal: React.FC<{
                     </section>
 
                     <section className="flex-1 flex flex-col min-h-0 bg-white dark:bg-[#0F172A] relative">
-                        <TeachingBanner isVisible={!!learnedPatternSource} isProcessing={isInferringMapping} onApply={() => handleApplyCorrectionPattern('BLOCK')} />
+                        <TeachingBanner isVisible={!!learnedPatternSource} isProcessing={isInferringMapping} onApply={() => handleApplyCorrectionPattern(activeMapping?.extractionMode || 'COLUMNS')} />
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <SimulatedResultsTable 
                                 transactions={processedTransactions} 

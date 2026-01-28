@@ -29,7 +29,7 @@ export const modelService = {
                 version: row.version || 1,
                 lineage_id: row.lineage_id || row.id,
                 is_active: row.is_active,
-                status: row.status || 'draft',
+                status: row.status || 'approved',
                 fingerprint: typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint,
                 mapping: typeof row.mapping === 'string' ? JSON.parse(row.mapping) : row.mapping,
                 parsingRules: row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] },
@@ -43,7 +43,6 @@ export const modelService = {
             // 2. Sobrescreve o cache local com a lista limpa do servidor
             await set(PERSISTENT_STORAGE_KEY, remoteModels);
             
-            console.log(`[ModelService] Sincronizado: ${remoteModels.length} modelos ativos encontrados.`);
             return remoteModels;
 
         } catch (e) {
@@ -58,7 +57,7 @@ export const modelService = {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("Sessão expirada.");
 
-            // Desativa versões anteriores da mesma linhagem
+            // Desativa versões anteriores da mesma linhagem se estivermos criando uma nova versão
             if (model.lineage_id) {
                 await supabase.from('file_models')
                     .update({ is_active: false })
@@ -71,7 +70,7 @@ export const modelService = {
                     name: model.name,
                     user_id: session.user.id,
                     version: model.version || 1,
-                    lineage_id: model.lineage_id,
+                    lineage_id: model.lineage_id || `mod-${Date.now()}`,
                     is_active: true,
                     status: model.status || 'approved',
                     fingerprint: model.fingerprint,
@@ -83,10 +82,7 @@ export const modelService = {
                 .single();
 
             if (error) throw error;
-
-            // Invalida cache local para forçar refresh na próxima leitura
             await del(PERSISTENT_STORAGE_KEY);
-            
             return data;
         } catch (error) {
             Logger.error("Erro ao salvar modelo", error);
@@ -94,17 +90,13 @@ export const modelService = {
         }
     },
 
-    /**
-     * Atualiza um contrato de modelo existente sem criar novo registro.
-     * Usado para o fluxo de Refinamento/Reaprendizado no Laboratório.
-     */
-    updateModel: async (id: string, updates: Omit<FileModel, 'id' | 'createdAt' | 'user_id' | 'lineage_id' | 'version' | 'is_active'>): Promise<FileModel | null> => {
+    updateModel: async (id: string, updates: Partial<FileModel>): Promise<FileModel | null> => {
         try {
             const { data, error } = await supabase
                 .from('file_models')
                 .update({
                     name: updates.name,
-                    status: updates.status || 'approved',
+                    status: updates.status,
                     fingerprint: updates.fingerprint,
                     mapping: updates.mapping,
                     parsing_rules: updates.parsingRules,
@@ -116,13 +108,10 @@ export const modelService = {
                 .single();
 
             if (error) throw error;
-
-            // Invalida cache local
             await del(PERSISTENT_STORAGE_KEY);
-            
             return data;
         } catch (error) {
-            Logger.error("Erro ao atualizar modelo existente", error);
+            Logger.error("Erro ao atualizar modelo", error);
             throw error;
         }
     },
@@ -130,7 +119,7 @@ export const modelService = {
     deleteModel: async (id: string) => {
         const { error } = await supabase.from('file_models').delete().eq('id', id);
         if (!error) {
-            await del(PERSISTENT_STORAGE_KEY); // Limpa cache
+            await del(PERSISTENT_STORAGE_KEY);
             return true;
         }
         return false;
