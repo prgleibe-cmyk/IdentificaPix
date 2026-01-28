@@ -5,13 +5,12 @@ import { Logger } from './monitoringService';
 
 export const LaunchService = {
     /**
-     * Gera Row Hash baseado no conteúdo integral da linha.
-     * V15: ESTABILIDADE DE HASH. Garante que o hash seja gerado sobre o dado
-     * extraído pela IA sem mutações, prevenindo duplicidades ou perdas.
+     * Gera Row Hash baseado no conteúdo INTEGRAL e BRUTO da extração.
+     * V16: Proteção contra duplicidade preservando a identidade visual do banco.
      */
     computeRowHash: (t: any, userId: string) => {
         const date = String(t.date || t.transaction_date || '').trim();
-        const desc = String(t.description || '').trim().toUpperCase();
+        const desc = String(t.description || '').trim();
         const bankId = String(t.bank_id || 'virtual').trim();
         const user = String(userId).trim();
         
@@ -19,7 +18,6 @@ export const LaunchService = {
         const amountVal = Math.abs(rawAmount * 100).toFixed(0);
         const sign = rawAmount < 0 ? 'D' : 'C'; 
         
-        // Composição de entropia fiel ao dado extraído
         const raw = `${date}|${desc}|${amountVal}${sign}|${user}|${bankId}`;
         
         let hash = 0;
@@ -42,14 +40,12 @@ export const LaunchService = {
         }
 
         const totalReceived = transactions.length;
-        const currentBankId = (bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank') ? null : bankId;
+        const currentBankId = (bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || bankId === 'gmail-virtual-bank') ? null : bankId;
 
         try {
-            // 1. Busca hashes existentes para evitar duplicados reais
             const existingData = await consolidationService.getExistingTransactionsForDedup(userId, bankId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
 
-            // 2. Mapeia para o formato do banco RESPEITANDO A BLINDAGEM DO MODELO
             const toPersist = transactions
                 .map(item => {
                     const rowHash = this.computeRowHash({ ...item, bank_id: currentBankId }, userId);
@@ -58,9 +54,9 @@ export const LaunchService = {
                     return {
                         transaction_date: item.date,
                         amount: item.amount,
-                        description: item.description, // FONTE ÚNICA: Usa a descrição extraída sem re-limpeza
+                        description: item.description, // PRESERVAÇÃO TOTAL
                         type: (item.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
-                        pix_key: item.paymentMethod || null, // TRANSPORTA O CAMPO "FORMA" PARA O BANCO
+                        pix_key: item.paymentMethod || 'OUTROS', // FORMA DE PAGAMENTO MAPERADA
                         source: source,
                         user_id: userId,
                         bank_id: currentBankId,
@@ -76,13 +72,11 @@ export const LaunchService = {
                 return { added: 0, skipped: totalReceived, total: totalReceived };
             }
 
-            // 3. Salva no banco sem transformações adicionais para manter paridade com a Lista Viva
             await consolidationService.addTransactions(toPersist as any);
-            
             return { added: novosCount, skipped: totalReceived - novosCount, total: totalReceived };
 
         } catch (e: any) {
-            Logger.error(`[Launch:ERROR] Falha na persistência cega (modelo blindado)`, e);
+            Logger.error(`[Launch:ERROR] Falha na persistência cega`, e);
             throw e;
         }
     },

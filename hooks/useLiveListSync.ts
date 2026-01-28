@@ -16,10 +16,6 @@ export const useLiveListSync = ({
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
 
-    /**
-     * Recupera os dados da Lista Viva do servidor.
-     * Mantém o estado local em caso de erro transitório de rede.
-     */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
         if (!user || isCleaning) return;
         
@@ -42,16 +38,16 @@ export const useLiveListSync = ({
 
             const groupedByBank: Record<string, Transaction[]> = {};
             dbTransactions.forEach((t: any) => {
-                const bankId = t.bank_id || 'gmail-sync';
+                const bankId = t.bank_id || 'virtual';
                 const tx: Transaction = {
                     id: t.id,
                     date: t.transaction_date,
-                    description: t.description,
+                    description: t.description, // RESTAURAÇÃO FIEL
                     rawDescription: t.description,
                     amount: t.amount,
                     originalAmount: String(t.amount.toFixed(2)),
                     contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
-                    paymentMethod: t.pix_key || 'OUTROS', // RESTAURA A FORMA DE PAGAMENTO DO BANCO
+                    paymentMethod: t.pix_key || 'OUTROS', // RESTAURA A "FORMA" DO BANCO
                     cleanedDescription: t.description
                 };
                 if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
@@ -68,21 +64,12 @@ export const useLiveListSync = ({
             setBankStatementFile(() => restoredFiles);
             setSelectedBankIds((prev: string[]) => {
                 const ids = restoredFiles.map(f => f.bankId);
-                // Preserva seleção ativa se os bancos ainda existem na lista restaurada
                 return Array.from(new Set([...prev.filter(id => ids.includes(id)), ...ids]));
             });
             
         } catch (err: any) {
             console.error("[Lista Viva] Erro crítico de hidratação:", err);
-            const msg = err.message || "Erro desconhecido na sincronização.";
-            setSyncError(msg);
-            
-            // Se for erro de esquema, avisa o usuário com toast persistente
-            if (msg.includes('ERRO_COLUNA_AUSENTE')) {
-                showToast("Banco de dados desatualizado. Acesse o Admin e execute o Diagnóstico.", "error");
-            } else {
-                showToast("Falha ao recuperar Lista Viva: " + msg, "error");
-            }
+            showToast("Falha ao sincronizar Lista Viva.", "error");
         } finally {
             isHydrating.current = false;
         }
@@ -103,7 +90,6 @@ export const useLiveListSync = ({
             await hydrate();
             return stats;
         } catch (e: any) {
-            // O erro já foi logado no LaunchService
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
@@ -120,7 +106,6 @@ export const useLiveListSync = ({
                 setBankStatementFile(() => []);
                 setSelectedBankIds(() => []);
             }
-
             await consolidationService.deletePendingTransactions(user.id, bankId);
         } finally {
             setIsCleaning(false);

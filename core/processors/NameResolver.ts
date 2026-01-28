@@ -1,6 +1,6 @@
-
 /**
- * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V6 - RIGOR ABSOLUTO)
+ * 🎯 FONTE ÚNICA DE VERDADE: INTELIGÊNCIA NOMINAL (V9 - NEUTRALIZADA)
+ * Feature de "Palavras Ignoradas" removida para garantir integridade total da Descrição.
  */
 export class NameResolver {
   
@@ -24,45 +24,21 @@ export class NameResolver {
   }
 
   /**
-   * LIMPEZA DETERMINÍSTICA: Remove termos de ruído aprendidos ou globais.
-   * Não adivinha, apenas remove o que foi explicitamente solicitado.
+   * LIMPEZA DETERMINÍSTICA (NEUTRALIZADA V9):
+   * Não remove mais nenhum termo baseado em palavras-chave aprendidas ou globais.
+   * Garante que a Descrição permaneça fiel ao extrato original.
    */
-  static clean(rawName: string, modelKeywords: string[] = [], globalKeywords: string[] = []): string {
+  static clean(rawName: string, _modelKeywords: string[] = [], _globalKeywords: string[] = []): string {
     if (!rawName) return '';
     
-    // Converte para uppercase para comparação case-insensitive
+    // Converte para uppercase apenas para padronização visual e de matching,
+    // mas não altera o conteúdo léxico (não remove palavras).
     let cleaned = rawName.toUpperCase();
-    
-    // Une termos aprendidos no Laboratório com termos globais
-    const allKeywords = Array.from(new Set([
-        ...modelKeywords.map(k => k.trim().toUpperCase()), 
-        ...globalKeywords.map(k => k.trim().toUpperCase())
-    ])).filter(k => k.length > 0);
 
-    // Ordena por tamanho descendente para evitar que remover "PIX" quebre "PIX RECEBIDO"
-    allKeywords.sort((a, b) => b.length - a.length);
-
-    // Remoção Literal de Termos
-    allKeywords.forEach(kw => {
-        if (!kw) return;
-        // Escapa caracteres especiais de regex
-        const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // Tenta remover como palavra inteira primeiro (\b)
-        const wordRegex = new RegExp(`\\b${escaped}\\b`, 'gi');
-        cleaned = cleaned.replace(wordRegex, '');
-
-        // Se a palavra ainda estiver lá (emendada em números/símbolos comuns em extratos),
-        // remove de forma literal para garantir o padrão ensinado
-        if (cleaned.includes(kw)) {
-           cleaned = cleaned.split(kw).join('');
-        }
-    });
-
-    // Sanitização de caracteres residuais e espaços duplos
+    // Sanitização física mínima para preservar layout e remover caracteres de controle
     cleaned = cleaned
-        .replace(/[\-\:\.]/g, ' ') // Remove traços, dois pontos e pontos residuais
-        .replace(/\s+/g, ' ')      // Normaliza espaços
+        .replace(/[\t\r\n]/g, ' ') // Remove tabs e quebras de linha
+        .replace(/\s+/g, ' ')      // Normaliza espaços duplos
         .trim();
 
     return cleaned;

@@ -1,4 +1,3 @@
-
 import { Church } from '../../types';
 import { NameResolver } from '../../core/processors/NameResolver';
 
@@ -33,16 +32,16 @@ export const extractIdentifyingCode = (str: string): string | null => {
 };
 
 /**
- * Normalização Robusta: Primeiro limpa termos ignorados, depois normaliza caracteres.
+ * Normalização Robusta: Realiza normalização de caracteres para comparação,
+ * mas NÃO remove mais palavras baseadas em ignoreKeywords (Neutralizado V9).
  */
-export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
+export const normalizeString = (str: string, _ignoreKeywords: string[] = []): string => {
     if (!str) return '';
     
-    // 1. Limpeza de termos ignorados (Ex: "PIX", "DÍZIMO")
-    // Note: NameResolver.clean já faz o uppercase e a limpeza física
-    const cleaned = NameResolver.clean(str, [], ignoreKeywords);
+    // 1. Sanitização básica via NameResolver (ignora palavras-chave por contrato V9)
+    const cleaned = NameResolver.clean(str);
     
-    // 2. Normalização final de caracteres (Acentos, Espaços)
+    // 2. Normalização final de caracteres para fins de matching (Acentos, Espaços)
     return NameResolver.normalize(cleaned);
 };
 
