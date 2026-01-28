@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { modelService } from '../../services/modelService';
 import { useUI } from '../../contexts/UIContext';
@@ -101,9 +100,9 @@ export const AdminModelsTab: React.FC = () => {
                     </div>
                     <button 
                         onClick={() => setIsCreatingModel(true)} 
-                        className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold uppercase shadow-md transition-all active:scale-95"
+                        className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all hover:-translate-y-0.5 active:scale-95 border border-white/10"
                     >
-                        <PlusCircleIcon className="w-3.5 h-3.5" />
+                        <PlusCircleIcon className="w-4 h-4" />
                         <span>Novo Modelo</span>
                     </button>
                     <button onClick={() => loadModels()} className="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100">
@@ -160,7 +159,7 @@ export const AdminModelsTab: React.FC = () => {
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button 
-                                                    onClick={() => { setEditingId(model.id); setEditName(model.name); }}
+                                                    onClick={(() => { setEditingId(model.id); setEditName(model.name); })}
                                                     className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                                     title="Renomear"
                                                 >
