@@ -7,7 +7,7 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V47 - FIDELIDADE TOTAL AO MODELO)
+ * 📜 CONTRACT EXECUTOR (V48 - FIDELIDADE TOTAL E SEPARAÇÃO DE CAMPOS)
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -28,17 +28,19 @@ export const ContractExecutor = {
             try {
                 // Passamos o binário para que a IA possa "olhar" o arquivo original
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
+                // Garante compatibilidade com diferentes formatos de retorno da IA
+                const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
-                return (aiResult || []).map((tx: any, idx: number) => ({
-                    id: `exec-v47-block-${model.id}-${idx}-${Date.now()}`,
-                    date: tx.date,
-                    description: tx.description,
-                    rawDescription: tx.description,
-                    amount: tx.amount,
-                    originalAmount: String(tx.amount),
-                    cleanedDescription: tx.description,
+                return rows.map((tx: any, idx: number) => ({
+                    id: `exec-v48-block-${model.id}-${idx}-${Date.now()}`,
+                    date: tx.date || "",
+                    description: tx.description || "",
+                    rawDescription: tx.description || "",
+                    amount: tx.amount || 0,
+                    originalAmount: String(tx.amount || 0),
+                    cleanedDescription: tx.description || "",
                     contributionType: 'AUTO',
-                    paymentMethod: 'OUTROS',
+                    paymentMethod: tx.paymentMethod || 'OUTROS', // RECUPERAÇÃO DO CAMPO APRENDIDO
                     bank_id: model.id
                 }));
             } catch (e) { 
@@ -67,19 +69,25 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                const finalDescription = rawDesc.trim();
+                // RIGOR ABSOLUTO: Aplica a limpeza de termos aprendidos (ex: remove "PIX" da descrição)
+                // Isso evita a "contaminação" da descrição com valores que pertencem à Forma.
+                const cleanedName = NameResolver.clean(
+                    rawDesc, 
+                    mapping.ignoredKeywords || model.parsingRules?.ignoredKeywords || [], 
+                    globalKeywords
+                );
 
                 results.push({
-                    id: `exec-v47-col-${model.id}-${idx}-${Date.now()}`,
+                    id: `exec-v48-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
-                    description: finalDescription,
+                    description: cleanedName,
                     rawDescription: rawDesc,
                     amount: numAmount,
                     originalAmount: rawAmount,
-                    cleanedDescription: finalDescription,
+                    cleanedDescription: cleanedName,
                     contributionType: TypeResolver.resolveFromDescription(rawDesc),
-                    paymentMethod: mapping.paymentMethodColumnIndex !== undefined && cells[mapping.paymentMethodColumnIndex] 
-                        ? cells[mapping.paymentMethodColumnIndex] 
+                    paymentMethod: (mapping.paymentMethodColumnIndex !== undefined && mapping.paymentMethodColumnIndex >= 0 && cells[mapping.paymentMethodColumnIndex]) 
+                        ? cells[mapping.paymentMethodColumnIndex].trim() 
                         : TypeResolver.resolveFromDescription(rawDesc),
                     bank_id: model.id
                 });
