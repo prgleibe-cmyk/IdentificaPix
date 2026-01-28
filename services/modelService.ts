@@ -8,15 +8,18 @@ const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v12';
 
 export const modelService = {
     /**
-     * Recupera os modelos do usuário com integridade total de propriedades.
+     * Recupera os modelos acessíveis ao usuário:
+     * 1. Modelos Globais (Qualquer modelo com is_active = true)
+     * 2. Modelos Privados (Modelos criados pelo próprio usuário, incluindo rascunhos)
      */
     getUserModels: async (userId: string): Promise<FileModel[]> => {
         try {
+            // Ajuste de Escopo Global: Removemos a restrição única de user_id
+            // para incluir todos os modelos ativos no sistema (DNA Compartilhado).
             const { data, error } = await supabase
                 .from('file_models')
                 .select('*')
-                .eq('is_active', true)
-                .eq('user_id', userId);
+                .or(`is_active.eq.true,user_id.eq.${userId}`);
             
             if (error) throw error;
 
