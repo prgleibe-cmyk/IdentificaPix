@@ -6,11 +6,12 @@ import { Logger } from './monitoringService';
 export const LaunchService = {
     /**
      * Gera Row Hash baseado no conteúdo INTEGRAL e BRUTO da extração.
-     * V16: Proteção contra duplicidade preservando a identidade visual do banco.
+     * V17: Normalização rigorosa de descrição para evitar duplicidade por espaços ou case.
      */
     computeRowHash: (t: any, userId: string) => {
         const date = String(t.date || t.transaction_date || '').trim();
-        const desc = String(t.description || '').trim();
+        // Normalização agressiva para o HASH: remove espaços extras e uniformiza o case
+        const desc = String(t.description || '').trim().toUpperCase().replace(/\s+/g, ' ');
         const bankId = String(t.bank_id || 'virtual').trim();
         const user = String(userId).trim();
         
@@ -18,6 +19,7 @@ export const LaunchService = {
         const amountVal = Math.abs(rawAmount * 100).toFixed(0);
         const sign = rawAmount < 0 ? 'D' : 'C'; 
         
+        // O Hash foca na tríade: DATA | NOME | VALOR + Usuário + Banco
         const raw = `${date}|${desc}|${amountVal}${sign}|${user}|${bankId}`;
         
         let hash = 0;
@@ -40,9 +42,13 @@ export const LaunchService = {
         }
 
         const totalReceived = transactions.length;
-        const currentBankId = (bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || bankId === 'gmail-virtual-bank') ? null : bankId;
+        
+        // Normalização do ID do banco para consistência com o banco de dados
+        const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || !/^[0-9a-fA-F-]{36}$/.test(bankId);
+        const currentBankId = isVirtual ? null : bankId;
 
         try {
+            // Busca hashes existentes (puxa de todos os status: pendente/identificado/resolvido)
             const existingData = await consolidationService.getExistingTransactionsForDedup(userId, bankId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
@@ -53,7 +59,7 @@ export const LaunchService = {
                 .map(item => {
                     const rowHash = this.computeRowHash({ ...item, bank_id: currentBankId }, userId);
                     
-                    // Verifica duplicidade contra o banco E contra itens já processados neste loop
+                    // Se o hash já existe no banco ou já foi visto neste lote, ignora
                     if (existingHashes.has(rowHash) || seenInBatch.has(rowHash)) return null;
                     
                     seenInBatch.add(rowHash);
@@ -61,9 +67,9 @@ export const LaunchService = {
                     return {
                         transaction_date: item.date,
                         amount: item.amount,
-                        description: item.description, // PRESERVAÇÃO TOTAL
+                        description: item.description, // PRESERVAÇÃO TOTAL NO BANCO
                         type: (item.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
-                        pix_key: item.paymentMethod || 'OUTROS', // FORMA DE PAGAMENTO MAPERADA
+                        pix_key: item.paymentMethod || 'OUTROS', 
                         source: source,
                         user_id: userId,
                         bank_id: currentBankId,

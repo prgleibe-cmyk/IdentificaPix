@@ -79,19 +79,21 @@ export const consolidationService = {
         try {
             if (!userId) throw new Error("UserID é obrigatório.");
 
+            // Puxamos até 10.000 registros para garantir que duplicatas antigas sejam detectadas
             let query = supabase
                 .from('consolidated_transactions')
                 .select('row_hash')
-                .eq('user_id', userId);
-                // REMOVIDO: .eq('status', 'pending') para detectar duplicatas em qualquer estágio (Identificado/Resolvido)
+                .eq('user_id', userId)
+                .limit(10000);
 
             if (bankId) {
-                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || bankId === 'gmail-virtual-bank';
-                const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
-                if (isVirtual || !isProbablyUuid) {
+                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank';
+                if (isVirtual) {
                     query = query.is('bank_id', null);
                 } else {
-                    query = query.eq('bank_id', bankId);
+                    const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
+                    if (!isProbablyUuid) query = query.is('bank_id', null);
+                    else query = query.eq('bank_id', bankId);
                 }
             }
 
@@ -114,7 +116,7 @@ export const consolidationService = {
                 .eq('status', 'pending');
 
             if (bankId && bankId !== 'all') {
-                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || bankId === 'gmail-virtual-bank';
+                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank';
                 const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
                 if (isVirtual || !isProbablyUuid) query = query.is('bank_id', null);
                 else query = query.eq('bank_id', bankId);
