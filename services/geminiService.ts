@@ -72,17 +72,13 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
 
 /**
  * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO BLOCO)
- * Consome os blocos identificados e aplica o contrato aprendido em todo o conjunto.
- * @frozen-block: EXTRACTION_TOKEN_ECONOMY_V2 (Refatorado para suportar Lista Viva Integral)
- * AJUSTE: O limite de registros e a truncagem de texto agora dependem da presença do parâmetro 'limit'.
- * - Laboratório (Simulation): 'limit' é passado, restringindo o volume.
- * - Lista Viva (Execution): 'limit' é undefined, processando o documento integralmente.
+ * Consome o documento e aplica o contrato aprendido.
+ * @frozen-block: EXTRACTION_TOKEN_ECONOMY_V3 (Removido processamento de blocos externos)
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
     modelContext?: string, 
     base64Data?: string,
-    blocks?: string[],
     limit?: number
 ): Promise<any> => {
     if (isAIBusy) return { rows: [] };
@@ -91,18 +87,12 @@ export const extractTransactionsWithModel = async (
     try {
         const ai = getAIClient();
         
-        // Identifica se estamos em modo Preview (Simulação) ou Real (Lista Viva)
         const isPreview = !!limit;
-        
-        const dataSource = blocks && blocks.length > 0 
-            ? `FONTE DE DADOS (BLOCOS SEMÂNTICOS PARA PROCESSAR):\n${JSON.stringify(blocks)}`
-            : `TEXTO DO DOCUMENTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}`;
-
         const limitInstruction = isPreview 
             ? `6. RESTRICAO DE VOLUME (MODO PREVIEW): Retorne no máximo os primeiros ${limit} registros encontrados.`
             : `6. PROCESSAMENTO INTEGRAL (MODO PRODUÇÃO): Extraia TODAS as transações válidas encontradas no documento. NÃO se limite aos primeiros registros.`;
 
-        const instruction = `VOCÊ É UM SCANNER DE BLOCOS COM OBEDIÊNCIA CEGA AO CONTRATO.
+        const instruction = `VOCÊ É UM SCANNER COM OBEDIÊNCIA CEGA AO CONTRATO.
            
            --- CONTRATO OBRIGATÓRIO (ÚNICA VERDADE ABSOLUTA DO ADMIN) ---
            ${modelContext}
@@ -110,20 +100,21 @@ export const extractTransactionsWithModel = async (
            --- TAREFA CRÍTICA E INVIOLÁVEL ---
            1. Use o CONTRATO acima como ÚNICO guia de extração. O Admin definiu este padrão manualmente.
            2. DETECÇÃO DE DÉBITOS: Valores com sufixo "D", "DEBITO" ou destacados em vermelho DEVEM ser convertidos para números NEGATIVOS no campo "amount".
-           3. FORMA DE PAGAMENTO: Extraia o campo "paymentMethod" rigorosamente conforme ensinado no contrato.
-           4. NÃO TENTE CORRIGIR o Admin. Se o contrato diz para extrair X, extraia X exatamente.
-           5. Analise cada fragmento da fonte de dados e aplique a regra do contrato.
+           3. Use o campo "description" exatamente como o contrato ensinou.
+           4. NÃO TENTE CORRIGIR o Admin.
+           5. Analise o documento visualmente e extraia os dados.
            ${limitInstruction}
            
-           FORMATO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "paymentMethod" } ] }`;
+           FORMATO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
 
         const parts: any[] = [];
         
         if (base64Data) {
             parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
+        } else {
+            parts.push({ text: `CONTEÚDO DO DOCUMENTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
         }
         
-        parts.push({ text: dataSource });
         parts.push({ text: instruction });
 
         const response = await ai.models.generateContent({
@@ -143,9 +134,10 @@ export const extractTransactionsWithModel = async (
                                     date: { type: Type.STRING },
                                     description: { type: Type.STRING },
                                     amount: { type: Type.NUMBER },
-                                    paymentMethod: { type: Type.STRING }
+                                    forma: { type: Type.STRING },
+                                    tipo: { type: Type.STRING }
                                 },
-                                required: ["date", "description", "amount", "paymentMethod"]
+                                required: ["date", "description", "amount", "forma", "tipo"]
                             }
                         }
                     },

@@ -5,10 +5,13 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V53 - PARIDADE ABSOLUTA)
+ * 📜 CONTRACT EXECUTOR (V57 - VERDADE ÚNICA PDF)
  * -------------------------------------------------------
  * Este componente garante que a Lista Viva reflita exatamente
- * o que foi aprendido e simulado no Laboratório.
+ * o que foi aprendido e simulado no Laboratório, impedindo 
+ * a contaminação por texto bruto do parser de PDF.
+ * 
+ * @critical_fix: Removida dependência de texto bruto no mapeamento final.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -22,41 +25,46 @@ export const ContractExecutor = {
         const { mapping } = model;
         const modelKeywords = mapping.ignoredKeywords || [];
         
-        // 🧱 MODO BLOCO (IA VISION)
+        // 🧱 MODO BLOCO (IA VISION / PDF)
         if (mapping.extractionMode === 'BLOCK') {
             const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural.';
 
             try {
-                // @frozen-block-start: BLOCK_PARITY
-                // Em modo BLOCO, a IA já entrega a descrição conforme o contrato aprendido.
-                // Não aplicamos limpeza adicional para manter paridade com a Simulação do Lab.
+                // @frozen-block: PDF_PARITY_V57 (PROTEGIDO)
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
                 return rows.map((tx: any, idx: number) => {
-                    const modelDescription = String(tx.description || "").toUpperCase().trim();
-                    
+                    /**
+                     * 🛡️ FONTE ÚNICA DE VERDADE: O mapeamento vindo da IA (tx)
+                     * PROIBIDO: Usar rawText, segments, original ou pdfLine aqui.
+                     */
+                    const txDescription = String(tx.description || "").toUpperCase().trim();
+                    const txDate = String(tx.date || "").trim();
+                    const txAmount = tx.amount;
+                    const txForma = String(tx.forma || "").toUpperCase().trim();
+                    const txTipo = String(tx.tipo || "").toUpperCase().trim();
+
                     return {
-                        id: `exec-v53-block-${model.id}-${idx}-${Date.now()}`,
-                        date: tx.date || "",
-                        description: modelDescription, 
-                        rawDescription: modelDescription, // A verdade é o output do modelo
-                        amount: tx.amount || 0,
-                        originalAmount: String(tx.amount || 0),
-                        cleanedDescription: modelDescription,
-                        contributionType: 'AUTO',
-                        paymentMethod: tx.paymentMethod || 'OUTROS',
+                        id: `exec-v57-block-${model.id}-${idx}-${Date.now()}`,
+                        date: txDate,
+                        description: txDescription, 
+                        rawDescription: txDescription, // RIGOR: Não reinjeta o texto bruto do PDF
+                        amount: txAmount || 0,
+                        originalAmount: String(txAmount || 0),
+                        cleanedDescription: txDescription,
+                        contributionType: txTipo,
+                        paymentMethod: txForma,
                         bank_id: model.id
                     };
                 });
-                // @frozen-block-end: BLOCK_PARITY
             } catch (e) { 
                 console.error("[ContractExecutor] Erro na leitura IA:", e);
                 return []; 
             }
         }
 
-        // 🚀 MODO COLUNAS (DETERMINÍSTICO)
+        // 🚀 MODO COLUNAS (DETERMINÍSTICO - EXCEL/CSV)
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
@@ -81,16 +89,13 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                // @frozen-block-start: COLUMNS_PARITY
-                // No modo colunas, a verdade é a descrição da coluna mapeada passada pelo NameResolver.
-                // Sincronizado com o Lab: usa keywords do modelo E globais.
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({
-                    id: `exec-v53-col-${model.id}-${idx}-${Date.now()}`,
+                    id: `exec-v57-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
                     description: learnedDescription, 
-                    rawDescription: learnedDescription, // Vedado o uso de rawDesc bruto
+                    rawDescription: learnedDescription, 
                     amount: numAmount,
                     originalAmount: rawAmount,
                     cleanedDescription: learnedDescription,
@@ -98,7 +103,6 @@ export const ContractExecutor = {
                     paymentMethod: rawForm || 'OUTROS',
                     bank_id: model.id
                 });
-                // @frozen-block-end: COLUMNS_PARITY
             }
         });
 

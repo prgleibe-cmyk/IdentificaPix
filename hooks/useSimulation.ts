@@ -22,10 +22,10 @@ interface UseSimulationProps {
 }
 
 /**
- * @frozen-block: SIMULATION_INTEGRITY_LIMITER_V1
+ * @frozen-block: SIMULATION_INTEGRITY_LIMITER_V2
  * BLOCO PROTEGIDO CONTRA REGRESSÃO.
- * Este hook gerencia a simulação no Laboratório garantindo que tanto o fatiamento 
- * quanto a aplicação de contrato respeitem o limite de 50 registros.
+ * Este hook gerencia a simulação no Laboratório garantindo que o fatiamento 
+ * e a aplicação de contrato respeitem o limite de 50 registros e usem campos estruturados.
  */
 export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBase64 }: UseSimulationProps) => {
     const [processedTransactions, setProcessedTransactions] = useState<SafeTransaction[]>([]);
@@ -55,7 +55,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
         if (isBlockMode) {
             const isVisualDoc = gridData[0]?.[0] && (gridData[0][0] === '[DOCUMENTO_VISUAL]' || gridData[0][0] === '[DOCUMENTO_PDF_VISUAL]');
             
-            // FASE 1: Geração de Blocos Semânticos (Dump Bruto Neutralizado)
+            // FASE 1: Geração de Blocos Semânticos (Visualização Bruta apenas para Grid)
             if (isVisualDoc && !mapping.blockContract) {
                 const fileIdentifier = rawBase64 ? rawBase64.substring(0, 100) : 'empty';
                 if (rawBase64 && initialReadDone.current !== fileIdentifier) {
@@ -77,9 +77,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                             sourceIndex: i,
                             sourceRawSnippet: [line]
                         }));
-                        // @frozen-block-start: UI_LIMIT_50
                         setProcessedTransactions(mapped.slice(0, 50));
-                        // @frozen-block-end: UI_LIMIT_50
                         initialReadDone.current = fileIdentifier;
                         lastContractRef.current = undefined;
                     } catch (e) {
@@ -107,25 +105,26 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                         
                         const rawText = gridData.map(r => r.join(';')).join('\n');
                         
-                        // @frozen-block-start: AI_CALL_LIMIT_50
+                        // PARIDADE V54: Removido semanticBlocksRef para evitar mistura de texto bruto
                         const aiResults = await extractTransactionsWithModel(
                             rawText, 
                             mapping.blockContract, 
                             rawBase64, 
-                            semanticBlocksRef.current,
-                            50 // LIMIT: Solicita apenas os primeiros 50 registros
+                            50 
                         );
-                        // @frozen-block-end: AI_CALL_LIMIT_50
                         
-                        if (aiResults && Array.isArray(aiResults)) {
-                            const mapped = aiResults.map((tx: any, i: number) => ({
+                        const rows = Array.isArray(aiResults) ? aiResults : (aiResults?.rows || []);
+
+                        if (rows && rows.length > 0) {
+                            const mapped = rows.map((tx: any, i: number) => ({
                                 id: `ai-extracted-${i}-${Date.now()}`,
                                 date: tx.date || "---",
                                 description: tx.description || "---",
                                 rawDescription: tx.description || "",
                                 amount: tx.amount || 0,
                                 originalAmount: String(tx.amount || "0"),
-                                paymentMethod: tx.paymentMethod || 'OUTROS',
+                                paymentMethod: tx.forma || tx.paymentMethod || 'OUTROS',
+                                contributionType: tx.tipo || 'AUTO',
                                 isValid: true,
                                 status: 'valid' as const,
                                 sourceIndex: 0
@@ -207,7 +206,6 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                     status: isSkipped ? 'ignored' : 'valid'
                 });
             });
-            // Mantém paridade visual
             setProcessedTransactions(newTransactions.slice(0, 50));
             lastMappingRef.current = JSON.stringify(activeMapping);
         } finally {
@@ -217,7 +215,6 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
     }, [gridData, activeMapping, cleaningKeywords, rawBase64]);
 
     useEffect(() => {
-        // Gera um hash robusto dos dados do grid para detectar mudanças reais
         const dataHash = gridData.length > 0 
             ? `${gridData.length}-${gridData[0].join('|').substring(0, 50)}` 
             : 'empty';
