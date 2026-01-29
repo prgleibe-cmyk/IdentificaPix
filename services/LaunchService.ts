@@ -5,23 +5,28 @@ import { Logger } from './monitoringService';
 
 export const LaunchService = {
     /**
-     * Gera Row Hash baseado no conteúdo INTEGRAL e BRUTO da extração.
-     * V17: Normalização rigorosa de descrição para evitar duplicidade por espaços ou case.
+     * Gera Row Hash baseado estritamente no conteúdo da linha.
+     * Regra: date + description + amount (normalizados).
+     * Ignora bankId e fileName para evitar duplicação cruzada.
      */
     computeRowHash: (t: any, userId: string) => {
+        // 1. Normalização da Data (garante string limpa)
         const date = String(t.date || t.transaction_date || '').trim();
-        // Normalização agressiva para o HASH: remove espaços extras e uniformiza o case
-        const desc = String(t.description || '').trim().toUpperCase().replace(/\s+/g, ' ');
-        const bankId = String(t.bank_id || 'virtual').trim();
-        const user = String(userId).trim();
         
+        // 2. Normalização da Descrição (trim, lowercase, remove espaços duplicados)
+        const desc = String(t.description || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ');
+        
+        // 3. Normalização do Valor (precisão de 2 casas decimais para evitar divergência de arredondamento)
         const rawAmount = Number(t.amount || 0);
-        const amountVal = Math.abs(rawAmount * 100).toFixed(0);
-        const sign = rawAmount < 0 ? 'D' : 'C'; 
+        const amountVal = rawAmount.toFixed(2);
         
-        // O Hash foca na tríade: DATA | NOME | VALOR + Usuário + Banco
-        const raw = `${date}|${desc}|${amountVal}${sign}|${user}|${bankId}`;
+        // Chave única de conteúdo: USER | DATA | DESC | VALOR
+        const raw = `${userId}|${date}|${desc}|${amountVal}`;
         
+        // Algoritmo de Hash determinístico
         let hash = 0;
         for (let i = 0; i < raw.length; i++) {
             const char = raw.charCodeAt(i);
@@ -43,31 +48,37 @@ export const LaunchService = {
 
         const totalReceived = transactions.length;
         
-        // Normalização do ID do banco para consistência com o banco de dados
+        // Identificação do banco (preservando lógica de virtual/uuid)
         const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || !/^[0-9a-fA-F-]{36}$/.test(bankId);
         const currentBankId = isVirtual ? null : bankId;
 
         try {
-            // Busca hashes existentes (puxa de todos os status: pendente/identificado/resolvido)
-            const existingData = await consolidationService.getExistingTransactionsForDedup(userId, bankId);
+            /**
+             * AJUSTE DE BLINDAGEM:
+             * Buscamos os hashes de TODA a conta do usuário (sem filtrar por bankId).
+             * Isso impede que a mesma transação seja carregada em bancos diferentes ou arquivos renomeados.
+             */
+            const existingData = await consolidationService.getExistingTransactionsForDedup(userId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
-            // DEDUP INTRA-LOTE: Evita duplicados dentro do próprio arquivo que está sendo processado
+            // Controle interno para o lote atual (evita duplicados dentro do próprio arquivo carregado)
             const seenInBatch = new Set<string>();
 
             const toPersist = transactions
                 .map(item => {
-                    const rowHash = this.computeRowHash({ ...item, bank_id: currentBankId }, userId);
+                    const rowHash = this.computeRowHash(item, userId);
                     
-                    // Se o hash já existe no banco ou já foi visto neste lote, ignora
-                    if (existingHashes.has(rowHash) || seenInBatch.has(rowHash)) return null;
+                    // Verificação de existência (Histórico Global ou Lote Atual)
+                    if (existingHashes.has(rowHash) || seenInBatch.has(rowHash)) {
+                        return null; // Linha já existe, será filtrada
+                    }
                     
                     seenInBatch.add(rowHash);
 
                     return {
                         transaction_date: item.date,
                         amount: item.amount,
-                        description: item.description, // PRESERVAÇÃO TOTAL NO BANCO
+                        description: item.description, 
                         type: (item.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
                         pix_key: item.paymentMethod || 'OUTROS', 
                         source: source,
@@ -85,11 +96,12 @@ export const LaunchService = {
                 return { added: 0, skipped: totalReceived, total: totalReceived };
             }
 
+            // Persistência das linhas inéditas
             await consolidationService.addTransactions(toPersist as any);
             return { added: novosCount, skipped: totalReceived - novosCount, total: totalReceived };
 
         } catch (e: any) {
-            Logger.error(`[Launch:ERROR] Falha na persistência cega`, e);
+            Logger.error(`[Launch:DEDUPLICATION_ERROR] Falha ao processar conteúdo da linha`, e);
             throw e;
         }
     },
