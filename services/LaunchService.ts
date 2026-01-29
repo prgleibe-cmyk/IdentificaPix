@@ -45,11 +45,18 @@ export const LaunchService = {
         try {
             const existingData = await consolidationService.getExistingTransactionsForDedup(userId, bankId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
+            
+            // DEDUP INTRA-LOTE: Evita duplicados dentro do próprio arquivo que está sendo processado
+            const seenInBatch = new Set<string>();
 
             const toPersist = transactions
                 .map(item => {
                     const rowHash = this.computeRowHash({ ...item, bank_id: currentBankId }, userId);
-                    if (existingHashes.has(rowHash)) return null;
+                    
+                    // Verifica duplicidade contra o banco E contra itens já processados neste loop
+                    if (existingHashes.has(rowHash) || seenInBatch.has(rowHash)) return null;
+                    
+                    seenInBatch.add(rowHash);
 
                     return {
                         transaction_date: item.date,

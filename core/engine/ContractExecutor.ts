@@ -5,13 +5,11 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V58 - VERDADE ÚNICA PDF FIXED)
+ * 📜 CONTRACT EXECUTOR (V59 - PDF PURITY FIXED)
  * -------------------------------------------------------
  * Este componente garante que a Lista Viva reflita exatamente
  * o que foi aprendido e simulado no Laboratório, impedindo 
  * a contaminação por texto bruto do parser de PDF.
- * 
- * @critical_fix: Aplicado NameResolver.clean no modo BLOCK para paridade total com Excel.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -30,37 +28,26 @@ export const ContractExecutor = {
             const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural.';
 
             try {
-                // @frozen-block: PDF_PARITY_V58 (PROTEGIDO)
+                // @frozen-block: PDF_PARITY_V59 (PROTEGIDO)
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
                 return rows.map((tx: any, idx: number) => {
                     /**
                      * 🛡️ FONTE ÚNICA DE VERDADE: O mapeamento vindo da IA (tx)
-                     * PROIBIDO: Usar rawText, segments, original ou pdfLine aqui.
+                     * Aplicando a regra final.description = modelResult.description
+                     * Proibido cleanups, toUpperCase, trim ou fallbacks pós-modelo.
                      */
-                    const aiDesc = String(tx.description || "").toUpperCase().trim();
-                    const txDate = String(tx.date || "").trim();
-                    const txAmount = tx.amount;
-                    const txForma = String(tx.forma || "").toUpperCase().trim();
-                    const txTipo = String(tx.tipo || "").toUpperCase().trim();
-
-                    // RIGOR DETERMINÍSTICO (v58):
-                    // Mesmo com IA, aplicamos o NameResolver para remover termos bancários
-                    // residuais (PIX, TED, etc) que a IA possa ter deixado, garantindo 
-                    // que a descrição seja APENAS o nome do pagador/recebedor.
-                    const txDescription = NameResolver.clean(aiDesc, modelKeywords, globalKeywords);
-
                     return {
-                        id: `exec-v58-block-${model.id}-${idx}-${Date.now()}`,
-                        date: txDate,
-                        description: txDescription, 
-                        rawDescription: aiDesc, // Preserva a extração da IA sem cleaning no raw
-                        amount: txAmount || 0,
-                        originalAmount: String(txAmount || 0),
-                        cleanedDescription: txDescription,
-                        contributionType: txTipo,
-                        paymentMethod: txForma,
+                        id: `exec-v59-block-${model.id}-${idx}-${Date.now()}`,
+                        date: tx.date,
+                        description: tx.description, 
+                        rawDescription: tx.description, 
+                        amount: tx.amount,
+                        originalAmount: String(tx.amount),
+                        cleanedDescription: tx.description,
+                        contributionType: tx.tipo,
+                        paymentMethod: tx.forma,
                         bank_id: model.id
                     };
                 });
@@ -98,7 +85,7 @@ export const ContractExecutor = {
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({
-                    id: `exec-v58-col-${model.id}-${idx}-${Date.now()}`,
+                    id: `exec-v59-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
                     description: learnedDescription, 
                     rawDescription: rawDesc, 

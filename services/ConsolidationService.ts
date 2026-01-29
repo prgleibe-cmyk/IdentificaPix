@@ -19,7 +19,6 @@ export const consolidationService = {
                     let finalDate = t.transaction_date;
 
                     // AJUSTE: Tenta normalizar a data caso não esteja no formato ISO YYYY-MM-DD
-                    // Isso evita que datas extraídas pela IA (ex: DD/MM/YYYY) sejam substituídas por "Hoje"
                     if (finalDate && !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
                         const resolved = DateResolver.resolveToISO(finalDate, new Date().getFullYear());
                         if (resolved) finalDate = resolved;
@@ -30,10 +29,12 @@ export const consolidationService = {
                         finalDate = new Date().toISOString().split('T')[0];
                     }
 
+                    // PDF PURITY: Proibido o uso de fallbacks ou trim() pós-extração. 
+                    // O valor do modelo é a única verdade.
                     return {
                         transaction_date: finalDate,
                         amount: isNaN(amount) ? 0 : amount,
-                        description: String(t.description || 'Sem descrição').trim().substring(0, 500),
+                        description: t.description,
                         type: t.type || (amount >= 0 ? 'income' : 'expense'),
                         pix_key: t.pix_key || null,
                         source: t.source || 'file',
@@ -58,7 +59,7 @@ export const consolidationService = {
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .insert(chunk)
-                    .select('*'); // Blindagem: Select único e explícito para evitar columns=
+                    .select('*'); 
 
                 if (error) {
                     console.error("[Consolidation:INSERT_ERROR]", error);
@@ -78,15 +79,14 @@ export const consolidationService = {
         try {
             if (!userId) throw new Error("UserID é obrigatório.");
 
-            // Blindagem: Select único no início da query builder
             let query = supabase
                 .from('consolidated_transactions')
                 .select('row_hash')
-                .eq('user_id', userId)
-                .eq('status', 'pending');
+                .eq('user_id', userId);
+                // REMOVIDO: .eq('status', 'pending') para detectar duplicatas em qualquer estágio (Identificado/Resolvido)
 
             if (bankId) {
-                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank';
+                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || bankId === 'gmail-virtual-bank';
                 const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
                 if (isVirtual || !isProbablyUuid) {
                     query = query.is('bank_id', null);
@@ -107,7 +107,6 @@ export const consolidationService = {
         try {
             if (!userId) return false;
 
-            // Operação de delete com filtros encadeados
             let query = supabase
                 .from('consolidated_transactions')
                 .delete()
@@ -115,7 +114,7 @@ export const consolidationService = {
                 .eq('status', 'pending');
 
             if (bankId && bankId !== 'all') {
-                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank';
+                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank' || bankId === 'gmail-virtual-bank';
                 const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
                 if (isVirtual || !isProbablyUuid) query = query.is('bank_id', null);
                 else query = query.eq('bank_id', bankId);
@@ -132,8 +131,6 @@ export const consolidationService = {
         try {
             if (!userId) return [];
             
-            // Blindagem: Select explícito com lista de campos, seguido de filtros
-            // AJUSTE: Incluída a coluna pix_key para recuperar o campo "Forma"
             const { data, error } = await supabase
                 .from('consolidated_transactions')
                 .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key')
