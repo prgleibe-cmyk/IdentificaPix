@@ -38,7 +38,6 @@ export const useLiveListSync = ({
 
             const groupedByBank: Record<string, Transaction[]> = {};
             dbTransactions.forEach((t: any) => {
-                // Mapeamento Robusto: Transações sem bank_id explícito são tratadas como 'virtual'
                 const bankId = t.bank_id || 'virtual';
                 const tx: Transaction = {
                     id: t.id,
@@ -50,7 +49,7 @@ export const useLiveListSync = ({
                     contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
                     paymentMethod: t.pix_key || 'OUTROS',
                     cleanedDescription: t.description,
-                    bank_id: t.bank_id // Preserva o ID original do banco
+                    bank_id: t.bank_id
                 };
                 if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
                 groupedByBank[bankId].push(tx);
@@ -65,15 +64,14 @@ export const useLiveListSync = ({
 
             setBankStatementFile(restoredFiles);
             
-            // Sincroniza a seleção
+            // Sincroniza a seleção automaticamente com o que veio do banco
             setSelectedBankIds((prev: string[]) => {
                 const availableIds = restoredFiles.map(f => f.bankId);
-                // Mantém o que já estava selecionado e adiciona novos bancos que apareceram no banco
                 return Array.from(new Set([...prev.filter(id => availableIds.includes(id)), ...availableIds]));
             });
             
         } catch (err: any) {
-            console.error("[Lista Viva] Erro crítico de hidratação:", err);
+            console.error("[Lista Viva] Erro na hidratação:", err);
             showToast("Falha ao sincronizar Lista Viva.", "error");
         } finally {
             isHydrating.current = false;
@@ -92,7 +90,6 @@ export const useLiveListSync = ({
         
         try {
             const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
-            // NÃO chamamos hydrate aqui, deixamos o handleStatementUpload controlar o fluxo
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
@@ -105,7 +102,6 @@ export const useLiveListSync = ({
         setIsCleaning(true);
         try {
             await consolidationService.deletePendingTransactions(user.id, bankId);
-            // Atualiza localmente após deletar no servidor
             if (bankId && bankId !== 'all') {
                 setBankStatementFile((prev: any[]) => prev.filter(f => f.bankId !== bankId));
                 setSelectedBankIds((prev: string[]) => prev.filter(id => id !== bankId));

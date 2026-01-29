@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AppContext } from '../../contexts/AppContext';
@@ -34,7 +33,7 @@ const BankRow: React.FC<{
     triggerUpdate: () => void 
 }> = ({ bank, isUploaded, handleStatementUpload, setIsGmailModalOpen, removeBankStatementFile, triggerUpdate }) => {
     
-    const { fileModels, effectiveIgnoreKeywords, setBankStatementFile } = useContext(AppContext);
+    const { fileModels, effectiveIgnoreKeywords, setBankStatementFile, setModelRequiredData } = useContext(AppContext);
     const { user } = useAuth();
     const { showToast } = useUI();
 
@@ -56,14 +55,24 @@ const BankRow: React.FC<{
         }
     };
 
-    const handleAppend = async (content: string, fileName: string, rawFile: File) => {
+    const handleAppend = async (content: string, fileName: string, rawFile: File, base64?: string) => {
         if (!user) return;
         setIsUploading(true);
         try {
-            const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords);
+            const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
+            
+            // CORREÇÃO: Trata bloqueio por falta de modelo reconhecido
+            if (result.status === 'MODEL_REQUIRED') {
+                if (setModelRequiredData) {
+                    setModelRequiredData({ ...result, fileName, bankId: bank.id });
+                }
+                setIsUploading(false);
+                return;
+            }
+
             const newTransactions = result.transactions;
 
-            if (newTransactions.length === 0) {
+            if (!newTransactions || newTransactions.length === 0) {
                 showToast("Nenhuma transação válida encontrada.", "error");
                 setIsUploading(false);
                 return;
@@ -84,6 +93,8 @@ const BankRow: React.FC<{
                     return newFiles;
                 });
                 showToast(`${launchResult.added} transações adicionadas!`, "success");
+            } else {
+                showToast("Registros já existentes ignorados.", "success");
             }
             
             setTimeout(() => triggerUpdate(), 500);
@@ -95,12 +106,12 @@ const BankRow: React.FC<{
         }
     };
 
-    const handleFileUploadWrapper = async (content: string, fileName: string, rawFile: File) => {
+    const handleFileUploadWrapper = async (content: string, fileName: string, rawFile: File, base64?: string) => {
         setIsUploading(true);
         if (uploadModeRef.current === 'replace') {
-            await handleStatementUpload(content, fileName, bank.id, rawFile);
+            await handleStatementUpload(content, fileName, bank.id, rawFile, base64);
         } else {
-            await handleAppend(content, fileName, rawFile);
+            await handleAppend(content, fileName, rawFile, base64);
         }
         setIsUploading(false);
         setMenuOpen(false);

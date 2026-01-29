@@ -1,10 +1,10 @@
-
 import { CanonicalDocumentNormalizer } from './CanonicalDocumentNormalizer';
 
 /**
- * SERVIÇO DE DOMÍNIO: FINGERPRINTER (V8 - FIDELIDADE TOTAL)
+ * SERVIÇO DE DOMÍNIO: FINGERPRINTER (V9 - ESTABILIZAÇÃO EXCEL)
  * --------------------------------------------------------------------------
- * Gera a identidade baseada no conteúdo BRUTO. Sem normalização.
+ * Gera a identidade baseada no conteúdo, mas normaliza o header para evitar
+ * falhas por colunas "fantasma" do Excel.
  */
 
 export interface StructuralFingerprint {
@@ -27,24 +27,32 @@ export const Fingerprinter = {
     },
 
     /**
-     * Gera o DNA sem limpar o texto. 
-     * O Hash deve ser idêntico ao que foi capturado no momento do treinamento.
+     * Gera o DNA estabilizado.
+     * Remove colunas vazias à direita e normaliza espaços para garantir que
+     * o mesmo arquivo Excel sempre gere o mesmo Hash.
      */
     generate: (content: string): StructuralFingerprint | null => {
         if (!content || typeof content !== 'string') return null;
         
-        const lines = content.split(/\r?\n/).filter(l => l.length > 0);
+        const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
         if (lines.length === 0) return null;
 
-        const rawHeader = lines[0];
-        const delimiter = Fingerprinter.detectDelimiter(rawHeader);
-        const cells = rawHeader.split(delimiter);
+        const firstLine = lines[0];
+        const delimiter = Fingerprinter.detectDelimiter(firstLine);
         
-        // 🛡️ HASH PURO (SEM LIMPEZA):
-        // Usa a linha exatamente como ela é.
+        // 🛡️ NORMALIZAÇÃO DE HEADER (ESSENCIAL PARA EXCEL):
+        // Trim em cada célula e remove colunas vazias à direita que o Excel costuma injetar.
+        const cells = firstLine.split(delimiter).map(c => c.trim());
+        while (cells.length > 0 && cells[cells.length - 1] === "") {
+            cells.pop();
+        }
+        
+        const canonicalHeader = cells.join(delimiter).toUpperCase();
+        
+        // Gera o Hash baseado no header limpo e em caixa alta
         let hash = 5381;
-        for (let i = 0; i < rawHeader.length; i++) {
-            hash = ((hash << 5) + hash) + rawHeader.charCodeAt(i);
+        for (let i = 0; i < canonicalHeader.length; i++) {
+            hash = ((hash << 5) + hash) + canonicalHeader.charCodeAt(i);
         }
         const headerHash = Math.abs(hash).toString(36);
 

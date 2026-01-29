@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useContext, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +16,8 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         fileModels,
         effectiveIgnoreKeywords,
         setBankStatementFile,
-        hydrate
+        hydrate,
+        setModelRequiredData // Adicionado para tratar bloqueios do StrategyEngine
     } = useContext(AppContext);
     
     const { user } = useAuth();
@@ -36,7 +36,6 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     const bankFiles = activeBankFiles.filter((f: any) => f.bankId === bank.id);
     const totalTransactions = bankFiles.reduce((acc: number, f: any) => acc + (f.processedTransactions?.length || 0), 0);
 
-    // Fix: Added React to imports and typed event as React.MouseEvent
     const handleMouseDown = (e: React.MouseEvent) => {
         if (menuRef.current) {
             setIsDragging(true);
@@ -62,15 +61,26 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         };
     }, [isDragging]);
 
-    const handleAppend = async (content: string, fileName: string, rawFile: File) => {
+    const handleAppend = async (content: string, fileName: string, rawFile: File, base64?: string) => {
         if (!user) return;
         setIsUploading(true);
         try {
-            const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords);
+            const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
+            
+            // CORREÇÃO: Trata o caso onde o arquivo não tem modelo reconhecido
+            if (result.status === 'MODEL_REQUIRED') {
+                if (setModelRequiredData) {
+                    setModelRequiredData({ ...result, fileName, bankId: bank.id });
+                }
+                setIsUploading(false);
+                return;
+            }
+
             const newTransactions = result.transactions;
 
-            if (newTransactions.length === 0) {
+            if (!newTransactions || newTransactions.length === 0) {
                 showToast("Nenhuma transação encontrada no arquivo.", "error");
+                setIsUploading(false);
                 return;
             }
 
@@ -89,13 +99,13 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         }
     };
 
-    const handleFileUploadWrapper = async (content: string, fileName: string, rawFile: File) => {
+    const handleFileUploadWrapper = async (content: string, fileName: string, rawFile: File, base64?: string) => {
         setIsUploading(true);
         try {
             if (uploadModeRef.current === 'replace') {
-                await handleStatementUpload(content, fileName, bank.id, rawFile);
+                await handleStatementUpload(content, fileName, bank.id, rawFile, base64);
             } else {
-                await handleAppend(content, fileName, rawFile);
+                await handleAppend(content, fileName, rawFile, base64);
             }
         } catch (e) {
             console.error(e);
