@@ -16,12 +16,10 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 };
 
 // LIMITE DE SEGURANÇA (Hard Limit)
-// Ajustado para 60 relatórios (Equivalente a 5 anos de histórico mensal).
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     
-    // --- User Scoping for Local Storage ---
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -30,12 +28,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    // --- Search Filters Actions ---
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
-    // --- Saved Reports Actions ---
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
@@ -46,21 +42,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const updateSavedReportTransaction = useCallback(async (transactionId: string, updatedRow: MatchResult) => {
         if (!user) return;
-
-        // Find the report containing the transaction
         const reportIndex = savedReports.findIndex(r => r.data?.results.some(res => res.transaction.id === transactionId));
-        
         if (reportIndex === -1) return;
 
         const report = savedReports[reportIndex];
         if (!report.data) return;
 
-        // Create updated results array
         const updatedResults = report.data.results.map(res => 
             res.transaction.id === transactionId ? updatedRow : res
         );
 
-        // Update Local State
         const updatedReport = {
             ...report,
             data: {
@@ -75,30 +66,22 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             return newReports;
         });
 
-        // Update Supabase
-        const { error } = await supabase
+        await supabase
             .from('saved_reports')
-            .update({ data: updatedReport.data as any }) // Cast to any to satisfy Json type
+            .update({ data: updatedReport.data as any })
             .eq('id', report.id);
+    }, [user, savedReports]);
 
-        if (error) {
-            showToast('Erro ao atualizar relatório salvo.', 'error');
-        } else {
-            showToast('Relatório salvo atualizado.', 'success');
-        }
-    }, [user, savedReports, setSavedReports, showToast]);
-
-    // NOVO: Sobrescreve um relatório inteiro (usado para salvar alterações da sessão)
-    // Agora aceita spreadsheetData opcional para atualizar planilhas
+    /**
+     * ⚡ AUTO-SAVE ENGINE: Sobrescreve o relatório de forma silenciosa.
+     */
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user) return;
+        if (!user || !reportId) return;
 
         const reportIndex = savedReports.findIndex(r => r.id === reportId);
         if (reportIndex === -1) return;
 
         const report = savedReports[reportIndex];
-        
-        // Determina a contagem de registros (planilha vs conciliação)
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : results.length;
 
         const updatedReport: SavedReport = {
@@ -106,23 +89,19 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             recordCount: recordCount,
             data: {
                 results: results,
-                sourceFiles: [], // Mantém limpo ou preserva se necessário (simplificado)
-                bankStatementFile: null,
+                sourceFiles: report.data?.sourceFiles || [],
+                bankStatementFile: report.data?.bankStatementFile || null,
                 spreadsheet: spreadsheetData || report.data?.spreadsheet
             }
         };
 
-        // Update Local State
         setSavedReports(prev => {
             const newReports = [...prev];
             newReports[reportIndex] = updatedReport;
             return newReports;
         });
 
-        // OPTIMISTIC UI: Feedback Imediato
-        showToast('Alterações salvas com sucesso!', 'success');
-
-        // Update Supabase (Background)
+        // Persistência em background sem bloquear a UI
         const { error } = await supabase
             .from('saved_reports')
             .update({ 
@@ -132,10 +111,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             .eq('id', reportId);
 
         if (error) {
-            console.error("Erro ao persistir:", error);
-            showToast('Aviso: Falha ao sincronizar com a nuvem. Verifique sua conexão.', 'error');
+            console.error("[AutoSave] Falha na sincronização cloud:", error);
         }
-    }, [user, savedReports, setSavedReports, showToast]);
+    }, [user, savedReports]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
@@ -151,9 +129,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const confirmSaveReport = useCallback(async (name: string) => {
         if (!savingReportState || !user) return;
         
-        // CHECK DE LIMITE DE ARMAZENAMENTO
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
-            showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido. Exclua alguns antigos para salvar novos.`, 'error');
+            showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
             closeSaveReportModal();
             return;
         }
@@ -190,37 +167,27 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         if (error) {
             setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
-            showToast('Erro ao salvar relatório no banco de dados.', 'error');
+            showToast('Erro ao salvar relatório.', 'error');
         } else {
-            showToast('Relatório salvo com sucesso!', 'success');
+            showToast('Relatório criado!', 'success');
         }
     }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
-    // Função para deletar relatórios antigos em massa
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
 
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
-        if (reportsToDelete.length === 0) {
-            showToast("Nenhum relatório encontrado anterior a esta data.", "error");
-            return;
-        }
+        if (reportsToDelete.length === 0) return;
 
-        // Optimistic UI Update
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
 
-        const { error } = await supabase
+        await supabase
             .from('saved_reports')
             .delete()
             .lt('created_at', dateThreshold.toISOString())
             .eq('user_id', user.id);
-
-        if (error) {
-            // Revert state (complex, requires refetching usually, but simplified here)
-            showToast("Erro ao excluir relatórios no servidor.", "error");
-        } else {
-            showToast(`${reportsToDelete.length} relatórios antigos foram excluídos.`, "success");
-        }
+        
+        showToast(`${reportsToDelete.length} itens removidos.`, "success");
     }, [user, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
@@ -231,7 +198,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     return useMemo(() => ({
         savedReports, setSavedReports,
-        maxSavedReports: MAX_REPORTS_PER_USER, // EXPOSED CONSTANT
+        maxSavedReports: MAX_REPORTS_PER_USER,
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,

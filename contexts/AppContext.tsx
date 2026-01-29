@@ -1,6 +1,6 @@
 
 import { MatchResult, Transaction } from '../types';
-import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
 import { useReferenceData } from '../hooks/useReferenceData';
@@ -16,10 +16,10 @@ import { useSummaryData } from '../hooks/useSummaryData';
 export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, systemSettings } = useAuth();
+    const { user } = useAuth();
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
-    const [isSyncing] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast);
@@ -44,6 +44,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { confirmDeletion } = useDataDeletion({ user, modalController, referenceData, reportManager, reconciliation, showToast });
     const { runAiAutoIdentification } = useAiAutoIdentify({ reconciliation, referenceData, effectiveIgnoreKeywords, setIsLoading, showToast });
     const summary = useSummaryData(reconciliation, reportManager);
+
+    /**
+     * 🧠 AUTO-SAVE GATEWAY
+     * Monitora mudanças nos resultados da conciliação e persiste automaticamente 
+     * se houver um relatório ativo sendo editado.
+     */
+    const isFirstRun = useRef(true);
+    useEffect(() => {
+        if (isFirstRun.current) {
+            isFirstRun.current = false;
+            return;
+        }
+
+        const triggerAutoSave = async () => {
+            if (reconciliation.activeReportId && reconciliation.matchResults.length > 0) {
+                setIsSyncing(true);
+                try {
+                    await reportManager.overwriteSavedReport(
+                        reconciliation.activeReportId, 
+                        reconciliation.matchResults
+                    );
+                } finally {
+                    // Pequeno delay visual para o indicador de sincronia
+                    setTimeout(() => setIsSyncing(false), 500);
+                }
+            }
+        };
+
+        triggerAutoSave();
+    }, [reconciliation.matchResults, reconciliation.activeReportId]);
 
     const saveSmartEdit = useCallback((result: MatchResult) => {
         reconciliation.updateReportData(result);
