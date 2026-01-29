@@ -9,6 +9,7 @@ interface UseAiAutoIdentifyProps {
     effectiveIgnoreKeywords: string[];
     setIsLoading: (loading: boolean) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
+    onAfterIdentification?: (results: MatchResult[]) => void;
 }
 
 export const useAiAutoIdentify = ({
@@ -16,7 +17,8 @@ export const useAiAutoIdentify = ({
     referenceData,
     effectiveIgnoreKeywords,
     setIsLoading,
-    showToast
+    showToast,
+    onAfterIdentification
 }: UseAiAutoIdentifyProps) => {
     
     const runAiAutoIdentification = useCallback(() => {
@@ -90,12 +92,15 @@ export const useAiAutoIdentify = ({
             });
 
             showToast(`${identifiedCount} transações identificadas automaticamente.`, "success");
+
+            // Persistência Imediata após IA
+            if (onAfterIdentification) onAfterIdentification(nextResults);
         } else {
             showToast("Nenhuma sugestão de alta confiança encontrada.", "success");
         }
         
         setIsLoading(false);
-    }, [reconciliation, referenceData, effectiveIgnoreKeywords, setIsLoading, showToast]);
+    }, [reconciliation, referenceData, effectiveIgnoreKeywords, setIsLoading, showToast, onAfterIdentification]);
 
     return { runAiAutoIdentification };
 };

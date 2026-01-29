@@ -40,45 +40,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast, setIsLoading, setActiveView
     });
 
-    const reconciliationActions = useReconciliationActions({ reconciliation, referenceData, showToast });
-    const { confirmDeletion } = useDataDeletion({ user, modalController, referenceData, reportManager, reconciliation, showToast });
-    const { runAiAutoIdentification } = useAiAutoIdentify({ reconciliation, referenceData, effectiveIgnoreKeywords, setIsLoading, showToast });
-    const summary = useSummaryData(reconciliation, reportManager);
-
     /**
-     * 🧠 AUTO-SAVE GATEWAY (V2)
-     * Persiste mudanças na nuvem SEMPRE que houver alteração nos resultados.
+     * 🔐 PERSISTÊNCIA MESTRE (Auto-Save Direto)
+     * Salva o estado ATUAL e COMPLETO de matchResults no banco de dados.
      */
-    const lastSaveRef = useRef<number>(0);
-    useEffect(() => {
-        if (!reconciliation.activeReportId || reconciliation.matchResults.length === 0) return;
-
-        const now = Date.now();
-        // Debounce de 1s para evitar excesso de requisições em alterações em lote
-        const timer = setTimeout(async () => {
+    const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
+        const reportId = reconciliation.activeReportId;
+        const resultsToSave = customResults || reconciliation.matchResults;
+        
+        if (reportId && resultsToSave.length > 0) {
             setIsSyncing(true);
             try {
-                await reportManager.overwriteSavedReport(
-                    reconciliation.activeReportId, 
-                    reconciliation.matchResults
-                );
-                lastSaveRef.current = now;
+                await reportManager.overwriteSavedReport(reportId, resultsToSave);
             } finally {
-                setTimeout(() => setIsSyncing(false), 800);
+                setTimeout(() => setIsSyncing(false), 500);
             }
-        }, 1000);
+        }
+    }, [reconciliation.activeReportId, reconciliation.matchResults, reportManager]);
 
-        return () => clearTimeout(timer);
-    }, [reconciliation.matchResults, reconciliation.activeReportId]);
+    const reconciliationActions = useReconciliationActions({ 
+        reconciliation, 
+        referenceData, 
+        showToast,
+        onAfterAction: persistActiveReport // Injeta o gatilho de salvamento nas ações
+    });
 
-    const saveSmartEdit = useCallback((result: MatchResult) => {
+    const { confirmDeletion } = useDataDeletion({ user, modalController, referenceData, reportManager, reconciliation, showToast });
+    const { runAiAutoIdentification } = useAiAutoIdentify({ 
+        reconciliation, 
+        referenceData, 
+        effectiveIgnoreKeywords, 
+        setIsLoading, 
+        showToast,
+        onAfterIdentification: persistActiveReport // Injeta o gatilho no motor de IA
+    });
+
+    const summary = useSummaryData(reconciliation, reportManager);
+
+    // Salva automaticamente se o usuário editar manualmente via SmartEdit
+    const saveSmartEdit = useCallback(async (result: MatchResult) => {
+        // 1. Atualiza o estado local (Memória)
         reconciliation.updateReportData(result);
+        
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
              referenceData.learnAssociation(result);
         }
+        
         modalController.closeSmartEdit();
         showToast("Identificação atualizada.", "success");
-    }, [reconciliation, referenceData, modalController, showToast]);
+
+        // 2. Persiste imediatamente o conjunto completo alterado
+        const updatedSet = reconciliation.matchResults.map((r: any) => 
+            r.transaction.id === result.transaction.id ? result : r
+        );
+        persistActiveReport(updatedSet);
+    }, [reconciliation, referenceData, modalController, showToast, persistActiveReport]);
 
     const openManualIdentify = useCallback((txId: string) => {
         const tx = reconciliation.matchResults.find((r: any) => r.transaction.id === txId)?.transaction;

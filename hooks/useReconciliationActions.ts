@@ -1,28 +1,31 @@
 
 import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod } from '../types';
-// Fixed: Imported groupResultsByChurch from processingService instead of using require
 import { groupResultsByChurch } from '../services/processingService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
   referenceData: any;
   showToast: (msg: string, type: 'success' | 'error') => void;
+  onAfterAction?: (updatedResults: MatchResult[]) => void;
 }
 
 export const useReconciliationActions = ({
   reconciliation,
   referenceData,
-  showToast
+  showToast,
+  onAfterAction
 }: UseReconciliationActionsProps) => {
   
   const confirmManualIdentification = useCallback((txId: string, churchId: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
     
-    const originalResult = reconciliation.matchResults.find((r: MatchResult) => r.transaction.id === txId);
-    if (!originalResult) return;
+    const currentResults = [...reconciliation.matchResults];
+    const idx = currentResults.findIndex(r => r.transaction.id === txId);
+    if (idx === -1) return;
 
+    const originalResult = currentResults[idx];
     const updatedResult: MatchResult = {
       ...originalResult,
       status: ReconciliationStatus.IDENTIFIED,
@@ -32,18 +35,23 @@ export const useReconciliationActions = ({
       divergence: undefined
     };
     
-    reconciliation.updateReportData(updatedResult);
+    currentResults[idx] = updatedResult;
+    
+    // Atualiza estado e aprende
+    reconciliation.setMatchResults(currentResults);
     referenceData.learnAssociation(updatedResult);
     
     reconciliation.closeManualIdentify();
     showToast("Identificado manualmente.", "success");
-  }, [reconciliation, referenceData, showToast]);
+
+    // Gatilho de persistência imediata
+    if (onAfterAction) onAfterAction(currentResults);
+  }, [reconciliation, referenceData, showToast, onAfterAction]);
 
   const confirmBulkManualIdentification = useCallback((txIds: string[], churchId: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
     
-    // 1. Cria uma nova lista baseada no estado atual para garantir imutabilidade e re-render
     const currentResults = [...reconciliation.matchResults];
     let affectedCount = 0;
     
@@ -51,37 +59,28 @@ export const useReconciliationActions = ({
       const idx = currentResults.findIndex(r => r.transaction.id === id);
       if (idx !== -1) {
         const original = currentResults[idx];
-        
-        // 2. Cria o novo objeto de resultado para este item do lote
         const updated: MatchResult = {
           ...original,
-          status: ReconciliationStatus.IDENTIFIED, // Muda para Identificado
-          church, // Define a igreja escolhida
+          status: ReconciliationStatus.IDENTIFIED,
+          church,
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
           contributorAmount: original.transaction.amount || original.contributor?.amount,
           divergence: undefined
         };
-        
         currentResults[idx] = updated;
-        
-        // 3. Opcional: Aprende a associação para usos futuros automáticos
         referenceData.learnAssociation(updated);
         affectedCount++;
       }
     });
     
-    // 4. Atualiza o estado principal do motor de reconciliação
     reconciliation.setMatchResults(currentResults);
     
-    // 5. Força a regeneração do preview (necessário para atualizar as abas de Relatórios)
     if (reconciliation.setReportPreviewData) {
-        // SEPARAÇÃO RÍGIDA POR MONTANTE EFETIVO (Elimina Duplicação)
         const incomeResults = currentResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
             return val >= 0;
         });
-        
         const expenseResults = currentResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
             return val < 0;
@@ -93,15 +92,22 @@ export const useReconciliationActions = ({
         });
     }
     
-    // 6. Fecha o modal e limpa a seleção
     reconciliation.closeManualIdentify();
     showToast(`${affectedCount} registros identificados para ${church.name}.`, "success");
-  }, [reconciliation, referenceData, showToast]);
+
+    // Gatilho de persistência imediata
+    if (onAfterAction) onAfterAction(currentResults);
+  }, [reconciliation, referenceData, showToast, onAfterAction]);
 
   const undoIdentification = useCallback((txId: string) => {
     reconciliation.revertMatch(txId);
     showToast("Identificação desfeita.", "success");
-  }, [reconciliation, showToast]);
+    
+    // Pequeno delay para garantir que o estado local reverteu antes de persistir
+    setTimeout(() => {
+        if (onAfterAction) onAfterAction(reconciliation.matchResults);
+    }, 100);
+  }, [reconciliation, showToast, onAfterAction]);
 
   return {
     confirmManualIdentification,
