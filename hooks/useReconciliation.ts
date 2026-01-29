@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { 
     MatchResult, 
     Transaction, 
@@ -39,13 +39,16 @@ export const useReconciliation = ({
 }: any) => {
 
     const userSuffix = user ? `-${user.id}` : '-guest';
+    
+    // ESTADOS PERSISTENTES (Não resetam com F5)
+    const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
+    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
+    
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
-    const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
     const [reportPreviewData, setReportPreviewData] = useState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(null);
-    const [activeReportId, setActiveReportId] = useState<string | null>(null);
-    const [hasActiveSession, setHasActiveSession] = useState(false);
     const [comparisonType, setComparisonType] = useState<ComparisonType>('income');
     const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
@@ -63,6 +66,13 @@ export const useReconciliation = ({
         showToast
     });
 
+    // Sincroniza o Preview sempre que os resultados persistentes mudarem (inclusive no load)
+    useEffect(() => {
+        if (matchResults.length > 0) {
+            regenerateReportPreview(matchResults);
+        }
+    }, [matchResults.length]);
+
     const findMatchResult = useCallback((txId: string) => {
         return matchResults.find(r => r.transaction.id === txId);
     }, [matchResults]);
@@ -70,20 +80,18 @@ export const useReconciliation = ({
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         const uniqueResults = Array.from(new Map(results.map(r => [r.transaction.id, r])).values());
         
-        // FILTRAGEM RÍGIDA E DEFINITIVA
-        // Para registros PENDING (Ghosts), usamos o valor do contribuinte para decidir a categoria.
         const incomeResults = uniqueResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING 
                 ? (r.contributorAmount || r.contributor?.amount || 0) 
                 : r.transaction.amount;
-            return val > 0; // Estritamente maior que zero para Entradas
+            return val > 0;
         });
         
         const expenseResults = uniqueResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING 
                 ? (r.contributorAmount || r.contributor?.amount || 0) 
                 : r.transaction.amount;
-            return val < 0; // Estritamente menor que zero para Saídas
+            return val < 0;
         });
 
         setReportPreviewData({
@@ -94,29 +102,18 @@ export const useReconciliation = ({
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {
         const processKey = `${bankId}-${fileName}`;
-        if (processingFilesRef.current.has(processKey)) {
-            return;
-        }
+        if (processingFilesRef.current.has(processKey)) return;
 
         processingFilesRef.current.add(processKey);
         setIsLoading(true);
 
         try {
             if (fetchModels) await fetchModels();
-
-            // V3: Passamos o base64 para o processador garantir visão computacional
             const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords, base64);
-            
             const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
             
             if (executorResult.status === 'MODEL_REQUIRED' || (transactions.length === 0 && bankId !== 'gmail-sync')) {
-                console.log("[Pipeline:GOV] Interrompendo por falta de modelo ou extração vazia.");
-                setModelRequiredData({
-                    ...executorResult,
-                    status: 'MODEL_REQUIRED',
-                    fileName,
-                    bankId
-                });
+                setModelRequiredData({ ...executorResult, status: 'MODEL_REQUIRED', fileName, bankId });
                 setIsLoading(false);
                 processingFilesRef.current.delete(processKey);
                 return;
@@ -134,7 +131,6 @@ export const useReconciliation = ({
             await hydrate();
             
         } catch (error: any) {
-            console.error("[Pipeline:ERROR] Falha crítica no upload:", error);
             showToast("Erro no processamento do arquivo.", "error");
         } finally {
             processingFilesRef.current.delete(processKey);
@@ -144,13 +140,11 @@ export const useReconciliation = ({
 
     const importGmailTransactions = useCallback(async (transactions: Transaction[]) => {
         if (!user || transactions.length === 0) return;
-        
         const gmailKey = `gmail-sync-active`;
         if (processingFilesRef.current.has(gmailKey)) return;
         
         processingFilesRef.current.add(gmailKey);
         setIsLoading(true);
-        
         try {
             const result = await IngestionOrchestrator.processVirtualData('Gmail', transactions, customIgnoreKeywords);
             const stats = await persistTransactions('gmail-sync', result.transactions);
@@ -167,8 +161,6 @@ export const useReconciliation = ({
         try {
             await clearRemoteList(bankId);
             showToast("Lista removida do sistema.", "success");
-        } catch (e) {
-            showToast("Erro ao remover lista.", "error");
         } finally {
             setIsLoading(false);
         }
@@ -182,55 +174,42 @@ export const useReconciliation = ({
             setReportPreviewData(null);
             setContributorFiles([]);
             setHasActiveSession(false);
+            setActiveReportId(null);
             showToast("Sistema reiniciado.", "success");
             setActiveView('upload');
         } finally {
             setIsLoading(false);
         }
-    }, [clearRemoteList, showToast, setActiveView, setIsLoading]);
+    }, [clearRemoteList, showToast, setActiveView, setIsLoading, setMatchResults, setHasActiveSession, setActiveReportId]);
 
     const markAsLaunched = useCallback((txId: string) => {
         setMatchResults(prev => {
             const itemIndex = prev.findIndex(r => r.transaction.id === txId);
             if (itemIndex === -1) return prev;
-
             const item = prev[itemIndex];
-            
-            setLaunchedResults(launched => [{ 
-                ...item, 
-                launchedAt: new Date().toISOString() 
-            }, ...launched]);
-
+            setLaunchedResults(launched => [{ ...item, launchedAt: new Date().toISOString() }, ...launched]);
             const next = prev.filter(r => r.transaction.id !== txId);
-            setTimeout(() => regenerateReportPreview(next), 0);
             return next;
         });
-    }, [setMatchResults, setLaunchedResults, regenerateReportPreview]);
+    }, [setMatchResults, setLaunchedResults]);
 
     const undoLaunch = useCallback((txId: string) => {
         setLaunchedResults(prevLaunched => {
             const item = prevLaunched.find(r => r.transaction.id === txId);
             if (!item) return prevLaunched;
-
-            // Remove from launched
             const nextLaunched = prevLaunched.filter(r => r.transaction.id !== txId);
-
-            // Add back to matchResults if it doesn't already exist (unlikely but safe)
             setMatchResults(prevResults => {
                 if (prevResults.some(r => r.transaction.id === txId)) return prevResults;
-                const updatedResults = [...prevResults, item];
-                setTimeout(() => regenerateReportPreview(updatedResults), 0);
-                return updatedResults;
+                return [...prevResults, item];
             });
-
             return nextLaunched;
         });
         showToast("Lançamento desfeito.", "success");
-    }, [setMatchResults, setLaunchedResults, regenerateReportPreview, showToast]);
+    }, [setMatchResults, setLaunchedResults, showToast]);
 
     const deleteLaunchedItem = useCallback((txId: string) => {
         setLaunchedResults(prev => prev.filter(r => r.transaction.id !== txId));
-        showToast("Item removido do histórico de lançados.", "success");
+        showToast("Item removido.", "success");
     }, [setLaunchedResults, showToast]);
 
     return {
@@ -262,17 +241,9 @@ export const useReconciliation = ({
                 return; 
             }
 
-            const results = matchTransactions(
-                allTransactions, 
-                contributorFiles, 
-                { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, 
-                learnedAssociations, 
-                churches, 
-                customIgnoreKeywords
-            );
+            const results = matchTransactions(allTransactions, contributorFiles, { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, learnedAssociations, churches, customIgnoreKeywords);
 
             setMatchResults(results);
-            regenerateReportPreview(results);
             setHasActiveSession(true);
             setActiveView('reports');
             setIsLoading(false);
@@ -285,24 +256,15 @@ export const useReconciliation = ({
                 const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
                 if (idx !== -1) next[idx] = updatedRow;
                 else next.push(updatedRow);
-                regenerateReportPreview(next);
                 return next;
             });
         },
         revertMatch: (txId: string) => {
-            setMatchResults(prev => {
-                const next = prev.map(r => r.transaction.id === txId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED, contributor: null, church: PLACEHOLDER_CHURCH } : r);
-                regenerateReportPreview(next);
-                return next;
-            });
+            setMatchResults(prev => prev.map(r => r.transaction.id === txId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED, contributor: null, church: PLACEHOLDER_CHURCH } : r));
         },
         closeManualIdentify: () => { setManualIdentificationTx(null); setBulkIdentificationTxs([]); },
         removeTransaction: (id: string) => {
-            setMatchResults(prev => {
-                const next = prev.filter(r => r.transaction.id !== id);
-                regenerateReportPreview(next);
-                return next;
-            });
+            setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
         },
         hydrate,
         setMatchResults,

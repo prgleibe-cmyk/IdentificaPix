@@ -46,33 +46,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const summary = useSummaryData(reconciliation, reportManager);
 
     /**
-     * 🧠 AUTO-SAVE GATEWAY
-     * Monitora mudanças nos resultados da conciliação e persiste automaticamente 
-     * se houver um relatório ativo sendo editado.
+     * 🧠 AUTO-SAVE GATEWAY (V2)
+     * Persiste mudanças na nuvem SEMPRE que houver alteração nos resultados.
      */
-    const isFirstRun = useRef(true);
+    const lastSaveRef = useRef<number>(0);
     useEffect(() => {
-        if (isFirstRun.current) {
-            isFirstRun.current = false;
-            return;
-        }
+        if (!reconciliation.activeReportId || reconciliation.matchResults.length === 0) return;
 
-        const triggerAutoSave = async () => {
-            if (reconciliation.activeReportId && reconciliation.matchResults.length > 0) {
-                setIsSyncing(true);
-                try {
-                    await reportManager.overwriteSavedReport(
-                        reconciliation.activeReportId, 
-                        reconciliation.matchResults
-                    );
-                } finally {
-                    // Pequeno delay visual para o indicador de sincronia
-                    setTimeout(() => setIsSyncing(false), 500);
-                }
+        const now = Date.now();
+        // Debounce de 1s para evitar excesso de requisições em alterações em lote
+        const timer = setTimeout(async () => {
+            setIsSyncing(true);
+            try {
+                await reportManager.overwriteSavedReport(
+                    reconciliation.activeReportId, 
+                    reconciliation.matchResults
+                );
+                lastSaveRef.current = now;
+            } finally {
+                setTimeout(() => setIsSyncing(false), 800);
             }
-        };
+        }, 1000);
 
-        triggerAutoSave();
+        return () => clearTimeout(timer);
     }, [reconciliation.matchResults, reconciliation.activeReportId]);
 
     const saveSmartEdit = useCallback((result: MatchResult) => {
