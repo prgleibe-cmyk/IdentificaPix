@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Transaction } from '../types';
 import { DateResolver } from '../core/processors/DateResolver';
@@ -22,7 +21,7 @@ interface UseSimulationProps {
 }
 
 /**
- * @frozen-block: SIMULATION_INTEGRITY_LIMITER_V2
+ * @frozen-block: SIMULATION_INTEGRITY_LIMITER_V3
  * BLOCO PROTEGIDO CONTRA REGRESSÃO.
  * Este hook gerencia a simulação no Laboratório garantindo que o fatiamento 
  * e a aplicação de contrato respeitem o limite de 50 registros e usem campos estruturados.
@@ -104,8 +103,6 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                         console.log("[Simulation] 🎯 EXECUTANDO CONTRATO RÍGIDO (LIMITE 50 REGISTROS)...");
                         
                         const rawText = gridData.map(r => r.join(';')).join('\n');
-                        
-                        // PARIDADE V54: Removido semanticBlocksRef para evitar mistura de texto bruto
                         const aiResults = await extractTransactionsWithModel(
                             rawText, 
                             mapping.blockContract, 
@@ -116,19 +113,27 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                         const rows = Array.isArray(aiResults) ? aiResults : (aiResults?.rows || []);
 
                         if (rows && rows.length > 0) {
-                            const mapped = rows.map((tx: any, i: number) => ({
-                                id: `ai-extracted-${i}-${Date.now()}`,
-                                date: tx.date || "---",
-                                description: tx.description || "---",
-                                rawDescription: tx.description || "",
-                                amount: tx.amount || 0,
-                                originalAmount: String(tx.amount || "0"),
-                                paymentMethod: tx.forma || tx.paymentMethod || 'OUTROS',
-                                contributionType: tx.tipo || 'AUTO',
-                                isValid: true,
-                                status: 'valid' as const,
-                                sourceIndex: 0
-                            }));
+                            const modelKeywords = mapping.ignoredKeywords || [];
+                            
+                            const mapped = rows.map((tx: any, i: number) => {
+                                const aiDesc = tx.description || "";
+                                // PARIDADE V3: Limpeza determinística aplicada na simulação
+                                const cleanedDesc = NameResolver.clean(aiDesc, modelKeywords, cleaningKeywords);
+                                
+                                return {
+                                    id: `ai-extracted-${i}-${Date.now()}`,
+                                    date: tx.date || "---",
+                                    description: cleanedDesc,
+                                    rawDescription: aiDesc,
+                                    amount: tx.amount || 0,
+                                    originalAmount: String(tx.amount || "0"),
+                                    paymentMethod: tx.forma || tx.paymentMethod || 'OUTROS',
+                                    contributionType: tx.tipo || 'AUTO',
+                                    isValid: true,
+                                    status: 'valid' as const,
+                                    sourceIndex: 0
+                                };
+                            });
                             setProcessedTransactions(mapped);
                             initialReadDone.current = fileIdentifier;
                             lastContractRef.current = mapping.blockContract;

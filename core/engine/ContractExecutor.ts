@@ -5,13 +5,13 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V57 - VERDADE ÚNICA PDF)
+ * 📜 CONTRACT EXECUTOR (V58 - VERDADE ÚNICA PDF FIXED)
  * -------------------------------------------------------
  * Este componente garante que a Lista Viva reflita exatamente
  * o que foi aprendido e simulado no Laboratório, impedindo 
  * a contaminação por texto bruto do parser de PDF.
  * 
- * @critical_fix: Removida dependência de texto bruto no mapeamento final.
+ * @critical_fix: Aplicado NameResolver.clean no modo BLOCK para paridade total com Excel.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -30,7 +30,7 @@ export const ContractExecutor = {
             const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural.';
 
             try {
-                // @frozen-block: PDF_PARITY_V57 (PROTEGIDO)
+                // @frozen-block: PDF_PARITY_V58 (PROTEGIDO)
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
@@ -39,17 +39,23 @@ export const ContractExecutor = {
                      * 🛡️ FONTE ÚNICA DE VERDADE: O mapeamento vindo da IA (tx)
                      * PROIBIDO: Usar rawText, segments, original ou pdfLine aqui.
                      */
-                    const txDescription = String(tx.description || "").toUpperCase().trim();
+                    const aiDesc = String(tx.description || "").toUpperCase().trim();
                     const txDate = String(tx.date || "").trim();
                     const txAmount = tx.amount;
                     const txForma = String(tx.forma || "").toUpperCase().trim();
                     const txTipo = String(tx.tipo || "").toUpperCase().trim();
 
+                    // RIGOR DETERMINÍSTICO (v58):
+                    // Mesmo com IA, aplicamos o NameResolver para remover termos bancários
+                    // residuais (PIX, TED, etc) que a IA possa ter deixado, garantindo 
+                    // que a descrição seja APENAS o nome do pagador/recebedor.
+                    const txDescription = NameResolver.clean(aiDesc, modelKeywords, globalKeywords);
+
                     return {
-                        id: `exec-v57-block-${model.id}-${idx}-${Date.now()}`,
+                        id: `exec-v58-block-${model.id}-${idx}-${Date.now()}`,
                         date: txDate,
                         description: txDescription, 
-                        rawDescription: txDescription, // RIGOR: Não reinjeta o texto bruto do PDF
+                        rawDescription: aiDesc, // Preserva a extração da IA sem cleaning no raw
                         amount: txAmount || 0,
                         originalAmount: String(txAmount || 0),
                         cleanedDescription: txDescription,
@@ -92,10 +98,10 @@ export const ContractExecutor = {
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({
-                    id: `exec-v57-col-${model.id}-${idx}-${Date.now()}`,
+                    id: `exec-v58-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
                     description: learnedDescription, 
-                    rawDescription: learnedDescription, 
+                    rawDescription: rawDesc, 
                     amount: numAmount,
                     originalAmount: rawAmount,
                     cleanedDescription: learnedDescription,

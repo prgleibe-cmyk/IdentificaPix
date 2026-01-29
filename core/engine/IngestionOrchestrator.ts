@@ -1,19 +1,30 @@
-
 import { Transaction, FileModel } from '../../types';
 import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V17 - PASS-THROUGH)
+ * 🎛️ INGESTION ORCHESTRATOR (V18 - PDF PURITY FIXED)
  * -------------------------------------------------------
- * Mantém a integridade total do arquivo original.
+ * Garante a integridade total do arquivo original.
+ * Especialmente crítico para PDFs: impede que o parser local
+ * polua o texto antes da IA ou do Modelo aplicarem suas regras.
  */
 export const IngestionOrchestrator = {
     /**
-     * Retorna o conteúdo exatamente como recebido.
+     * Retorna o conteúdo purificado. 
+     * Se for um marcador de PDF, retorna sem NENHUMA alteração.
      */
     normalizeRawContent(content: string): string {
-        return content || "";
+        if (!content) return "";
+        
+        // RIGOR V18: Se o conteúdo é o marcador visual de PDF, 
+        // abortamos qualquer normalização de string para evitar poluição.
+        if (content.includes('[DOCUMENTO_PDF_VISUAL]')) {
+            return content;
+        }
+
+        // Para outros formatos, apenas garante string básica
+        return content.trim();
     },
 
     async processVirtualData(
@@ -38,8 +49,6 @@ export const IngestionOrchestrator = {
     ): Promise<any> {
         // Usa o conteúdo BRUTO para garantir match de Hash
         const fingerprint = Fingerprinter.generate(content);
-        
-        console.log(`[Pipeline:INGESTION] Processando arquivo: ${file.name} | DNA: ${fingerprint?.headerHash}`);
         
         const result = await StrategyEngine.process(
             file.name, 
