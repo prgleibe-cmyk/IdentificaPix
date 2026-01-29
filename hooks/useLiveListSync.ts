@@ -38,17 +38,19 @@ export const useLiveListSync = ({
 
             const groupedByBank: Record<string, Transaction[]> = {};
             dbTransactions.forEach((t: any) => {
+                // Mapeamento Robusto: Transações sem bank_id explícito são tratadas como 'virtual'
                 const bankId = t.bank_id || 'virtual';
                 const tx: Transaction = {
                     id: t.id,
                     date: t.transaction_date,
-                    description: t.description, // RESTAURAÇÃO FIEL
+                    description: t.description,
                     rawDescription: t.description,
                     amount: t.amount,
                     originalAmount: String(t.amount.toFixed(2)),
                     contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
-                    paymentMethod: t.pix_key || 'OUTROS', // RESTAURA A "FORMA" DO BANCO
-                    cleanedDescription: t.description
+                    paymentMethod: t.pix_key || 'OUTROS',
+                    cleanedDescription: t.description,
+                    bank_id: t.bank_id // Preserva o ID original do banco
                 };
                 if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
                 groupedByBank[bankId].push(tx);
@@ -56,15 +58,18 @@ export const useLiveListSync = ({
 
             const restoredFiles = Object.entries(groupedByBank).map(([bankId, txs]) => ({
                 bankId,
-                fileName: bankId === 'gmail-sync' ? 'Sincronização Gmail' : `Lista Viva (Sincronizada)`,
+                fileName: bankId === 'gmail-sync' ? 'Sincronização Gmail' : (bankId === 'virtual' ? 'Lista Virtual' : `Lista Viva (Sincronizada)`),
                 processedTransactions: txs,
                 isRestored: true
             }));
 
-            setBankStatementFile(() => restoredFiles);
+            setBankStatementFile(restoredFiles);
+            
+            // Sincroniza a seleção
             setSelectedBankIds((prev: string[]) => {
-                const ids = restoredFiles.map(f => f.bankId);
-                return Array.from(new Set([...prev.filter(id => ids.includes(id)), ...ids]));
+                const availableIds = restoredFiles.map(f => f.bankId);
+                // Mantém o que já estava selecionado e adiciona novos bancos que apareceram no banco
+                return Array.from(new Set([...prev.filter(id => availableIds.includes(id)), ...availableIds]));
             });
             
         } catch (err: any) {
@@ -87,26 +92,27 @@ export const useLiveListSync = ({
         
         try {
             const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
-            await hydrate();
+            // NÃO chamamos hydrate aqui, deixamos o handleStatementUpload controlar o fluxo
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
-    }, [user, hydrate, showToast]);
+    }, [user, showToast]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
         if (!user) return;
         setIsCleaning(true);
         try {
+            await consolidationService.deletePendingTransactions(user.id, bankId);
+            // Atualiza localmente após deletar no servidor
             if (bankId && bankId !== 'all') {
                 setBankStatementFile((prev: any[]) => prev.filter(f => f.bankId !== bankId));
                 setSelectedBankIds((prev: string[]) => prev.filter(id => id !== bankId));
             } else {
-                setBankStatementFile(() => []);
-                setSelectedBankIds(() => []);
+                setBankStatementFile([]);
+                setSelectedBankIds([]);
             }
-            await consolidationService.deletePendingTransactions(user.id, bankId);
         } finally {
             setIsCleaning(false);
             await hydrate(false);
