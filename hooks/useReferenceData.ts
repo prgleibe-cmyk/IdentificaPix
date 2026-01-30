@@ -48,7 +48,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     normalizedDescription: d.normalized_description,
                     contributorNormalizedName: d.contributor_normalized_name,
                     churchId: d.church_id, 
-                    bankId: d.bank_id || 'global',
+                    bankId: 'global', // Removido bank_id para evitar erro 400
                     user_id: d.user_id
                 })));
             }
@@ -59,18 +59,16 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;
 
-        // Se o contribuinte for nulo, usamos a descrição como nome
         const contributorObj = matchResult.contributor;
         const contributorName = contributorObj?.cleanedName || contributorObj?.name || matchResult.transaction.cleanedDescription || matchResult.transaction.description;
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
-        const bankId = matchResult.transaction.bank_id || 'global';
         
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 
             churchId: matchResult.church.id, 
-            bankId: bankId,
+            bankId: 'global',
             user_id: user.id 
         };
 
@@ -90,16 +88,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             if (existing) {
                 await supabase.from('learned_associations').update({ 
                     contributor_normalized_name: contributorName, 
-                    church_id: matchResult.church.id,
-                    bank_id: bankId 
+                    church_id: matchResult.church.id
                 }).eq('id', existing.id);
             } else {
                 await supabase.from('learned_associations').insert({ 
                     user_id: user.id, 
                     normalized_description: normalizedDesc, 
                     contributor_normalized_name: contributorName, 
-                    church_id: matchResult.church.id,
-                    bank_id: bankId
+                    church_id: matchResult.church.id
                 });
             }
         } catch (err) {

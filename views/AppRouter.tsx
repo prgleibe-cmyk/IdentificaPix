@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -27,7 +28,6 @@ import { DivergenceConfirmationModal } from '../components/modals/DivergenceConf
 import { PaymentModal } from '../components/modals/PaymentModal';
 import { FilePreprocessorModal } from '../components/modals/FilePreprocessorModal';
 import { SmartEditModal } from '../components/modals/SmartEditModal';
-import { AutoLaunchModal } from '../components/modals/AutoLaunchModal';
 import { ModelRequiredModal } from '../components/modals/ModelRequiredModal';
 
 export const AppRouter: React.FC = () => {
@@ -69,7 +69,6 @@ export const ModalsRenderer: React.FC = () => {
         setPendingTraining,
         handleTrainingSuccess,
         smartEditTarget,
-        autoLaunchTarget,
         modelRequiredData
     } = context;
 
@@ -92,7 +91,6 @@ export const ModalsRenderer: React.FC = () => {
                 />
             )}
             {smartEditTarget && <SmartEditModal />}
-            {autoLaunchTarget && <AutoLaunchModal />}
             {modelRequiredData && <ModelRequiredModal />}
         </>
     );

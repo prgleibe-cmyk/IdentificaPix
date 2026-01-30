@@ -2,7 +2,7 @@
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { UserPlusIcon, XMarkIcon, CheckBadgeIcon, BoltIcon } from './Icons';
+import { UserPlusIcon, XMarkIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
@@ -11,7 +11,7 @@ interface BulkActionToolbarProps {
 }
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, onClear }) => {
-    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx, openAutoLaunch } = useContext(AppContext);
+    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx } = useContext(AppContext);
     const { language } = useTranslation();
 
     const selectedData = useMemo(() => {
@@ -59,14 +59,6 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                     >
                         <UserPlusIcon className="w-2.5 h-2.5" />
                         Identificar
-                    </button>
-
-                    <button
-                        onClick={() => openAutoLaunch(selectedData)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 transition-all hover:-translate-y-1 active:scale-95"
-                    >
-                        <BoltIcon className="w-2.5 h-2.5 stroke-[3]" />
-                        IA
                     </button>
 
                     <button

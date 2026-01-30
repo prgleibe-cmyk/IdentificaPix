@@ -46,13 +46,13 @@ export const ReportsView: React.FC = () => {
                     <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
                     <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} />
                 </div>
+                {/* Fix: Removed invalid onSaveChanges prop as it is not defined in ReportToolbarProps and not used in the component */}
                 <ReportToolbar 
                     onAiClick={ctrl.runAiAutoIdentification} 
                     onUpdateSource={() => ctrl.setActiveView('upload')}
                     onDownload={ctrl.handleDownload} 
                     onPrint={ctrl.handlePrint}
                     onSaveReport={ctrl.handleSaveReport}
-                    onSaveChanges={ctrl.saveCurrentReportChanges}
                     hasActiveReport={!!ctrl.activeReportId}
                 />
             </div>

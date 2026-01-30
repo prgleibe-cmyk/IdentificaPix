@@ -12,15 +12,26 @@ interface UseAiAutoIdentifyProps {
     onAfterIdentification?: (results: MatchResult[]) => void;
 }
 
-const getSimilarityScore = (s1: string, s2: string): number => {
+/**
+ * Calcula similaridade de tokens.
+ */
+const getConfidenceScore = (s1: string, s2: string): number => {
     if (s1 === s2) return 100;
+    // Deep Clean para comparação extrema
+    const clean1 = s1.replace(/[^A-Z0-9]/g, '');
+    const clean2 = s2.replace(/[^A-Z0-9]/g, '');
+    if (clean1 === clean2 && clean1.length > 0) return 100;
+    
+    // Dice Coefficient para strings
     const set1 = new Set();
     for (let i = 0; i < s1.length - 1; i++) set1.add(s1.substring(i, i + 2));
     const set2 = new Set();
     for (let i = 0; i < s2.length - 1; i++) set2.add(s2.substring(i, i + 2));
     
     const intersection = new Set([...set1].filter(x => set2.has(x)));
-    return (2.0 * intersection.size) / (set1.size + set2.size) * 100;
+    const total = set1.size + set2.size;
+    if (total === 0) return 0;
+    return (2.0 * intersection.size) / total * 100;
 };
 
 export const useAiAutoIdentify = ({
@@ -35,30 +46,26 @@ export const useAiAutoIdentify = ({
         const { matchResults, setMatchResults, setReportPreviewData } = reconciliation;
         const { learnedAssociations, churches } = referenceData;
 
-        if (!matchResults || matchResults.length === 0) return;
+        if (!matchResults || matchResults.length === 0) {
+            showToast("Nenhuma transação carregada para identificar.", "error");
+            return;
+        }
         
         setIsLoading(true);
         let identifiedCount = 0;
         
-        console.log(`[AI-RECON] Iniciando busca em ${matchResults.length} linhas. Associações aprendidas: ${learnedAssociations.length}`);
+        console.log(`[IA-Recon] Analisando ${matchResults.length} linhas. Memória de aprendizado: ${learnedAssociations.length} itens.`);
 
         const nextResults = matchResults.map((res: MatchResult) => {
             if (res.status === ReconciliationStatus.UNIDENTIFIED) {
                 const currentTxDna = strictNormalize(res.transaction.description);
                 
-                // 1. TENTA MATCH EXATO
-                let learned = learnedAssociations.find((la: any) => 
-                    la.normalizedDescription === currentTxDna
-                );
+                // Busca na memória de aprendizado com limite de 95%
+                const learned = learnedAssociations.find((la: any) => {
+                    const learnedDna = la.normalizedDescription;
+                    return learnedDna === currentTxDna || getConfidenceScore(learnedDna, currentTxDna) >= 95;
+                });
 
-                // 2. TENTA MATCH DE ALTA CONFIANÇA (95%+)
-                if (!learned) {
-                    learned = learnedAssociations.find((la: any) => {
-                        const score = getSimilarityScore(la.normalizedDescription, currentTxDna);
-                        return score >= 95; 
-                    });
-                }
-                
                 if (learned) {
                     const church = churches.find((c: any) => c.id === learned.churchId);
                     if (church) {
@@ -100,11 +107,10 @@ export const useAiAutoIdentify = ({
                 expenses: { 'all_expenses_group': expenseResults }
             });
 
-            showToast(`${identifiedCount} linhas identificadas por aprendizado.`, "success");
+            showToast(`Sucesso: ${identifiedCount} itens identificados pela IA!`, "success");
             if (onAfterIdentification) onAfterIdentification(nextResults);
         } else {
-            showToast("IA: Nenhuma linha pendente coincide com o que aprendi.", "error");
-            console.warn("[AI-RECON] Falha: Nenhuma correspondência encontrada para as descrições pendentes.");
+            showToast("IA: Nenhuma linha coincide com o aprendizado salvo.", "error");
         }
         
         setIsLoading(false);

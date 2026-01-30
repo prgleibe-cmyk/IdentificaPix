@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { MatchResult, DeletingItem } from '../types';
 
@@ -7,7 +8,6 @@ export const useModalController = () => {
     const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
-    const [autoLaunchTarget, setAutoLaunchTarget] = useState<MatchResult[] | null>(null);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
 
     const openPaymentModal = useCallback(() => setIsPaymentModalOpen(true), []);
@@ -24,9 +24,6 @@ export const useModalController = () => {
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
-
-    const openAutoLaunch = useCallback((targets: MatchResult[]) => setAutoLaunchTarget(targets), []);
-    const closeAutoLaunch = useCallback(() => setAutoLaunchTarget(null), []);
 
     const openModelRequired = useCallback((data: any) => setModelRequiredData(data), []);
     const closeModelRequired = useCallback(() => setModelRequiredData(null), []);
@@ -47,9 +44,6 @@ export const useModalController = () => {
         isSearchFiltersOpen,
         openSearchFilters,
         closeSearchFilters,
-        autoLaunchTarget,
-        openAutoLaunch,
-        closeAutoLaunch,
         modelRequiredData,
         openModelRequired,
         closeModelRequired

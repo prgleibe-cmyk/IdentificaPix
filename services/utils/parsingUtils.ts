@@ -16,8 +16,7 @@ export const DEFAULT_CONTRIBUTION_KEYWORDS = [
 
 /**
  * Normalização Estrita (DNA da Transação):
- * Transforma a descrição em uma chave de comparação fiel.
- * Preserva números (CPF/CNPJ/CÓDIGOS), remove acentos e colapsa espaços.
+ * Transforma a descrição em uma chave de comparação fiel e imutável.
  */
 export const strictNormalize = (str: string): string => {
     if (!str) return '';
@@ -25,13 +24,12 @@ export const strictNormalize = (str: string): string => {
         .toUpperCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-        .replace(/[^A-Z0-9\s]/g, ' ')   // Mantém letras e números
-        .replace(/\s+/g, ' ')           // Colapsa espaços
+        .replace(/[^A-Z0-9]/g, '')      // REMOVE TUDO exceto letras e números (DNA PURO)
         .trim();
 };
 
 /**
- * Extrai códigos numéricos significativos de uma string (DNA identificador).
+ * Extrai códigos numéricos significativos de uma string.
  */
 export const extractIdentifyingCode = (str: string): string | null => {
     if (!str) return null;

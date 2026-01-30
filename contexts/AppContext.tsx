@@ -1,3 +1,4 @@
+
 import { MatchResult, Transaction } from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
@@ -8,7 +9,6 @@ import { useReportManager } from '../hooks/useReportManager';
 import { useReconciliationActions } from '../hooks/useReconciliationActions';
 import { useModalController } from '../hooks/useModalController';
 import { useDataDeletion } from '../hooks/useDataDeletion';
-import { useAutomationSync } from '../hooks/useAutomationSync';
 import { useAiAutoIdentify } from '../hooks/useAiAutoIdentify';
 import { useSummaryData } from '../hooks/useSummaryData';
 
@@ -24,8 +24,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast);
     
-    const { automationMacros, fetchMacros } = useAutomationSync({ user, setIsLoading, showToast });
-
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
@@ -61,7 +59,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reconciliation, 
         referenceData, 
         showToast,
-        onAfterAction: persistActiveReport // Injeta o gatilho de salvamento nas ações
+        onAfterAction: persistActiveReport 
     });
 
     const { confirmDeletion } = useDataDeletion({ user, modalController, referenceData, reportManager, reconciliation, showToast });
@@ -71,30 +69,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectiveIgnoreKeywords, 
         setIsLoading, 
         showToast,
-        onAfterIdentification: persistActiveReport // Injeta o gatilho no motor de IA
+        onAfterIdentification: persistActiveReport 
     });
 
     const summary = useSummaryData(reconciliation, reportManager);
 
-    // Salva automaticamente se o usuário editar manualmente via SmartEdit
     const saveSmartEdit = useCallback(async (result: MatchResult) => {
-        // 1. Aprende a associação se for uma identificação válida
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
              referenceData.learnAssociation(result);
         }
 
-        // 2. Calcula o novo conjunto de resultados
         const updatedSet = reconciliation.matchResults.map((r: any) => 
             r.transaction.id === result.transaction.id ? result : r
         );
         
-        // 3. Atualiza o estado da reconciliação (Memória + IndexedDB via usePersistentState)
         reconciliation.setMatchResults(updatedSet);
-        
         modalController.closeSmartEdit();
         showToast("Identificação atualizada.", "success");
 
-        // 4. Persiste na Cloud se houver um relatório aberto
         if (reconciliation.activeReportId) {
             persistActiveReport(updatedSet);
         }
@@ -118,17 +110,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
 
+    // Fix: Added saveCurrentReportChanges to context value and updated memoization dependencies
     const value = useMemo(() => ({
         ...referenceData, effectiveIgnoreKeywords, ...reportManager, ...reconciliation,
-        ...reconciliationActions, ...modalController, automationMacros, fetchMacros,
+        ...reconciliationActions, ...modalController,
         initialDataLoaded, summary, activeSpreadsheetData, saveSmartEdit, isSyncing,
+        saveCurrentReportChanges: persistActiveReport,
         handleGmailSyncSuccess, confirmDeletion, openManualIdentify, runAiAutoIdentification,
         findMatchResult: reconciliation.findMatchResult,
         loadingAiId: reconciliation.loadingAiId
     }), [
         referenceData, effectiveIgnoreKeywords, reportManager, reconciliation, reconciliationActions,
-        modalController, automationMacros, fetchMacros, initialDataLoaded, summary, activeSpreadsheetData, 
-        saveSmartEdit, isSyncing, handleGmailSyncSuccess, confirmDeletion, openManualIdentify,
+        modalController, initialDataLoaded, summary, activeSpreadsheetData, 
+        saveSmartEdit, isSyncing, persistActiveReport, handleGmailSyncSuccess, confirmDeletion, openManualIdentify,
         runAiAutoIdentification
     ]);
 
