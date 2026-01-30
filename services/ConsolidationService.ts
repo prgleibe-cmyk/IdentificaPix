@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
@@ -18,19 +17,16 @@ export const consolidationService = {
                     const amount = Number(t.amount);
                     let finalDate = t.transaction_date;
 
-                    // AJUSTE: Tenta normalizar a data caso não esteja no formato ISO YYYY-MM-DD
+                    // Normalização de segurança para ISO YYYY-MM-DD
                     if (finalDate && !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
                         const resolved = DateResolver.resolveToISO(finalDate, new Date().getFullYear());
                         if (resolved) finalDate = resolved;
                     }
 
-                    // Fallback para data atual apenas se a data for nula ou inválida após tentativa de resolução
                     if (!finalDate || !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
                         finalDate = new Date().toISOString().split('T')[0];
                     }
 
-                    // PDF PURITY: Proibido o uso de fallbacks ou trim() pós-extração. 
-                    // O valor do modelo é a única verdade.
                     return {
                         transaction_date: finalDate,
                         amount: isNaN(amount) ? 0 : amount,
@@ -48,13 +44,11 @@ export const consolidationService = {
 
             if (sanitizedPayload.length === 0) return [];
 
-            // ESTRATÉGIA DE BATCHING (Lotes de 200 para máxima estabilidade)
             const CHUNK_SIZE = 200;
             const results = [];
 
             for (let i = 0; i < sanitizedPayload.length; i += CHUNK_SIZE) {
                 const chunk = sanitizedPayload.slice(i, i + CHUNK_SIZE);
-                console.log(`[Consolidation] Persistindo lote ${Math.floor(i/CHUNK_SIZE) + 1} (${chunk.length} itens)`);
                 
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
@@ -75,29 +69,19 @@ export const consolidationService = {
         }
     },
 
-    getExistingTransactionsForDedup: async (userId: string, bankId?: string) => {
+    /**
+     * Recupera hashes existentes com limite estendido para 50k registros.
+     */
+    getExistingTransactionsForDedup: async (userId: string) => {
         try {
             if (!userId) throw new Error("UserID é obrigatório.");
 
-            // Puxamos até 10.000 registros para garantir que duplicatas antigas sejam detectadas
-            let query = supabase
+            const { data, error } = await supabase
                 .from('consolidated_transactions')
                 .select('row_hash')
                 .eq('user_id', userId)
-                .limit(10000);
+                .limit(50000); // Limite aumentado drasticamente
 
-            if (bankId) {
-                const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank';
-                if (isVirtual) {
-                    query = query.is('bank_id', null);
-                } else {
-                    const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
-                    if (!isProbablyUuid) query = query.is('bank_id', null);
-                    else query = query.eq('bank_id', bankId);
-                }
-            }
-
-            const { data, error } = await query;
             if (error) throw error;
             return data || [];
         } catch (e: any) {
@@ -129,6 +113,9 @@ export const consolidationService = {
         }
     },
 
+    /**
+     * Recupera transações pendentes com limite estendido para 50k registros.
+     */
     getPendingTransactions: async (userId: string) => {
         try {
             if (!userId) return [];
@@ -138,7 +125,8 @@ export const consolidationService = {
                 .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key')
                 .eq('user_id', userId)
                 .eq('status', 'pending')
-                .order('transaction_date', { ascending: false });
+                .order('transaction_date', { ascending: false })
+                .limit(50000); // Limite aumentado drasticamente
 
             if (error) throw error;
             return data || [];

@@ -1,4 +1,3 @@
-
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
@@ -16,6 +15,26 @@ export const useLiveListSync = ({
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
 
+    // ✅ Normalizadores para dedupe lógico
+    const normalizeDate = (d: any) => {
+        if (!d) return '';
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return String(d);
+        return dt.toISOString().slice(0, 10);
+    };
+
+    const normalizeText = (t: any) =>
+        String(t || '')
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+
+    const normalizeAmount = (v: any) =>
+        Number(v || 0).toFixed(2);
+
+    const buildKey = (tx: any, bankId: string) =>
+        `${normalizeDate(tx.date)}|${normalizeText(tx.description)}|${normalizeAmount(tx.amount)}|${bankId}`;
+
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
         if (!user || isCleaning) return;
         
@@ -31,14 +50,21 @@ export const useLiveListSync = ({
             const dbTransactions = await consolidationService.getPendingTransactions(user.id);
             
             if (!dbTransactions || dbTransactions.length === 0) {
-                setBankStatementFile(() => []);
-                setSelectedBankIds(() => []);
+                if (forceClearUI) {
+                    setBankStatementFile(() => []);
+                    setSelectedBankIds(() => []);
+                }
                 return;
             }
 
             const groupedByBank: Record<string, Transaction[]> = {};
             dbTransactions.forEach((t: any) => {
-                const bankId = t.bank_id || 'virtual';
+                let bankId = t.bank_id;
+                if (!bankId && t.pix_key && t.pix_key.includes('-')) {
+                    bankId = t.pix_key;
+                }
+                const finalBankId = bankId || 'virtual';
+
                 const tx: Transaction = {
                     id: t.id,
                     date: t.transaction_date,
@@ -51,20 +77,58 @@ export const useLiveListSync = ({
                     cleanedDescription: t.description,
                     bank_id: t.bank_id
                 };
-                if (!groupedByBank[bankId]) groupedByBank[bankId] = [];
-                groupedByBank[bankId].push(tx);
+                
+                if (!groupedByBank[finalBankId]) groupedByBank[finalBankId] = [];
+                groupedByBank[finalBankId].push(tx);
             });
 
             const restoredFiles = Object.entries(groupedByBank).map(([bankId, txs]) => ({
                 bankId,
-                fileName: bankId === 'gmail-sync' ? 'Sincronização Gmail' : (bankId === 'virtual' ? 'Lista Virtual' : `Lista Viva (Sincronizada)`),
+                fileName: bankId.includes('gmail')
+                    ? 'Importação Gmail'
+                    : (bankId === 'virtual' ? 'Lista Virtual' : `Lista Viva Sincronizada`),
                 processedTransactions: txs,
                 isRestored: true
             }));
 
-            setBankStatementFile(restoredFiles);
+            // ✅ MERGE + DEDUPE LÓGICO
+            setBankStatementFile((prev: any[]) => {
+                if (!prev || prev.length === 0) return restoredFiles;
+
+                const map = new Map<string, any>();
+
+                prev.forEach(f => map.set(f.bankId, f));
+
+                restoredFiles.forEach(f => {
+                    if (map.has(f.bankId)) {
+                        const existing = map.get(f.bankId);
+
+                        const txMap = new Map<string, any>();
+
+                        existing.processedTransactions.forEach((tx: any) => {
+                            const key = buildKey(tx, f.bankId);
+                            txMap.set(key, tx);
+                        });
+
+                        f.processedTransactions.forEach((tx: any) => {
+                            const key = buildKey(tx, f.bankId);
+                            if (!txMap.has(key)) {
+                                txMap.set(key, tx);
+                            }
+                        });
+
+                        map.set(f.bankId, {
+                            ...existing,
+                            processedTransactions: Array.from(txMap.values())
+                        });
+                    } else {
+                        map.set(f.bankId, f);
+                    }
+                });
+
+                return Array.from(map.values());
+            });
             
-            // Sincroniza a seleção automaticamente com o que veio do banco
             setSelectedBankIds((prev: string[]) => {
                 const availableIds = restoredFiles.map(f => f.bankId);
                 return Array.from(new Set([...prev.filter(id => availableIds.includes(id)), ...availableIds]));
