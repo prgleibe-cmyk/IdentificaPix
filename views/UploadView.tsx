@@ -8,7 +8,7 @@ import { SmartBankCard } from '../components/upload/SmartBankCard';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
- * UPLOAD VIEW (V4 - COM GOVERNANÇA VISÍVEL)
+ * UPLOAD VIEW (V7 - ORIENTAÇÃO OTIMIZADA E COMPACTA)
  */
 export const UploadView: React.FC = () => {
     const { 
@@ -34,28 +34,33 @@ export const UploadView: React.FC = () => {
 
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 flex flex-col">
                 <div className="w-full space-y-6">
-                    {/* AVISO DE GOVERNANÇA FIXO */}
-                    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-[2rem] p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
-                        <div className="p-4 bg-white dark:bg-indigo-900/40 rounded-2xl shadow-sm text-indigo-600 dark:text-indigo-400 shrink-0">
-                            <ShieldCheckIcon className="w-8 h-8" />
+                    {/* AVISO DE ORIENTAÇÃO COMPACTO NO TOPO */}
+                    <div className="relative bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-[2rem] p-4 pr-12 md:pr-32 flex items-start gap-4 shadow-sm group">
+                        <div className="p-2.5 bg-white dark:bg-indigo-900/40 rounded-xl shadow-sm text-indigo-600 dark:text-indigo-400 shrink-0">
+                            <ShieldCheckIcon className="w-6 h-6" />
                         </div>
-                        <div className="flex-1 text-center md:text-left">
-                            <h4 className="font-black text-indigo-900 dark:text-indigo-100 uppercase text-xs tracking-widest mb-1">Seu arquivo não foi reconhecido?</h4>
-                            <p className="text-sm text-indigo-700/80 dark:text-indigo-300/80 leading-relaxed font-medium">
-                                Se o sistema não extrair os dados, significa que este modelo ainda não foi aprendido. 
-                                <strong> Envie o arquivo para o suporte</strong> para criarmos o padrão exclusivo do seu banco.
+                        
+                        <div className="flex-1">
+                            <h4 className="font-black text-indigo-900 dark:text-indigo-100 uppercase text-[10px] tracking-widest mb-1">Guia de Melhores Resultados</h4>
+                            <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80 leading-relaxed">
+                                O sistema aprende através da <strong>Lista Viva</strong>. Para máxima precisão, use sempre o mesmo modelo de arquivo; mudanças de layout reduzem a identificação automática. Dê preferência a <strong>Excel (.xlsx) ou CSV</strong> por serem mais rápidos e estáveis.
+                                <span className="block mt-1.5 font-bold text-indigo-800 dark:text-indigo-200 opacity-90">
+                                    Atenção: Se o arquivo não retornar resultados ou não for reconhecido, chame o suporte para cadastrar seu modelo exclusivo.
+                                </span>
                             </p>
                         </div>
+
+                        {/* BOTÃO DE SUPORTE COMPACTO NO CANTO SUPERIOR */}
                         <button 
-                            onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}?text=Olá! Preciso cadastrar um novo modelo de extrato no IdentificaPix.`, '_blank')}
-                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-full font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95 shrink-0 border border-white/10"
+                            onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}?text=Olá! Meu extrato não retornou resultados. Preciso cadastrar um novo modelo de arquivo no IdentificaPix.`, '_blank')}
+                            className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full font-black uppercase text-[9px] tracking-widest shadow-md transition-all active:scale-95 border border-white/10"
                         >
-                            <WhatsAppIcon className="w-4 h-4" />
-                            Chamar Suporte
+                            <WhatsAppIcon className="w-3 h-3" />
+                            <span className="hidden sm:inline">Suporte</span>
                         </button>
                     </div>
 
-                    {/* PAINEL DE EXTRATOS - Ajustado para ocupar tela toda com melhor aproveitamento vertical */}
+                    {/* PAINEL DE EXTRATOS */}
                     <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
                         <div className="flex items-center gap-4 mb-5 relative z-10">

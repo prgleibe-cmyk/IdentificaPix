@@ -1,16 +1,15 @@
-
-import { Transaction, MatchResult } from '../../types';
+import { Transaction, MatchResult, SearchFilters } from '../../types';
 import { NameResolver } from '../../core/processors/NameResolver';
+import { parseDate } from '../utils/parsingUtils';
 
 /**
- * Lógica de filtragem UNIVERSAL e ROBUSTA (Idêntica ao SmartEditModal).
- * Suporta busca por partes de data (10/05, 10-05), valores flexíveis (100.50, 100,50) e texto.
+ * Lógica de filtragem UNIVERSAL e ROBUSTA.
+ * Suporta busca por partes de data, valores flexíveis e texto.
  */
 export const filterTransactionByUniversalQuery = (tx: Transaction, query: string): boolean => {
-    if (!query || !query.trim()) return true;
+    if (!query || !query.trim() || !tx) return true;
     const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
 
-    // Prepare data for matching
     const rawDate = tx.date || '';
     const dateNormalized = rawDate.replace(/-/g, '/');
     const dateParts = dateNormalized.split('/');
@@ -19,111 +18,150 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
     let dateShort = '';
     
     if (dateParts.length === 3) {
-        if (dateParts[0].length === 4) { // ISO YYYY/MM/DD
+        if (dateParts[0].length === 4) {
             dateBr = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
             dateShort = `${dateParts[2]}/${dateParts[1]}`;
-        } else { // DD/MM/YYYY
+        } else {
             dateBr = dateNormalized;
             dateShort = `${dateParts[0]}/${dateParts[1]}`;
         }
-    } else if (dateParts.length === 2) {
-        dateShort = dateNormalized;
     }
 
-    // FIDELIDADE TOTAL: Busca no nome original entregue pelo modelo
     const displayDesc = (tx.cleanedDescription || tx.description || '').toLowerCase();
     const typeStr = (tx.contributionType || '').toLowerCase();
     
-    // Flexible Amount Matching
-    const amount = Math.abs(tx.amount);
-    const amountStrFixed = amount.toFixed(2); // "100.50"
-    const amountStrComma = amountStrFixed.replace('.', ','); // "100,50"
-    const amountStrRaw = String(amount); // "100.5"
+    const amount = Math.abs(tx.amount || 0);
+    const amountStrFixed = amount.toFixed(2);
+    const amountStrComma = amountStrFixed.replace('.', ',');
 
     return terms.every(term => {
-        // 1. Text Match
         if (displayDesc.includes(term)) return true;
         if (typeStr.includes(term)) return true;
-
-        // 2. Amount Match (Suporta padrão brasileiro 1.234,56)
-        const termAsAmount = term.replace(/\./g, ''); // Remove separador de milhar para comparação
         if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term) || amountStrComma.includes(termAsAmount)) return true;
-        if (amountStrRaw.includes(term)) return true;
-
-        // 3. Date Match (Robust)
+        if (amountStrComma.includes(term)) return true;
         const dateTerm = term.replace(/[-.]/g, '/');
-        if (rawDate.toLowerCase().includes(term)) return true;
-        if (dateBr.includes(dateTerm)) return true;
-        if (dateShort.includes(dateTerm)) return true;
-
+        if (dateBr.includes(dateTerm) || dateShort.includes(dateTerm)) return true;
         return false;
     });
 };
 
 /**
- * Lógica de filtragem UNIVERSAL e ROBUSTA para Resultados de Conciliação.
+ * Lógica de filtragem para Resultados de Conciliação.
  */
 export const filterByUniversalQuery = (result: MatchResult, query: string): boolean => {
-    if (!query || !query.trim()) return true;
-    const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
-    
-    const tx = result.transaction;
-    
-    // Dates (Prefer Contributor Date if matched, else Tx Date)
-    const rawDate = result.contributor?.date || tx.date || '';
-    const dateNormalized = rawDate.replace(/-/g, '/');
-    const dateParts = dateNormalized.split('/');
-    
-    let dateBr = '';
-    let dateShort = '';
-    
-    if (dateParts.length === 3) {
-        if (dateParts[0].length === 4) { // ISO YYYY/MM/DD
-            dateBr = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
-            dateShort = `${dateParts[2]}/${dateParts[1]}`;
-        } else { // DD/MM/YYYY
-            dateBr = dateNormalized;
-            dateShort = `${dateParts[0]}/${dateParts[1]}`;
+    if (!query || !query.trim() || !result) return true;
+    return filterTransactionByUniversalQuery(result.transaction, query);
+};
+
+/**
+ * APLICA FILTROS AVANÇADOS (BLINDAGEM V4 - ESTÁVEL)
+ */
+export const applyAdvancedFilters = (results: MatchResult[], filters: SearchFilters): MatchResult[] => {
+    try {
+        if (!Array.isArray(results)) return [];
+        if (!filters) return results;
+
+        let data = [...results];
+
+        // 1. Tipo de Transação
+        if (filters.transactionType && filters.transactionType !== 'all') {
+            if (filters.transactionType === 'income') {
+                data = data.filter(r => {
+                    const amt = r.status === 'PENDENTE' ? (r.contributorAmount ?? r.transaction?.amount) : r.transaction?.amount;
+                    return typeof amt === 'number' ? amt >= 0 : true;
+                });
+            } else if (filters.transactionType === 'expenses') {
+                data = data.filter(r => {
+                    const amt = r.status === 'PENDENTE' ? (r.contributorAmount ?? r.transaction?.amount) : r.transaction?.amount;
+                    return typeof amt === 'number' ? amt < 0 : true;
+                });
+            }
         }
-    } else if (dateParts.length === 2) {
-        dateShort = dateNormalized;
+
+        // 2. Status da Conciliação
+        if (filters.reconciliationStatus && filters.reconciliationStatus !== 'all') {
+            switch (filters.reconciliationStatus) {
+                case 'confirmed_any':
+                    data = data.filter(r => r.status === 'IDENTIFICADO');
+                    break;
+                case 'unconfirmed':
+                    data = data.filter(r => r.status === 'NÃO IDENTIFICADO');
+                    break;
+                case 'confirmed_auto':
+                    data = data.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE'));
+                    break;
+                case 'confirmed_manual':
+                    data = data.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
+                    break;
+            }
+        }
+
+        // 3. Categoria
+        if (filters.filterBy === 'contributor' && filters.contributorName?.trim()) {
+            const query = filters.contributorName.toLowerCase().trim();
+            data = data.filter(r => {
+                const name = (r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '').toLowerCase();
+                return name.includes(query);
+            });
+        }
+        
+        if (filters.filterBy === 'church' && Array.isArray(filters.churchIds) && filters.churchIds.length > 0) {
+            data = data.filter(r => r.church?.id && filters.churchIds.includes(r.church.id));
+        }
+
+        // 4. Período
+        if (filters.dateRange && (filters.dateRange.start || filters.dateRange.end)) {
+            const startStr = filters.dateRange.start?.trim();
+            const endStr = filters.dateRange.end?.trim();
+            
+            const startDate = startStr ? new Date(startStr).getTime() : null;
+            const endDate = endStr ? new Date(endStr).getTime() + 86400000 : null;
+            
+            if (startDate || endDate) {
+                data = data.filter(r => {
+                    const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                    if (!dateStr) return true;
+
+                    const parsed = parseDate(dateStr);
+                    if (!parsed) return true;
+
+                    const itemDate = parsed.getTime();
+                    if (startDate && itemDate < startDate) return false;
+                    if (endDate && itemDate >= endDate) return false;
+                    return true;
+                });
+            }
+        }
+
+        // 5. Valor
+        const vFilter = filters.valueFilter;
+        // Fix: Removed unintentional comparison between number and string on line 129. vFilter.value1 is number | null.
+        const hasValue1 = vFilter && vFilter.value1 !== null && vFilter.value1 !== undefined;
+
+        if (vFilter && vFilter.operator !== 'any' && hasValue1) {
+            data = data.filter(r => {
+                const raw = r.status === 'PENDENTE' ? (r.contributorAmount ?? r.transaction?.amount) : r.transaction?.amount;
+                if (typeof raw !== 'number') return true;
+
+                const amount = Math.abs(raw);
+                const val1 = Number(vFilter.value1);
+                const val2 = Number(vFilter.value2);
+
+                switch (vFilter.operator) {
+                    case 'exact': return Math.abs(amount - val1) < 0.01;
+                    case 'gt': return amount > val1;
+                    case 'lt': return amount < val1;
+                    case 'between': 
+                        if (!vFilter.value2 && vFilter.value2 !== 0) return amount >= val1;
+                        return amount >= val1 && amount <= val2;
+                    default: return true;
+                }
+            });
+        }
+
+        return data || [];
+    } catch (error) {
+        console.error("[applyAdvancedFilters] Erro fatal na filtragem:", error);
+        return Array.isArray(results) ? results : [];
     }
-
-    // Text Fields - FIDELIDADE TOTAL (Busca contra nomes originais)
-    const displayDesc = (tx.cleanedDescription || tx.description || '').toLowerCase();
-    
-    const rawContributorName = result.contributor?.cleanedName || result.contributor?.name || '';
-    const displayContributorName = rawContributorName.toLowerCase();
-    
-    const churchName = (result.church?.name || '').toLowerCase();
-    const typeStr = (result.contributor?.contributionType || result.contributionType || '').toLowerCase();
-    
-    // Amount Fields
-    const amount = Math.abs(result.contributorAmount ?? tx.amount);
-    const amountStrFixed = amount.toFixed(2);
-    const amountStrComma = amountStrFixed.replace('.', ',');
-    const amountStrRaw = String(amount);
-
-    return terms.every(term => {
-        // 1. Text Match
-        if (displayDesc.includes(term)) return true;
-        if (displayContributorName.includes(term)) return true;
-        if (churchName.includes(term)) return true;
-        if (typeStr.includes(term)) return true;
-
-        // 2. Amount Match (Suporta padrão brasileiro 1.234,56)
-        const termAsAmount = term.replace(/\./g, ''); 
-        if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term) || amountStrComma.includes(termAsAmount)) return true;
-        if (amountStrRaw.includes(term)) return true;
-
-        // 3. Date Match (Robust)
-        const dateTerm = term.replace(/[-.]/g, '/');
-        if (rawDate.toLowerCase().includes(term)) return true;
-        if (dateBr.includes(dateTerm)) return true;
-        if (dateShort.includes(dateTerm)) return true;
-
-        return false;
-    });
 };

@@ -1,11 +1,10 @@
-
 import { useState, useMemo, useEffect, useContext, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { MatchResult } from '../types';
 import { ExportService } from '../services/ExportService';
-import { filterByUniversalQuery } from '../services/processingService';
+import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
 
@@ -17,7 +16,8 @@ export const useReportsController = () => {
         openSaveReportModal, 
         matchResults,
         updateReportData,
-        runAiAutoIdentification
+        runAiAutoIdentification,
+        searchFilters
     } = useContext(AppContext);
     
     const { language } = useTranslation();
@@ -28,14 +28,14 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Sincronização de seleção automática ao trocar de categoria
     useEffect(() => {
         if (!reportPreviewData) return;
 
         if (activeCategory === 'general') {
             setSelectedReportId('general_all');
         } else if (activeCategory === 'churches') {
-            const churchIds = Object.keys(reportPreviewData.income).filter(k => k !== 'unidentified').sort();
+            const incomeData = reportPreviewData.income || {};
+            const churchIds = Object.keys(incomeData).filter(k => k !== 'unidentified').sort();
             if (churchIds.length > 0) {
                 if (!selectedReportId || !churchIds.includes(selectedReportId) || selectedReportId === 'general_all') {
                     setSelectedReportId(churchIds[0]);
@@ -55,22 +55,23 @@ export const useReportsController = () => {
         return Object.entries(reportPreviewData.income)
             .filter(([id]) => id !== 'unidentified')
             .map(([id, results]) => {
-                const res = results as MatchResult[];
+                const res = Array.isArray(results) ? results : [];
                 return {
                     id,
                     name: res[0]?.church?.name || 'Igreja Desconhecida',
                     count: res.length,
-                    total: res.reduce((sum, r) => sum + r.transaction.amount, 0)
+                    total: res.reduce((sum, r) => sum + (r.transaction?.amount || 0), 0)
                 };
             })
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [reportPreviewData]);
 
     const counts = useMemo(() => {
-        const general = reportPreviewData ? Object.values(reportPreviewData.income).flat().length : 0;
+        const incomeGroups = reportPreviewData?.income || {};
+        const general = Object.values(incomeGroups).flat().length;
         const churchesCount = churchList.length;
-        const pending = reportPreviewData?.income['unidentified']?.length || 0;
-        const expenses = reportPreviewData?.expenses['all_expenses_group']?.length || 0;
+        const pending = incomeGroups['unidentified']?.length || 0;
+        const expenses = reportPreviewData?.expenses?.['all_expenses_group']?.length || 0;
         return { general, churches: churchesCount, pending, expenses };
     }, [churchList, reportPreviewData]);
 
@@ -78,30 +79,47 @@ export const useReportsController = () => {
         if (!reportPreviewData) return [];
         let data: MatchResult[] = [];
         
-        if (activeCategory === 'general') {
-            data = (Object.values(reportPreviewData.income) as MatchResult[][]).flat();
-        } else if (activeCategory === 'expenses') {
-            data = reportPreviewData.expenses['all_expenses_group'] || [];
-        } else if (selectedReportId) {
-            data = reportPreviewData.income[selectedReportId] || [];
-        }
+        try {
+            // 1. Seleção da base por categoria
+            if (activeCategory === 'general') {
+                const incomeGroups = reportPreviewData.income || {};
+                data = (Object.values(incomeGroups) as MatchResult[][]).flat();
+            } else if (activeCategory === 'expenses') {
+                data = reportPreviewData.expenses?.['all_expenses_group'] || [];
+            } else if (selectedReportId) {
+                data = reportPreviewData.income?.[selectedReportId] || [];
+            }
 
-        if (searchTerm.trim()) {
-            data = data.filter(r => filterByUniversalQuery(r, searchTerm));
+            // 2. Aplicação de Filtros Avançados (Modal)
+            // A função applyAdvancedFilters cuida da normalização internamente
+            if (searchFilters) {
+                data = applyAdvancedFilters(data, searchFilters);
+            }
+
+            // 3. Aplicação do Filtro de Busca Rápida (Texto)
+            if (searchTerm && searchTerm.trim()) {
+                data = data.filter(r => filterByUniversalQuery(r, searchTerm));
+            }
+        } catch (e) {
+            console.error("[useReportsController] Erro ao processar activeData:", e);
         }
-        return data;
-    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm]);
+        
+        // Fallback absoluto para garantir que nunca seja undefined
+        return Array.isArray(data) ? data : [];
+    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm, searchFilters]);
 
     const sortedData = useMemo(() => {
-        if (!sortConfig) return activeData;
-        return [...activeData].sort((a, b) => {
+        const source = Array.isArray(activeData) ? activeData : [];
+        if (source.length === 0) return [];
+        if (!sortConfig) return source;
+
+        return [...source].sort((a, b) => {
             let valA: any, valB: any;
             const key = sortConfig.key;
 
-            // Lógica Especial para Nome/Descrição (Smart Sort)
             if (key === 'contributor.name' || key === 'transaction.description') {
-                valA = a.contributor?.name || a.contributor?.cleanedName || a.transaction.cleanedDescription || a.transaction.description || '';
-                valB = b.contributor?.name || b.contributor?.cleanedName || b.transaction.cleanedDescription || b.transaction.description || '';
+                valA = a.contributor?.name || a.contributor?.cleanedName || a.transaction?.cleanedDescription || a.transaction?.description || '';
+                valB = b.contributor?.name || b.contributor?.cleanedName || b.transaction?.cleanedDescription || b.transaction?.description || '';
             } else if (key.includes('.')) {
                 const parts = key.split('.');
                 valA = parts.reduce((obj: any, k) => obj?.[k], a);
@@ -111,7 +129,6 @@ export const useReportsController = () => {
                 valB = (b as any)[key];
             }
 
-            // Normalização segura para comparação
             valA = (valA ?? ''); 
             valB = (valB ?? '');
             
@@ -134,17 +151,20 @@ export const useReportsController = () => {
     };
 
     const activeSummary = useMemo(() => {
-        const count = activeData.length;
-        const total = activeData.reduce((sum, r) => sum + (r.status === 'PENDENTE' ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount), 0);
-        const autoTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && r.matchMethod !== 'MANUAL');
-        const manualTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && r.matchMethod === 'MANUAL');
+        if (!Array.isArray(activeData)) {
+            return { count: 0, total: 0, auto: 0, autoValue: 0, manual: 0, manualValue: 0, pending: 0, pendingValue: 0 };
+        }
+
+        const total = activeData.reduce((sum, r) => sum + (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0)), 0);
+        const autoTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE'));
+        const manualTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
         const pendingTxs = activeData.filter(r => r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO');
 
         return { 
-            count, total, 
-            auto: autoTxs.length, autoValue: autoTxs.reduce((s, r) => s + r.transaction.amount, 0),
-            manual: manualTxs.length, manualValue: manualTxs.reduce((s, r) => s + r.transaction.amount, 0),
-            pending: pendingTxs.length, pendingValue: pendingTxs.reduce((s, r) => s + (r.status === 'PENDENTE' ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount), 0)
+            count: activeData.length, total, 
+            auto: autoTxs.length, autoValue: autoTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
+            manual: manualTxs.length, manualValue: manualTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
+            pending: pendingTxs.length, pendingValue: pendingTxs.reduce((s, r) => s + (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0)), 0)
         };
     }, [activeData]);
 
@@ -166,6 +186,7 @@ export const useReportsController = () => {
         churchList, counts, activeSummary, sortedData,
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
         handleDownload, handlePrint, handleSaveReport, updateReportData,
-        setActiveView, reportPreviewData
+        setActiveView, reportPreviewData,
+        searchFilters
     };
 };

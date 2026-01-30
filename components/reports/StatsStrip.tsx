@@ -1,4 +1,3 @@
-
 import React, { useContext } from 'react';
 import { ExclamationTriangleIcon, BanknotesIcon, BuildingOfficeIcon, MagnifyingGlassIcon, AdjustmentsHorizontalIcon } from '../Icons';
 import { formatCurrency } from '../../utils/formatters';
@@ -15,13 +14,31 @@ interface StatsStripProps {
     language: Language;
 }
 
-export const StatsStrip: React.FC<StatsStripProps> = ({ category, reportName, summary, searchTerm, onSearchChange, language }) => {
+export const StatsStrip: React.FC<StatsStripProps> = ({ 
+    category, 
+    reportName, 
+    // Fix: Cast default value to any to avoid "Property does not exist on type '{}'" errors when summary is empty
+    summary = {} as any, 
+    searchTerm = '', 
+    onSearchChange, 
+    language 
+}) => {
     const { openSearchFilters } = useContext(AppContext);
-    const { setActiveView } = useUI();
+    
+    // Fallbacks seguros para o sumário
+    const stats = {
+        count: summary.count || 0,
+        total: summary.total || 0,
+        auto: summary.auto || 0,
+        autoValue: summary.autoValue || 0,
+        manual: summary.manual || 0,
+        manualValue: summary.manualValue || 0,
+        pending: summary.pending || 0,
+        pendingValue: summary.pendingValue || 0
+    };
 
-    const handleOpenFilters = () => {
-        // Navega para a visão de pesquisa (histórico) e abre os filtros profundos
-        setActiveView('search');
+    const handleOpenFilters = (e: React.MouseEvent) => {
+        e.preventDefault();
         openSearchFilters();
     };
 
@@ -32,30 +49,36 @@ export const StatsStrip: React.FC<StatsStripProps> = ({ category, reportName, su
                     {category === 'unidentified' ? <ExclamationTriangleIcon className="w-4 h-4"/> : category === 'expenses' ? <BanknotesIcon className="w-4 h-4"/> : <BuildingOfficeIcon className="w-4 h-4"/>}
                 </div>
                 <div>
-                    <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide">{reportName}</h3>
+                    <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wide truncate max-w-[200px] md:max-w-none">{reportName || 'Carregando...'}</h3>
                     <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 mt-0.5">
-                        <span>Total: {summary.count}</span>
+                        <span>Total: {stats.count}</span>
                         <span className="w-px h-2 bg-slate-300"></span>
-                        <span className={`${category === 'expenses' ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(summary.total, language)}</span>
+                        <span className={`${category === 'expenses' ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(stats.total, language)}</span>
                     </div>
                 </div>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <div className="flex gap-2">
-                    <StatPill label="Auto" count={summary.auto} value={summary.autoValue} theme="emerald" language={language} />
-                    <StatPill label="Manual" count={summary.manual} value={summary.manualValue} theme="blue" language={language} />
-                    {summary.pending > 0 && <StatPill label="Pend" count={summary.pending} value={summary.pendingValue} theme="amber" language={language} />}
+                    <StatPill label="Auto" count={stats.auto} value={stats.autoValue} theme="emerald" language={language} />
+                    <StatPill label="Manual" count={stats.manual} value={stats.manualValue} theme="blue" language={language} />
+                    {stats.pending > 0 && <StatPill label="Pend" count={stats.pending} value={stats.pendingValue} theme="amber" language={language} />}
                 </div>
                 <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block"></div>
                 <div className="flex items-center gap-1.5">
                     <div className="relative group">
                         <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
-                        <input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={(e) => onSearchChange(e.target.value)} className="pl-7 pr-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-[10px] font-medium focus:ring-1 focus:ring-brand-blue outline-none w-24 focus:w-40 transition-all" />
+                        <input 
+                            type="text" 
+                            placeholder="Pesquisar..." 
+                            value={searchTerm} 
+                            onChange={(e) => onSearchChange(e.target.value)} 
+                            className="pl-7 pr-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-[10px] font-medium focus:ring-1 focus:ring-brand-blue outline-none w-24 focus:w-40 transition-all" 
+                        />
                     </div>
                     <button 
                         onClick={handleOpenFilters}
                         className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-brand-blue hover:border-brand-blue/50 transition-all shadow-sm flex items-center justify-center group"
-                        title="Filtros inteligentes"
+                        title="Filtros avançados"
                     >
                         <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
                     </button>
@@ -66,7 +89,7 @@ export const StatsStrip: React.FC<StatsStripProps> = ({ category, reportName, su
 };
 
 const StatPill = ({ label, count, value, theme, language }: any) => (
-    <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border ${theme === 'emerald' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : theme === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+    <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border flex-shrink-0 ${theme === 'emerald' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : theme === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
         <div className="flex flex-col leading-none">
             <span className="text-[8px] font-black uppercase tracking-wide opacity-70">{label}</span>
             <span className="text-[10px] font-bold">{count}</span>
