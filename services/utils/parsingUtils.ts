@@ -1,3 +1,4 @@
+
 import { Church } from '../../types';
 import { NameResolver } from '../../core/processors/NameResolver';
 
@@ -14,34 +15,39 @@ export const DEFAULT_CONTRIBUTION_KEYWORDS = [
 ];
 
 /**
+ * Normalização Estrita (DNA da Transação):
+ * Transforma a descrição em uma chave de comparação fiel.
+ * Preserva números (CPF/CNPJ/CÓDIGOS), remove acentos e colapsa espaços.
+ */
+export const strictNormalize = (str: string): string => {
+    if (!str) return '';
+    return str
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/[^A-Z0-9\s]/g, ' ')   // Mantém letras e números
+        .replace(/\s+/g, ' ')           // Colapsa espaços
+        .trim();
+};
+
+/**
  * Extrai códigos numéricos significativos de uma string (DNA identificador).
- * Busca sequências de 4 ou mais dígitos que costumam ser partes fixas de CPF/CNPJ.
  */
 export const extractIdentifyingCode = (str: string): string | null => {
     if (!str) return null;
-    // Busca sequências de números. Ignora pontos, traços e barras.
-    const cleanNumbers = str.replace(/\D/g, '');
-    
-    // Se a string tem uma sequência longa de números, essa é a nossa âncora
     const matches = str.match(/\d{4,14}/g);
     if (matches && matches.length > 0) {
-        // Retorna a maior sequência numérica encontrada como código de identificação
         return matches.sort((a, b) => b.length - a.length)[0];
     }
     return null;
 };
 
 /**
- * Normalização Robusta: Realiza normalização de caracteres para comparação,
- * mas NÃO remove mais palavras baseadas em ignoreKeywords (Neutralizado V9).
+ * Normalização Robusta para Matching Geral.
  */
 export const normalizeString = (str: string, _ignoreKeywords: string[] = []): string => {
     if (!str) return '';
-    
-    // 1. Sanitização básica via NameResolver (ignora palavras-chave por contrato V9)
     const cleaned = NameResolver.clean(str);
-    
-    // 2. Normalização final de caracteres para fins de matching (Acentos, Espaços)
     return NameResolver.normalize(cleaned);
 };
 

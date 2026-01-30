@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
 import { usePersistentState } from './usePersistentState';
-import { normalizeString, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
+import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
 
@@ -19,23 +19,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     
-    // 🔥 SINCRONIA GLOBAL: customIgnoreKeywords agora reflete sempre o que o Admin configurou no systemSettings
-    const customIgnoreKeywords = useMemo(() => {
-        return systemSettings?.ignoredKeywords || [];
-    }, [systemSettings?.ignoredKeywords]);
-    
-    const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(
-        `identificapix-contrib-keywords${userSuffix}`, 
-        DEFAULT_CONTRIBUTION_KEYWORDS
-    );
-
-    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(
-        `identificapix-payment-methods${userSuffix}`,
-        DEFAULT_PAYMENT_METHODS
-    );
+    const customIgnoreKeywords = useMemo(() => systemSettings?.ignoredKeywords || [], [systemSettings?.ignoredKeywords]);
+    const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
+    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
-    
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
@@ -49,6 +37,75 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         };
         syncData();
     }, [user, setBanks, setChurches]);
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchAssociations = async () => {
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
+            if (data) {
+                setLearnedAssociations(data.map(d => ({
+                    id: d.id, 
+                    normalizedDescription: d.normalized_description,
+                    contributorNormalizedName: d.contributor_normalized_name,
+                    churchId: d.church_id, 
+                    bankId: d.bank_id || 'global',
+                    user_id: d.user_id
+                })));
+            }
+        };
+        fetchAssociations();
+    }, [user]);
+
+    const learnAssociation = useCallback(async (matchResult: MatchResult) => {
+        if (!user || !matchResult.church) return;
+
+        // Se o contribuinte for nulo, usamos a descrição como nome
+        const contributorObj = matchResult.contributor;
+        const contributorName = contributorObj?.cleanedName || contributorObj?.name || matchResult.transaction.cleanedDescription || matchResult.transaction.description;
+        
+        const normalizedDesc = strictNormalize(matchResult.transaction.description);
+        const bankId = matchResult.transaction.bank_id || 'global';
+        
+        const newAssociation: LearnedAssociation = { 
+            normalizedDescription: normalizedDesc, 
+            contributorNormalizedName: contributorName, 
+            churchId: matchResult.church.id, 
+            bankId: bankId,
+            user_id: user.id 
+        };
+
+        setLearnedAssociations(prev => {
+            const filtered = prev.filter(la => la.normalizedDescription !== normalizedDesc);
+            return [newAssociation, ...filtered];
+        });
+
+        try {
+            const { data: existing } = await supabase
+                .from('learned_associations')
+                .select('id')
+                .eq('normalized_description', normalizedDesc)
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (existing) {
+                await supabase.from('learned_associations').update({ 
+                    contributor_normalized_name: contributorName, 
+                    church_id: matchResult.church.id,
+                    bank_id: bankId 
+                }).eq('id', existing.id);
+            } else {
+                await supabase.from('learned_associations').insert({ 
+                    user_id: user.id, 
+                    normalized_description: normalizedDesc, 
+                    contributor_normalized_name: contributorName, 
+                    church_id: matchResult.church.id,
+                    bank_id: bankId
+                });
+            }
+        } catch (err) {
+            console.error("Erro ao persistir aprendizado:", err);
+        }
+    }, [user]);
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
@@ -135,78 +192,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         setPaymentMethods(prev => prev.filter(m => m !== method));
         showToast("Forma removida.", "success");
     }, [setPaymentMethods, showToast]);
-
-    useEffect(() => {
-        if (!user) return;
-        const fetchAssociations = async () => {
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
-            if (data) {
-                setLearnedAssociations(data.map(d => ({
-                    id: d.id, 
-                    normalizedDescription: d.normalized_description,
-                    contributorNormalizedName: d.contributor_normalized_name,
-                    churchId: d.church_id, 
-                    bankId: d.bank_id || 'global',
-                    user_id: d.user_id
-                })));
-            }
-        };
-        fetchAssociations();
-    }, [user]);
-
-    const learnAssociation = useCallback(async (matchResult: MatchResult) => {
-        if (!user || !matchResult.contributor || !matchResult.church) return;
-
-        const normalizedDesc = normalizeString(matchResult.transaction.description, customIgnoreKeywords);
-        const normalizedContrib = normalizeString(matchResult.contributor.name, customIgnoreKeywords);
-        const bankId = matchResult.transaction.bank_id || 'global';
-        
-        const existingIdx = learnedAssociations.findIndex(la => 
-            la.normalizedDescription === normalizedDesc && 
-            la.bankId === bankId
-        );
-
-        const newAssociation: LearnedAssociation = { 
-            normalizedDescription: normalizedDesc, 
-            contributorNormalizedName: normalizedContrib, 
-            churchId: matchResult.church.id, 
-            bankId: bankId,
-            user_id: user.id 
-        };
-
-        try {
-            if (existingIdx !== -1) {
-                const existing = learnedAssociations[existingIdx];
-                if (existing.contributorNormalizedName === normalizedContrib && existing.churchId === matchResult.church.id) return;
-
-                setLearnedAssociations(prev => {
-                    const next = [...prev];
-                    next[existingIdx] = newAssociation;
-                    return next;
-                });
-
-                await supabase.from('learned_associations')
-                    .update({ 
-                        contributor_normalized_name: normalizedContrib, 
-                        church_id: matchResult.church.id 
-                    })
-                    .eq('normalized_description', normalizedDesc)
-                    .eq('bank_id', bankId)
-                    .eq('user_id', user.id);
-            } else {
-                setLearnedAssociations(prev => [...prev, newAssociation]);
-                await supabase.from('learned_associations').insert({ 
-                    user_id: user.id, 
-                    normalized_description: normalizedDesc, 
-                    contributor_normalized_name: normalizedContrib, 
-                    church_id: matchResult.church.id,
-                    bank_id: bankId
-                });
-            }
-        } catch (err) {
-            console.error("Erro ao persistir aprendizado da IA:", err);
-        }
-    }, [user, customIgnoreKeywords, learnedAssociations]);
 
     return useMemo(() => ({
         banks, churches, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,

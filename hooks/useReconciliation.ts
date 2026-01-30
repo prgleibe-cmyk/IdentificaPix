@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { 
     MatchResult, 
@@ -93,7 +94,6 @@ export const useReconciliation = ({
     }, []);
 
     // Sincroniza o Preview sempre que os resultados persistentes mudarem
-    // CORREÇÃO: Monitora o array matchResults completo em vez de apenas o .length
     useEffect(() => {
         if (matchResults && matchResults.length > 0) {
             regenerateReportPreview(matchResults);
@@ -241,7 +241,16 @@ export const useReconciliation = ({
                 return; 
             }
 
-            const results = matchTransactions(allTransactions, contributorFiles, { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, learnedAssociations, churches, customIgnoreKeywords);
+            // 🧬 FUSÃO INTELIGENTE: Passamos matchResults atual para preservar o que já foi feito
+            const results = matchTransactions(
+                allTransactions, 
+                contributorFiles, 
+                { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, 
+                learnedAssociations, 
+                churches, 
+                customIgnoreKeywords,
+                matchResults // Injeta os resultados atuais
+            );
 
             setMatchResults(results);
             setHasActiveSession(true);

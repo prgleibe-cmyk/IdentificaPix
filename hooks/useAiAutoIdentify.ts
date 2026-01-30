@@ -1,7 +1,7 @@
 
 import { useCallback } from 'react';
 import { ReconciliationStatus, MatchMethod, MatchResult } from '../types';
-import { normalizeString, groupResultsByChurch } from '../services/processingService';
+import { strictNormalize, groupResultsByChurch } from '../services/processingService';
 
 interface UseAiAutoIdentifyProps {
     reconciliation: any;
@@ -12,29 +12,55 @@ interface UseAiAutoIdentifyProps {
     onAfterIdentification?: (results: MatchResult[]) => void;
 }
 
+const getSimilarityScore = (s1: string, s2: string): number => {
+    if (s1 === s2) return 100;
+    const set1 = new Set();
+    for (let i = 0; i < s1.length - 1; i++) set1.add(s1.substring(i, i + 2));
+    const set2 = new Set();
+    for (let i = 0; i < s2.length - 1; i++) set2.add(s2.substring(i, i + 2));
+    
+    const intersection = new Set([...set1].filter(x => set2.has(x)));
+    return (2.0 * intersection.size) / (set1.size + set2.size) * 100;
+};
+
 export const useAiAutoIdentify = ({
     reconciliation,
     referenceData,
-    effectiveIgnoreKeywords,
     setIsLoading,
     showToast,
     onAfterIdentification
 }: UseAiAutoIdentifyProps) => {
     
     const runAiAutoIdentification = useCallback(() => {
-        if (reconciliation.matchResults.length === 0) return;
+        const { matchResults, setMatchResults, setReportPreviewData } = reconciliation;
+        const { learnedAssociations, churches } = referenceData;
+
+        if (!matchResults || matchResults.length === 0) return;
         
         setIsLoading(true);
         let identifiedCount = 0;
         
-        const currentResults = [...reconciliation.matchResults];
-        const nextResults = currentResults.map(res => {
+        console.log(`[AI-RECON] Iniciando busca em ${matchResults.length} linhas. Associações aprendidas: ${learnedAssociations.length}`);
+
+        const nextResults = matchResults.map((res: MatchResult) => {
             if (res.status === ReconciliationStatus.UNIDENTIFIED) {
-                const txDescNorm = normalizeString(res.transaction.description, effectiveIgnoreKeywords);
-                const learned = referenceData.learnedAssociations.find((la: any) => la.normalizedDescription === txDescNorm);
+                const currentTxDna = strictNormalize(res.transaction.description);
+                
+                // 1. TENTA MATCH EXATO
+                let learned = learnedAssociations.find((la: any) => 
+                    la.normalizedDescription === currentTxDna
+                );
+
+                // 2. TENTA MATCH DE ALTA CONFIANÇA (95%+)
+                if (!learned) {
+                    learned = learnedAssociations.find((la: any) => {
+                        const score = getSimilarityScore(la.normalizedDescription, currentTxDna);
+                        return score >= 95; 
+                    });
+                }
                 
                 if (learned) {
-                    const church = referenceData.churches.find((c: any) => c.id === learned.churchId);
+                    const church = churches.find((c: any) => c.id === learned.churchId);
                     if (church) {
                         identifiedCount++;
                         return {
@@ -43,27 +69,12 @@ export const useAiAutoIdentify = ({
                             church: church,
                             matchMethod: MatchMethod.LEARNED,
                             similarity: 100,
-                            contributor: res.suggestion || { name: learned.contributorNormalizedName, amount: res.transaction.amount },
+                            contributor: { 
+                                name: learned.contributorNormalizedName, 
+                                amount: res.transaction.amount,
+                                cleanedName: learned.contributorNormalizedName 
+                            },
                             contributorAmount: res.transaction.amount,
-                            suggestion: undefined
-                        };
-                    }
-                }
-
-                if (res.suggestion && (res.similarity || 0) >= 90) {
-                    const churchId = (res.suggestion as any)._churchId || (res.suggestion as any).church?.id;
-                    const church = referenceData.churches.find((c: any) => c.id === churchId);
-                    
-                    if (church) {
-                        identifiedCount++;
-                        return {
-                            ...res,
-                            status: ReconciliationStatus.IDENTIFIED,
-                            contributor: res.suggestion,
-                            church: church,
-                            matchMethod: MatchMethod.AI,
-                            similarity: res.similarity,
-                            contributorAmount: res.suggestion.amount,
                             suggestion: undefined
                         };
                     }
@@ -73,34 +84,31 @@ export const useAiAutoIdentify = ({
         });
 
         if (identifiedCount > 0) {
-            reconciliation.setMatchResults(nextResults);
+            setMatchResults(nextResults);
             
-            // SEPARAÇÃO RÍGIDA POR MONTANTE EFETIVO
-            const incomeResults = nextResults.filter(r => {
+            const incomeResults = nextResults.filter((r: MatchResult) => {
                 const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
                 return val >= 0;
             });
-            
-            const expenseResults = nextResults.filter(r => {
+            const expenseResults = nextResults.filter((r: MatchResult) => {
                 const val = r.status === ReconciliationStatus.PENDING ? (r.contributorAmount || 0) : r.transaction.amount;
                 return val < 0;
             });
 
-            reconciliation.setReportPreviewData({
+            setReportPreviewData({
                 income: groupResultsByChurch(incomeResults),
                 expenses: { 'all_expenses_group': expenseResults }
             });
 
-            showToast(`${identifiedCount} transações identificadas automaticamente.`, "success");
-
-            // Persistência Imediata após IA
+            showToast(`${identifiedCount} linhas identificadas por aprendizado.`, "success");
             if (onAfterIdentification) onAfterIdentification(nextResults);
         } else {
-            showToast("Nenhuma sugestão de alta confiança encontrada.", "success");
+            showToast("IA: Nenhuma linha pendente coincide com o que aprendi.", "error");
+            console.warn("[AI-RECON] Falha: Nenhuma correspondência encontrada para as descrições pendentes.");
         }
         
         setIsLoading(false);
-    }, [reconciliation, referenceData, effectiveIgnoreKeywords, setIsLoading, showToast, onAfterIdentification]);
+    }, [reconciliation, referenceData, setIsLoading, showToast, onAfterIdentification]);
 
     return { runAiAutoIdentification };
 };

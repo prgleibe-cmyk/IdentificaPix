@@ -1,6 +1,6 @@
 
 import { useCallback } from 'react';
-import { MatchResult, Church, ReconciliationStatus, MatchMethod } from '../types';
+import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 
 interface UseReconciliationActionsProps {
@@ -26,25 +26,35 @@ export const useReconciliationActions = ({
     if (idx === -1) return;
 
     const originalResult = currentResults[idx];
+    
+    // 🎯 AJUSTE CRÍTICO: Se não houver contribuinte, cria um virtual baseado na descrição
+    // Isso garante que a função learnAssociation tenha dados para salvar.
+    const contributor: Contributor = originalResult.contributor || {
+        name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
+        amount: originalResult.transaction.amount,
+        cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description
+    };
+
     const updatedResult: MatchResult = {
       ...originalResult,
       status: ReconciliationStatus.IDENTIFIED,
+      contributor: contributor,
       church: church,
       matchMethod: MatchMethod.MANUAL,
       similarity: 100,
+      contributorAmount: contributor.amount,
       divergence: undefined
     };
     
     currentResults[idx] = updatedResult;
     
-    // Atualiza estado e aprende
+    // Agora o aprendizado funcionará pois o updatedResult tem church e contributor
     reconciliation.setMatchResults(currentResults);
     referenceData.learnAssociation(updatedResult);
     
     reconciliation.closeManualIdentify();
-    showToast("Identificado manualmente.", "success");
+    showToast("Identificado e aprendido pela IA.", "success");
 
-    // Gatilho de persistência imediata
     if (onAfterAction) onAfterAction(currentResults);
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
@@ -59,13 +69,21 @@ export const useReconciliationActions = ({
       const idx = currentResults.findIndex(r => r.transaction.id === id);
       if (idx !== -1) {
         const original = currentResults[idx];
+        
+        const contributor: Contributor = original.contributor || {
+            name: original.transaction.cleanedDescription || original.transaction.description,
+            amount: original.transaction.amount,
+            cleanedName: original.transaction.cleanedDescription || original.transaction.description
+        };
+
         const updated: MatchResult = {
           ...original,
           status: ReconciliationStatus.IDENTIFIED,
+          contributor: contributor,
           church,
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
-          contributorAmount: original.transaction.amount || original.contributor?.amount,
+          contributorAmount: contributor.amount,
           divergence: undefined
         };
         currentResults[idx] = updated;
@@ -93,9 +111,8 @@ export const useReconciliationActions = ({
     }
     
     reconciliation.closeManualIdentify();
-    showToast(`${affectedCount} registros identificados para ${church.name}.`, "success");
+    showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
 
-    // Gatilho de persistência imediata
     if (onAfterAction) onAfterAction(currentResults);
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
@@ -103,7 +120,6 @@ export const useReconciliationActions = ({
     reconciliation.revertMatch(txId);
     showToast("Identificação desfeita.", "success");
     
-    // Pequeno delay para garantir que o estado local reverteu antes de persistir
     setTimeout(() => {
         if (onAfterAction) onAfterAction(reconciliation.matchResults);
     }, 100);

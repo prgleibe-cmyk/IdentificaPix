@@ -1,6 +1,6 @@
 
 import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, MatchMethod } from '../../types';
-import { normalizeString, extractIdentifyingCode, PLACEHOLDER_CHURCH } from '../utils/parsingUtils';
+import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString } from '../utils/parsingUtils';
 
 /**
  * Calcula a similaridade valorizando códigos identificadores (DNA Numérico).
@@ -41,7 +41,8 @@ export const matchTransactions = (
     options: { similarityThreshold: number; dayTolerance: number; },
     learnedAssociations: any[],
     churches: Church[],
-    customIgnoreKeywords: string[] = []
+    customIgnoreKeywords: string[] = [],
+    existingResults: MatchResult[] = [] 
 ): MatchResult[] => {
     const contributorsByChurch = new Map<string, any[]>();
     
@@ -63,8 +64,17 @@ export const matchTransactions = (
     const usedContributors = new Set<string>();
 
     transactions.forEach(tx => {
-        const txDescNormalized = normalizeString(tx.description, customIgnoreKeywords);
-        const currentBankId = tx.bank_id || 'virtual';
+        const existingMatch = existingResults.find(r => r.transaction.id === tx.id);
+        if (existingMatch && existingMatch.status === ReconciliationStatus.IDENTIFIED) {
+            finalResults.push(existingMatch);
+            if (existingMatch.contributor?._internalId) {
+                usedContributors.add(existingMatch.contributor._internalId);
+            }
+            return;
+        }
+
+        // 🎯 AJUSTE SOLICITADO: Normalização estrita da descrição bancária
+        const txDescStrict = strictNormalize(tx.description);
         
         let matchResult: MatchResult = {
             transaction: tx,
@@ -76,10 +86,9 @@ export const matchTransactions = (
             paymentMethod: tx.paymentMethod
         };
 
-        // PRIORIDADE 1: Aprendizado Individual por Lista Viva (bankId)
+        // PRIORIDADE 1: Aprendizado Manual (Usa a descrição exata como DNA)
         const learned = learnedAssociations.find((la: any) => 
-            la.normalizedDescription === txDescNormalized && 
-            (la.bankId === currentBankId || la.bankId === 'global')
+            la.normalizedDescription === txDescStrict
         );
 
         if (learned && learned.churchId) {
@@ -103,7 +112,7 @@ export const matchTransactions = (
             }
         }
 
-        // PRIORIDADE 2: Match por Similaridade com DNA Numérico
+        // PRIORIDADE 2: Match por Similaridade com DNA Numérico (Lógica Fuzzy)
         if (allContributorsFlat.length > 0) {
             let bestMatch: any = null;
             let highestScore = 0;
@@ -138,11 +147,11 @@ export const matchTransactions = (
         finalResults.push(matchResult);
     });
 
+    // Processamento de Fantasmas
     if (allContributorsFlat.length > 0) {
         allContributorsFlat.forEach((contrib: any) => {
             if (!usedContributors.has(contrib._internalId)) {
                 const ghostAmount = contrib.amount || 0;
-                
                 finalResults.push({
                     transaction: {
                         id: `ghost-${contrib._internalId}`,
