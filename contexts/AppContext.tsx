@@ -1,4 +1,3 @@
-
 import { MatchResult, Transaction } from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
@@ -79,21 +78,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Salva automaticamente se o usuário editar manualmente via SmartEdit
     const saveSmartEdit = useCallback(async (result: MatchResult) => {
-        // 1. Atualiza o estado local (Memória)
-        reconciliation.updateReportData(result);
-        
+        // 1. Aprende a associação se for uma identificação válida
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
              referenceData.learnAssociation(result);
         }
+
+        // 2. Calcula o novo conjunto de resultados
+        const updatedSet = reconciliation.matchResults.map((r: any) => 
+            r.transaction.id === result.transaction.id ? result : r
+        );
+        
+        // 3. Atualiza o estado da reconciliação (Memória + IndexedDB via usePersistentState)
+        reconciliation.setMatchResults(updatedSet);
         
         modalController.closeSmartEdit();
         showToast("Identificação atualizada.", "success");
 
-        // 2. Persiste imediatamente o conjunto completo alterado
-        const updatedSet = reconciliation.matchResults.map((r: any) => 
-            r.transaction.id === result.transaction.id ? result : r
-        );
-        persistActiveReport(updatedSet);
+        // 4. Persiste na Cloud se houver um relatório aberto
+        if (reconciliation.activeReportId) {
+            persistActiveReport(updatedSet);
+        }
     }, [reconciliation, referenceData, modalController, showToast, persistActiveReport]);
 
     const openManualIdentify = useCallback((txId: string) => {

@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { 
     MatchResult, 
@@ -77,7 +76,7 @@ export const useReconciliation = ({
             const val = r.status === ReconciliationStatus.PENDING 
                 ? (r.contributorAmount || r.contributor?.amount || 0) 
                 : r.transaction.amount;
-            return val > 0;
+            return val >= 0; // Incluindo zero como entrada por padrão se não for despesa
         });
         
         const expenseResults = uniqueResults.filter(r => {
@@ -94,11 +93,12 @@ export const useReconciliation = ({
     }, []);
 
     // Sincroniza o Preview sempre que os resultados persistentes mudarem
+    // CORREÇÃO: Monitora o array matchResults completo em vez de apenas o .length
     useEffect(() => {
-        if (matchResults.length > 0) {
+        if (matchResults && matchResults.length > 0) {
             regenerateReportPreview(matchResults);
         }
-    }, [matchResults.length, regenerateReportPreview]);
+    }, [matchResults, regenerateReportPreview]);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {
         const processKey = `${bankId}-${fileName}`;
