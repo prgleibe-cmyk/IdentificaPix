@@ -24,18 +24,37 @@ import {
     DocumentDuplicateIcon,
     TableCellsIcon,
     BanknotesIcon,
-    CheckCircleIcon
+    CloudArrowUpIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings } = useAuth();
-    const { openPaymentModal, isSyncing } = useContext(AppContext);
+    const { openPaymentModal } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    
+    // Suporte técnico para Opção 1 (Instalação PWA)
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const handleInstallApp = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') setDeferredPrompt(null);
+    };
 
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [
@@ -62,57 +81,35 @@ export const Sidebar: React.FC = () => {
 
     const handleLogout = async (e: React.MouseEvent) => {
         e.preventDefault();
-        e.stopPropagation();
         if (isLoggingOut) return;
-        
         setIsLoggingOut(true);
-        try {
-            await signOut();
-        } finally {
-            setIsLoggingOut(false);
-        }
+        try { await signOut(); } finally { setIsLoggingOut(false); }
     };
 
     return (
-        <aside className={`relative h-screen flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
+        <aside className={`relative h-screen flex flex-col transition-all duration-500 z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
             
-            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-[0.03]">
+            <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]">
                 <ChartBarIcon className="absolute -top-12 -right-12 w-64 h-64 text-white transform rotate-12" />
                 <TableCellsIcon className="absolute top-[30%] -left-16 w-56 h-56 text-white transform -rotate-12" />
-                <BanknotesIcon className="absolute bottom-[20%] -right-10 w-48 h-48 text-white transform rotate-6" />
-                <Cog6ToothIcon className="absolute -bottom-10 -left-10 w-40 h-40 text-white transform -rotate-45" />
             </div>
 
             <div className="relative z-10 flex flex-col h-full">
                 
                 <div className={`flex flex-col items-center justify-center py-6 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
-                    <div 
-                        className="relative group cursor-pointer perspective-[1000px] z-50" 
-                        onClick={() => !isCollapsed && setActiveView('dashboard')}
-                        style={{ perspective: '1000px' }}
-                    >
+                    <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
                         <div className="absolute -inset-6 bg-blue-500/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                        
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                            <div className="
-                                relative bg-gradient-to-br from-white/10 via-white/5 to-transparent 
-                                p-4 rounded-2xl border border-white/20 
-                                backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.1)_inset]
-                                group-hover:shadow-[0_20px_50px_rgba(59,130,246,0.3),0_0_0_1px_rgba(255,255,255,0.3)_inset]
-                                transition-all duration-500
-                            ">
-                                <LogoIcon className="w-12 h-12 text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)]" />
-                                <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                            <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-transparent p-4 rounded-2xl border border-white/20 backdrop-blur-xl shadow-2xl">
+                                <LogoIcon className="w-12 h-12 text-white" />
                             </div>
                         </div>
                     </div>
-                    
                     {!isCollapsed && (
-                        <div className="mt-4 text-center transform translate-z-0">
-                            <span className="font-display font-black text-2xl tracking-tight text-white block leading-none drop-shadow-md">
+                        <div className="mt-4 text-center">
+                            <span className="font-display font-black text-2xl tracking-tight text-white block leading-none">
                                 Identifica<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Pix</span>
                             </span>
-                            <span className="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mt-1.5 block">Enterprise System</span>
                         </div>
                     )}
                 </div>
@@ -122,12 +119,10 @@ export const Sidebar: React.FC = () => {
                         <button
                             key={item.view}
                             onClick={() => setActiveView(item.view)}
-                            className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg shadow-black/20 border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
-                            title={isCollapsed ? (item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey) : ''}
+                            className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                         >
-                            {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform duration-300 ${activeView === item.view ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}` })}
+                            {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform ${activeView === item.view ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}` })}
                             {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey}</span>}
-                            
                             {activeView === item.view && !isCollapsed && (
                                 <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_8px_rgba(79,230,208,0.8)]"></div>
                             )}
@@ -136,56 +131,46 @@ export const Sidebar: React.FC = () => {
                 </nav>
 
                 <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>
-                    <div className={`flex flex-col gap-2`}>
-                        <div className={`flex ${isCollapsed ? 'flex-col gap-3' : 'gap-2'}`}>
-                            <button 
-                                onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} 
-                                className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors shadow-sm ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}
-                                title="Suporte WhatsApp"
-                            >
-                                <WhatsAppIcon className="w-4 h-4" />
-                                {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
-                            </button>
-                            
-                            <button 
-                                onClick={openPaymentModal} 
-                                className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}
-                                title={isCollapsed ? `${subscription.daysRemaining} dias restantes` : ''}
-                            >
-                                <StatusIcon className="w-4 h-4" />
-                                {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
-                            </button>
-                        </div>
+                    
+                    {/* Somente o botão técnico de instalação quando o navegador permitir */}
+                    {deferredPrompt && (
+                        <button 
+                            onClick={handleInstallApp}
+                            className={`flex items-center justify-center rounded-full text-brand-teal hover:text-white bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500 transition-all animate-pulse ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
+                            title="Instalar IdentificaPix como App (Opção 1)"
+                        >
+                            <CloudArrowUpIcon className="w-4 h-4" />
+                            {!isCollapsed && <span className="text-[9px] font-black uppercase tracking-widest">Instalar App</span>}
+                        </button>
+                    )}
+
+                    <div className="flex gap-2">
+                        <button onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}>
+                            <WhatsAppIcon className="w-4 h-4" />
+                            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
+                        </button>
+                        
+                        <button onClick={openPaymentModal} className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}>
+                            <StatusIcon className="w-4 h-4" />
+                            {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
+                        </button>
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                        <div 
-                            className={`flex items-center gap-3 min-w-0 group cursor-pointer ${isCollapsed ? 'mx-auto' : ''}`} 
-                            onClick={() => !isCollapsed && setActiveView('settings')}
-                        >
+                        <div className={`flex items-center gap-3 min-w-0 group cursor-pointer ${isCollapsed ? 'mx-auto' : ''}`} onClick={() => !isCollapsed && setActiveView('settings')}>
                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-blue to-indigo-600 flex items-center justify-center text-xs font-black text-white shadow-lg border border-white/10 group-hover:ring-2 group-hover:ring-brand-blue/50 transition-all">
                                 {user?.email?.charAt(0).toUpperCase()}
                             </div>
                             {!isCollapsed && (
                                 <div className="flex flex-col min-w-0">
-                                    <span className="text-xs font-bold text-white truncate max-w-[120px] group-hover:text-brand-blue transition-colors">Minha Conta</span>
+                                    <span className="text-xs font-bold text-white truncate max-w-[120px]">Minha Conta</span>
                                     <span className="text-[10px] text-slate-500 truncate max-w-[120px] font-medium">{user?.email}</span>
                                 </div>
                             )}
                         </div>
                         
-                        <button 
-                            type="button"
-                            onClick={handleLogout}
-                            disabled={isLoggingOut}
-                            className={`p-2.5 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title="Sair da Conta"
-                        >
-                            {isLoggingOut ? (
-                                <svg className="animate-spin h-5 w-5 text-slate-400" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            ) : (
-                                <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />
-                            )}
+                        <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2.5 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            {isLoggingOut ? <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />}
                         </button>
                     </div>
                 </div>
