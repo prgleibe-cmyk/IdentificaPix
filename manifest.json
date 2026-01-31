@@ -1,3 +1,4 @@
+
 {
   "short_name": "IdentificaPix",
   "name": "IdentificaPix - Sistema de Conciliação",
@@ -19,5 +20,6 @@
   "display": "standalone",
   "theme_color": "#051024",
   "background_color": "#051024",
-  "orientation": "portrait"
+  "orientation": "any",
+  "display_override": ["window-controls-overlay", "standalone"]
 }

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAIClient = () => {
@@ -6,7 +5,6 @@ const getAIClient = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
-// Trava Global de Processamento para evitar chamadas duplicadas/concorrentes
 let isAIBusy = false;
 
 const safeJsonParse = (input: any, fallback: any = []) => {
@@ -20,60 +18,14 @@ const safeJsonParse = (input: any, fallback: any = []) => {
         if (parsed.transactions) return parsed.transactions;
         return Array.isArray(parsed) ? parsed : fallback;
     } catch (e) {
-        console.error("[GeminiService] Erro ao parsear JSON da IA:", e, sanitized);
+        console.error("[GeminiService] Erro ao parsear JSON:", e);
         return fallback;
     }
 };
 
 /**
- * 🛠️ DUMP ESTRUTURAL (MODO LABORATÓRIO)
- * Realiza o fatiamento semântico inicial do documento sem classificar dados.
- * @frozen-block: STRUCTURAL_DUMP_LIMITER_V1
- * PROIBIDO ALTERAR: Este bloco garante a economia de tokens limitando a análise inicial a 50 chunks.
- */
-export const getRawStructuralDump = async (base64Data: string): Promise<any[]> => {
-    if (isAIBusy) return [];
-    isAIBusy = true;
-
-    try {
-        const ai = getAIClient();
-        
-        const instruction = `VOCÊ É UM ANALISADOR DE CHUNKS. Leia este documento e quebre-o em fragmentos semânticos (blocos de texto que representam registros lógicos). 
-        RESTRICAO: Retorne no máximo os primeiros 50 fragmentos encontrados.
-        Retorne apenas o array JSON "rawLines".`;
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: {
-                parts: [
-                    { inlineData: { data: base64Data, mimeType: 'application/pdf' } },
-                    { text: instruction }
-                ]
-            },
-            config: {
-                temperature: 0,
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        rawLines: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    },
-                    required: ["rawLines"]
-                }
-            }
-        });
-
-        const result = JSON.parse(response.text || '{"rawLines": []}');
-        return result.rawLines || [];
-    } finally {
-        isAIBusy = false;
-    }
-};
-
-/**
- * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO BLOCO)
- * Consome o documento e aplica o contrato aprendido.
- * @frozen-block: EXTRACTION_TOKEN_ECONOMY_V3 (Removido processamento de blocos externos)
+ * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO AUDITORIA)
+ * Upgrade para raciocínio profundo (Thinking v3).
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -89,32 +41,29 @@ export const extractTransactionsWithModel = async (
         
         const isPreview = !!limit;
         const limitInstruction = isPreview 
-            ? `6. RESTRICAO DE VOLUME (MODO PREVIEW): Retorne no máximo os primeiros ${limit} registros encontrados.`
-            : `6. PROCESSAMENTO INTEGRAL (MODO PRODUÇÃO): Extraia TODAS as transações válidas encontradas no documento. NÃO se limite aos primeiros registros.`;
+            ? `RESTRICAO: Apenas os primeiros ${limit} registros.`
+            : `PROCESSAMENTO TOTAL: Extraia todos os dados sem exceção.`;
 
-        const instruction = `VOCÊ É UM SCANNER COM OBEDIÊNCIA CEGA AO CONTRATO.
+        const instruction = `VOCÊ É UM AUDITOR FINANCEIRO DE ELITE COM FOCO EM CONCILIAÇÃO BANCÁRIA.
            
-           --- CONTRATO OBRIGATÓRIO (ÚNICA VERDADE ABSOLUTA DO ADMIN) ---
+           --- CONTRATO DE EXTRAÇÃO (DNA DO DOCUMENTO) ---
            ${modelContext}
            
-           --- TAREFA CRÍTICA E INVIOLÁVEL ---
-           1. Use o CONTRATO acima como ÚNICO guia de extração. O Admin definiu este padrão manualmente.
-           2. DETECÇÃO DE DÉBITOS: Valores com sufixo "D", "DEBITO" ou destacados em vermelho DEVEM ser convertidos para números NEGATIVOS no campo "amount".
-           3. Use o campo "description" exatamente como o contrato ensinou.
-           4. NÃO TENTE CORRIGIR o Admin.
-           5. Analise o documento visualmente e extraia os dados.
+           --- REGRAS DE OURO DE AUDITORIA ---
+           1. MÁXIMA REFLEXÃO: Antes de extrair, analise a estrutura visual do PDF/Texto. Identifique onde estão colunas de Data, Histórico e Valor.
+           2. DETECÇÃO DE SINAIS: Diferencie Créditos de Débitos. Débitos (saídas) devem SEMPRE ser números negativos no JSON. 
+           3. LIMPEZA DE RUÍDO: Ignore headers, rodapés e linhas de saldo.
+           4. FIDELIDADE AO ADMIN: Use o CONTRATO acima para decidir o que é uma transação válida.
            ${limitInstruction}
            
-           FORMATO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
+           RETORNO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
 
         const parts: any[] = [];
-        
         if (base64Data) {
             parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
         } else {
-            parts.push({ text: `CONTEÚDO DO DOCUMENTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
+            parts.push({ text: `CONTEÚDO BRUTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
         }
-        
         parts.push({ text: instruction });
 
         const response = await ai.models.generateContent({
@@ -122,6 +71,8 @@ export const extractTransactionsWithModel = async (
             contents: { parts },
             config: {
                 temperature: 0,
+                // UPGRADE: Máximo poder de raciocínio disponível para evitar erros em documentos densos
+                thinkingConfig: { thinkingBudget: 32768 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
@@ -151,21 +102,45 @@ export const extractTransactionsWithModel = async (
     }
 };
 
-/**
- * INFER MAPPING FROM SAMPLE (MODO RESTRITO)
- */
+export const getRawStructuralDump = async (base64Data: string): Promise<any[]> => {
+    if (isAIBusy) return [];
+    isAIBusy = true;
+    try {
+        const ai = getAIClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+                parts: [
+                    { inlineData: { data: base64Data, mimeType: 'application/pdf' } },
+                    { text: "Identifique blocos de transações. Retorne array JSON 'rawLines'." }
+                ]
+            },
+            config: {
+                temperature: 0,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        rawLines: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    }
+                }
+            }
+        });
+        const result = JSON.parse(response.text || '{"rawLines": []}');
+        return result.rawLines || [];
+    } finally {
+        isAIBusy = false;
+    }
+};
+
 export const inferMappingFromSample = async (sampleText: string): Promise<any> => {
     if (isAIBusy) return null;
     isAIBusy = true;
-
     try {
         const ai = getAIClient();
-        const slicedText = sampleText.substring(0, 3000);
-        const prompt = `Identifique apenas a TOPOLOGIA ESTRUTURAL física deste texto. NÃO ADIVINHE nomes de colunas, apenas sugira índices funcionais. TEXTO: ${slicedText}`;
-
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: prompt,
+            contents: `Analise o padrão de colunas deste texto: ${sampleText.substring(0, 3000)}`,
             config: { 
                 temperature: 0, 
                 responseMimeType: "application/json",
@@ -177,8 +152,7 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
                         descriptionColumnIndex: { type: Type.INTEGER },
                         amountColumnIndex: { type: Type.INTEGER },
                         skipRowsStart: { type: Type.INTEGER }
-                    },
-                    required: ["extractionMode", "dateColumnIndex", "descriptionColumnIndex", "amountColumnIndex", "skipRowsStart"]
+                    }
                 }
             }
         });
