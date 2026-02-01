@@ -98,8 +98,8 @@ export const Sidebar: React.FC = () => {
                     <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
                         <div className="absolute -inset-6 bg-blue-500/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                            <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-transparent p-4 rounded-2xl border border-white/20 backdrop-blur-xl shadow-2xl">
-                                <img src="/pwa/icon-512.png" className="h-12 w-auto object-contain" alt="Logo" />
+                            <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-transparent p-2.5 rounded-xl border border-white/20 backdrop-blur-xl shadow-xl">
+                                <img src="/pwa/icon-512.png" className="h-8 w-auto object-contain" alt="Logo" />
                             </div>
                         </div>
                     </div>

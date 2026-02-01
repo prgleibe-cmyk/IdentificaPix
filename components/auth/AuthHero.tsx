@@ -8,14 +8,14 @@ export const AuthHero: React.FC = () => {
             {/* Logo Section */}
             <div className="flex items-center gap-8 perspective-[1000px]">
                 <div className="relative group animate-pulse-soft">
-                    <div className="absolute inset-0 bg-cyan-500/30 rounded-full blur-[60px] animate-pulse"></div>
-                    <div className="relative w-32 h-32 bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-[2rem] border border-white/20 backdrop-blur-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.6)] flex items-center justify-center transform rotate-y-12 rotate-x-12 group-hover:rotate-0 transition-transform duration-700">
+                    <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-[60px] animate-pulse"></div>
+                    <div className="relative w-24 h-24 bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-[1.5rem] border border-white/20 backdrop-blur-2xl shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)] flex items-center justify-center transform rotate-y-12 rotate-x-12 group-hover:rotate-0 transition-transform duration-700">
                         <img 
                             src="/pwa/icon-512.png" 
-                            className="h-20 w-auto object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" 
+                            className="h-14 w-auto object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.4)]" 
                             alt="Logo IdentificaPix" 
                         />
-                        <div className="absolute top-0 left-0 w-full h-full rounded-[2rem] bg-gradient-to-br from-white/30 to-transparent opacity-50 pointer-events-none"></div>
+                        <div className="absolute top-0 left-0 w-full h-full rounded-[1.5rem] bg-gradient-to-br from-white/20 to-transparent opacity-40 pointer-events-none"></div>
                     </div>
                 </div>
                 <div>
