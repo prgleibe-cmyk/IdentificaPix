@@ -9,10 +9,11 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "generate-icons": "node scripts/generate-pwa-icons.js",
+    "dev": "npm run generate-icons && vite",
+    "build": "npm run generate-icons && vite build",
     "type-check": "tsc",
-    "start": "node server.js",
+    "start": "npm run generate-icons && node server.js",
     "preview": "vite preview"
   },
   "dependencies": {
