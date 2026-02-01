@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -99,7 +98,7 @@ export const Sidebar: React.FC = () => {
                         <div className="absolute -inset-6 bg-blue-500/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
                             <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-transparent p-2.5 rounded-xl border border-white/20 backdrop-blur-xl shadow-xl">
-                                <img src="/pwa/icon-512.png" className="h-8 w-auto object-contain" alt="Logo" />
+                                <img src="/pwa/icon-512.png" className="h-10 w-auto object-contain" alt="Logo" />
                             </div>
                         </div>
                     </div>

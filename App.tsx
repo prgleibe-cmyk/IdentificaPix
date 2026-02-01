@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 // --- Contexts & Controllers ---
@@ -23,7 +22,7 @@ const MainLayout: React.FC = () => {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#051024]">
                 <div className="flex flex-col items-center">
-                    <img src="/pwa/icon-512.png" className="h-12 w-auto mb-6 object-contain animate-fade-in" alt="IdentificaPix" />
+                    <img src="/pwa/icon-512.png" className="h-36 w-auto mb-8 object-contain animate-fade-in" alt="IdentificaPix" />
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-4"></div>
                     <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
                 </div>
