@@ -4,16 +4,22 @@
   "name": "IdentificaPix - Sistema de Conciliação",
   "icons": [
     {
-      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png",
+      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=4",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png",
+      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=4",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/preview-logo.png?v=4",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
   "start_url": "/",
