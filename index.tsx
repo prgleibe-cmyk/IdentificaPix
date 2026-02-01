@@ -1,13 +1,13 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Registro do Service Worker para habilitar o modo PWA (Instalação)
+// Registro do Service Worker com versionamento para forçar atualização de ícones no PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => {
+    // Adicionado v=7 para garantir que o Chrome/Windows detecte a nova versão do Service Worker
+    navigator.serviceWorker.register('/sw.js?v=7').catch(err => {
       console.log('Service Worker registration failed: ', err);
     });
   });
