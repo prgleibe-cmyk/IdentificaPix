@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -22,8 +23,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // --- SERVIR FRONTEND (STATIC ASSETS) ---
-// Primeiro servimos os arquivos reais da pasta dist
-app.use(express.static(path.join(__dirname, 'dist')));
+// Prioridade máxima para arquivos reais na pasta dist
+// Quando você colocar os arquivos em public/pwa, o Vite os moverá para dist/pwa no build
+app.use(express.static(path.join(__dirname, 'dist'), {
+    index: false // Não serve index.html automaticamente aqui
+}));
 
 // --- INICIALIZAÇÃO IA (GEMINI) ---
 let ai = null;
@@ -43,21 +47,20 @@ app.use('/api/ai', aiRoutes(ai));
 
 // --- SPA FALLBACK LOGIC ---
 app.get('*', (req, res) => {
-    // 1. Ignora requisições de API
+    // 1. Bloqueio para chamadas de API inexistentes
     if (req.url.startsWith('/api/')) {
         return res.status(404).json({ error: "API Endpoint not found" });
     }
 
-    // 2. BLINDAGEM DE ASSETS: Se o request tem extensão (.png, .ico, .json, .js, .css)
-    // e chegou aqui, significa que o arquivo real NÃO EXISTE na pasta dist.
-    // Retornamos 404 em vez de index.html para não quebrar o browser/PWA.
+    // 2. PROTEÇÃO DE ASSETS: Se o request pede um arquivo (tem extensão)
+    // e o express.static lá em cima não o entregou, o arquivo realmente NÃO EXISTE.
+    // Retornamos 404 em vez de index.html para não "fingir" que a imagem é um HTML.
     const ext = path.extname(req.url);
     if (ext && ext !== '.html') {
-        console.warn(`[Server] Static asset missing: ${req.url}`);
         return res.status(404).send('Not found');
     }
 
-    // 3. Fallback para index.html apenas para rotas de navegação (ex: /dashboard, /upload)
+    // 3. Fallback apenas para rotas de navegação (ex: /dashboard, /upload)
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 

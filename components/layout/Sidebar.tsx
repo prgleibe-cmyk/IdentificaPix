@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -32,7 +33,6 @@ export const Sidebar: React.FC = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     
-    // Suporte técnico para Opção 1 (Instalação PWA)
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
@@ -129,12 +129,11 @@ export const Sidebar: React.FC = () => {
 
                 <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>
                     
-                    {/* Somente o botão técnico de instalação quando o navegador permitir */}
                     {deferredPrompt && (
                         <button 
                             onClick={handleInstallApp}
                             className={`flex items-center justify-center rounded-full text-brand-teal hover:text-white bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500 transition-all animate-pulse ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
-                            title="Instalar IdentificaPix como App (Opção 1)"
+                            title="Instalar IdentificaPix como App"
                         >
                             <CloudArrowUpIcon className="w-4 h-4" />
                             {!isCollapsed && <span className="text-[9px] font-black uppercase tracking-widest">Instalar App</span>}

@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // --- Contexts & Controllers ---
@@ -37,15 +38,10 @@ const MainLayout: React.FC = () => {
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
                     <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
-                        {/* 
-                            MODIFICAÇÃO CRÍTICA: O AppRouter permanece montado mesmo em isLoading.
-                            Isso evita interrupção de processos e loops de remounting.
-                        */}
                         <div className={`h-full transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                             <AppRouter />
                         </div>
 
-                        {/* Spinner como Overlay centralizado */}
                         {isLoading && (
                             <div className="absolute inset-0 z-[100] flex items-center justify-center backdrop-blur-[1px]">
                                 <div className="bg-white/80 dark:bg-slate-900/80 p-8 rounded-[2.5rem] shadow-2xl border border-white/20">
