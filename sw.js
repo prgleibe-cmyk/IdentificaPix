@@ -1,12 +1,13 @@
-// Service Worker IdentificaPix - Versão 6
-const CACHE_NAME = 'identificapix-v6';
+
+// Service Worker IdentificaPix - Versão 7
+const CACHE_NAME = 'identificapix-v7';
 
 // Ativos que devem ser buscados SEMPRE na rede para garantir atualização de ícones no Windows
 const BYPASS_CACHE = [
   'manifest.json',
-  'icon-192.png',
-  'icon-512.png',
-  'maskable-icon-512.png'
+  '/pwa/icon-192.png',
+  '/pwa/icon-512.png',
+  '/pwa/maskable-icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,7 +36,7 @@ self.addEventListener('fetch', (event) => {
   
   // Regra de Ouro: Manifest e Ícones devem vir sempre da rede (Network Only)
   // para que o Chrome detecte a mudança e atualize o ícone na Taskbar do Windows.
-  if (BYPASS_CACHE.some(path => url.pathname.endsWith(path))) {
+  if (BYPASS_CACHE.some(path => url.pathname.includes(path))) {
     return event.respondWith(fetch(event.request));
   }
 

@@ -6,19 +6,19 @@
   "description": "Automatize suas doações PIX e ofertas com precisão absoluta através de IA.",
   "icons": [
     {
-      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/icon-192.png?v=9",
+      "src": "/pwa/icon-192.png?v=11",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/icon-512.png?v=9",
+      "src": "/pwa/icon-512.png?v=11",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "https://uflheoknbopcgmzyjbft.supabase.co/storage/v1/object/public/public_assets/maskable-icon-512.png?v=9",
+      "src": "/pwa/maskable-icon-512.png?v=11",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
