@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { LogoIcon, CheckBadgeIcon } from '../Icons';
+import { CheckBadgeIcon } from '../Icons';
 
 export const AuthHero: React.FC = () => {
     return (
@@ -9,7 +10,11 @@ export const AuthHero: React.FC = () => {
                 <div className="relative group animate-pulse-soft">
                     <div className="absolute inset-0 bg-cyan-500/30 rounded-full blur-[60px] animate-pulse"></div>
                     <div className="relative w-32 h-32 bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-[2rem] border border-white/20 backdrop-blur-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.6)] flex items-center justify-center transform rotate-y-12 rotate-x-12 group-hover:rotate-0 transition-transform duration-700">
-                        <LogoIcon className="w-20 h-20 text-white drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" />
+                        <img 
+                            src="/pwa/icon-512.png" 
+                            className="h-20 w-auto object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]" 
+                            alt="Logo IdentificaPix" 
+                        />
                         <div className="absolute top-0 left-0 w-full h-full rounded-[2rem] bg-gradient-to-br from-white/30 to-transparent opacity-50 pointer-events-none"></div>
                     </div>
                 </div>
