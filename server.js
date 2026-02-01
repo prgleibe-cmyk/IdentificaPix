@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -22,6 +21,10 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
+// --- SERVIR FRONTEND (STATIC ASSETS) ---
+// Primeiro servimos os arquivos reais da pasta dist
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // --- INICIALIZAÇÃO IA (GEMINI) ---
 let ai = null;
 if (process.env.API_KEY) {
@@ -31,8 +34,6 @@ if (process.env.API_KEY) {
     } catch (e) {
         console.error("[Server] Critical: Failed to init Gemini SDK", e.message);
     }
-} else {
-    console.warn("[Server] Warning: process.env.API_KEY is missing. AI features will be disabled.");
 }
 
 // --- ROTAS DA API ---
@@ -40,16 +41,24 @@ app.use('/api/gmail', gmailRoutes(ai));
 app.use('/api/payment', paymentRoutes);
 app.use('/api/ai', aiRoutes(ai));
 
-// --- SERVIR FRONTEND (SPA FALLBACK) ---
-app.use(express.static(path.join(__dirname, 'dist')));
-
+// --- SPA FALLBACK LOGIC ---
 app.get('*', (req, res) => {
-    // Se não for uma rota de API, serve o index.html do React
-    if (!req.url.startsWith('/api/')) {
-        res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-    } else {
-        res.status(404).json({ error: "API Endpoint not found" });
+    // 1. Ignora requisições de API
+    if (req.url.startsWith('/api/')) {
+        return res.status(404).json({ error: "API Endpoint not found" });
     }
+
+    // 2. BLINDAGEM DE ASSETS: Se o request tem extensão (.png, .ico, .json, .js, .css)
+    // e chegou aqui, significa que o arquivo real NÃO EXISTE na pasta dist.
+    // Retornamos 404 em vez de index.html para não quebrar o browser/PWA.
+    const ext = path.extname(req.url);
+    if (ext && ext !== '.html') {
+        console.warn(`[Server] Static asset missing: ${req.url}`);
+        return res.status(404).send('Not found');
+    }
+
+    // 3. Fallback para index.html apenas para rotas de navegação (ex: /dashboard, /upload)
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
