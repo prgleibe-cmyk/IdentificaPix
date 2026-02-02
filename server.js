@@ -23,11 +23,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // --- SERVIR FRONTEND (STATIC ASSETS) ---
-// Prioridade máxima para arquivos reais na pasta dist
-// Quando você colocar os arquivos em public/pwa, o Vite os moverá para dist/pwa no build
-app.use(express.static(path.join(__dirname, 'dist'), {
-    index: false // Não serve index.html automaticamente aqui
-}));
+// Prioridade máxima para arquivos reais na pasta dist.
+// Isso garante que /pwa/icon-512.png seja entregue se o arquivo existir no sistema de arquivos.
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- INICIALIZAÇÃO IA (GEMINI) ---
 let ai = null;
@@ -52,12 +50,13 @@ app.get('*', (req, res) => {
         return res.status(404).json({ error: "API Endpoint not found" });
     }
 
-    // 2. PROTEÇÃO DE ASSETS: Se o request pede um arquivo (tem extensão)
-    // e o express.static lá em cima não o entregou, o arquivo realmente NÃO EXISTE.
-    // Retornamos 404 em vez de index.html para não "fingir" que a imagem é um HTML.
+    // 2. PROTEÇÃO DE ASSETS:
+    // Se o request pede um arquivo (tem extensão .png, .jpg, .json, etc)
+    // e o express.static não o encontrou acima, retornamos 404 real.
+    // Isso evita que o navegador receba o index.html quando tentava carregar um ícone.
     const ext = path.extname(req.url);
     if (ext && ext !== '.html') {
-        return res.status(404).send('Not found');
+        return res.status(404).send('File not found');
     }
 
     // 3. Fallback apenas para rotas de navegação (ex: /dashboard, /upload)
@@ -67,4 +66,5 @@ app.get('*', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`[IdentificaPix Server] Running on port ${PORT}`);
+    console.log(`[IdentificaPix Server] Static root: ${path.join(__dirname, 'dist')}`);
 });
