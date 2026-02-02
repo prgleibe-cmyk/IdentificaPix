@@ -34,7 +34,8 @@ export default defineConfig(({ mode }) => {
       // Garante explicitamente que a pasta public (incluindo /pwa) seja copiada para dist
       copyPublicDir: true,
       sourcemap: false,
-      minify: 'terser',
+      // Usamos o padrão (esbuild) para evitar erros de dependência opcional no CI/CD
+      minify: 'esbuild',
       rollupOptions: {
         output: {
           manualChunks: {
