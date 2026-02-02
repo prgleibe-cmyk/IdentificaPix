@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Importação das rotas modulares
 import gmailRoutes from './backend/routes/gmail.js';
@@ -18,14 +19,42 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// --- DIAGNÓSTICOS DE AMBIENTE ---
+const distPath = path.join(__dirname, 'dist');
+const publicPwaPath = path.join(__dirname, 'public', 'pwa');
+
+console.log(`[Server] --- DIAGNÓSTICO DE INICIALIZAÇÃO ---`);
+console.log(`[Server] Root Dir: ${__dirname}`);
+console.log(`[Server] Static Path (dist): ${distPath}`);
+
+if (fs.existsSync(distPath)) {
+    const files = fs.readdirSync(distPath);
+    console.log(`[Server] ✅ Pasta 'dist' encontrada. Itens: ${files.join(', ')}`);
+    const pwaInDist = path.join(distPath, 'pwa');
+    if (fs.existsSync(pwaInDist)) {
+        console.log(`[Server] ✅ dist/pwa encontrada. Arquivos: ${fs.readdirSync(pwaInDist).join(', ')}`);
+    } else {
+        console.warn(`[Server] ⚠️ dist/pwa NÃO encontrada. Verificando pasta 'public'...`);
+    }
+} else {
+    console.error(`[Server] ❌ Pasta 'dist' não encontrada! Certifique-se de que o build foi concluído.`);
+}
+
+if (fs.existsSync(publicPwaPath)) {
+    console.log(`[Server] ✅ public/pwa disponível (fallback). Arquivos: ${fs.readdirSync(publicPwaPath).join(', ')}`);
+}
+
 // --- CONFIGURAÇÃO DE MIDDLEWARES ---
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // --- SERVIR FRONTEND (STATIC ASSETS) ---
-// Prioridade máxima para arquivos reais na pasta dist.
-// Isso garante que /pwa/icon-512.png seja entregue se o arquivo existir no sistema de arquivos.
-app.use(express.static(path.join(__dirname, 'dist')));
+// 1. Prioridade: Pasta dist (build oficial)
+app.use(express.static(distPath));
+
+// 2. Fallback: Pasta pwa na public (para ícones gerados no runtime pelo script generate-pwa-icons)
+// Isso resolve o 404 caso o build não tenha incluído os ícones gerados após o 'npm run build'
+app.use('/pwa', express.static(publicPwaPath));
 
 // --- INICIALIZAÇÃO IA (GEMINI) ---
 let ai = null;
@@ -53,18 +82,27 @@ app.get('*', (req, res) => {
     // 2. PROTEÇÃO DE ASSETS:
     // Se o request pede um arquivo (tem extensão .png, .jpg, .json, etc)
     // e o express.static não o encontrou acima, retornamos 404 real.
-    // Isso evita que o navegador receba o index.html quando tentava carregar um ícone.
     const ext = path.extname(req.url);
     if (ext && ext !== '.html') {
+        // Tentativa final de busca direta antes do 404 (para caminhos complexos)
+        const possiblePath = path.join(distPath, req.path);
+        if (fs.existsSync(possiblePath)) {
+            return res.sendFile(possiblePath);
+        }
         return res.status(404).send('File not found');
     }
 
     // 3. Fallback apenas para rotas de navegação (ex: /dashboard, /upload)
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const indexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(500).send('Frontend not built. Please run npm run build.');
+    }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`[IdentificaPix Server] Running on port ${PORT}`);
-    console.log(`[IdentificaPix Server] Static root: ${path.join(__dirname, 'dist')}`);
+    console.log(`[IdentificaPix Server] Static root: ${distPath}`);
 });
