@@ -33,7 +33,7 @@ const BankRow: React.FC<{
     triggerUpdate: () => void 
 }> = ({ bank, isUploaded, handleStatementUpload, setIsGmailModalOpen, removeBankStatementFile, triggerUpdate }) => {
     
-    const { fileModels, effectiveIgnoreKeywords, setBankStatementFile, setModelRequiredData } = useContext(AppContext);
+    const { fileModels, effectiveIgnoreKeywords, setModelRequiredData, persistTransactions } = useContext(AppContext);
     const { user } = useAuth();
     const { showToast } = useUI();
 
@@ -61,7 +61,6 @@ const BankRow: React.FC<{
         try {
             const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
             
-            // CORREÇÃO: Trata bloqueio por falta de modelo reconhecido
             if (result.status === 'MODEL_REQUIRED') {
                 if (setModelRequiredData) {
                     setModelRequiredData({ ...result, fileName, bankId: bank.id });
@@ -78,26 +77,16 @@ const BankRow: React.FC<{
                 return;
             }
 
-            const launchResult = await LaunchService.launchToBank(user.id, bank.id, newTransactions);
+            // 🛡️ FUNIL CENTRAL: O persistTransactions cuida do dedupe e do hydrate automático da UI
+            const launchResult = await persistTransactions(bank.id, newTransactions);
 
             if (launchResult.added > 0) {
-                setBankStatementFile((prevFiles: any[]) => {
-                    const existingIndex = prevFiles.findIndex((f: any) => f.bankId === bank.id);
-                    if (existingIndex === -1) {
-                        return [...prevFiles, { bankId: bank.id, content, fileName, rawFile, processedTransactions: newTransactions }];
-                    }
-                    const currentFile = prevFiles[existingIndex];
-                    const mergedTransactions = [...(currentFile.processedTransactions || []), ...newTransactions];
-                    const newFiles = [...prevFiles];
-                    newFiles[existingIndex] = { ...currentFile, processedTransactions: mergedTransactions };
-                    return newFiles;
-                });
                 showToast(`${launchResult.added} transações adicionadas!`, "success");
             } else {
-                showToast("Registros já existentes ignorados.", "success");
+                showToast("Nenhuma transação nova detectada (duplicatas ignoradas).", "success");
             }
             
-            setTimeout(() => triggerUpdate(), 500);
+            triggerUpdate();
 
         } catch (e: any) {
             showToast("Erro ao adicionar: " + e.message, "error");

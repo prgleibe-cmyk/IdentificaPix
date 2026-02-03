@@ -16,13 +16,9 @@ export const useLiveListSync = ({
     const [syncError, setSyncError] = useState<string | null>(null);
 
     /**
-     * 🛡️ BUILD KEY (ESPELHO DO LAUNCHSERVICE)
-     * Garante que a UI e o Banco usem o mesmo DNA para dedupe.
+     * 🛡️ HYDRATE (O FUNIL DE SAÍDA PARA A UI)
+     * Garante que a UI só exiba o que está validado no banco de dados.
      */
-    const buildKey = (tx: any, userId: string) => {
-        return LaunchService.computeBaseHash(tx, userId);
-    };
-
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
         if (!user || isCleaning || isHydrating.current) return;
         
@@ -30,26 +26,21 @@ export const useLiveListSync = ({
         setSyncError(null);
         
         try {
-            if (forceClearUI) {
-                setBankStatementFile(() => []);
-                setSelectedBankIds(() => []);
-            }
-
-            // Busca as pendências reais do banco
+            // Busca as transações 'pending' reais do banco (A Lista Viva de verdade)
             const dbTransactions = await consolidationService.getPendingTransactions(user.id);
             
             if (!dbTransactions || dbTransactions.length === 0) {
-                if (forceClearUI) {
-                    setBankStatementFile(() => []);
-                    setSelectedBankIds(() => []);
-                }
+                setBankStatementFile([]);
+                if (forceClearUI) setSelectedBankIds([]);
                 isHydrating.current = false;
                 return;
             }
 
+            // Agrupa por banco para manter a estrutura da UI
             const groupedByBank: Record<string, Transaction[]> = {};
             dbTransactions.forEach((t: any) => {
                 let bankId = t.bank_id;
+                // Fallback para IDs virtuais legados
                 if (!bankId && t.pix_key && t.pix_key.includes('-')) {
                     bankId = t.pix_key;
                 }
@@ -81,50 +72,22 @@ export const useLiveListSync = ({
                 isRestored: true
             }));
 
-            // ✅ MERGE COM BLINDAGEM DE DUPLICATAS
-            setBankStatementFile((prev: any[]) => {
-                const finalMap = new Map<string, any>();
-                
-                // 1. Preserva o que já está na UI
-                if (prev) prev.forEach(f => finalMap.set(f.bankId, f));
-
-                // 2. Funde com o Banco aplicando o Triplet Check
-                restoredFiles.forEach(dbFile => {
-                    if (finalMap.has(dbFile.bankId)) {
-                        const uiFile = finalMap.get(dbFile.bankId);
-                        const txMap = new Map<string, Transaction>();
-
-                        // Mapeia usando a chave normalizada
-                        uiFile.processedTransactions.forEach((tx: Transaction) => {
-                            const key = buildKey(tx, user.id);
-                            txMap.set(key, tx);
-                        });
-
-                        dbFile.processedTransactions.forEach((tx: Transaction) => {
-                            const key = buildKey(tx, user.id);
-                            // O banco sempre vence em caso de colisão por ter ID real
-                            txMap.set(key, tx);
-                        });
-
-                        finalMap.set(dbFile.bankId, {
-                            ...uiFile,
-                            processedTransactions: Array.from(txMap.values())
-                        });
-                    } else {
-                        finalMap.set(dbFile.bankId, dbFile);
-                    }
-                });
-
-                return Array.from(finalMap.values());
-            });
+            // ✅ ATUALIZAÇÃO ÚNICA DA UI
+            setBankStatementFile(restoredFiles);
             
-            setSelectedBankIds((prev: string[]) => {
-                const availableIds = restoredFiles.map(f => f.bankId);
-                return Array.from(new Set([...prev, ...availableIds]));
-            });
+            if (forceClearUI) {
+                setSelectedBankIds(restoredFiles.map(f => f.bankId));
+            } else {
+                setSelectedBankIds((prev: string[]) => {
+                    const availableIds = restoredFiles.map(f => f.bankId);
+                    // Preserva a seleção se o banco ainda existir
+                    return prev.filter(id => availableIds.includes(id));
+                });
+            }
             
         } catch (err: any) {
-            console.error("[Lista Viva] Erro na hidratação:", err);
+            console.error("[Lista Viva] Erro na sincronização da UI:", err);
+            setSyncError("Falha ao sincronizar dados.");
         } finally {
             isHydrating.current = false;
         }
@@ -137,12 +100,20 @@ export const useLiveListSync = ({
         }
     }, [user, hydrate]);
 
+    /**
+     * 📥 PERSIST (O FUNIL DE ENTRADA)
+     * Toda inserção (Upload/Sync) deve passar por aqui.
+     */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
         if (!user) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
+            // Delega para o funil central de dedupe e persistência
             const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
+            
+            // Após a inserção blindada, reidrata a UI a partir do Banco
             await hydrate(false);
+            
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
@@ -155,18 +126,11 @@ export const useLiveListSync = ({
         setIsCleaning(true);
         try {
             await consolidationService.deletePendingTransactions(user.id, bankId);
-            if (bankId && bankId !== 'all') {
-                setBankStatementFile((prev: any[]) => prev.filter(f => f.bankId !== bankId));
-                setSelectedBankIds((prev: string[]) => prev.filter(id => id !== bankId));
-            } else {
-                setBankStatementFile([]);
-                setSelectedBankIds([]);
-            }
         } finally {
             setIsCleaning(false);
             await hydrate(false);
         }
-    }, [user, setBankStatementFile, setSelectedBankIds, hydrate]);
+    }, [user, hydrate]);
 
     return { persistTransactions, clearRemoteList, hydrate, syncError };
 };

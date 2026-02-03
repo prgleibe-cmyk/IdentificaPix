@@ -4,16 +4,16 @@ import { Logger } from './monitoringService';
 import { DateResolver } from '../core/processors/DateResolver';
 import { NameResolver } from '../core/processors/NameResolver';
 
-// Cache global para evitar race conditions em uploads simultâneos
+// Cache global para evitar race conditions em uploads simultâneos ou cliques duplos
 const hashesInFlight = new Set<string>();
 
 export const LaunchService = {
     /**
      * 🛡️ FUNIL CENTRAL DE NORMALIZAÇÃO
-     * Garante paridade absoluta entre fontes (PDF, CSV, Gmail, DB).
+     * Define o padrão ouro para o triplet (Data, Nome, Valor).
      */
     normalizeTriplet: (t: any) => {
-        // 1. Data Normalizada (YYYY-MM-DD)
+        // 1. Data (YYYY-MM-DD)
         let rawDate = String(t.date || t.transaction_date || '').trim();
         let isoDate = rawDate;
         if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
@@ -22,11 +22,11 @@ export const LaunchService = {
         }
         const finalDate = isoDate || rawDate || '0000-00-00';
 
-        // 2. Nome Normalizado (Caixa alta, sem acentos, sem espaços extras)
-        // Usa a descrição que já passou pelo processamento de limpeza do StrategyEngine/Parser
+        // 2. Nome (Fiel ao processamento do sistema, sem ruído)
+        // O NameResolver.normalize garante remoção de acentos e caixa alta
         const cleanName = NameResolver.normalize(t.description || t.rawDescription || 'SEM_DESCRICAO');
 
-        // 3. Valor Normalizado (String com 2 casas decimais)
+        // 3. Valor (String fixa com 2 casas decimais)
         const finalValue = Number(t.amount || 0).toFixed(2);
 
         return { finalDate, cleanName, finalValue };
@@ -46,6 +46,10 @@ export const LaunchService = {
         return `viva_${Math.abs(hash).toString(36)}`;
     },
 
+    /**
+     * 🚀 O ÚNICO PONTO DE ENTRADA PARA PERSISTÊNCIA NA LISTA VIVA
+     * Verifica duplicatas contra o histórico total do usuário no banco.
+     */
     async launchToBank(
         userId: string, 
         bankId: string, 
@@ -53,7 +57,7 @@ export const LaunchService = {
         source: 'file' | 'gmail' = 'file'
     ): Promise<{ added: number, skipped: number, total: number }> {
         if (!userId || !transactions || transactions.length === 0) {
-            return { added: 0, skipped: 0, total: transactions ? transactions.length : 0 };
+            return { added: 0, skipped: 0, total: transactions?.length || 0 };
         }
 
         const totalReceived = transactions.length;
@@ -61,7 +65,7 @@ export const LaunchService = {
         const currentBankId = isUuid ? bankId : null;
 
         try {
-            // 1. Busca hashes existentes para evitar duplicidade com o passado
+            // 1. Busca hashes existentes (Dedupe contra histórico total: Pendentes + Reconciliados)
             const existingData = await consolidationService.getExistingTransactionsForDedup(userId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
@@ -69,7 +73,7 @@ export const LaunchService = {
                 .map(item => {
                     const finalRowHash = this.computeBaseHash(item, userId);
                     
-                    // 🛡️ DEDUPE TRIPLO (O FUNIL): Banco + Em trânsito + Lote Atual
+                    // 🛡️ FILTRO DE BLINDAGEM (O FUNIL)
                     if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {
                         return null; 
                     }
@@ -99,7 +103,7 @@ export const LaunchService = {
                 await consolidationService.addTransactions(toPersist as any);
             }
             
-            // Limpeza curta do cache in-flight
+            // Limpeza curta do cache in-flight para permitir re-upload se deletado
             setTimeout(() => {
                 toPersist.forEach(t => { if(t.row_hash) hashesInFlight.delete(t.row_hash); });
             }, 5000);
@@ -107,8 +111,7 @@ export const LaunchService = {
             return { added: novosCount, skipped: totalReceived - novosCount, total: totalReceived };
 
         } catch (e: any) {
-            hashesInFlight.clear();
-            Logger.error(`[Launch:DEDUPE_FAIL]`, e);
+            Logger.error(`[LaunchService:DEDUPE_FAIL]`, e);
             throw e;
         }
     },

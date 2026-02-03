@@ -15,9 +15,9 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         handleStatementUpload, 
         fileModels,
         effectiveIgnoreKeywords,
-        setBankStatementFile,
+        persistTransactions,
         hydrate,
-        setModelRequiredData // Adicionado para tratar bloqueios do StrategyEngine
+        setModelRequiredData 
     } = useContext(AppContext);
     
     const { user } = useAuth();
@@ -67,7 +67,6 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         try {
             const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
             
-            // CORREÇÃO: Trata o caso onde o arquivo não tem modelo reconhecido
             if (result.status === 'MODEL_REQUIRED') {
                 if (setModelRequiredData) {
                     setModelRequiredData({ ...result, fileName, bankId: bank.id });
@@ -84,13 +83,13 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
                 return;
             }
 
-            const launchResult = await LaunchService.launchToBank(user.id, bank.id, newTransactions);
-            await hydrate();
+            // 🛡️ FUNIL CENTRAL: Delega para o persistTransactions do hook de sincronização
+            const launchResult = await persistTransactions(bank.id, newTransactions);
 
             if (launchResult.added > 0) {
                 showToast(`${launchResult.added} transações adicionadas!`, "success");
             } else {
-                showToast("Lista atualizada (registros já existiam no sistema).", "success");
+                showToast("Registros já existentes ignorados.", "success");
             }
         } catch (e: any) {
             showToast("Erro ao adicionar: " + e.message, "error");
@@ -127,9 +126,14 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         setIsMenuOpen(false);
         
         try {
+            // No modo blindado, qualquer remoção física exige re-sincronia do banco
+            // 1. Identifica os arquivos que permanecerão
             const remainingFiles = bankFiles.filter((f: any) => f !== fileToRemove);
+            
+            // 2. Limpa todos os pendentes deste banco
             await LaunchService.clearBankLaunch(user.id, bank.id);
             
+            // 3. Re-insere apenas os que sobraram (o launchToBank fará o dedupe novamente)
             if (remainingFiles.length > 0) {
                 const allTxs = remainingFiles.flatMap((f: any) => f.processedTransactions || []);
                 if (allTxs.length > 0) {
@@ -137,7 +141,9 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
                 }
             }
 
-            setBankStatementFile((prev: any[]) => prev.filter(f => f !== fileToRemove));
+            // 4. Reidrata a UI a partir da única fonte de verdade
+            await hydrate(false);
+            
             showToast("Arquivo removido.", "success");
         } catch (e: any) {
             showToast("Erro ao remover arquivo.", "error");
