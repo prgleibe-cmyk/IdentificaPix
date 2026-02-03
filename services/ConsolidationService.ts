@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
@@ -17,7 +18,6 @@ export const consolidationService = {
                     const amount = Number(t.amount);
                     let finalDate = t.transaction_date;
 
-                    // Normalização de segurança para ISO YYYY-MM-DD
                     if (finalDate && !/^\d{4}-\d{2}-\d{2}$/.test(finalDate)) {
                         const resolved = DateResolver.resolveToISO(finalDate, new Date().getFullYear());
                         if (resolved) finalDate = resolved;
@@ -44,7 +44,7 @@ export const consolidationService = {
 
             if (sanitizedPayload.length === 0) return [];
 
-            const CHUNK_SIZE = 200;
+            const CHUNK_SIZE = 100; // Reduzido para maior estabilidade em lotes grandes
             const results = [];
 
             for (let i = 0; i < sanitizedPayload.length; i += CHUNK_SIZE) {
@@ -69,8 +69,23 @@ export const consolidationService = {
         }
     },
 
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved') => {
+        try {
+            const { error } = await supabase
+                .from('consolidated_transactions')
+                .update({ status })
+                .eq('id', id);
+            
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error("[Consolidation] Erro ao atualizar status:", error);
+            return false;
+        }
+    },
+
     /**
-     * Recupera hashes existentes com limite estendido para 50k registros.
+     * Recupera hashes existentes com limite de 100k para evitar falsos positivos em uploads duplicados.
      */
     getExistingTransactionsForDedup: async (userId: string) => {
         try {
@@ -80,7 +95,7 @@ export const consolidationService = {
                 .from('consolidated_transactions')
                 .select('row_hash')
                 .eq('user_id', userId)
-                .limit(50000); // Limite aumentado drasticamente
+                .limit(100000); // 🚀 ADEUS LIMITE DE 1000
 
             if (error) throw error;
             return data || [];
@@ -114,7 +129,7 @@ export const consolidationService = {
     },
 
     /**
-     * Recupera transações pendentes com limite estendido para 50k registros.
+     * Recupera transações pendentes sem o teto de 1000 registros do Supabase.
      */
     getPendingTransactions: async (userId: string) => {
         try {
@@ -126,7 +141,7 @@ export const consolidationService = {
                 .eq('user_id', userId)
                 .eq('status', 'pending')
                 .order('transaction_date', { ascending: false })
-                .limit(50000); // Limite aumentado drasticamente
+                .limit(100000); // 🚀 ADEUS LIMITE DE 1000
 
             if (error) throw error;
             return data || [];

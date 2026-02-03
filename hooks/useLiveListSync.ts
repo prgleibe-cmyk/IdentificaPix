@@ -15,28 +15,16 @@ export const useLiveListSync = ({
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
 
-    // ✅ Normalizadores para dedupe lógico
-    const normalizeDate = (d: any) => {
-        if (!d) return '';
-        const dt = new Date(d);
-        if (isNaN(dt.getTime())) return String(d);
-        return dt.toISOString().slice(0, 10);
+    /**
+     * 🛡️ BUILD KEY (ESPELHO DO LAUNCHSERVICE)
+     * Garante que a UI e o Banco usem o mesmo DNA para dedupe.
+     */
+    const buildKey = (tx: any, userId: string) => {
+        return LaunchService.computeBaseHash(tx, userId);
     };
 
-    const normalizeText = (t: any) =>
-        String(t || '')
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, ' ');
-
-    const normalizeAmount = (v: any) =>
-        Number(v || 0).toFixed(2);
-
-    const buildKey = (tx: any, bankId: string) =>
-        `${normalizeDate(tx.date)}|${normalizeText(tx.description)}|${normalizeAmount(tx.amount)}|${bankId}`;
-
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        if (!user || isCleaning) return;
+        if (!user || isCleaning || isHydrating.current) return;
         
         isHydrating.current = true;
         setSyncError(null);
@@ -47,6 +35,7 @@ export const useLiveListSync = ({
                 setSelectedBankIds(() => []);
             }
 
+            // Busca as pendências reais do banco
             const dbTransactions = await consolidationService.getPendingTransactions(user.id);
             
             if (!dbTransactions || dbTransactions.length === 0) {
@@ -54,6 +43,7 @@ export const useLiveListSync = ({
                     setBankStatementFile(() => []);
                     setSelectedBankIds(() => []);
                 }
+                isHydrating.current = false;
                 return;
             }
 
@@ -91,56 +81,54 @@ export const useLiveListSync = ({
                 isRestored: true
             }));
 
-            // ✅ MERGE + DEDUPE LÓGICO
+            // ✅ MERGE COM BLINDAGEM DE DUPLICATAS
             setBankStatementFile((prev: any[]) => {
-                if (!prev || prev.length === 0) return restoredFiles;
+                const finalMap = new Map<string, any>();
+                
+                // 1. Preserva o que já está na UI
+                if (prev) prev.forEach(f => finalMap.set(f.bankId, f));
 
-                const map = new Map<string, any>();
+                // 2. Funde com o Banco aplicando o Triplet Check
+                restoredFiles.forEach(dbFile => {
+                    if (finalMap.has(dbFile.bankId)) {
+                        const uiFile = finalMap.get(dbFile.bankId);
+                        const txMap = new Map<string, Transaction>();
 
-                prev.forEach(f => map.set(f.bankId, f));
-
-                restoredFiles.forEach(f => {
-                    if (map.has(f.bankId)) {
-                        const existing = map.get(f.bankId);
-
-                        const txMap = new Map<string, any>();
-
-                        existing.processedTransactions.forEach((tx: any) => {
-                            const key = buildKey(tx, f.bankId);
+                        // Mapeia usando a chave normalizada
+                        uiFile.processedTransactions.forEach((tx: Transaction) => {
+                            const key = buildKey(tx, user.id);
                             txMap.set(key, tx);
                         });
 
-                        f.processedTransactions.forEach((tx: any) => {
-                            const key = buildKey(tx, f.bankId);
-                            if (!txMap.has(key)) {
-                                txMap.set(key, tx);
-                            }
+                        dbFile.processedTransactions.forEach((tx: Transaction) => {
+                            const key = buildKey(tx, user.id);
+                            // O banco sempre vence em caso de colisão por ter ID real
+                            txMap.set(key, tx);
                         });
 
-                        map.set(f.bankId, {
-                            ...existing,
+                        finalMap.set(dbFile.bankId, {
+                            ...uiFile,
                             processedTransactions: Array.from(txMap.values())
                         });
                     } else {
-                        map.set(f.bankId, f);
+                        finalMap.set(dbFile.bankId, dbFile);
                     }
                 });
 
-                return Array.from(map.values());
+                return Array.from(finalMap.values());
             });
             
             setSelectedBankIds((prev: string[]) => {
                 const availableIds = restoredFiles.map(f => f.bankId);
-                return Array.from(new Set([...prev.filter(id => availableIds.includes(id)), ...availableIds]));
+                return Array.from(new Set([...prev, ...availableIds]));
             });
             
         } catch (err: any) {
             console.error("[Lista Viva] Erro na hidratação:", err);
-            showToast("Falha ao sincronizar Lista Viva.", "error");
         } finally {
             isHydrating.current = false;
         }
-    }, [user, setBankStatementFile, setSelectedBankIds, isCleaning, showToast]);
+    }, [user, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
     useEffect(() => {
         if (user?.id && user.id !== lastUserId.current) {
@@ -154,12 +142,13 @@ export const useLiveListSync = ({
         
         try {
             const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
+            await hydrate(false);
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
-    }, [user, showToast]);
+    }, [user, showToast, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
         if (!user) return;

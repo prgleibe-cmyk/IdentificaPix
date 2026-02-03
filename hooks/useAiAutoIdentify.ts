@@ -2,6 +2,7 @@
 import { useCallback } from 'react';
 import { ReconciliationStatus, MatchMethod, MatchResult } from '../types';
 import { strictNormalize, groupResultsByChurch } from '../services/processingService';
+import { consolidationService } from '../services/ConsolidationService';
 
 interface UseAiAutoIdentifyProps {
     reconciliation: any;
@@ -17,12 +18,10 @@ interface UseAiAutoIdentifyProps {
  */
 const getConfidenceScore = (s1: string, s2: string): number => {
     if (s1 === s2) return 100;
-    // Deep Clean para comparação extrema
     const clean1 = s1.replace(/[^A-Z0-9]/g, '');
     const clean2 = s2.replace(/[^A-Z0-9]/g, '');
     if (clean1 === clean2 && clean1.length > 0) return 100;
     
-    // Dice Coefficient para strings
     const set1 = new Set();
     for (let i = 0; i < s1.length - 1; i++) set1.add(s1.substring(i, i + 2));
     const set2 = new Set();
@@ -42,7 +41,7 @@ export const useAiAutoIdentify = ({
     onAfterIdentification
 }: UseAiAutoIdentifyProps) => {
     
-    const runAiAutoIdentification = useCallback(() => {
+    const runAiAutoIdentification = useCallback(async () => {
         const { matchResults, setMatchResults, setReportPreviewData } = reconciliation;
         const { learnedAssociations, churches } = referenceData;
 
@@ -54,13 +53,12 @@ export const useAiAutoIdentify = ({
         setIsLoading(true);
         let identifiedCount = 0;
         
-        console.log(`[IA-Recon] Analisando ${matchResults.length} linhas. Memória de aprendizado: ${learnedAssociations.length} itens.`);
+        const nextResults = [];
 
-        const nextResults = matchResults.map((res: MatchResult) => {
+        for (const res of matchResults) {
             if (res.status === ReconciliationStatus.UNIDENTIFIED) {
                 const currentTxDna = strictNormalize(res.transaction.description);
                 
-                // Busca na memória de aprendizado com limite de 95%
                 const learned = learnedAssociations.find((la: any) => {
                     const learnedDna = la.normalizedDescription;
                     return learnedDna === currentTxDna || getConfidenceScore(learnedDna, currentTxDna) >= 95;
@@ -70,7 +68,13 @@ export const useAiAutoIdentify = ({
                     const church = churches.find((c: any) => c.id === learned.churchId);
                     if (church) {
                         identifiedCount++;
-                        return {
+                        
+                        // Atualiza no banco
+                        if (!res.transaction.id.includes('ghost') && !res.transaction.id.includes('sim')) {
+                            await consolidationService.updateTransactionStatus(res.transaction.id, 'identified');
+                        }
+
+                        nextResults.push({
                             ...res,
                             status: ReconciliationStatus.IDENTIFIED,
                             church: church,
@@ -83,12 +87,13 @@ export const useAiAutoIdentify = ({
                             },
                             contributorAmount: res.transaction.amount,
                             suggestion: undefined
-                        };
+                        });
+                        continue;
                     }
                 }
             }
-            return res;
-        });
+            nextResults.push(res);
+        }
 
         if (identifiedCount > 0) {
             setMatchResults(nextResults);

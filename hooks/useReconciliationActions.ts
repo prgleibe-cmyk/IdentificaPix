@@ -2,6 +2,7 @@
 import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
+import { consolidationService } from '../services/ConsolidationService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -17,7 +18,7 @@ export const useReconciliationActions = ({
   onAfterAction
 }: UseReconciliationActionsProps) => {
   
-  const confirmManualIdentification = useCallback((txId: string, churchId: string) => {
+  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
     
@@ -28,7 +29,6 @@ export const useReconciliationActions = ({
     const originalResult = currentResults[idx];
     
     // 🎯 AJUSTE CRÍTICO: Se não houver contribuinte, cria um virtual baseado na descrição
-    // Isso garante que a função learnAssociation tenha dados para salvar.
     const contributor: Contributor = originalResult.contributor || {
         name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
         amount: originalResult.transaction.amount,
@@ -48,7 +48,11 @@ export const useReconciliationActions = ({
     
     currentResults[idx] = updatedResult;
     
-    // Agora o aprendizado funcionará pois o updatedResult tem church e contributor
+    // Persistência de Status no Banco (Consome a pendência)
+    if (!txId.includes('ghost') && !txId.includes('sim')) {
+        await consolidationService.updateTransactionStatus(txId, 'identified');
+    }
+
     reconciliation.setMatchResults(currentResults);
     referenceData.learnAssociation(updatedResult);
     
@@ -58,14 +62,14 @@ export const useReconciliationActions = ({
     if (onAfterAction) onAfterAction(currentResults);
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
-  const confirmBulkManualIdentification = useCallback((txIds: string[], churchId: string) => {
+  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
     
     const currentResults = [...reconciliation.matchResults];
     let affectedCount = 0;
     
-    txIds.forEach(id => {
+    for (const id of txIds) {
       const idx = currentResults.findIndex(r => r.transaction.id === id);
       if (idx !== -1) {
         const original = currentResults[idx];
@@ -88,9 +92,15 @@ export const useReconciliationActions = ({
         };
         currentResults[idx] = updated;
         referenceData.learnAssociation(updated);
+        
+        // Consome no banco em lote
+        if (!id.includes('ghost') && !id.includes('sim')) {
+            await consolidationService.updateTransactionStatus(id, 'identified');
+        }
+
         affectedCount++;
       }
-    });
+    }
     
     reconciliation.setMatchResults(currentResults);
     
@@ -116,7 +126,12 @@ export const useReconciliationActions = ({
     if (onAfterAction) onAfterAction(currentResults);
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
-  const undoIdentification = useCallback((txId: string) => {
+  const undoIdentification = useCallback(async (txId: string) => {
+    // Reverte status no banco de dados para que volte à Lista Viva
+    if (!txId.includes('ghost') && !txId.includes('sim')) {
+        await consolidationService.updateTransactionStatus(txId, 'pending');
+    }
+
     reconciliation.revertMatch(txId);
     showToast("Identificação desfeita.", "success");
     
