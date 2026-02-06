@@ -1,4 +1,3 @@
-
 export enum ReconciliationStatus {
   IDENTIFIED = 'IDENTIFICADO',
   UNIDENTIFIED = 'NÃO IDENTIFICADO',
@@ -44,6 +43,8 @@ export interface Transaction {
   contributionType?: string;
   paymentMethod?: string;
   bank_id?: string;
+  // Fix: Added isConfirmed to Transaction interface to resolve property missing errors
+  isConfirmed?: boolean;
 }
 
 export interface Contributor {
@@ -71,6 +72,7 @@ export interface MatchResult {
   contributorAmount?: number;
   contributionType?: string;
   paymentMethod?: string;
+  isConfirmed?: boolean;
   divergence?: {
     expectedChurch: Church;
     actualChurch: Church;
@@ -90,12 +92,12 @@ export interface LearnedAssociation {
 }
 
 export interface ReceiptAnalysisResult {
-    isValid: boolean;
-    amount?: number;
-    date?: string;
-    recipient?: string;
-    sender?: string;
-    reason?: string;
+  isValid: boolean;
+  amount?: number;
+  date?: string;
+  recipient?: string;
+  sender?: string;
+  reason?: string;
 }
 
 export interface FileModel {
@@ -131,8 +133,8 @@ export interface FileModel {
     ignoredKeywords?: string[];
   };
   parsingRules: {
-    ignoredKeywords: string[]; 
-    rowFilters: string[];      
+    ignoredKeywords: string[];
+    rowFilters: string[];
     dateFormat?: string;
   };
   snippet?: string;
@@ -163,19 +165,19 @@ export interface SpreadsheetData {
 }
 
 export interface ManualRow {
-    id: string;
-    description: string;
-    income: number;
-    expense: number;
-    qty: number;
-    [key: string]: any; 
+  id: string;
+  description: string;
+  income: number;
+  expense: number;
+  qty: number;
+  [key: string]: any;
 }
 
 export interface ColumnDef {
-    id: string;
-    label: string;
-    type: 'text' | 'currency' | 'number' | 'computed' | 'index';
-    editable: boolean;
-    removable: boolean;
-    visible: boolean;
+  id: string;
+  label: string;
+  type: 'text' | 'currency' | 'number' | 'computed' | 'index';
+  editable: boolean;
+  removable: boolean;
+  visible: boolean;
 }

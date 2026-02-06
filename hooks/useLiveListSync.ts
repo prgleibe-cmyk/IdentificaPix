@@ -1,4 +1,3 @@
-
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
@@ -28,7 +27,6 @@ export const useLiveListSync = ({
         setSyncError(null);
         
         try {
-            // Busca as transações 'pending' reais do banco (A Lista Viva de verdade)
             const dbTransactions = await consolidationService.getPendingTransactions(user.id);
             
             if (!dbTransactions || dbTransactions.length === 0) {
@@ -38,11 +36,9 @@ export const useLiveListSync = ({
                 return;
             }
 
-            // Agrupa por banco para manter a estrutura da UI
             const groupedByBank: Record<string, Transaction[]> = {};
             dbTransactions.forEach((t: any) => {
                 let bankId = t.bank_id;
-                // Fallback para IDs virtuais legados
                 if (!bankId && t.pix_key && t.pix_key.includes('-')) {
                     bankId = t.pix_key;
                 }
@@ -58,7 +54,9 @@ export const useLiveListSync = ({
                     contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
                     paymentMethod: t.pix_key || 'OUTROS',
                     cleanedDescription: t.description,
-                    bank_id: t.bank_id
+                    bank_id: t.bank_id,
+                    // Fix: isConfirmed is now a valid property of Transaction
+                    isConfirmed: !!t.is_confirmed
                 };
                 
                 if (!groupedByBank[finalBankId]) groupedByBank[finalBankId] = [];
@@ -74,7 +72,6 @@ export const useLiveListSync = ({
                 isRestored: true
             }));
 
-            // ✅ ATUALIZAÇÃO ÚNICA DA UI
             setBankStatementFile(restoredFiles);
             
             if (forceClearUI) {
@@ -82,7 +79,6 @@ export const useLiveListSync = ({
             } else {
                 setSelectedBankIds((prev: string[]) => {
                     const availableIds = restoredFiles.map(f => f.bankId);
-                    // Preserva a seleção se o banco ainda existir
                     return prev.filter(id => availableIds.includes(id));
                 });
             }
@@ -97,7 +93,6 @@ export const useLiveListSync = ({
 
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
-     * Subscreve a mudanças na tabela de transações para refletir alterações de outros logins.
      */
     useEffect(() => {
         if (!user?.id) return;
@@ -107,14 +102,12 @@ export const useLiveListSync = ({
             .on(
                 'postgres_changes',
                 {
-                    event: '*', // INSERT, UPDATE, DELETE
+                    event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
                     filter: `user_id=eq.${user.id}`
                 },
-                (payload) => {
-                    // Ignora re-hydrates desnecessários se a mudança foi local e já tratada pelo persist/clear
-                    // O hydrate() já possui trava isHydrating, então chamamos com segurança.
+                () => {
                     hydrate(false);
                 }
             )
@@ -134,18 +127,13 @@ export const useLiveListSync = ({
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
-     * Toda inserção (Upload/Sync) deve passar por aqui.
      */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
         if (!user) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
-            // Delega para o funil central de dedupe e persistência
             const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
-            
-            // Após a inserção blindada, reidrata a UI a partir do Banco
             await hydrate(false);
-            
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");

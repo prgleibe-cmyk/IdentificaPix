@@ -177,6 +177,13 @@ export const LockClosedIcon: React.FC<any> = (props) => (
     </BaseIcon>
 );
 
+export const LockOpenIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+    </BaseIcon>
+);
+
 export const EllipsisVerticalIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <circle cx="12" cy="12" r="1" />

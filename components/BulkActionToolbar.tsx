@@ -1,8 +1,7 @@
-
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { UserPlusIcon, XMarkIcon } from './Icons';
+import { UserPlusIcon, XMarkIcon, LockClosedIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
@@ -11,7 +10,7 @@ interface BulkActionToolbarProps {
 }
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, onClear }) => {
-    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx } = useContext(AppContext);
+    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
     const selectedData = useMemo(() => {
@@ -30,14 +29,22 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     if (selectedIds.length === 0) return null;
 
     const handleBulkIdentify = () => {
-        const txsToProcess = selectedData.map((r: any) => r.transaction);
+        const txsToProcess = selectedData.filter((r: any) => !r.isConfirmed).map((r: any) => r.transaction);
+        if (txsToProcess.length === 0) return;
         setBulkIdentificationTxs(txsToProcess);
         setManualIdentificationTx(null);
     };
 
+    const handleBulkConfirm = () => {
+        toggleConfirmation(selectedIds, true);
+        onClear();
+    };
+
+    const canConfirm = selectedData.some((r: any) => !r.isConfirmed);
+
     return (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
-            <div className="bg-[#051024]/95 text-white px-4 py-2 rounded-full shadow-[0_15px_40px_rgba(0,0,0,0.6)] border border-white/10 flex items-center gap-3 backdrop-blur-xl ring-1 ring-white/10 max-w-lg">
+            <div className="bg-[#051024]/95 text-white px-4 py-2 rounded-full shadow-[0_15px_40px_rgba(0,0,0,0.6)] border border-white/10 flex items-center gap-3 backdrop-blur-xl ring-1 ring-white/10 max-w-[600px]">
                 
                 <div className="flex items-center gap-3 border-r border-white/10 pr-3">
                     <div className="flex flex-col">
@@ -60,6 +67,16 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                         <UserPlusIcon className="w-2.5 h-2.5" />
                         Identificar
                     </button>
+
+                    {canConfirm && (
+                        <button
+                            onClick={handleBulkConfirm}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border border-emerald-500/20"
+                        >
+                            <LockClosedIcon className="w-2.5 h-2.5" />
+                            Confirmar Final
+                        </button>
+                    )}
 
                     <button
                         onClick={onClear}

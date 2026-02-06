@@ -29,7 +29,7 @@ type AdminTab = 'settings' | 'users' | 'audit' | 'models' | 'brand';
 
 const FIX_SQL = `
 -- ============================================================
--- SCRIPT DE CORREÇÃO DEFINITIVA (V8 - Lista Viva & Persistência)
+-- SCRIPT DE CORREÇÃO DEFINITIVA (V9 - Persistência & Schema)
 -- ============================================================
 
 BEGIN;
@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS public.consolidated_transactions (
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'identified', 'resolved')),
     bank_id UUID REFERENCES public.banks(id) ON DELETE SET NULL,
-    row_hash TEXT
+    row_hash TEXT,
+    is_confirmed BOOLEAN DEFAULT false
 );
 
 -- Adicionar colunas caso a tabela já exista mas esteja incompleta
@@ -59,6 +60,10 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='row_hash') THEN
         ALTER TABLE public.consolidated_transactions ADD COLUMN row_hash TEXT;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='is_confirmed') THEN
+        ALTER TABLE public.consolidated_transactions ADD COLUMN is_confirmed BOOLEAN DEFAULT false;
     END IF;
 END $$;
 
@@ -108,7 +113,7 @@ export const AdminView: React.FC = () => {
 
     const copySql = () => {
         navigator.clipboard.writeText(FIX_SQL);
-        showToast("SQL V8 copiado! Execute no Supabase SQL Editor.", "success");
+        showToast("SQL V9 copiado! Execute no Supabase SQL Editor.", "success");
     };
 
     const runDiagnostics = async () => {
@@ -206,10 +211,10 @@ export const AdminView: React.FC = () => {
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.geminiKey ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><span className="text-xs font-bold text-slate-700">Chave Gemini (process.env)</span>{diagResult.geminiKey ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.supabaseStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão Supabase</span>{diagResult.supabaseError && <span className="text-[10px] text-red-500 mt-1">{diagResult.supabaseError}</span>}</div>{diagResult.supabaseStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
-                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V8)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">NOVA VERSÃO</span></div>
+                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V9)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">NOVA VERSÃO</span></div>
                                         <div className="mt-1">
                                             <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script atualiza a tabela de transações para suportar a Lista Viva e correções de sincronia.</p>
-                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V8</button>
+                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V9</button>
                                         </div>
                                     </div>
                                 </div>

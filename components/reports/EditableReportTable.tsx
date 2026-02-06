@@ -1,4 +1,3 @@
-
 import React, { useState, useContext, memo, useCallback, useMemo, useEffect } from 'react';
 import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
@@ -16,7 +15,9 @@ import {
     BanknotesIcon,
     ArrowUturnLeftIcon,
     CheckCircleIcon,
-    BuildingOfficeIcon
+    BuildingOfficeIcon,
+    LockClosedIcon,
+    LockOpenIcon
 } from '../Icons';
 import { BulkActionToolbar } from '../BulkActionToolbar';
 import { NameResolver } from '../../core/processors/NameResolver';
@@ -71,10 +72,13 @@ const IncomeRow = memo(({
     onEdit, 
     onDelete, 
     onUndo,
+    onToggleLock,
     isSelected,
     onToggleSelection
 }: any) => {
     const row = result as MatchResult;
+    // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
+    const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
     const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
@@ -87,7 +91,7 @@ const IncomeRow = memo(({
     const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
 
     return (
-        <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 ${isGhost ? 'bg-amber-50/50' : 'odd:bg-white even:bg-slate-50'} ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
+        <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 ${confirmed ? 'bg-indigo-50/10' : isGhost ? 'bg-amber-50/50' : 'odd:bg-white even:bg-slate-50'} ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
             <td className="px-4 py-2.5 text-center">
                 <input 
                     type="checkbox" 
@@ -101,7 +105,7 @@ const IncomeRow = memo(({
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                         {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
-                        <span className={`text-xs font-bold break-words uppercase ${isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
+                        <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
                 </div>
             </td>
@@ -114,7 +118,15 @@ const IncomeRow = memo(({
                 </div>
             </td>
             <td className="px-4 py-2.5 text-center">
-                {isIdentified ? <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span> : <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>}
+                {confirmed ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 uppercase flex items-center justify-center gap-1">
+                        <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
+                    </span>
+                ) : isIdentified ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase">Auto</span>
+                ) : (
+                    <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>
+                )}
             </td>
             <td className="px-4 py-2.5"><span className="text-[9px] font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span></td>
             <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
@@ -125,15 +137,23 @@ const IncomeRow = memo(({
             </td>
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isIdentified && !isGhost ? (
-                        <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg bg-brand-blue text-white shadow-sm"><UserPlusIcon className="w-3.5 h-3.5" /></button>
+                    {confirmed ? (
+                        <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50" title="Remover Bloqueio">
+                            <LockOpenIcon className="w-3.5 h-3.5" />
+                        </button>
                     ) : (
                         <>
-                            <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50"><PencilIcon className="w-3.5 h-3.5" /></button>
-                            {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                            {!isIdentified && !isGhost ? (
+                                <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg bg-brand-blue text-white shadow-sm"><UserPlusIcon className="w-3.5 h-3.5" /></button>
+                            ) : (
+                                <>
+                                    <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50"><PencilIcon className="w-3.5 h-3.5" /></button>
+                                    {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                                </>
+                            )}
+                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
                         </>
                     )}
-                    <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
                 </div>
             </td>
         </tr>
@@ -142,7 +162,7 @@ const IncomeRow = memo(({
 
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit }) => {
     const { t, language } = useTranslation();
-    const { openDeleteConfirmation, openSmartEdit, undoIdentification } = useContext(AppContext);
+    const { openDeleteConfirmation, openSmartEdit, undoIdentification, toggleConfirmation } = useContext(AppContext);
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     
@@ -211,6 +231,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 onEdit={(row: MatchResult) => onEdit ? onEdit(row) : openSmartEdit(row)}
                                 onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                                 onUndo={undoIdentification}
+                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
                             />
                         ))}
                     </tbody>

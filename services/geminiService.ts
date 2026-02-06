@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAIClient = () => {
@@ -7,25 +8,63 @@ const getAIClient = () => {
 
 let isAIBusy = false;
 
+/**
+ * 🛡️ PARSER RESILIENTE (V4 - ULTRA RECOVERY)
+ * Recupera o máximo de dados de um JSON truncado pela IA ou rede.
+ */
 const safeJsonParse = (input: any, fallback: any = []) => {
     if (!input) return fallback;
     let sanitized = String(input).trim();
+    
+    // Limpeza de Markdown
     sanitized = sanitized.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
 
-    try {
-        const parsed = JSON.parse(sanitized);
-        if (parsed.rows) return parsed.rows;
-        if (parsed.transactions) return parsed.transactions;
-        return Array.isArray(parsed) ? parsed : fallback;
-    } catch (e) {
-        console.error("[GeminiService] Erro ao parsear JSON:", e);
-        return fallback;
+    const tryParse = (str: string) => {
+        try {
+            const parsed = JSON.parse(str);
+            if (parsed.rows) return parsed.rows;
+            if (parsed.transactions) return parsed.transactions;
+            return Array.isArray(parsed) ? parsed : null;
+        } catch { return null; }
+    };
+
+    // 1. Tentativa Direta (Standard)
+    let result = tryParse(sanitized);
+    if (result) return result;
+
+    // 2. Recuperação de Truncamento (Brute-force closing)
+    // Buscamos o último fechamento de objeto válido para salvar o que já foi extraído
+    let lastBrace = sanitized.lastIndexOf('}');
+    
+    const possibleClosures = [
+        '',           // Apenas o que restou
+        ']',          // Se cortou num array
+        ']}',         // Se cortou num objeto com array 'rows'
+        '"}]}',       // Se cortou dentro de uma string de um objeto num array
+        '"}',         // Se cortou dentro de uma string de um objeto
+    ];
+
+    while (lastBrace > 0) {
+        const base = sanitized.substring(0, lastBrace + 1);
+        for (const closure of possibleClosures) {
+            const candidate = base + closure;
+            result = tryParse(candidate);
+            if (result) {
+                console.warn("[GeminiService] JSON recuperado via truncamento na posição:", lastBrace);
+                return result;
+            }
+        }
+        // Retrocede para o fechamento de objeto anterior
+        lastBrace = sanitized.lastIndexOf('}', lastBrace - 1);
     }
+
+    console.error("[GeminiService] Falha total ao recuperar JSON corrompido.");
+    return fallback;
 };
 
 /**
  * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO AUDITORIA)
- * Upgrade para raciocínio profundo (Thinking v3).
+ * Upgrade para raciocínio profundo (Thinking v3) com limites de tokens blindados.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -71,8 +110,10 @@ export const extractTransactionsWithModel = async (
             contents: { parts },
             config: {
                 temperature: 0,
-                // UPGRADE: Máximo poder de raciocínio disponível para evitar erros em documentos densos
-                thinkingConfig: { thinkingBudget: 32768 },
+                // BLINDAGEM DE TOKENS: Setar ambos garante que o modelo tenha espaço para pensar E responder.
+                // Isso evita o truncamento JSON (Unterminated String) em arquivos longos.
+                maxOutputTokens: 64000, 
+                thinkingConfig: { thinkingBudget: 32000 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,

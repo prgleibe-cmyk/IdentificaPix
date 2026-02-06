@@ -1,10 +1,9 @@
-
 import React, { memo, useContext, useState, useCallback, useEffect } from 'react';
 import { MatchResult } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
-import { SparklesIcon, UserPlusIcon, BrainIcon, ExclamationTriangleIcon, BanknotesIcon, UserIcon, BuildingOfficeIcon } from './Icons';
+import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
 
 interface ResultsTableProps {
@@ -36,13 +35,16 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
             <config.Icon className="w-3 h-3" />
         </span>
     );
-}
+};
 
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManualIdentify, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
+    const { toggleConfirmation } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-    useEffect(() => { setSelectedIds([]); }, [results.length]);
+    useEffect(() => { 
+        setSelectedIds([]); 
+    }, [results.length]);
 
     const toggleSelection = useCallback((id: string) => {
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -53,7 +55,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
         else setSelectedIds(results.map(r => r.transaction.id));
     }, [results, selectedIds]);
 
-    const getStatusBadge = (status: MatchResult['status'], method?: MatchResult['matchMethod']) => {
+    const getStatusBadge = (status: MatchResult['status'], method?: MatchResult['matchMethod'], confirmed?: boolean) => {
+        if (confirmed) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wide">
+                    <LockClosedIcon className="w-2.5 h-2.5" /> Fechado
+                </span>
+            );
+        }
+
         if (status === 'NÃO IDENTIFICADO') {
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100 uppercase tracking-wide">
@@ -61,6 +71,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                 </span>
             );
         }
+
         if (status === 'PENDENTE') {
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-wide">
@@ -68,6 +79,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                 </span>
             );
         }
+
         let label = 'Auto';
         if (method === 'MANUAL') label = 'Manual';
         else if (method === 'AI') label = 'IA';
@@ -101,17 +113,27 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church }) => {
+                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed }) => {
                             const isSelected = selectedIds.includes(transaction.id);
+
+                            // 🧠 Fonte única de verdade
+                            // Fix: transaction.isConfirmed is now valid after updating Transaction interface
+                            const confirmed = transaction.isConfirmed ?? isConfirmed ?? false;
+
                             const displayAmount = status === 'PENDENTE' ? (contributorAmount || contributor?.amount || 0) : transaction.amount;
                             const displayDate = formatDate(status === 'PENDENTE' ? (contributor?.date || transaction.date) : transaction.date);
                             
-                            // FONTE ÚNICA DE VERDADE: O nome exibido na descrição secundária vem direto do modelo
                             const bankDescription = transaction.description;
                             const identifiedName = contributor?.name || contributor?.cleanedName;
 
                             return (
-                                <tr key={transaction.id} className={`group hover:bg-slate-50/80 transition-all ${isSelected ? 'bg-blue-50/30' : ''}`}>
+                                <tr
+                                    key={transaction.id}
+                                    className={`group hover:bg-slate-50/80 transition-all 
+                                        ${isSelected ? 'bg-blue-50/30' : ''} 
+                                        ${confirmed ? 'bg-indigo-50/10 grayscale-[0.3]' : ''}`
+                                    }
+                                >
                                     <td className="px-4 py-2.5 text-center">
                                         <input type="checkbox" className="w-4 h-4 rounded-full" checked={isSelected} onChange={() => toggleSelection(transaction.id)} />
                                     </td>
@@ -120,7 +142,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">
                                                 {identifiedName ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
-                                                <span className="text-xs font-bold text-slate-800 dark:text-white uppercase truncate max-w-[200px]">{identifiedName || bankDescription}</span>
+                                                <span className={`text-xs font-bold uppercase truncate max-w-[200px] ${confirmed ? 'text-indigo-900/60 dark:text-white/60' : 'text-slate-800 dark:text-white'}`}>
+                                                    {identifiedName || bankDescription}
+                                                </span>
                                             </div>
                                             {identifiedName && <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tight truncate max-w-[200px] mt-0.5">{bankDescription}</span>}
                                         </div>
@@ -136,14 +160,31 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
-                                            {getStatusBadge(status, matchMethod)}
-                                            {status === 'IDENTIFICADO' && <MatchMethodIcon method={matchMethod} />}
+                                            {getStatusBadge(status, matchMethod, confirmed)}
+                                            {status === 'IDENTIFICADO' && !confirmed && <MatchMethodIcon method={matchMethod} />}
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
-                                        {status === 'NÃO IDENTIFICADO' && (
-                                            <button onClick={() => onManualIdentify(transaction.id)} className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-brand-blue hover:text-white opacity-0 group-hover:opacity-100 transition-all"><UserPlusIcon className="w-3.5 h-3.5" /></button>
-                                        )}
+                                        <div className="flex items-center justify-center gap-1">
+                                            {confirmed ? (
+                                                <button 
+                                                    onClick={() => toggleConfirmation([transaction.id], false)}
+                                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
+                                                    title="Remover Bloqueio"
+                                                >
+                                                    <LockOpenIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                            ) : (
+                                                status === 'NÃO IDENTIFICADO' && (
+                                                    <button 
+                                                        onClick={() => onManualIdentify(transaction.id)} 
+                                                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-brand-blue hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                                                    >
+                                                        <UserPlusIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             );

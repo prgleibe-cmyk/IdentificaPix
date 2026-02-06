@@ -7,9 +7,9 @@ export interface AutomationMacrosTable {
 }
 
 export interface ConsolidatedTransactionsTable {
-  Row: { id: string; created_at: string; transaction_date: string; amount: number; description: string; type: 'income' | 'expense'; pix_key: string | null; source: 'file' | 'gmail'; user_id: string; status: 'pending' | 'identified' | 'resolved'; bank_id: string | null; row_hash: string | null }
-  Insert: { id?: string; created_at?: string; transaction_date: string; amount: number; description: string; type: 'income' | 'expense'; pix_key?: string | null; source?: 'file' | 'gmail'; user_id: string; status?: 'pending' | 'identified' | 'resolved'; bank_id?: string | null; row_hash?: string | null }
-  Update: { id?: string; created_at?: string; transaction_date?: string; amount?: number; description?: string; type?: 'income' | 'expense'; pix_key?: string | null; source?: 'file' | 'gmail'; user_id?: string | null; status?: 'pending' | 'identified' | 'resolved'; bank_id?: string | null; row_hash?: string | null }
+  Row: { id: string; created_at: string; transaction_date: string; amount: number; description: string; type: 'income' | 'expense'; pix_key: string | null; source: 'file' | 'gmail'; user_id: string; status: 'pending' | 'identified' | 'resolved'; bank_id: string | null; row_hash: string | null; is_confirmed: boolean }
+  Insert: { id?: string; created_at?: string; transaction_date: string; amount: number; description: string; type: 'income' | 'expense'; pix_key?: string | null; source?: 'file' | 'gmail'; user_id: string; status?: 'pending' | 'identified' | 'resolved'; bank_id?: string | null; row_hash?: string | null; is_confirmed?: boolean }
+  Update: { id?: string; created_at?: string; transaction_date?: string; amount?: number; description?: string; type?: 'income' | 'expense'; pix_key?: string | null; source?: 'file' | 'gmail'; user_id?: string | null; status?: 'pending' | 'identified' | 'resolved'; bank_id?: string | null; row_hash?: string | null; is_confirmed?: boolean }
   Relationships: [
     { foreignKeyName: "consolidated_transactions_user_id_fkey", columns: ["user_id"], isOneToOne: false, referencedRelation: "users", referencedColumns: ["id"] },
     { foreignKeyName: "consolidated_transactions_bank_id_fkey", columns: ["bank_id"], isOneToOne: false, referencedRelation: "banks", referencedColumns: ["id"] }

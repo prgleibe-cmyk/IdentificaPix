@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
@@ -73,6 +72,7 @@ export const useReconciliationActions = ({
       const idx = currentResults.findIndex(r => r.transaction.id === id);
       if (idx !== -1) {
         const original = currentResults[idx];
+        if (original.isConfirmed) continue;
         
         const contributor: Contributor = original.contributor || {
             name: original.transaction.cleanedDescription || original.transaction.description,
@@ -126,7 +126,34 @@ export const useReconciliationActions = ({
     if (onAfterAction) onAfterAction(currentResults);
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
+  const toggleConfirmation = useCallback(async (txIds: string[], confirmed: boolean) => {
+    const idsToUpdate = txIds.filter(id => !id.startsWith('ghost') && !id.startsWith('sim'));
+    
+    if (idsToUpdate.length > 0) {
+        await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
+    }
+
+    const currentResults = [...reconciliation.matchResults];
+    currentResults.forEach(r => {
+        if (txIds.includes(r.transaction.id)) {
+            r.isConfirmed = confirmed;
+            r.transaction.isConfirmed = confirmed;
+        }
+    });
+
+    reconciliation.setMatchResults(currentResults);
+    showToast(confirmed ? "Registros confirmados e bloqueados." : "Bloqueio removido.", "success");
+    
+    if (onAfterAction) onAfterAction(currentResults);
+  }, [reconciliation, showToast, onAfterAction]);
+
   const undoIdentification = useCallback(async (txId: string) => {
+    const existing = reconciliation.matchResults.find((r: MatchResult) => r.transaction.id === txId);
+    if (existing?.isConfirmed) {
+        showToast("Remova o bloqueio antes de desfazer.", "error");
+        return;
+    }
+
     // Reverte status no banco de dados para que volte à Lista Viva
     if (!txId.includes('ghost') && !txId.includes('sim')) {
         await consolidationService.updateTransactionStatus(txId, 'pending');
@@ -143,6 +170,7 @@ export const useReconciliationActions = ({
   return {
     confirmManualIdentification,
     confirmBulkManualIdentification,
-    undoIdentification
+    undoIdentification,
+    toggleConfirmation
   };
 };

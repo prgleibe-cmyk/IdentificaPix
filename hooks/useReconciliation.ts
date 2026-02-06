@@ -77,7 +77,7 @@ export const useReconciliation = ({
             const val = r.status === ReconciliationStatus.PENDING 
                 ? (r.contributorAmount || r.contributor?.amount || 0) 
                 : r.transaction.amount;
-            return val >= 0; // Incluindo zero como entrada por padrão se não for despesa
+            return val >= 0; 
         });
         
         const expenseResults = uniqueResults.filter(r => {
@@ -233,15 +233,27 @@ export const useReconciliation = ({
         toggleBankSelection: (id: string) => setSelectedBankIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
         handleCompare: async () => {
             setIsLoading(true);
-            const allTransactions = activeBankFiles.filter(f => selectedBankIds.includes(f.bankId)).flatMap(f => f.processedTransactions || []);
+            
+            // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
+            // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
+            const allTransactions = activeBankFiles
+                .filter(f => selectedBankIds.includes(String(f.bankId)))
+                .flatMap(f => f.processedTransactions || []);
             
             if (allTransactions.length === 0) { 
-                showToast("Sem dados para processar.", "error"); 
+                showToast("Selecione pelo menos um extrato com dados.", "error"); 
                 setIsLoading(false); 
                 return; 
             }
 
-            // 🧬 FUSÃO INTELIGENTE: Passamos matchResults atual para preservar o que já foi feito
+            // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
+            // Ao rodar a comparação, preservamos apenas os resultados manuais ou já identificados 
+            // que pertençam aos bancos atualmente selecionados.
+            const filteredExistingResults = matchResults.filter(r => 
+                selectedBankIds.includes(String(r.transaction.bank_id))
+            );
+
+            // 🧬 FUSÃO INTELIGENTE: Executa o matching apenas no escopo selecionado
             const results = matchTransactions(
                 allTransactions, 
                 contributorFiles, 
@@ -249,14 +261,14 @@ export const useReconciliation = ({
                 learnedAssociations, 
                 churches, 
                 customIgnoreKeywords,
-                matchResults // Injeta os resultados atuais
+                filteredExistingResults 
             );
 
             setMatchResults(results);
             setHasActiveSession(true);
             setActiveView('reports');
             setIsLoading(false);
-            showToast("Processamento concluído!", "success");
+            showToast("Conciliação concluída para os itens selecionados!", "success");
         },
         resetReconciliation,
         updateReportData: (updatedRow: MatchResult) => {

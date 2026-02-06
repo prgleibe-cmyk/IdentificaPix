@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
@@ -36,15 +37,16 @@ export const consolidationService = {
                         user_id: t.user_id,
                         bank_id: t.bank_id || null, 
                         status: t.status || 'pending',
-                        row_hash: t.row_hash
+                        row_hash: t.row_hash,
+                        is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false
                     };
                 })
                 .filter((item): item is NonNullable<typeof item> => item !== null && !!item.user_id);
 
             if (sanitizedPayload.length === 0) return [];
 
-            const CHUNK_SIZE = 100; // Reduzido para maior estabilidade em lotes grandes
-            const results = [];
+            const CHUNK_SIZE = 100;
+            const results: any[] = [];
 
             for (let i = 0; i < sanitizedPayload.length; i += CHUNK_SIZE) {
                 const chunk = sanitizedPayload.slice(i, i + CHUNK_SIZE);
@@ -56,9 +58,22 @@ export const consolidationService = {
 
                 if (error) {
                     console.error("[Consolidation:INSERT_ERROR]", error);
-                    throw new Error(error.message);
+                    // Se o erro for especificamente a coluna is_confirmed ausente, tentamos sem ela como fallback de emergência
+                    if (error.message.includes("is_confirmed") || error.code === 'PGRST204' || error.message.includes("column \"is_confirmed\"")) {
+                         console.warn("[Consolidation] Coluna 'is_confirmed' ausente no banco. Executando fallback sem confirmação.");
+                         const recoveryChunk = chunk.map(({ is_confirmed, ...rest }: any) => rest);
+                         const { data: recData, error: recError } = await supabase
+                            .from('consolidated_transactions')
+                            .insert(recoveryChunk)
+                            .select('*');
+                         if (recError) throw new Error(recError.message);
+                         if (recData) results.push(...recData);
+                    } else {
+                        throw new Error(error.message);
+                    }
+                } else if (data) {
+                    results.push(...data);
                 }
-                if (data) results.push(...data);
             }
             
             return results;
@@ -84,8 +99,27 @@ export const consolidationService = {
     },
 
     /**
+     * Atualiza marcação de confirmação final
+     */
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean) => {
+        try {
+            if (!ids || ids.length === 0) return true;
+
+            const { error } = await supabase
+                .from('consolidated_transactions')
+                .update({ is_confirmed })
+                .in('id', ids);
+            
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error("[Consolidation] Erro ao atualizar confirmação:", error);
+            return false;
+        }
+    },
+
+    /**
      * Recupera hashes existentes para deduplicação com PAGINAÇÃO AUTOMÁTICA.
-     * Varre todo o histórico do banco sem limites fixos.
      */
     getExistingTransactionsForDedup: async (userId: string) => {
         if (!userId) throw new Error("UserID é obrigatório.");
@@ -146,7 +180,6 @@ export const consolidationService = {
 
     /**
      * Recupera transações pendentes (Lista Viva) com PAGINAÇÃO AUTOMÁTICA.
-     * Remove o teto fixo e garante a recuperação integral dos dados do usuário.
      */
     getPendingTransactions: async (userId: string) => {
         if (!userId) return [];
@@ -158,20 +191,41 @@ export const consolidationService = {
 
         try {
             while (hasMore) {
+                // Tentativa inicial com todos os campos
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
-                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key')
+                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .order('transaction_date', { ascending: false })
                     .range(from, from + step - 1);
 
-                if (error) throw error;
-
-                if (data && data.length > 0) {
+                if (error) {
+                    // Fallback se a coluna is_confirmed não existir (Erro 400 ou código PostgREST específico)
+                    if (error.message.includes("is_confirmed") || error.code === 'PGRST204' || String(error.status) === '400') {
+                         console.warn("[Consolidation] Coluna 'is_confirmed' ausente no banco ao buscar. Executando fallback.");
+                         const { data: fallbackData, error: fallbackError } = await supabase
+                            .from('consolidated_transactions')
+                            .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key')
+                            .eq('user_id', userId)
+                            .eq('status', 'pending')
+                            .order('transaction_date', { ascending: false })
+                            .range(from, from + step - 1);
+                         
+                         if (fallbackError) throw fallbackError;
+                         if (fallbackData && fallbackData.length > 0) {
+                             allTransactions = [...allTransactions, ...fallbackData];
+                             from += step;
+                             if (fallbackData.length < step) hasMore = false;
+                         } else {
+                             hasMore = false;
+                         }
+                    } else {
+                        throw error;
+                    }
+                } else if (data && data.length > 0) {
                     allTransactions = [...allTransactions, ...data];
                     from += step;
-                    // Se o bloco veio incompleto, atingimos o fim da tabela
                     if (data.length < step) hasMore = false;
                 } else {
                     hasMore = false;
