@@ -41,7 +41,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
-     * Carrega os dados de um relatório salvo e redireciona para a tela de relatórios.
+     * Carrega os dados de um relatório salvo e redireciona para a tela correta.
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
@@ -49,10 +49,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         setIsLoading(true);
         try {
-            // Tenta obter resultados do objeto em memória ou busca no banco se for lazy
             let results = report.data?.results;
+            let spreadsheet = report.data?.spreadsheet;
             
-            if (!results) {
+            if (!results && !spreadsheet) {
                 const { data, error } = await supabase
                     .from('saved_reports')
                     .select('data')
@@ -62,22 +62,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (error) throw error;
                 const parsedData = typeof data?.data === 'string' ? JSON.parse(data.data) : data?.data;
                 results = parsedData?.results;
+                spreadsheet = parsedData?.spreadsheet;
             }
 
-            if (results && results.length > 0) {
-                // 🧬 Hidratação: Reconecta IDs de igreja aos objetos reais do contexto atual
-                const hydrated = results.map((r: any) => ({
-                    ...r,
-                    church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
-                }));
-
-                reconciliation.setMatchResults(hydrated);
+            if ((results && results.length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
-                setActiveView('reports');
+
+                // Se tiver resultados de conciliação, carrega na lista viva e vai para Relatórios
+                if (results && results.length > 0) {
+                    const hydrated = results.map((r: any) => ({
+                        ...r,
+                        church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
+                    }));
+                    reconciliation.setMatchResults(hydrated);
+                    setActiveView('reports');
+                } 
+                // Se for apenas planilha ou ranking sem resultados brutos, vai para o Gerador
+                else if (spreadsheet) {
+                    setActiveView('smart_analysis');
+                }
+
                 showToast(`Relatório "${report.name}" carregado.`, "success");
             } else {
-                showToast("Este relatório não possui dados de conciliação.", "error");
+                showToast("Este relatório está vazio.", "error");
             }
         } catch (error: any) {
             console.error("[AppContext] Erro ao abrir relatório:", error);

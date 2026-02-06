@@ -41,14 +41,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [user, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user || !reportId || results.length === 0) return;
+        if (!user || !reportId) return;
+        
+        // Bloqueio de salvamento vazio: só impede se AMBOS forem inexistentes
+        if ((!results || results.length === 0) && !spreadsheetData) return;
 
         // Dedup: Evita salvar exatamente o mesmo dado que já foi enviado
-        const currentPayload = JSON.stringify({ r: results.length, s: !!spreadsheetData });
+        const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
-        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : results.length;
+        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (results?.length || 0);
 
         // Atualiza estado local de forma otimista
         setSavedReports(prev => prev.map(r => r.id === reportId ? {
@@ -56,7 +59,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             recordCount,
             data: {
                 ...r.data,
-                results,
+                results: results || r.data?.results || [],
                 spreadsheet: spreadsheetData || r.data?.spreadsheet
             }
         } : r));
@@ -65,15 +68,18 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const { error } = await supabase
             .from('saved_reports')
             .update({ 
-                data: { results, spreadsheet: spreadsheetData } as any,
+                data: { results: results || [], spreadsheet: spreadsheetData } as any,
                 record_count: recordCount 
             })
             .eq('id', reportId);
 
         if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
+            showToast("Falha ao salvar alterações no servidor.", "error");
+        } else {
+            showToast("Relatório atualizado com sucesso.", "success");
         }
-    }, [user]);
+    }, [user, showToast]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
