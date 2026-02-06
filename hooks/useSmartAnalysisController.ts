@@ -1,3 +1,4 @@
+
 import React, { useState, useContext, useCallback, useMemo, useEffect, useRef } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
@@ -29,8 +30,23 @@ export const useSmartAnalysisController = () => {
     const [sumValue, setSumValue] = useState('');
     const [showReportSelector, setShowReportSelector] = useState(false);
     
+    // Estados para controle de alterações (Dirty State)
+    const [isDirty, setIsDirty] = useState(false);
+    const lastSavedData = useRef<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Função utilitária para capturar o estado atual da planilha em string
+    const getSnapshot = useCallback(() => {
+        return JSON.stringify({
+            title: reportTitle,
+            logo: reportLogo,
+            cols: columns,
+            rows: manualRows,
+            sigs: signatures
+        });
+    }, [reportTitle, reportLogo, columns, manualRows, signatures]);
+
+    // Efeito para carregar dados de um relatório salvo
     useEffect(() => {
         if (activeSpreadsheetData && activeReportId) {
             setManualRows(activeSpreadsheetData.rows);
@@ -39,8 +55,30 @@ export const useSmartAnalysisController = () => {
             setSignatures(activeSpreadsheetData.signatures || []);
             setReportLogo(activeSpreadsheetData.logo);
             setActiveTemplate('manual_structure');
+            
+            // Define o ponto de referência para detecção de alterações
+            lastSavedData.current = JSON.stringify({
+                title: activeSpreadsheetData.title,
+                logo: activeSpreadsheetData.logo,
+                cols: activeSpreadsheetData.columns,
+                rows: activeSpreadsheetData.rows,
+                sigs: activeSpreadsheetData.signatures || []
+            });
+            setIsDirty(false);
         }
     }, [activeSpreadsheetData, activeReportId]);
+
+    // Efeito para monitorar alterações e atualizar isDirty
+    useEffect(() => {
+        const current = getSnapshot();
+        // Se temos um relatório ativo, comparamos com o último salvo
+        if (activeReportId && lastSavedData.current) {
+            setIsDirty(current !== lastSavedData.current);
+        } else {
+            // Se for planilha nova, consideramos dirty se houver conteúdo
+            setIsDirty(manualRows.length > 0 || reportTitle !== 'Relatório Financeiro');
+        }
+    }, [manualRows, columns, reportTitle, reportLogo, signatures, getSnapshot, activeReportId]);
 
     const generateRankingFromData = useCallback((data: MatchResult[], reportName: string) => {
         setIsRankingLoading(true);
@@ -73,6 +111,7 @@ export const useSmartAnalysisController = () => {
         setManualRows([]);
         setReportTitle("Relatório Manual");
         setColumns(analysisProcessor.createDefaultColumns());
+        lastSavedData.current = ''; // Reset reference for new sheet
         showToast("Nova planilha criada.", "success");
     };
 
@@ -106,7 +145,6 @@ export const useSmartAnalysisController = () => {
         } finally { setIsLoading(false); }
     };
 
-    // Fix: Added React to imports and typed event as React.ChangeEvent
     const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
@@ -118,8 +156,17 @@ export const useSmartAnalysisController = () => {
 
     const handleSave = () => {
         const data: SpreadsheetData = { title: reportTitle, logo: reportLogo, columns, rows: manualRows, signatures };
-        if (activeReportId) overwriteSavedReport(activeReportId, [], data);
-        else openSaveReportModal({ type: 'spreadsheet', groupName: reportTitle, spreadsheetData: data, results: [] });
+        if (activeReportId) {
+            // Se já existe e não mudou nada, não faz nada
+            if (!isDirty) return;
+            
+            overwriteSavedReport(activeReportId, [], data);
+            lastSavedData.current = getSnapshot(); // Atualiza referência após salvar
+            setIsDirty(false);
+        } else {
+            // Se é novo, abre modal para nomear e salvar
+            openSaveReportModal({ type: 'spreadsheet', groupName: reportTitle, spreadsheetData: data, results: [] });
+        }
     };
 
     const sortedRows = useMemo(() => analysisProcessor.sortRows(manualRows, sortConfig), [manualRows, sortConfig]);
@@ -130,6 +177,6 @@ export const useSmartAnalysisController = () => {
         manualRows, setManualRows, isRankingLoading, columns, setColumns, sortConfig, setSortConfig,
         sumModal, setSumModal, sumValue, setSumValue, showReportSelector, setShowReportSelector,
         fileInputRef, handleRankingClick, handleManualClick, handleSelectReport, handleLogoUpload,
-        handleSave, sortedRows, summaryData, savedReports, activeReportId
+        handleSave, sortedRows, summaryData, savedReports, activeReportId, isDirty
     };
 };

@@ -10,12 +10,39 @@ interface AnalysisToolbarProps {
     onPrint: () => void;
     onSave: () => void;
     hasActiveReport: boolean;
+    isDirty: boolean;
 }
 
 export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({ 
-    activeTemplate, onRankingClick, onManualClick, onPrint, onSave, hasActiveReport 
+    activeTemplate, onRankingClick, onManualClick, onPrint, onSave, hasActiveReport, isDirty 
 }) => {
     const { t } = useTranslation();
+
+    // Lógica de rótulo e estilo do botão Salvar conforme requisitos
+    const getSaveButtonConfig = () => {
+        if (!hasActiveReport) {
+            return {
+                title: 'Salvar',
+                classes: 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20',
+                action: onSave
+            };
+        }
+        if (isDirty) {
+            return {
+                title: 'Salvar alteração',
+                classes: 'text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 animate-pulse-soft',
+                action: onSave
+            };
+        }
+        return {
+            title: 'Já salvo',
+            classes: 'text-slate-400 opacity-50 cursor-default',
+            action: undefined // Desativa clique desnecessário
+        };
+    };
+
+    const saveConfig = getSaveButtonConfig();
+
     return (
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 flex-shrink-0 px-1">
             <div>
@@ -47,7 +74,13 @@ export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({
                 <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-full p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
                     <button onClick={onPrint} className="p-2 text-slate-500 hover:text-brand-blue hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full transition-all" title="Imprimir"><PrinterIcon className="w-4 h-4" /></button>
                     <div className="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1"></div>
-                    <button onClick={onSave} className={`p-2 rounded-full transition-all ${hasActiveReport ? 'text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}`} title={hasActiveReport ? 'Salvar Alterações' : 'Salvar Relatório'}><FloppyDiskIcon className="w-4 h-4" /></button>
+                    <button 
+                        onClick={saveConfig.action} 
+                        className={`p-2 rounded-full transition-all ${saveConfig.classes}`} 
+                        title={saveConfig.title}
+                    >
+                        <FloppyDiskIcon className="w-4 h-4" />
+                    </button>
                 </div>
             </div>
         </div>

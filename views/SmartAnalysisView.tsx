@@ -28,6 +28,7 @@ export const SmartAnalysisView: React.FC = () => {
                 })} 
                 onSave={ctrl.handleSave} 
                 hasActiveReport={!!ctrl.activeReportId} 
+                isDirty={ctrl.isDirty}
             />
 
             <div className="flex-1 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col p-4 md:p-6 relative animate-fade-in-up">
