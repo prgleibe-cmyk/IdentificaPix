@@ -103,7 +103,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const reportId = reconciliation.activeReportId;
         const resultsToSave = customResults || reconciliation.matchResults;
         
-        if (reportId && resultsToSave.length > 0) {
+        if (reportId && (resultsToSave.length > 0 || reportManager.savedReports.find(r => r.id === reportId)?.data?.spreadsheet)) {
             setIsSyncing(true);
             try {
                 await reportManager.overwriteSavedReport(reportId, resultsToSave);
@@ -112,6 +112,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
         }
     }, [reconciliation.activeReportId, reconciliation.matchResults, reportManager]);
+
+    /**
+     * 📝 WRAPPER DE CRIAÇÃO
+     * Estende o confirmSaveReport para atualizar o activeReportId no reconciliation state.
+     */
+    const wrappedConfirmSaveReport = useCallback(async (name: string) => {
+        const newId = await reportManager.confirmSaveReport(name);
+        if (newId) {
+            reconciliation.setActiveReportId(newId);
+            reconciliation.setHasActiveSession(true);
+        }
+    }, [reportManager, reconciliation]);
 
     const reconciliationActions = useReconciliationActions({ 
         reconciliation, 
@@ -169,8 +181,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
 
     const value = useMemo(() => ({
-        ...referenceData, effectiveIgnoreKeywords, ...reportManager, ...reconciliation,
-        ...reconciliationActions, ...modalController,
+        ...referenceData, 
+        effectiveIgnoreKeywords, 
+        ...reportManager, 
+        confirmSaveReport: wrappedConfirmSaveReport, // Override with wrapped version
+        ...reconciliation,
+        ...reconciliationActions, 
+        ...modalController,
         initialDataLoaded, summary, activeSpreadsheetData, saveSmartEdit, isSyncing,
         saveCurrentReportChanges: persistActiveReport,
         handleGmailSyncSuccess, confirmDeletion, openManualIdentify, runAiAutoIdentification,
@@ -178,7 +195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadingAiId: reconciliation.loadingAiId,
         viewSavedReport
     }), [
-        referenceData, effectiveIgnoreKeywords, reportManager, reconciliation, reconciliationActions,
+        referenceData, effectiveIgnoreKeywords, reportManager, wrappedConfirmSaveReport, reconciliation, reconciliationActions,
         modalController, initialDataLoaded, summary, activeSpreadsheetData, 
         saveSmartEdit, isSyncing, persistActiveReport, handleGmailSyncSuccess, confirmDeletion, openManualIdentify,
         runAiAutoIdentification, viewSavedReport

@@ -46,14 +46,14 @@ export const useSmartAnalysisController = () => {
         });
     }, [reportTitle, reportLogo, columns, manualRows, signatures]);
 
-    // Efeito para carregar dados de um relatório salvo
+    // Efeito para carregar dados de um relatório salvo (Reidratação REAL)
     useEffect(() => {
         if (activeSpreadsheetData && activeReportId) {
-            setManualRows(activeSpreadsheetData.rows);
-            setColumns(activeSpreadsheetData.columns);
-            setReportTitle(activeSpreadsheetData.title);
-            setSignatures(activeSpreadsheetData.signatures || []);
-            setReportLogo(activeSpreadsheetData.logo);
+            setManualRows(activeSpreadsheetData.rows || []);
+            setColumns(activeSpreadsheetData.columns || analysisProcessor.createDefaultColumns());
+            setReportTitle(activeSpreadsheetData.title || 'Relatório Financeiro');
+            setSignatures(activeSpreadsheetData.signatures || ['Tesoureiro', 'Pastor Responsável']);
+            setReportLogo(activeSpreadsheetData.logo || null);
             setActiveTemplate('manual_structure');
             
             // Define o ponto de referência para detecção de alterações
@@ -111,7 +111,8 @@ export const useSmartAnalysisController = () => {
         setManualRows([]);
         setReportTitle("Relatório Manual");
         setColumns(analysisProcessor.createDefaultColumns());
-        lastSavedData.current = ''; // Reset reference for new sheet
+        lastSavedData.current = ''; 
+        setIsDirty(false);
         showToast("Nova planilha criada.", "success");
     };
 
@@ -120,26 +121,39 @@ export const useSmartAnalysisController = () => {
         setIsLoading(true);
         try {
             let results = report.data?.results;
-            if (!results) {
+            let spreadsheet = report.data?.spreadsheet;
+
+            if (!results && !spreadsheet) {
                 const { data } = await supabase.from('saved_reports').select('data').eq('id', report.id).single();
                 const parsedData = typeof data?.data === 'string' ? JSON.parse(data.data) : data?.data;
                 results = parsedData?.results;
+                spreadsheet = parsedData?.spreadsheet;
             }
-            if (results?.length > 0) {
-                const hydrated = results.map((r: any) => ({ 
-                    ...r, 
-                    church: churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH 
-                }));
-                setMatchResults(hydrated);
-                setReportPreviewData({
-                    income: groupResultsByChurch(hydrated.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                    expenses: { 'all_expenses_group': hydrated.filter((r: any) => r.transaction.amount < 0) }
-                });
+
+            if (results?.length > 0 || spreadsheet) {
                 setActiveReportId(report.id);
                 setHasActiveSession(true);
-                generateRankingFromData(hydrated, report.name);
+
+                if (results?.length > 0) {
+                    const hydrated = results.map((r: any) => ({ 
+                        ...r, 
+                        church: churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH 
+                    }));
+                    setMatchResults(hydrated);
+                    setReportPreviewData({
+                        income: groupResultsByChurch(hydrated.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                        expenses: { 'all_expenses_group': hydrated.filter((r: any) => r.transaction.amount < 0) }
+                    });
+                    
+                    if (!spreadsheet) {
+                        generateRankingFromData(hydrated, report.name);
+                    }
+                }
+                
                 showToast(`Relatório "${report.name}" carregado.`, "success");
-            } else { showToast("Relatório vazio.", "error"); }
+            } else { 
+                showToast("Relatório vazio.", "error"); 
+            }
         } catch (error: any) { 
             showToast("Erro ao processar relatório.", "error"); 
         } finally { setIsLoading(false); }
@@ -157,14 +171,12 @@ export const useSmartAnalysisController = () => {
     const handleSave = () => {
         const data: SpreadsheetData = { title: reportTitle, logo: reportLogo, columns, rows: manualRows, signatures };
         if (activeReportId) {
-            // Se já existe e não mudou nada, não faz nada
             if (!isDirty) return;
             
             overwriteSavedReport(activeReportId, [], data);
-            lastSavedData.current = getSnapshot(); // Atualiza referência após salvar
+            lastSavedData.current = getSnapshot(); 
             setIsDirty(false);
         } else {
-            // Se é novo, abre modal para nomear e salvar
             openSaveReportModal({ type: 'spreadsheet', groupName: reportTitle, spreadsheetData: data, results: [] });
         }
     };
