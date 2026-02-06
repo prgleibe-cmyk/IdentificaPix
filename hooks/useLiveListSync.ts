@@ -1,8 +1,10 @@
+
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
 import { LaunchService } from '../services/LaunchService';
 import { useUI } from '../contexts/UIContext';
+import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
@@ -92,6 +94,36 @@ export const useLiveListSync = ({
             isHydrating.current = false;
         }
     }, [user, isCleaning, setBankStatementFile, setSelectedBankIds]);
+
+    /**
+     * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
+     * Subscreve a mudanças na tabela de transações para refletir alterações de outros logins.
+     */
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const channel = supabase
+            .channel(`realtime-viva-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*', // INSERT, UPDATE, DELETE
+                    schema: 'public',
+                    table: 'consolidated_transactions',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    // Ignora re-hydrates desnecessários se a mudança foi local e já tratada pelo persist/clear
+                    // O hydrate() já possui trava isHydrating, então chamamos com segurança.
+                    hydrate(false);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id, hydrate]);
 
     useEffect(() => {
         if (user?.id && user.id !== lastUserId.current) {
