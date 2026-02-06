@@ -11,6 +11,8 @@ import { useModalController } from '../hooks/useModalController';
 import { useDataDeletion } from '../hooks/useDataDeletion';
 import { useAiAutoIdentify } from '../hooks/useAiAutoIdentify';
 import { useSummaryData } from '../hooks/useSummaryData';
+import { supabase } from '../services/supabaseClient';
+import { PLACEHOLDER_CHURCH } from '../services/processingService';
 
 export const AppContext = createContext<any>(null!);
 
@@ -36,6 +38,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         contributionKeywords: referenceData.contributionKeywords, learnedAssociations: referenceData.learnedAssociations,
         showToast, setIsLoading, setActiveView
     });
+
+    /**
+     * 👁️ VISUALIZADOR DE RELATÓRIOS
+     * Carrega os dados de um relatório salvo e redireciona para a tela de relatórios.
+     */
+    const viewSavedReport = useCallback(async (reportId: string) => {
+        const report = reportManager.savedReports.find(r => r.id === reportId);
+        if (!report) return;
+
+        setIsLoading(true);
+        try {
+            // Tenta obter resultados do objeto em memória ou busca no banco se for lazy
+            let results = report.data?.results;
+            
+            if (!results) {
+                const { data, error } = await supabase
+                    .from('saved_reports')
+                    .select('data')
+                    .eq('id', reportId)
+                    .single();
+                
+                if (error) throw error;
+                const parsedData = typeof data?.data === 'string' ? JSON.parse(data.data) : data?.data;
+                results = parsedData?.results;
+            }
+
+            if (results && results.length > 0) {
+                // 🧬 Hidratação: Reconecta IDs de igreja aos objetos reais do contexto atual
+                const hydrated = results.map((r: any) => ({
+                    ...r,
+                    church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
+                }));
+
+                reconciliation.setMatchResults(hydrated);
+                reconciliation.setActiveReportId(reportId);
+                reconciliation.setHasActiveSession(true);
+                setActiveView('reports');
+                showToast(`Relatório "${report.name}" carregado.`, "success");
+            } else {
+                showToast("Este relatório não possui dados de conciliação.", "error");
+            }
+        } catch (error: any) {
+            console.error("[AppContext] Erro ao abrir relatório:", error);
+            showToast("Erro ao carregar os dados do relatório.", "error");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 
     /**
      * 🔐 PERSISTÊNCIA MESTRE (Auto-Save Direto)
@@ -110,7 +160,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
 
-    // Fix: Added saveCurrentReportChanges to context value and updated memoization dependencies
     const value = useMemo(() => ({
         ...referenceData, effectiveIgnoreKeywords, ...reportManager, ...reconciliation,
         ...reconciliationActions, ...modalController,
@@ -118,12 +167,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveCurrentReportChanges: persistActiveReport,
         handleGmailSyncSuccess, confirmDeletion, openManualIdentify, runAiAutoIdentification,
         findMatchResult: reconciliation.findMatchResult,
-        loadingAiId: reconciliation.loadingAiId
+        loadingAiId: reconciliation.loadingAiId,
+        viewSavedReport
     }), [
         referenceData, effectiveIgnoreKeywords, reportManager, reconciliation, reconciliationActions,
         modalController, initialDataLoaded, summary, activeSpreadsheetData, 
         saveSmartEdit, isSyncing, persistActiveReport, handleGmailSyncSuccess, confirmDeletion, openManualIdentify,
-        runAiAutoIdentification
+        runAiAutoIdentification, viewSavedReport
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
