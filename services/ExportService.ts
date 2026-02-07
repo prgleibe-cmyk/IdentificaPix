@@ -58,17 +58,29 @@ export const ExportService = {
             const isNegative = amountVal < 0;
             const amount = formatCurrency(amountVal, language);
             const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
-            const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
+            
+            // Cores baseadas no Status
+            let statusLabel = r.status as string;
+            let statusColor = '#64748b'; // Slate 500 (Padrão)
+
+            if (r.status === 'IDENTIFICADO') {
+                statusLabel = r.matchMethod || 'AUTO';
+                statusColor = '#059669'; // Emerald 600
+            } else if (r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE') {
+                statusLabel = 'PENDENTE';
+                statusColor = '#d97706'; // Amber 600
+            }
+
             const churchName = r.church?.name || '-';
 
             return `
                 <tr>
                     <td>${date}</td>
-                    <td>${name}</td>
-                    <td style="font-size: 9px;">${churchName}</td>
-                    <td style="text-align: center;">${type}</td>
-                    <td style="text-align: center;">${status}</td>
-                    <td style="text-align: right; font-weight: bold; font-family: monospace; ${isNegative ? 'color: #dc2626;' : ''}">${amount}</td>
+                    <td style="font-weight: 600;">${name}</td>
+                    <td style="font-size: 9px; color: #475569;">${churchName}</td>
+                    <td style="text-align: center; font-size: 9px; font-weight: bold;">${type}</td>
+                    <td style="text-align: center; font-weight: 800; color: ${statusColor}; font-size: 9px;">${statusLabel}</td>
+                    <td style="text-align: right; font-weight: 900; font-family: monospace; color: ${isNegative ? '#dc2626' : '#059669'};">${amount}</td>
                 </tr>
             `;
         }).join('');
@@ -78,38 +90,68 @@ export const ExportService = {
                 <head>
                     <title>${title} - IdentificaPix</title>
                     <style>
-                        body { font-family: 'Inter', sans-serif; padding: 20px; color: #1e293b; }
-                        h1 { font-size: 20px; margin-bottom: 5px; text-transform: uppercase; }
-                        p { margin: 0 0 20px 0; color: #64748b; font-size: 12px; }
-                        .summary { display: flex; gap: 20px; margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+                        
+                        body { 
+                            font-family: 'Inter', sans-serif; 
+                            padding: 20px; 
+                            color: #1e293b;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        
+                        h1 { font-size: 20px; margin-bottom: 5px; text-transform: uppercase; font-weight: 900; }
+                        p { margin: 0 0 20px 0; color: #64748b; font-size: 12px; font-weight: 600; }
+                        
+                        .summary { 
+                            display: flex; 
+                            gap: 20px; 
+                            margin-bottom: 20px; 
+                            padding: 15px; 
+                            background: #f1f5f9 !important; 
+                            border-radius: 12px; 
+                            border: 1px solid #e2e8f0; 
+                        }
+                        
                         .summary-item { display: flex; flex-direction: column; }
-                        .summary-label { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; }
-                        .summary-value { font-size: 14px; font-weight: bold; color: #0f172a; }
-                        table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
-                        th { text-align: left; background: #f1f5f9; padding: 8px; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; font-size: 10px; color: #475569; }
-                        td { padding: 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: top; }
-                        tr:nth-child(even) { background: #f8fafc; }
+                        .summary-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+                        .summary-value { font-size: 16px; font-weight: 900; color: #0f172a; }
+                        
+                        table { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
+                        th { 
+                            text-align: left; 
+                            background: #f8fafc !important; 
+                            padding: 10px 8px; 
+                            border-bottom: 2px solid #0f172a; 
+                            text-transform: uppercase; 
+                            font-size: 9px; 
+                            font-weight: 900;
+                            color: #475569; 
+                        }
+                        
+                        td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word; vertical-align: middle; }
+                        tr:nth-child(even) { background: #f8fafc !important; }
                     </style>
                 </head>
                 <body>
                     <h1>${title}</h1>
-                    <p>Gerado em: ${new Date().toLocaleString()}</p>
+                    <p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
                     <div class="summary">
                         <div class="summary-item">
-                            <span class="summary-label">Quantidade</span>
+                            <span class="summary-label">Registros</span>
                             <span class="summary-value">${summary.count}</span>
                         </div>
                         <div class="summary-item">
-                            <span class="summary-label">Total</span>
-                            <span class="summary-value" style="${summary.total < 0 ? 'color: #dc2626;' : ''}">${formatCurrency(summary.total, language)}</span>
+                            <span class="summary-label">Montante Total</span>
+                            <span class="summary-value" style="color: ${summary.total < 0 ? '#dc2626' : '#059669'};">${formatCurrency(summary.total, language)}</span>
                         </div>
                     </div>
                     <table>
                         <thead>
                             <tr>
                                 <th style="width: 12%">Data</th>
-                                <th style="width: 35%">Nome / Descrição</th>
-                                <th style="width: 20%">Igreja</th>
+                                <th style="width: 35%">Descrição do Lançamento</th>
+                                <th style="width: 20%">Igreja / Unidade</th>
                                 <th style="width: 10%; text-align: center;">Tipo</th>
                                 <th style="width: 10%; text-align: center;">Status</th>
                                 <th style="width: 13%; text-align: right;">Valor</th>
@@ -117,7 +159,7 @@ export const ExportService = {
                         </thead>
                         <tbody>${tableRows}</tbody>
                     </table>
-                    <script>window.onload = function() { window.print(); }</script>
+                    <script>window.onload = function() { setTimeout(() => { window.print(); }, 500); }</script>
                 </body>
             </html>
         `);

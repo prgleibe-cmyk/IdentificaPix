@@ -1,9 +1,10 @@
+
 import { SpreadsheetData } from "../types";
 import { formatCurrency } from "../utils/formatters";
 
 /**
  * Serviço de impressão centralizado.
- * Gera uma janela de impressão limpa e formatada para a planilha.
+ * Gera uma janela de impressão limpa e formatada para a planilha com cores preservadas.
  */
 export const printService = {
     printSpreadsheet: (data: SpreadsheetData) => {
@@ -28,22 +29,29 @@ export const printService = {
             })
             .join('');
 
-        // Generate Table Rows
+        // Generate Table Rows with Color Persistence
         const rowsHtml = data.rows.map((row, idx) => {
             const cells = data.columns
                 .filter(c => c.visible)
                 .map(col => {
                     let value = row[col.id];
+                    let cellStyle = "";
                     
                     if (col.id === 'index') value = idx + 1;
                     
-                    // Formatting
+                    // Formatting & Coloring
                     if (col.type === 'currency' || col.type === 'computed') {
-                        value = formatCurrency(Number(value) || 0);
+                        const numValue = Number(value) || 0;
+                        value = formatCurrency(numValue);
+                        
+                        // Cores específicas para as colunas financeiras
+                        if (col.id === 'income') cellStyle = "color: #059669; font-weight: 800;"; // Emerald 600
+                        else if (col.id === 'expense') cellStyle = "color: #dc2626; font-weight: 800;"; // Red 600
+                        else if (col.id === 'balance') cellStyle = `color: ${numValue < 0 ? '#dc2626' : '#0f172a'}; font-weight: 900;`;
                     }
                     
                     const align = (col.type === 'currency' || col.type === 'computed' || col.type === 'number') ? 'right' : 'left';
-                    return `<td style="text-align: ${align};">${value !== undefined && value !== null ? value : ''}</td>`;
+                    return `<td style="text-align: ${align}; ${cellStyle}">${value !== undefined && value !== null ? value : ''}</td>`;
                 })
                 .join('');
             return `<tr>${cells}</tr>`;
@@ -53,12 +61,18 @@ export const printService = {
         const totals = data.columns
             .filter(c => c.visible)
             .map(col => {
-                 if (col.id === 'description') return `<td style="font-weight:bold; text-align:right; padding-right: 15px;">TOTAIS GERAIS:</td>`;
+                 if (col.id === 'description') return `<td style="font-weight:900; text-align:right; padding-right: 15px;">TOTAIS GERAIS:</td>`;
                  if (col.id === 'index') return `<td></td>`;
                  
                  if (col.type === 'currency' || col.type === 'computed') {
                      const sum = data.rows.reduce((acc, r) => acc + (Number(r[col.id]) || 0), 0);
-                     return `<td style="text-align: right; font-weight: 900; font-size: 12px;">${formatCurrency(sum)}</td>`;
+                     let totalStyle = "text-align: right; font-weight: 900; font-size: 12px;";
+                     
+                     if (col.id === 'income') totalStyle += " color: #059669;";
+                     else if (col.id === 'expense') totalStyle += " color: #dc2626;";
+                     else if (col.id === 'balance') totalStyle += ` color: ${sum < 0 ? '#dc2626' : '#0f172a'};`;
+
+                     return `<td style="${totalStyle}">${formatCurrency(sum)}</td>`;
                  }
                  
                  if (col.id === 'qty') {
@@ -87,14 +101,14 @@ export const printService = {
                 <meta charset="UTF-8">
                 <title>${data.title}</title>
                 <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
                     
                     body { 
                         font-family: 'Inter', sans-serif; 
                         padding: 40px; 
                         color: #0f172a; 
-                        -webkit-print-color-adjust: exact; 
-                        print-color-adjust: exact;
+                        -webkit-print-color-adjust: exact !important; 
+                        print-color-adjust: exact !important;
                     }
                     
                     .header { 
@@ -131,10 +145,10 @@ export const printService = {
                     }
                     
                     th { 
-                        background-color: #f1f5f9; 
+                        background-color: #f1f5f9 !important; 
                         color: #475569; 
                         font-size: 10px; 
-                        font-weight: 800; 
+                        font-weight: 900; 
                         text-transform: uppercase; 
                         letter-spacing: 0.5px; 
                         padding: 12px 10px; 
@@ -149,7 +163,7 @@ export const printService = {
                         color: #334155;
                     }
                     
-                    tr:nth-child(even) { background-color: #f8fafc; }
+                    tr:nth-child(even) { background-color: #f8fafc !important; }
                     
                     tfoot tr { 
                         background-color: #f1f5f9 !important; 
@@ -186,7 +200,7 @@ export const printService = {
                 <div class="header">
                     <div class="report-info">
                         <h1>${data.title}</h1>
-                        <p>Relatório Analítico</p>
+                        <p>Relatório Analítico Gerencial</p>
                     </div>
                     ${logoHtml}
                 </div>
@@ -204,15 +218,15 @@ export const printService = {
                 </div>
 
                 <div class="footer">
-                    <span>IdentificaPix System</span>
-                    <span>Gerado em: ${new Date().toLocaleString('pt-BR')}</span>
+                    <span>IdentificaPix Intelligence System</span>
+                    <span>Impressão: ${new Date().toLocaleString('pt-BR')}</span>
                 </div>
 
                 <script>
                     window.onload = () => {
                         setTimeout(() => {
                             window.print();
-                        }, 500);
+                        }, 600);
                     };
                 </script>
             </body>
