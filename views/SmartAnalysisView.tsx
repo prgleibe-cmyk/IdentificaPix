@@ -23,8 +23,11 @@ export const SmartAnalysisView: React.FC = () => {
                 onRankingClick={ctrl.handleRankingClick} 
                 onManualClick={ctrl.handleManualClick} 
                 onPrint={() => printService.printSpreadsheet({ 
-                    title: ctrl.reportTitle, logo: ctrl.reportLogo, columns: ctrl.columns, 
-                    rows: ctrl.manualRows, signatures: ctrl.signatures 
+                    title: ctrl.reportTitle, 
+                    logo: ctrl.reportLogo, 
+                    columns: ctrl.columns, 
+                    rows: ctrl.sortedRows, // CORREÇÃO: Enviando rows ordenadas conforme a visualização atual
+                    signatures: ctrl.signatures 
                 })} 
                 onSave={ctrl.handleSave} 
                 hasActiveReport={!!ctrl.activeReportId} 
@@ -72,7 +75,7 @@ export const SmartAnalysisView: React.FC = () => {
                     )}
                 </div>
 
-                <SignaturesSection 
+                < SignaturesSection 
                     signatures={ctrl.signatures}
                     onUpdateSignature={(idx, val) => { const n = [...ctrl.signatures]; n[idx] = val; ctrl.setSignatures(n); }}
                     onDeleteSignature={(idx) => ctrl.setSignatures(prev => prev.filter((_, i) => i !== idx))}
