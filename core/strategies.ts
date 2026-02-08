@@ -17,12 +17,12 @@ export interface StrategyResult {
 export interface BankStrategy {
     name: string;
     canHandle(filename: string, content: any, models?: FileModel[]): boolean;
-    parse(content: any, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
+    parse(content: any, models?: FileModel[]): Transaction[] | Promise<Transaction[]>;
 }
 
 /**
- * 🎯 ESTRATÉGIA DE MODELO APRENDIDO (V5 - RESILIENTE)
- * Suporta falhas de hash em Excel através de comparação genômica (Structural Pattern).
+ * 🎯 ESTRATÉGIA DE MODELO APRENDIDO (V6 - SOVEREIGN)
+ * Responsável por delegar a execução ao ContractExecutor sem intervenção de ajustes globais.
  */
 export const DatabaseModelStrategy: BankStrategy = {
     name: 'Modelo Aprendido',
@@ -34,27 +34,19 @@ export const DatabaseModelStrategy: BankStrategy = {
 
         return models.some(m => {
             if (!m.is_active) return false;
-
-            // 1. Match por Hash (Rápido/Exato)
             if (m.fingerprint.headerHash === fileFp.headerHash) return true;
-
-            // 2. Match por Padrão Estrutural (Fallback para instabilidade de Excel)
-            // Se a sequência de tipos (Data-Texto-Valor) for idêntica, consideramos o mesmo modelo.
             if (m.fingerprint.structuralPattern && 
                 m.fingerprint.structuralPattern !== 'UNKNOWN' &&
                 m.fingerprint.structuralPattern === fileFp.structuralPattern) {
-                console.log(`[StrategyEngine] 🧬 Match Genômico detectado para ${filename}`);
                 return true;
             }
-
             return false;
         });
     },
-    parse: async (content, models, globalKeywords = []) => {
+    parse: async (content, models) => {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const fileFp = Fingerprinter.generate(rawText);
         
-        // Busca o modelo usando a mesma lógica resiliente do canHandle
         const model = models?.find(m => {
             if (!m.is_active) return false;
             if (m.fingerprint.headerHash === fileFp?.headerHash) return true;
@@ -65,24 +57,23 @@ export const DatabaseModelStrategy: BankStrategy = {
 
         if (!model) return [];
 
-        console.log(`[StrategyEngine] 🎯 Aplicando Modelo: "${model.name}" (v${model.version})`);
-        return await ContractExecutor.apply(model, content, globalKeywords);
+        // RIGOR V6: O Executor de Contratos agora é chamado sem palavras-chave globais.
+        return await ContractExecutor.apply(model, content);
     }
 };
 
 export const StrategyEngine = {
-    process: async (filename: string, content: any, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): Promise<StrategyResult> => {
+    process: async (filename: string, content: any, models: FileModel[] = [], _globalKeywords: string[] = [], overrideModel?: FileModel): Promise<StrategyResult> => {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const source = content?.__source || 'unknown';
         
         if (overrideModel) {
-            const txs = await DatabaseModelStrategy.parse(content, [overrideModel], globalKeywords);
+            const txs = await DatabaseModelStrategy.parse(content, [overrideModel]);
             return { transactions: txs, strategyName: `Treino: ${overrideModel.name}` };
         }
 
         const fileFp = Fingerprinter.generate(rawText);
         
-        // Busca o modelo alvo usando a lógica de fallback estrutural
         const targetModel = models.find(m => {
             if (!m.is_active) return false;
             if (m.fingerprint.headerHash === fileFp?.headerHash) return true;
@@ -92,12 +83,11 @@ export const StrategyEngine = {
         });
         
         if (targetModel) {
-            const txs = await DatabaseModelStrategy.parse(content, [targetModel], globalKeywords);
+            const txs = await DatabaseModelStrategy.parse(content, [targetModel]);
             return { transactions: txs, strategyName: `Contrato: ${targetModel.name}` };
         }
 
         if (source === 'file' || source === 'unknown') {
-            console.warn(`[StrategyEngine] ⚠️ Bloqueio: Nenhum modelo compatível para DNA ${fileFp?.headerHash} ou Padrão ${fileFp?.structuralPattern}`);
             return { 
                 status: 'MODEL_REQUIRED',
                 fileName: filename,
