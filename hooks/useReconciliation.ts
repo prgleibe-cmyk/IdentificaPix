@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { 
     MatchResult, 
@@ -75,9 +76,9 @@ export const useReconciliation = ({
         try {
             if (fetchModels) await fetchModels();
             
-            // 🛡️ LANÇAMENTO BLINDADO: Envia binário diretamente para o Executor de Contratos
+            // 🛡️ EXECUÇÃO DE CONTRATO: Obtém transações estruturadas diretamente do motor
             const result = await processFileContent(content, fileName, fileModels, customIgnoreKeywords, base64);
-            const transactions = result.transactions || [];
+            const transactions = Array.isArray(result?.transactions) ? result.transactions : [];
             
             if (result.status === 'MODEL_REQUIRED' || (transactions.length === 0 && bankId !== 'gmail-sync')) {
                 setModelRequiredData({ ...result, fileName, bankId });
@@ -87,25 +88,31 @@ export const useReconciliation = ({
             }
 
             if (transactions.length > 0) {
+                // 🚀 INJEÇÃO NA LISTA VIVA: Persistência no banco e atualização imediata da UI
                 const stats = await persistTransactions(bankId, transactions);
-                showToast(`Sucesso! ${stats.total} transações enviadas direto para Lista Viva.`, "success");
+                if (stats.added > 0) {
+                    showToast(`${stats.added} novas transações adicionadas à Lista Viva.`, "success");
+                } else {
+                    showToast("O arquivo foi processado, mas todas as transações já existiam na Lista Viva.", "success");
+                }
                 await hydrate();
             }
             
         } catch (error: any) {
-            showToast("Erro no processamento via modelo.", "error");
+            console.error("[Reconciliation] Upload Fail:", error);
+            showToast("Erro no processamento do arquivo.", "error");
         } finally {
             processingFilesRef.current.delete(processKey);
             setIsLoading(false);
         }
-    }, [fileModels, fetchModels, customIgnoreKeywords, persistTransactions, showToast, hydrate, setIsLoading]);
+    }, [fileModels, fetchModels, customIgnoreKeywords, persistTransactions, showToast, hydrate, setIsLoading, setModelRequiredData]);
 
     const importGmailTransactions = useCallback(async (transactions: Transaction[]) => {
         if (!user || transactions.length === 0) return;
         setIsLoading(true);
         try {
             const stats = await persistTransactions('gmail-sync', transactions);
-            showToast(`Gmail sincronizado! Total: ${stats.total}`, "success");
+            showToast(`Gmail sincronizado! ${stats.added} novas transações.`, "success");
             await hydrate();
         } finally {
             setIsLoading(false);
