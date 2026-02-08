@@ -10,16 +10,17 @@ export const generateFingerprint = Fingerprinter.generate;
 
 export const findMatchingModel = (content: string, models: FileModel[]): { model: FileModel, score: number } | null => {
     if (!models || models.length === 0) return null;
+    if (!content) return null;
+
     const fileFp = Fingerprinter.generate(content);
     if (!fileFp) return null;
     
-    const bestMatch = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
+    const bestMatch = models.find(m => m.is_active && m.fingerprint?.headerHash === fileFp.headerHash);
     return bestMatch ? { model: bestMatch, score: 100 } : null;
 };
 
 /**
- * PIPELINE DE LANÇAMENTO (V19 - NO INTERPRETATION)
- * O arquivo segue direto para o motor de estratégias sem parsers locais intermediários.
+ * PIPELINE DE LANÇAMENTO (V20 - SAFE PAYLOAD)
  */
 export const processFileContent = async (
     content: string, 
@@ -29,13 +30,19 @@ export const processFileContent = async (
     base64?: string 
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
+    const safeText =
+        content && content.trim().length > 0
+            ? content
+            : base64
+            ? '[BINARY_MODE_ACTIVE]'
+            : '';
+
     const adaptedInput = {
-        __rawText: content, // Pode ser '[BINARY_MODE_ACTIVE]'
-        __base64: base64, 
+        __rawText: safeText,
+        __base64: base64,
         __source: 'file'
     };
 
-    // O StrategyEngine realiza o match de DNA e chama o ContractExecutor
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 
@@ -46,7 +53,9 @@ export const processFileContent = async (
     return {
         ...result,
         transactions: Array.isArray(result?.transactions) ? result.transactions : [],
-        appliedModel: result.strategyName?.includes('Contrato') ? { name: result.strategyName } : undefined
+        appliedModel: result.strategyName?.includes('Contrato')
+            ? { name: result.strategyName }
+            : undefined
     };
 };
 
