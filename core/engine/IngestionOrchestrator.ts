@@ -1,12 +1,11 @@
 import { Transaction, FileModel } from '../../types';
-import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V20 - ZERO PROCESSING ENFORCED)
+ * 🎛️ INGESTION ORCHESTRATOR (V21 - SAFE PAYLOAD)
  * -------------------------------------------------------
- * Rigor Máximo: O arquivo é uma entidade sagrada. 
- * Nenhuma limpeza, trim ou alteração é permitida antes do motor de modelos.
+ * Preserva o arquivo como entidade soberana e garante que o contrato receba
+ * texto OU binário sem interferência.
  */
 export const IngestionOrchestrator = {
     /**
@@ -34,17 +33,22 @@ export const IngestionOrchestrator = {
 
     /**
      * Ponto de entrada único para arquivos físicos.
-     * Somente identifica o DNA e encaminha para o motor de estratégias.
+     * Encaminha texto e binário intactos para o motor de estratégias.
      */
     async processFile(
         file: File, 
         content: string, 
         models: FileModel[], 
-        globalKeywords: string[]
+        globalKeywords: string[],
+        base64?: string
     ): Promise<any> {
         const result = await StrategyEngine.process(
             file.name, 
-            { __rawText: content, __source: 'file' }, 
+            { 
+                __rawText: content || '[BINARY_MODE_ACTIVE]', 
+                __base64: base64, 
+                __source: 'file' 
+            }, 
             models, 
             globalKeywords
         );
