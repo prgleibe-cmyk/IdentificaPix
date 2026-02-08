@@ -20,7 +20,10 @@ export const findMatchingModel = (content: string, models: FileModel[]): { model
 };
 
 /**
- * PIPELINE DE LANÇAMENTO (V20 - SAFE PAYLOAD)
+ * PIPELINE DE LANÇAMENTO (V21 - DIRECT MODEL PASS-THROUGH)
+ * --------------------------------------------------------
+ * Fluxo Obrigatório: Arquivo -> Modelo Aprendido -> Lista Viva.
+ * Proibido: Interpretadores paralelos, parsers locais ou OCR genérico.
  */
 export const processFileContent = async (
     content: string, 
@@ -30,19 +33,14 @@ export const processFileContent = async (
     base64?: string 
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
-    const safeText =
-        content && content.trim().length > 0
-            ? content
-            : base64
-            ? '[BINARY_MODE_ACTIVE]'
-            : '';
-
+    // O conteúdo é passado exatamente como recebido do FileUploader
     const adaptedInput = {
-        __rawText: safeText,
-        __base64: base64,
+        __rawText: content, // Geralmente '[BINARY_MODE_ACTIVE]' no fluxo de lançamento
+        __base64: base64, 
         __source: 'file'
     };
 
+    // O StrategyEngine agora é a única autoridade que decide o destino do dado
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 

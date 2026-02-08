@@ -5,10 +5,10 @@ import { extractTransactionsWithModel } from '../../services/geminiService';
 import * as XLSX from 'xlsx';
 
 /**
- * 📜 CONTRACT EXECUTOR (V64 - ABSOLUTE MODEL TRUTH)
+ * 📜 CONTRACT EXECUTOR (V65 - ZERO INTERPRETATION ENFORCED)
  * -------------------------------------------------------
- * O modelo aprendido é a VERDADE ABSOLUTA.
- * Nenhuma normalização, limpeza ou leitura paralela pode alterar o conteúdo.
+ * O modelo é a única autoridade. Proibido interpretadores genéricos.
+ * Fluxo: Entrada Bruta -> Regras do Modelo -> Resultado Final.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any): Promise<Transaction[]> {
@@ -22,10 +22,11 @@ export const ContractExecutor = {
         const { mapping } = model;
 
         /**
-         * 🧱 BLOCK MODE (PDF / IA / VISUAL CONTRACT)
+         * 🧱 MODO BLOCO (IA / PDF)
+         * Executa o contrato visual aprendido no laboratório.
          */
         if (mapping.extractionMode === 'BLOCK') {
-            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo aprendido.';
+            const trainingContext = mapping.blockContract || 'Extração fiel ao modelo aprendido.';
 
             try {
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
@@ -34,7 +35,7 @@ export const ContractExecutor = {
                 return rows.map((tx: any, idx: number) => ({
                     id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                     date: tx.date,
-                    description: tx.description,
+                    description: tx.description, // Sem NameResolver.clean global
                     rawDescription: tx.description,
                     amount: Number(tx.amount),
                     originalAmount: String(tx.amount),
@@ -44,13 +45,14 @@ export const ContractExecutor = {
                     bank_id: model.id
                 }));
             } catch (e) {
-                console.error("[ContractExecutor] Erro BLOCK:", e);
+                console.error("[ContractExecutor] Falha na soberania da IA:", e);
                 return [];
             }
         }
 
         /**
-         * 🚀 COLUMN MODE (EXCEL / CSV / TXT)
+         * 🚀 MODO COLUNAS (EXCEL / CSV / TXT)
+         * Aplica o mapa físico de colunas definido no modelo.
          */
         let lines: string[][] = [];
 
@@ -60,20 +62,12 @@ export const ContractExecutor = {
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                 lines = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
             } catch (e) {
-                console.error("[ContractExecutor] Erro XLSX:", e);
+                console.error("[ContractExecutor] Erro no parsing binário do modelo:", e);
                 return [];
             }
         } else {
-            const delimiter = rawText.includes(';')
-                ? ';'
-                : rawText.includes('\t')
-                ? '\t'
-                : ',';
-
-            lines = rawText
-                .split(/\r?\n/)
-                .filter(l => l.trim())
-                .map(line => line.split(delimiter));
+            const delimiter = rawText.includes(';') ? ';' : (rawText.includes('\t') ? '\t' : ',');
+            lines = rawText.split(/\r?\n/).filter(l => l.trim()).map(line => line.split(delimiter));
         }
 
         const results: Transaction[] = [];
@@ -85,11 +79,9 @@ export const ContractExecutor = {
             const rawDate = cells[mapping.dateColumnIndex] || "";
             const rawDesc = cells[mapping.descriptionColumnIndex] || "";
             const rawAmount = cells[mapping.amountColumnIndex] || "";
-            const rawForm =
-                mapping.paymentMethodColumnIndex !== undefined &&
-                mapping.paymentMethodColumnIndex >= 0
-                    ? cells[mapping.paymentMethodColumnIndex]
-                    : "";
+            const rawForm = (mapping.paymentMethodColumnIndex !== undefined && mapping.paymentMethodColumnIndex >= 0)
+                ? cells[mapping.paymentMethodColumnIndex]
+                : "";
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
@@ -98,14 +90,16 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
+                // A descrição é mantida fiel ao arquivo/modelo, 
+                // sem aplicação de palavras-chave ignoradas globais do sistema.
                 results.push({
                     id: `viva-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
-                    description: String(rawDesc),
+                    description: String(rawDesc).trim(),
                     rawDescription: String(rawDesc),
                     amount: numAmount,
                     originalAmount: String(rawAmount),
-                    cleanedDescription: String(rawDesc),
+                    cleanedDescription: String(rawDesc).trim(),
                     contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
                     paymentMethod: String(rawForm) || 'OUTROS',
                     bank_id: model.id
