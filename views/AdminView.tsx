@@ -16,16 +16,14 @@ import {
     XCircleIcon,
     ArrowsRightLeftIcon,
     BrainIcon,
-    ClipboardDocumentIcon,
-    PaintBrushIcon
+    ClipboardDocumentIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminAuditTab } from '../components/admin/AdminAuditTab';
 import { AdminModelsTab } from '../components/admin/AdminModelsTab';
-import { AdminBrandTab } from '../components/admin/AdminBrandTab';
 
-type AdminTab = 'settings' | 'users' | 'audit' | 'models' | 'brand';
+type AdminTab = 'settings' | 'users' | 'audit' | 'models';
 
 const FIX_SQL = `
 -- ============================================================
@@ -182,7 +180,6 @@ export const AdminView: React.FC = () => {
                         <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                         <AdminTabButton id="models" label="Laboratório" icon={BrainIcon} colorTheme="violet" />
-                        <AdminTabButton id="brand" label="Marca" icon={PaintBrushIcon} colorTheme="amber" />
                     </div>
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
                     <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20 hover:-translate-y-0.5 transition-all">
@@ -196,7 +193,6 @@ export const AdminView: React.FC = () => {
                 {activeTab === 'users' && <AdminUsersTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
                 {activeTab === 'models' && <AdminModelsTab />}
-                {activeTab === 'brand' && <AdminBrandTab />}
             </div>
             {showDiagModal && (
                 <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
