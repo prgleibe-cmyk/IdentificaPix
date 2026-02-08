@@ -1,107 +1,106 @@
 import { Transaction, FileModel } from '../../types';
 import { DateResolver } from '../processors/DateResolver';
 import { AmountResolver } from '../processors/AmountResolver';
+import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
-import * as XLSX from 'xlsx';
 
 /**
- * 📜 CONTRACT EXECUTOR (V65 - ZERO INTERPRETATION ENFORCED)
+ * 📜 CONTRACT EXECUTOR (V60 - ABSOLUTE TRUTH ENFORCEMENT)
  * -------------------------------------------------------
- * O modelo é a única autoridade. Proibido interpretadores genéricos.
- * Fluxo: Entrada Bruta -> Regras do Modelo -> Resultado Final.
+ * Este componente implementa a "VERDADE ABSOLUTA" do modelo.
+ * O que foi aprendido no Laboratório é replicado sem NENHUMA
+ * normalização adicional, reprocessamento ou ajuste automático.
  */
 export const ContractExecutor = {
-    async apply(model: FileModel, adaptedInput: any): Promise<Transaction[]> {
+    async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
-        const rawText = adaptedInput?.__rawText || "";
-        const rawBase64 = adaptedInput?.__base64;
+        const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
+        const rawBase64 = adaptedInput?.__base64; 
 
         if (!rawText.trim() && !rawBase64) return [];
 
         const { mapping } = model;
-
-        /**
-         * 🧱 MODO BLOCO (IA / PDF)
-         * Executa o contrato visual aprendido no laboratório.
-         */
+        // RIGOR V60: As palavras do modelo são a verdade. Global keywords são usadas apenas se o modelo permitir.
+        const modelKeywords = mapping.ignoredKeywords || [];
+        
+        // 🧱 MODO BLOCO (IA VISION / PDF / UNIFICADO)
+        // Se houver um contrato de bloco, ele é soberano e ignoramos parsers locais.
         if (mapping.extractionMode === 'BLOCK') {
-            const trainingContext = mapping.blockContract || 'Extração fiel ao modelo aprendido.';
+            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural aprendido no laboratório.';
 
             try {
+                // @frozen-block: PDF_ABSOLUTE_TRUTH_V60
+                // Solicita extração TOTALMENTE FIEL ao Gemini baseada no contrato.
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
-
-                return rows.map((tx: any, idx: number) => ({
-                    id: `viva-block-${model.id}-${idx}-${Date.now()}`,
-                    date: tx.date,
-                    description: tx.description, // Sem NameResolver.clean global
-                    rawDescription: tx.description,
-                    amount: Number(tx.amount),
-                    originalAmount: String(tx.amount),
-                    cleanedDescription: tx.description,
-                    contributionType: tx.tipo || 'AUTO',
-                    paymentMethod: tx.forma || 'OUTROS',
-                    bank_id: model.id
-                }));
-            } catch (e) {
-                console.error("[ContractExecutor] Falha na soberania da IA:", e);
-                return [];
+                
+                return rows.map((tx: any, idx: number) => {
+                    /**
+                     * 🛡️ FONTE ÚNICA DE VERDADE: O resultado da IA é intocável.
+                     * Não aplicamos toUpperCase, não limpamos strings, não mudamos sinais.
+                     * O Gemini entrega o que aprendeu na Simulação do Laboratório.
+                     */
+                    return {
+                        id: `viva-block-${model.id}-${idx}-${Date.now()}`,
+                        date: tx.date,
+                        description: tx.description, 
+                        rawDescription: tx.description, 
+                        amount: tx.amount,
+                        originalAmount: String(tx.amount),
+                        cleanedDescription: tx.description,
+                        contributionType: tx.tipo || 'AUTO',
+                        paymentMethod: tx.forma || 'OUTROS',
+                        bank_id: model.id
+                    };
+                });
+            } catch (e) { 
+                console.error("[ContractExecutor] Erro na leitura soberana IA:", e);
+                return []; 
             }
         }
 
-        /**
-         * 🚀 MODO COLUNAS (EXCEL / CSV / TXT)
-         * Aplica o mapa físico de colunas definido no modelo.
-         */
-        let lines: string[][] = [];
-
-        if (rawBase64 && rawText === '[BINARY_MODE_ACTIVE]') {
-            try {
-                const workbook = XLSX.read(rawBase64, { type: 'base64' });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                lines = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][];
-            } catch (e) {
-                console.error("[ContractExecutor] Erro no parsing binário do modelo:", e);
-                return [];
-            }
-        } else {
-            const delimiter = rawText.includes(';') ? ';' : (rawText.includes('\t') ? '\t' : ',');
-            lines = rawText.split(/\r?\n/).filter(l => l.trim()).map(line => line.split(delimiter));
-        }
-
+        // 🚀 MODO COLUNAS (DETERMINÍSTICO - EXCEL/CSV)
+        // Replicamos a lógica exata do Laboratório sem ajustes extras.
+        const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
 
-        lines.forEach((cells, idx) => {
+        lines.forEach((line, idx) => {
+            // Pula linhas conforme definido no modelo aprendido
             if (idx < (mapping.skipRowsStart || 0)) return;
 
+            const delimiter = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
+            const cells = line.split(delimiter).map(c => c.trim());
+            
             const rawDate = cells[mapping.dateColumnIndex] || "";
             const rawDesc = cells[mapping.descriptionColumnIndex] || "";
             const rawAmount = cells[mapping.amountColumnIndex] || "";
-            const rawForm = (mapping.paymentMethodColumnIndex !== undefined && mapping.paymentMethodColumnIndex >= 0)
-                ? cells[mapping.paymentMethodColumnIndex]
+            const rawForm = (mapping.paymentMethodColumnIndex !== undefined && mapping.paymentMethodColumnIndex >= 0) 
+                ? cells[mapping.paymentMethodColumnIndex] 
                 : "";
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
-            const isoDate = DateResolver.resolveToISO(String(rawDate), currentYear);
+            // Normalização MÍNIMA para garantir tipos válidos (Data e Número)
+            const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
             const stdAmount = AmountResolver.clean(rawAmount);
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                // A descrição é mantida fiel ao arquivo/modelo, 
-                // sem aplicação de palavras-chave ignoradas globais do sistema.
+                // A limpeza de descrição segue EXATAMENTE o que foi definido no modelo
+                const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
+                
                 results.push({
                     id: `viva-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
-                    description: String(rawDesc).trim(),
-                    rawDescription: String(rawDesc),
+                    description: learnedDescription, 
+                    rawDescription: rawDesc, 
                     amount: numAmount,
-                    originalAmount: String(rawAmount),
-                    cleanedDescription: String(rawDesc).trim(),
+                    originalAmount: rawAmount,
+                    cleanedDescription: learnedDescription,
                     contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
-                    paymentMethod: String(rawForm) || 'OUTROS',
+                    paymentMethod: rawForm || 'OUTROS',
                     bank_id: model.id
                 });
             }

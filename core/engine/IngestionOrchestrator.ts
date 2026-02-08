@@ -1,54 +1,53 @@
 import { Transaction, FileModel } from '../../types';
+import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V21 - SAFE PAYLOAD)
+ * 🎛️ INGESTION ORCHESTRATOR (V19 - ABSOLUTE TRUTH ENFORCEMENT)
  * -------------------------------------------------------
- * Preserva o arquivo como entidade soberana e garante que o contrato receba
- * texto OU binário sem interferência.
+ * Garante a integridade total do arquivo original.
+ * O conteúdo é preservado sem NENHUMA alteração prévia ao matching.
+ * Proibido trim, toUpperCase ou qualquer limpeza antes do motor de estratégias.
  */
 export const IngestionOrchestrator = {
     /**
-     * Retorna o conteúdo original preservado sem nenhuma modificação.
+     * Retorna o conteúdo original preservado. 
+     * Implementa a regra de 'Zero Reprocessamento' pré-modelo.
      */
     normalizeRawContent(content: string): string {
-        return content || "";
+        if (!content) return "";
+        
+        // RIGOR V19: Proibido alterar o input bruto. 
+        // O conteúdo deve chegar ao StrategyEngine exatamente como foi lido do arquivo.
+        return content;
     },
 
-    /**
-     * Injeção direta de dados virtuais (ex: Gmail) sem re-processamento.
-     */
     async processVirtualData(
         sourceName: string, 
-        transactions: Transaction[]
+        transactions: Transaction[], 
+        globalKeywords: string[]
     ): Promise<any> {
         return {
             source: 'virtual',
             transactions: transactions || [],
             status: 'SUCCESS',
             fileName: sourceName,
-            strategyUsed: 'Direct Injection'
+            strategyUsed: 'Virtual Injection'
         };
     },
 
-    /**
-     * Ponto de entrada único para arquivos físicos.
-     * Encaminha texto e binário intactos para o motor de estratégias.
-     */
     async processFile(
         file: File, 
         content: string, 
         models: FileModel[], 
-        globalKeywords: string[],
-        base64?: string
+        globalKeywords: string[]
     ): Promise<any> {
+        // Usa o conteúdo TOTALMENTE BRUTO para o fingerprinting
+        const fingerprint = Fingerprinter.generate(content);
+        
         const result = await StrategyEngine.process(
             file.name, 
-            { 
-                __rawText: content || '[BINARY_MODE_ACTIVE]', 
-                __base64: base64, 
-                __source: 'file' 
-            }, 
+            { __rawText: content, __source: 'file' }, 
             models, 
             globalKeywords
         );
@@ -58,6 +57,8 @@ export const IngestionOrchestrator = {
             transactions: result.transactions || [],
             status: result.status,
             fileName: result.fileName || file.name,
+            fingerprint: result.fingerprint || fingerprint || { columnCount: 0 },
+            preview: result.preview || content.substring(0, 500),
             strategyUsed: result.strategyName
         };
     }
