@@ -26,7 +26,7 @@ export const SpreadsheetTable: React.FC<SpreadsheetTableProps> = ({
         <thead className="bg-slate-50 dark:bg-slate-900/80 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-700">
             <tr>
                 {columns.map(col => (
-                    <th key={col.id} className={`px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest group ${['income','expense','balance'].includes(col.id) ? 'text-right' : col.id === 'index' ? 'text-center w-16' : ''}`}>
+                    <th key={col.id} className={`px-6 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest group ${['income','expense','balance'].includes(col.id) ? 'text-right' : col.id === 'index' ? 'text-center w-16' : ''}`}>
                         <div className={`flex items-center gap-2 ${['income','expense','balance'].includes(col.id) ? 'justify-end' : col.id === 'index' ? 'justify-center' : 'justify-start'}`}>
                             {col.removable ? <input type="text" value={col.label} onChange={(e) => onUpdateColumnLabel(col.id, e.target.value)} className="bg-transparent outline-none w-24 text-center border-b border-transparent focus:border-brand-blue" /> : <span className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-200 transition-colors" onClick={() => onSort(col.id)}>{col.label}</span>}
                             <button onClick={() => onSort(col.id)} className={`transition-colors ${sortConfig?.key === col.id ? 'text-brand-blue' : 'text-slate-300 opacity-0 group-hover:opacity-100'}`}>{sortConfig?.key === col.id && sortConfig.direction === 'desc' ? <ChevronDownIcon className="w-3 h-3" /> : <ChevronUpIcon className="w-3 h-3" />}</button>
@@ -41,7 +41,7 @@ export const SpreadsheetTable: React.FC<SpreadsheetTableProps> = ({
             {rows.length > 0 ? rows.map((row, idx) => (
                 <tr key={row.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                     {columns.map(col => (
-                        <td key={col.id} className={`px-6 py-4 ${['income','expense','balance'].includes(col.id) ? 'text-right' : ''}`}>
+                        <td key={col.id} className={`px-6 py-1.5 ${['income','expense','balance'].includes(col.id) ? 'text-right' : ''}`}>
                             {col.id === 'index' ? <span className="text-xs font-bold text-slate-500">{idx+1}</span> :
                                 col.id === 'balance' ? <span className="text-xs font-black text-slate-900 dark:text-white font-mono">{formatCurrency(row.income - row.expense)}</span> :
                                 col.type === 'currency' ? (
@@ -52,14 +52,14 @@ export const SpreadsheetTable: React.FC<SpreadsheetTableProps> = ({
                                 ) : <input value={row[col.id] || ''} onChange={(e) => onUpdateRow(row.id, col.id, col.type === 'number' ? e.target.value.replace(/\D/g, '') : e.target.value)} className={`w-full bg-transparent font-bold text-slate-700 dark:text-slate-200 text-xs focus:outline-none ${col.id === 'qty' ? 'text-center' : 'uppercase break-words'}`} placeholder={col.label.toUpperCase()} />}
                         </td>
                     ))}
-                    <td className="px-2 py-4 text-center"><button onClick={() => onDeleteRow(row.id)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"><TrashIcon className="w-4 h-4" /></button></td>
+                    <td className="px-2 py-1.5 text-center"><button onClick={() => onDeleteRow(row.id)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"><TrashIcon className="w-4 h-4" /></button></td>
                 </tr>
             )) : null}
         </tbody>
         <tfoot className="bg-slate-100 dark:bg-slate-900 border-t-2 border-slate-200 dark:border-slate-700 font-bold text-xs">
             <tr className="text-slate-800 dark:text-white">
                 {columns.map(col => (
-                    <td key={col.id} className={`px-6 py-4 ${['income','expense','balance','qty'].includes(col.id) ? 'text-right' : ''}`}>
+                    <td key={col.id} className={`px-6 py-2.5 ${['income','expense','balance','qty'].includes(col.id) ? 'text-right' : ''}`}>
                         {col.id === 'description' ? 'RESUMO GERAL:' : 
                             col.id === 'income' ? formatCurrency(summaryData.income) :
                             col.id === 'expense' ? formatCurrency(summaryData.expense) :
@@ -67,7 +67,7 @@ export const SpreadsheetTable: React.FC<SpreadsheetTableProps> = ({
                             col.id === 'qty' ? <div className="text-center">{summaryData.qty}</div> : ''}
                     </td>
                 ))}
-                <td className="px-2 py-4"></td>
+                <td className="px-2 py-2.5"></td>
             </tr>
         </tfoot>
     </table>

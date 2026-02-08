@@ -24,7 +24,7 @@ export const ReportHeaderSection: React.FC<ReportHeaderSectionProps> = ({
             </div>
             <div className="flex-1">
                 <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 ml-1">TÍTULO DO RELATÓRIO</label>
-                <input type="text" value={title} onChange={(e) => onTitleChange(e.target.value)} className="text-xl md:text-2xl font-black text-slate-800 dark:text-white bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300 w-full outline-none leading-tight" placeholder="DIGITE UM TÍTULO" />
+                <input type="text" value={title} onChange={(e) => onTitleChange(e.target.value)} className="text-lg md:text-xl font-black text-slate-800 dark:text-white bg-transparent border-none p-0 focus:ring-0 placeholder:text-slate-300 w-full outline-none leading-tight" placeholder="DIGITE UM TÍTULO" />
             </div>
         </div>
         <div className="flex gap-2 flex-shrink-0">

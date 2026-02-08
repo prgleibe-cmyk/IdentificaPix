@@ -115,14 +115,14 @@ export const printService = {
                         display: flex; 
                         justify-content: space-between; 
                         align-items: flex-start; 
-                        margin-bottom: 40px; 
+                        margin-bottom: 30px; 
                         border-bottom: 3px solid #0f172a; 
-                        padding-bottom: 20px; 
+                        padding-bottom: 15px; 
                     }
                     
                     .report-info h1 { 
                         margin: 0; 
-                        font-size: 28px; 
+                        font-size: 22px; 
                         font-weight: 900; 
                         text-transform: uppercase; 
                         letter-spacing: -0.5px; 
@@ -131,7 +131,7 @@ export const printService = {
                     
                     .report-info p {
                         margin: 5px 0 0;
-                        font-size: 12px;
+                        font-size: 11px;
                         font-weight: 600;
                         color: #64748b;
                         text-transform: uppercase;
@@ -141,7 +141,7 @@ export const printService = {
                     table { 
                         width: 100%; 
                         border-collapse: collapse; 
-                        margin-bottom: 40px; 
+                        margin-bottom: 30px; 
                     }
                     
                     th { 
@@ -151,14 +151,14 @@ export const printService = {
                         font-weight: 900; 
                         text-transform: uppercase; 
                         letter-spacing: 0.5px; 
-                        padding: 12px 10px; 
+                        padding: 8px 10px; 
                         border-bottom: 2px solid #cbd5e1; 
                     }
                     
                     td { 
-                        padding: 10px; 
+                        padding: 5px 10px; 
                         border-bottom: 1px solid #e2e8f0; 
-                        font-size: 11px; 
+                        font-size: 10px; 
                         font-weight: 500; 
                         color: #334155;
                     }
@@ -175,12 +175,12 @@ export const printService = {
                         justify-content: space-around; 
                         flex-wrap: wrap; 
                         gap: 40px; 
-                        margin-top: 80px; 
+                        margin-top: 60px; 
                         page-break-inside: avoid; 
                     }
                     
                     .footer {
-                        margin-top: 40px;
+                        margin-top: 30px;
                         padding-top: 10px;
                         border-top: 1px solid #e2e8f0;
                         font-size: 9px;
@@ -192,7 +192,7 @@ export const printService = {
 
                     @media print {
                         body { padding: 0; }
-                        @page { margin: 1.5cm; }
+                        @page { margin: 1cm; }
                     }
                 </style>
             </head>
