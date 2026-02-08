@@ -10,7 +10,7 @@ export * from './logic/filteringLogic';
 export const generateFingerprint = Fingerprinter.generate;
 
 /**
- * 🛠️ ADAPTER ESTRUTURAL (V3 - PRESERVAÇÃO DE BINÁRIO)
+ * 🛠️ ADAPTER ESTRUTURAL (V4 - ABSOLUTE TRUTH)
  */
 function normalizeIngestionInput(input: any) {
     if (Array.isArray(input)) return input;
@@ -20,7 +20,6 @@ function normalizeIngestionInput(input: any) {
             __source: 'file'
         };
     }
-    // Se já for um objeto (como o vindo do IngestionOrchestrator), preservamos campos especiais como __base64
     return input;
 }
 
@@ -36,7 +35,7 @@ export const findMatchingModel = (content: string, models: FileModel[]): { model
 };
 
 /**
- * PROCESSADOR DE PIPELINE (V16 - SINCRONIA TOTAL COM LAB)
+ * PROCESSADOR DE PIPELINE (V17 - ABSOLUTE TRUTH ENFORCED)
  */
 export const processFileContent = async (
     content: string, 
@@ -46,19 +45,20 @@ export const processFileContent = async (
     base64?: string 
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
-    const normalizedContent = IngestionOrchestrator.normalizeRawContent(content);
-    const matchResult = findMatchingModel(normalizedContent, models);
+    // IngestionOrchestrator V19 agora preserva o conteúdo 100% bruto
+    const rawContent = IngestionOrchestrator.normalizeRawContent(content);
+    
+    const matchResult = findMatchingModel(rawContent, models);
     const targetModel = matchResult?.model;
 
     // Criamos o input adaptado preservando o Base64 se ele existir
     const adaptedInput = {
-        __rawText: normalizedContent,
+        __rawText: rawContent,
         __base64: base64, 
         __source: 'file'
     };
 
     // O StrategyEngine agora decide se processa ou se pede modelo.
-    // MODIFICAÇÃO V16: Sempre passamos globalKeywords para manter paridade com useSimulation (Lab).
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 

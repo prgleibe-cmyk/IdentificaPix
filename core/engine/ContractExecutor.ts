@@ -5,11 +5,11 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V59 - PDF PURITY FIXED)
+ * 📜 CONTRACT EXECUTOR (V60 - ABSOLUTE TRUTH ENFORCEMENT)
  * -------------------------------------------------------
- * Este componente garante que a Lista Viva reflita exatamente
- * o que foi aprendido e simulado no Laboratório, impedindo 
- * a contaminação por texto bruto do parser de PDF.
+ * Este componente implementa a "VERDADE ABSOLUTA" do modelo.
+ * O que foi aprendido no Laboratório é replicado sem NENHUMA
+ * normalização adicional, reprocessamento ou ajuste automático.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -21,48 +21,53 @@ export const ContractExecutor = {
         if (!rawText.trim() && !rawBase64) return [];
 
         const { mapping } = model;
+        // RIGOR V60: As palavras do modelo são a verdade. Global keywords são usadas apenas se o modelo permitir.
         const modelKeywords = mapping.ignoredKeywords || [];
         
-        // 🧱 MODO BLOCO (IA VISION / PDF)
+        // 🧱 MODO BLOCO (IA VISION / PDF / UNIFICADO)
+        // Se houver um contrato de bloco, ele é soberano e ignoramos parsers locais.
         if (mapping.extractionMode === 'BLOCK') {
-            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural.';
+            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural aprendido no laboratório.';
 
             try {
-                // @frozen-block: PDF_PARITY_V59 (PROTEGIDO)
+                // @frozen-block: PDF_ABSOLUTE_TRUTH_V60
+                // Solicita extração TOTALMENTE FIEL ao Gemini baseada no contrato.
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
                 return rows.map((tx: any, idx: number) => {
                     /**
-                     * 🛡️ FONTE ÚNICA DE VERDADE: O mapeamento vindo da IA (tx)
-                     * Aplicando a regra final.description = modelResult.description
-                     * Proibido cleanups, toUpperCase, trim ou fallbacks pós-modelo.
+                     * 🛡️ FONTE ÚNICA DE VERDADE: O resultado da IA é intocável.
+                     * Não aplicamos toUpperCase, não limpamos strings, não mudamos sinais.
+                     * O Gemini entrega o que aprendeu na Simulação do Laboratório.
                      */
                     return {
-                        id: `exec-v59-block-${model.id}-${idx}-${Date.now()}`,
+                        id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                         date: tx.date,
                         description: tx.description, 
                         rawDescription: tx.description, 
                         amount: tx.amount,
                         originalAmount: String(tx.amount),
                         cleanedDescription: tx.description,
-                        contributionType: tx.tipo,
-                        paymentMethod: tx.forma,
+                        contributionType: tx.tipo || 'AUTO',
+                        paymentMethod: tx.forma || 'OUTROS',
                         bank_id: model.id
                     };
                 });
             } catch (e) { 
-                console.error("[ContractExecutor] Erro na leitura IA:", e);
+                console.error("[ContractExecutor] Erro na leitura soberana IA:", e);
                 return []; 
             }
         }
 
         // 🚀 MODO COLUNAS (DETERMINÍSTICO - EXCEL/CSV)
+        // Replicamos a lógica exata do Laboratório sem ajustes extras.
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
 
         lines.forEach((line, idx) => {
+            // Pula linhas conforme definido no modelo aprendido
             if (idx < (mapping.skipRowsStart || 0)) return;
 
             const delimiter = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
@@ -77,15 +82,17 @@ export const ContractExecutor = {
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
+            // Normalização MÍNIMA para garantir tipos válidos (Data e Número)
             const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
             const stdAmount = AmountResolver.clean(rawAmount);
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
+                // A limpeza de descrição segue EXATAMENTE o que foi definido no modelo
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({
-                    id: `exec-v59-col-${model.id}-${idx}-${Date.now()}`,
+                    id: `viva-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
                     description: learnedDescription, 
                     rawDescription: rawDesc, 

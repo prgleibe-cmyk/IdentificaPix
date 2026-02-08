@@ -3,28 +3,23 @@ import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V18 - PDF PURITY FIXED)
+ * 🎛️ INGESTION ORCHESTRATOR (V19 - ABSOLUTE TRUTH ENFORCEMENT)
  * -------------------------------------------------------
  * Garante a integridade total do arquivo original.
- * Especialmente crítico para PDFs: impede que o parser local
- * polua o texto antes da IA ou do Modelo aplicarem suas regras.
+ * O conteúdo é preservado sem NENHUMA alteração prévia ao matching.
+ * Proibido trim, toUpperCase ou qualquer limpeza antes do motor de estratégias.
  */
 export const IngestionOrchestrator = {
     /**
-     * Retorna o conteúdo purificado. 
-     * Se for um marcador de PDF, retorna sem NENHUMA alteração.
+     * Retorna o conteúdo original preservado. 
+     * Implementa a regra de 'Zero Reprocessamento' pré-modelo.
      */
     normalizeRawContent(content: string): string {
         if (!content) return "";
         
-        // RIGOR V18: Se o conteúdo é o marcador visual de PDF, 
-        // abortamos qualquer normalização de string para evitar poluição.
-        if (content.includes('[DOCUMENTO_PDF_VISUAL]')) {
-            return content;
-        }
-
-        // Para outros formatos, apenas garante string básica
-        return content.trim();
+        // RIGOR V19: Proibido alterar o input bruto. 
+        // O conteúdo deve chegar ao StrategyEngine exatamente como foi lido do arquivo.
+        return content;
     },
 
     async processVirtualData(
@@ -47,7 +42,7 @@ export const IngestionOrchestrator = {
         models: FileModel[], 
         globalKeywords: string[]
     ): Promise<any> {
-        // Usa o conteúdo BRUTO para garantir match de Hash
+        // Usa o conteúdo TOTALMENTE BRUTO para o fingerprinting
         const fingerprint = Fingerprinter.generate(content);
         
         const result = await StrategyEngine.process(
