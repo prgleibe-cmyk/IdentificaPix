@@ -6,11 +6,10 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V61 - ABSOLUTE TRUTH ENFORCEMENT)
+ * 📜 CONTRACT EXECUTOR (V62 - FROZEN LITERAL ENFORCEMENT)
  * -------------------------------------------------------
- * Este componente implementa a "VERDADE ABSOLUTA" do modelo.
- * O que foi aprendido no Laboratório é replicado sem NENHUMA
- * normalização adicional, reprocessamento ou ajuste automático.
+ * Implementa a regra de congelamento de dados pós-modelo.
+ * O valor extraído é transportado intacto até a Lista Viva.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -24,16 +23,13 @@ export const ContractExecutor = {
         const { mapping } = model;
         const modelKeywords = mapping.ignoredKeywords || [];
         
-        // 🧱 MODO BLOCO (IA VISION / PDF / UNIFICADO)
-        // Se houver um contrato de bloco, ele é soberano e ignoramos parsers locais.
+        // 🧱 MODO BLOCO (PDF / VISÃO IA)
         if (mapping.extractionMode === 'BLOCK') {
-            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural aprendido no laboratório.';
+            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo.';
 
             try {
-                // @frozen-block: PDF_ABSOLUTE_TRUTH_V61
-                // Solicita extração TOTALMENTE FIEL ao Gemini baseada no contrato.
                 if (rawBase64) {
-                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> AI_VISION`);
+                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> FROZEN_MODE`);
                 }
                 
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
@@ -41,9 +37,9 @@ export const ContractExecutor = {
                 
                 const finalRows = rows.map((tx: any, idx: number) => {
                     /**
-                     * 🛡️ FONTE ÚNICA DE VERDADE: O resultado da IA é intocável.
-                     * PROIBIDO: toUpperCase, clean, trim ou qualquer mutação.
-                     * O texto deve ser idêntico ao extraído visualmente pelo contrato.
+                     * 🔒 CONGELAMENTO LITERAL:
+                     * O texto retornado pela IA (que segue o gabarito do modelo) é preservado integralmente.
+                     * PROIBIDO: NameResolver.clean, toUpperCase, trim ou qualquer Regex.
                      */
                     const txDescriptionLiteral = String(tx.description || "");
 
@@ -54,14 +50,14 @@ export const ContractExecutor = {
                         rawDescription: txDescriptionLiteral, 
                         amount: tx.amount,
                         originalAmount: String(tx.amount),
-                        cleanedDescription: txDescriptionLiteral,
+                        cleanedDescription: txDescriptionLiteral, // No modo bloco, cleaned == literal
                         contributionType: tx.tipo || 'AUTO',
                         paymentMethod: tx.forma || 'OUTROS',
                         bank_id: model.id
                     };
 
                     if (rawBase64 && idx === 0) {
-                        console.log(`[PDF:PHASE:7:ROW_ASSEMBLY] AI_DATA -> ${JSON.stringify(tx)} | ASSEMBLED -> ${JSON.stringify(txObj)}`);
+                        console.log(`[PDF:PHASE:7:FROZEN_ROW] DATA -> ${txDescriptionLiteral}`);
                     }
 
                     return txObj;
@@ -69,7 +65,7 @@ export const ContractExecutor = {
 
                 return finalRows;
             } catch (e) { 
-                console.error("[ContractExecutor] Erro na leitura soberana IA:", e);
+                console.error("[ContractExecutor] Erro na leitura literal IA:", e);
                 return []; 
             }
         }
@@ -99,6 +95,7 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
+                // No Excel, a limpeza segue o aprendizado de palavras-chave ignoradas
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({

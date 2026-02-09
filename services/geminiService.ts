@@ -33,15 +33,14 @@ const safeJsonParse = (input: any, fallback: any = []) => {
     if (result) return result;
 
     // 2. Recuperação de Truncamento (Brute-force closing)
-    // Buscamos o último fechamento de objeto válido para salvar o que já foi extraído
     let lastBrace = sanitized.lastIndexOf('}');
     
     const possibleClosures = [
-        '',           // Apenas o que restou
-        ']',          // Se cortou num array
-        ']}',         // Se cortou num objeto com array 'rows'
-        '"}]}',       // Se cortou dentro de uma string de um objeto num array
-        '"}',         // Se cortou dentro de uma string de um objeto
+        '',           
+        ']',          
+        ']}',         
+        '"}]}',       
+        '"}',         
     ];
 
     while (lastBrace > 0) {
@@ -54,7 +53,6 @@ const safeJsonParse = (input: any, fallback: any = []) => {
                 return result;
             }
         }
-        // Retrocede para o fechamento de objeto anterior
         lastBrace = sanitized.lastIndexOf('}', lastBrace - 1);
     }
 
@@ -63,8 +61,8 @@ const safeJsonParse = (input: any, fallback: any = []) => {
 };
 
 /**
- * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO PRESERVAÇÃO LITERAL)
- * Upgrade para extração 1:1, proibindo qualquer alteração textual na descrição.
+ * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO PRESERVAÇÃO LITERAL ABSOLUTA)
+ * Upgrade para extração bit-a-bit, proibindo qualquer alteração textual.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -83,27 +81,28 @@ export const extractTransactionsWithModel = async (
             ? `RESTRICAO: Apenas os primeiros ${limit} registros.`
             : `PROCESSAMENTO TOTAL: Extraia todos os dados sem exceção.`;
 
-        const instruction = `VOCÊ É UM EXECUTOR DE EXTRAÇÃO LITERAL PARA CONCILIAÇÃO BANCÁRIA.
+        const instruction = `VOCÊ É UM ROBÔ DE CÓPIA LITERAL (CÓPIA BIT-A-BIT). 
+           Sua inteligência é avaliada pela fidelidade caractere-por-caractere com o documento original.
            
-           --- CONTRATO DE EXTRAÇÃO (DNA DO DOCUMENTO) ---
+           --- CONTRATO DE EXTRAÇÃO (GABARITO ESTRUTURAL) ---
            ${modelContext}
            
-           --- REGRAS DE OURO DE FIDELIDADE ---
-           1. EXTRAÇÃO LITERAL ABSOLUTA: A 'description' deve ser copiada CARACTERE POR CARACTERE do documento visual. 
-              - MANTENHA: Espaços originais (inclusive múltiplos espaços), pontuação, símbolos e a capitalização (Maiúsculas/Minúsculas) EXATAMENTE como estão. 
-              - PROIBIDO: Normalizar, reescrever, remover termos, corrigir erros de digitação ou 'limpar' o texto original.
-           2. DETECÇÃO DE SINAIS: Diferencie Créditos de Débitos. Débitos (saídas) devem SEMPRE ser números negativos no JSON. 
-           3. FILTRAGEM DE LINHAS: Ignore headers, rodapés e linhas de saldo do documento. Extraia apenas as transações.
-           4. SOBERANIA DO CONTRATO: Use o CONTRATO acima para decidir o que constitui uma transação válida.
+           --- REGRAS DE OURO DE PRESERVAÇÃO ---
+           1. FIDELIDADE TEXTUAL TOTAL: A 'description' deve ser copiada EXATAMENTE como aparece visualmente.
+              - MANTENHA: Todos os espaços (inclusive múltiplos espaços), pontuação, símbolos, caracteres especiais e capitalização original.
+              - PROIBIDO: Realizar trim(), remover palavras, corrigir erros, normalizar espaços ou 'limpar' o texto. Se houver um erro de digitação no PDF, copie o erro.
+           2. DETECÇÃO DE SINAIS: Identifique se é Crédito ou Débito. Valores de saída (Débitos) devem ser SEMPRE negativos no JSON.
+           3. FILTRAGEM: Extraia apenas as transações. Ignore headers de página e rodapés que não façam parte da linha da transação.
+           4. SOBERANIA: O CONTRATO acima define o que constitui o início e fim de cada campo.
            ${limitInstruction}
            
-           RETORNO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
+           RETORNO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
 
         const parts: any[] = [];
         if (base64Data) {
             parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
         } else {
-            parts.push({ text: `CONTEÚDO BRUTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
+            parts.push({ text: `CONTEÚDO PARA EXTRAÇÃO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
         }
         parts.push({ text: instruction });
 
@@ -154,7 +153,7 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
             contents: {
                 parts: [
                     { inlineData: { data: base64Data, mimeType: 'application/pdf' } },
-                    { text: "Extraia cada linha de transação do documento EXATAMENTE como aparece visualmente. Mantenha espaços e capitalização. Retorne array JSON 'rawLines'." }
+                    { text: "Extraia cada linha visual do documento literal. Mantenha espaços e capitalização. Retorne JSON 'rawLines'." }
                 ]
             },
             config: {
@@ -182,7 +181,7 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
         const ai = getAIClient();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Analise o padrão de colunas deste texto: ${sampleText.substring(0, 3000)}`,
+            contents: `Analise este texto: ${sampleText.substring(0, 3000)}`,
             config: { 
                 temperature: 0, 
                 responseMimeType: "application/json",
