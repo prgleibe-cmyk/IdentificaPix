@@ -1,7 +1,7 @@
 import { Transaction, FileModel } from '../../types';
 
 /**
- * 📜 CONTRACT EXECUTOR (V67 - SAFE DETERMINISTIC FIXED)
+ * 📜 CONTRACT EXECUTOR (V68 - SAFE HYDRATED BLOCK)
  * -------------------------------------------------------
  * O modelo aprendido é a VERDADE ABSOLUTA.
  * IA é proibida na execução.
@@ -19,11 +19,7 @@ export const ContractExecutor = {
          * Executa apenas dados aprendidos e persistidos.
          */
         if (mapping.extractionMode === 'BLOCK') {
-            const learnedRows =
-                mapping.blockRows ??
-                mapping.rows ??
-                mapping.learnedRows ??
-                [];
+            const learnedRows = hydrateBlockRows(mapping);
 
             if (!Array.isArray(learnedRows) || learnedRows.length === 0) {
                 console.warn('[ContractExecutor] BLOCK sem dados aprendidos no modelo.');
@@ -105,6 +101,31 @@ export const ContractExecutor = {
         return results;
     }
 };
+
+/**
+ * 🧱 Hidrata blockRows vindos do banco/build
+ */
+function hydrateBlockRows(mapping: any): any[] {
+    let rows =
+        mapping.blockRows ??
+        mapping.rows ??
+        mapping.learnedRows ??
+        [];
+
+    if (typeof rows === 'string') {
+        try {
+            rows = JSON.parse(rows);
+        } catch {
+            rows = [];
+        }
+    }
+
+    if (!Array.isArray(rows) && typeof rows === 'object') {
+        rows = Object.values(rows);
+    }
+
+    return Array.isArray(rows) ? rows : [];
+}
 
 /**
  * 🛡️ Normaliza datas e bloqueia valores inválidos
