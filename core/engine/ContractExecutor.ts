@@ -1,11 +1,11 @@
 import { Transaction, FileModel } from '../../types';
 
 /**
- * 📜 CONTRACT EXECUTOR (V65 - ABSOLUTE DETERMINISM)
+ * 📜 CONTRACT EXECUTOR (V66 - SAFE DETERMINISTIC)
  * -------------------------------------------------------
  * O modelo aprendido é a VERDADE ABSOLUTA.
  * IA é proibida na execução.
- * Nenhuma limpeza, inferência, OCR ou normalização é permitida.
+ * Nenhuma inferência, OCR ou adivinhação é permitida.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -16,13 +16,16 @@ export const ContractExecutor = {
 
         /**
          * 🧱 MODO BLOCO (PDF / VISUAL)
-         * Usa exclusivamente o que foi aprendido e salvo no modelo.
+         * Executa apenas dados aprendidos e persistidos.
          */
         if (mapping.extractionMode === 'BLOCK') {
             const learnedRows =
                 mapping.blockRows ??
                 mapping.rows ??
                 mapping.learnedRows ??
+                adaptedInput?.__blockRows ??
+                adaptedInput?.__rows ??
+                adaptedInput?.__learnedRows ??
                 [];
 
             if (!Array.isArray(learnedRows) || learnedRows.length === 0) {
@@ -46,7 +49,7 @@ export const ContractExecutor = {
 
         /**
          * 🚀 MODO COLUNAS (EXCEL / CSV)
-         * Determinístico e fiel ao arquivo + modelo aprendido.
+         * Determinístico e seguro.
          */
         if (!rawText?.trim()) return [];
 
@@ -72,6 +75,9 @@ export const ContractExecutor = {
                     : "";
 
             if (!rawDate && !rawDesc && !rawAmount) return;
+
+            // 🛡️ Proteção de data inválida
+            if (!rawDate || rawDate.trim().length < 4) return;
 
             const numAmount = Number(
                 String(rawAmount).replace(/\./g, '').replace(',', '.')
