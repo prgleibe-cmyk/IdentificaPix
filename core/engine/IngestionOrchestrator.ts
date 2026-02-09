@@ -1,3 +1,4 @@
+
 import { Transaction, FileModel } from '../../types';
 import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
@@ -19,6 +20,9 @@ export const IngestionOrchestrator = {
         
         // RIGOR V19: Proibido alterar o input bruto. 
         // O conteúdo deve chegar ao StrategyEngine exatamente como foi lido do arquivo.
+        if (content === '[DOCUMENTO_PDF_VISUAL]') {
+            console.log(`[PDF:PHASE:3:NORMALIZATION] ${content} -> ${content} (Preservação Literal)`);
+        }
         return content;
     },
 
@@ -44,6 +48,10 @@ export const IngestionOrchestrator = {
     ): Promise<any> {
         // Usa o conteúdo TOTALMENTE BRUTO para o fingerprinting
         const fingerprint = Fingerprinter.generate(content);
+
+        if (content === '[DOCUMENTO_PDF_VISUAL]') {
+            console.log(`[PDF:PHASE:4:TOPOLOGY] INPUT -> ${JSON.stringify(fingerprint)}`);
+        }
         
         const result = await StrategyEngine.process(
             file.name, 

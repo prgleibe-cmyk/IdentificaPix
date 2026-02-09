@@ -1,3 +1,4 @@
+
 import { Transaction, FileModel } from '../../types';
 import { DateResolver } from '../processors/DateResolver';
 import { AmountResolver } from '../processors/AmountResolver';
@@ -32,17 +33,20 @@ export const ContractExecutor = {
             try {
                 // @frozen-block: PDF_ABSOLUTE_TRUTH_V60
                 // Solicita extração TOTALMENTE FIEL ao Gemini baseada no contrato.
+                if (rawBase64) {
+                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> AI_VISION`);
+                }
+                
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
-                return rows.map((tx: any, idx: number) => {
+                const finalRows = rows.map((tx: any, idx: number) => {
                     /**
                      * 🛡️ FONTE ÚNICA DE VERDADE: O resultado da IA é intocável.
                      * Não aplicamos toUpperCase, não limpamos strings, não mudamos sinais.
                      * O Gemini entrega o que aprendeu na Simulação do Laboratório.
                      */
-                    console.log("[BLOCK:FIDELITY] Snapshot aplicado sem mutação");
-                    return {
+                    const txObj = {
                         id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                         date: tx.date,
                         description: tx.description, 
@@ -54,7 +58,15 @@ export const ContractExecutor = {
                         paymentMethod: tx.forma || 'OUTROS',
                         bank_id: model.id
                     };
+
+                    if (rawBase64 && idx === 0) {
+                        console.log(`[PDF:PHASE:7:ROW_ASSEMBLY] AI_DATA -> ${JSON.stringify(tx)} | ASSEMBLED -> ${JSON.stringify(txObj)}`);
+                    }
+
+                    return txObj;
                 });
+
+                return finalRows;
             } catch (e) { 
                 console.error("[ContractExecutor] Erro na leitura soberana IA:", e);
                 return []; 

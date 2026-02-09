@@ -1,3 +1,4 @@
+
 import { consolidationService } from './ConsolidationService';
 import { Transaction } from '../types';
 import { Logger } from './monitoringService';
@@ -70,7 +71,7 @@ export const LaunchService = {
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
             const toPersist = transactions
-                .map(item => {
+                .map((item, idx) => {
                     const finalRowHash = this.computeBaseHash(item, userId);
                     
                     // 🛡️ FILTRO DE BLINDAGEM (O FUNIL)
@@ -82,7 +83,7 @@ export const LaunchService = {
 
                     const { finalDate } = this.normalizeTriplet(item);
 
-                    return {
+                    const dbEntry = {
                         transaction_date: finalDate,
                         amount: item.amount,
                         description: item.description, 
@@ -94,6 +95,12 @@ export const LaunchService = {
                         row_hash: finalRowHash,
                         status: 'pending' as const
                     };
+
+                    if (item.id.includes('viva-block-') && idx === 0) {
+                        console.log(`[PDF:PHASE:8:LIVE_LIST_INSERT] TRANSACTION -> ${JSON.stringify(item)} | DB_ENTRY -> ${JSON.stringify(dbEntry)}`);
+                    }
+
+                    return dbEntry;
                 })
                 .filter((item): item is NonNullable<typeof item> => item !== null);
 

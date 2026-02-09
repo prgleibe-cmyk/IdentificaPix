@@ -137,6 +137,11 @@ export const extractTransactionsWithModel = async (
                 }
             }
         });
+        
+        if (base64Data) {
+            console.log(`[PDF:PHASE:6:AI_RAW_OUTPUT] RESPONSE -> ${response.text.substring(0, 500)}...`);
+        }
+        
         return safeJsonParse(response.text);
     } finally {
         isAIBusy = false;

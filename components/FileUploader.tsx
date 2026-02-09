@@ -83,8 +83,10 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
         let extractedText = '';
 
         if (fileNameLower.endsWith('.pdf')) {
+             console.log(`[PDF:PHASE:1:READING] START -> ${file.name} (${file.size} bytes)`);
              // PDFs são enviados sem texto pré-extraído para forçar a IA a usar visão computacional
              extractedText = '[DOCUMENTO_PDF_VISUAL]'; 
+             console.log(`[PDF:PHASE:2:RAW_TEXT] PDF_BINARY -> ${extractedText}`);
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
             if (!XLSX) throw new Error("Excel lib missing");
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });

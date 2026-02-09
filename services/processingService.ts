@@ -1,3 +1,4 @@
+
 import { Transaction, FileModel } from '../types';
 import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
@@ -31,6 +32,10 @@ export const findMatchingModel = (content: string, models: FileModel[]): { model
     // RIGOR ABSOLUTO: O match deve ser baseado no HeaderHash (DNA estrutural).
     const bestMatch = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
     
+    if (content === '[DOCUMENTO_PDF_VISUAL]') {
+        console.log(`[PDF:PHASE:5:MATCHER] DNA:${fileFp.headerHash} -> MATCH:${bestMatch?.name || 'NONE'}`);
+    }
+
     return bestMatch ? { model: bestMatch, score: 100 } : null;
 };
 
