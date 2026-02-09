@@ -12,23 +12,24 @@ export interface StrategyResult {
 }
 
 /**
- * 🎯 ESTRATÉGIA DE MODELO APRENDIDO (V8 - HARD BYPASS SAFE PIPE)
+ * 🎯 ESTRATÉGIA DE MODELO APRENDIDO (V9 - HARD BYPASS SAFE PIPE)
  * Autoridade máxima no processamento. Nenhum fallback inteligente.
  */
 export const DatabaseModelStrategy = {
     name: 'Modelo Aprendido',
     
     async parse(content: any, model: FileModel, globalKeywords: string[] = []) {
-        // 🔒 Blindagem do mapping antes do contrato
-        const safeModel: FileModel = {
-            ...model,
-            mapping: typeof model.mapping === 'string'
-                ? JSON.parse(model.mapping as any)
-                : { ...model.mapping }
-        };
+        // 🔒 Blindagem soberana do modelo antes do contrato
+        const safeModel = hydrateModelMapping(model);
 
-        console.log('[StrategyEngine] 🎯 Bypass Ativo -> Aplicando Contrato:', safeModel.name);
-        console.log('[StrategyEngine] 🧱 BLOCK rows:', safeModel.mapping?.blockRows?.length || 0);
+        const rows =
+            safeModel.mapping?.blockRows ??
+            safeModel.mapping?.rows ??
+            safeModel.mapping?.learnedRows ??
+            [];
+
+        console.log(`[StrategyEngine] 🎯 Bypass Ativo -> Aplicando Contrato: ${safeModel.name}`);
+        console.log(`[StrategyEngine] 🧱 BLOCK rows: ${Array.isArray(rows) ? rows.length : 0}`);
 
         return await ContractExecutor.apply(safeModel, content, globalKeywords);
     }
@@ -86,3 +87,48 @@ export const StrategyEngine = {
         return { transactions: [], strategyName: 'Inconclusivo' };
     }
 };
+
+/**
+ * 🔧 Hidratador soberano do mapping
+ * Não altera aprendizado, apenas normaliza leitura.
+ */
+function hydrateModelMapping(model: any): FileModel {
+    if (!model) return model;
+
+    let mapping: any = model.mapping || {};
+
+    if (typeof mapping === 'string') {
+        try {
+            mapping = JSON.parse(mapping);
+        } catch {
+            mapping = {};
+        }
+    }
+
+    let rows =
+        mapping.blockRows ??
+        mapping.block_rows ??
+        mapping.rows ??
+        mapping.learnedRows ??
+        [];
+
+    if (typeof rows === 'string') {
+        try {
+            rows = JSON.parse(rows);
+        } catch {
+            rows = [];
+        }
+    }
+
+    if (!Array.isArray(rows) && typeof rows === 'object') {
+        rows = Object.values(rows);
+    }
+
+    return {
+        ...model,
+        mapping: {
+            ...mapping,
+            blockRows: Array.isArray(rows) ? rows : []
+        }
+    };
+}
