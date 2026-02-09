@@ -6,7 +6,7 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V60 - ABSOLUTE TRUTH ENFORCEMENT)
+ * 📜 CONTRACT EXECUTOR (V61 - ABSOLUTE TRUTH ENFORCEMENT)
  * -------------------------------------------------------
  * Este componente implementa a "VERDADE ABSOLUTA" do modelo.
  * O que foi aprendido no Laboratório é replicado sem NENHUMA
@@ -22,7 +22,6 @@ export const ContractExecutor = {
         if (!rawText.trim() && !rawBase64) return [];
 
         const { mapping } = model;
-        // RIGOR V60: As palavras do modelo são a verdade. Global keywords são usadas apenas se o modelo permitir.
         const modelKeywords = mapping.ignoredKeywords || [];
         
         // 🧱 MODO BLOCO (IA VISION / PDF / UNIFICADO)
@@ -31,7 +30,7 @@ export const ContractExecutor = {
             const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo estrutural aprendido no laboratório.';
 
             try {
-                // @frozen-block: PDF_ABSOLUTE_TRUTH_V60
+                // @frozen-block: PDF_ABSOLUTE_TRUTH_V61
                 // Solicita extração TOTALMENTE FIEL ao Gemini baseada no contrato.
                 if (rawBase64) {
                     console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> AI_VISION`);
@@ -43,17 +42,19 @@ export const ContractExecutor = {
                 const finalRows = rows.map((tx: any, idx: number) => {
                     /**
                      * 🛡️ FONTE ÚNICA DE VERDADE: O resultado da IA é intocável.
-                     * Não aplicamos toUpperCase, não limpamos strings, não mudamos sinais.
-                     * O Gemini entrega o que aprendeu na Simulação do Laboratório.
+                     * PROIBIDO: toUpperCase, clean, trim ou qualquer mutação.
+                     * O texto deve ser idêntico ao extraído visualmente pelo contrato.
                      */
+                    const txDescriptionLiteral = String(tx.description || "");
+
                     const txObj = {
                         id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                         date: tx.date,
-                        description: tx.description, 
-                        rawDescription: tx.description, 
+                        description: txDescriptionLiteral, 
+                        rawDescription: txDescriptionLiteral, 
                         amount: tx.amount,
                         originalAmount: String(tx.amount),
-                        cleanedDescription: tx.description,
+                        cleanedDescription: txDescriptionLiteral,
                         contributionType: tx.tipo || 'AUTO',
                         paymentMethod: tx.forma || 'OUTROS',
                         bank_id: model.id
@@ -74,13 +75,11 @@ export const ContractExecutor = {
         }
 
         // 🚀 MODO COLUNAS (DETERMINÍSTICO - EXCEL/CSV)
-        // Replicamos a lógica exata do Laboratório sem ajustes extras.
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
 
         lines.forEach((line, idx) => {
-            // Pula linhas conforme definido no modelo aprendido
             if (idx < (mapping.skipRowsStart || 0)) return;
 
             const delimiter = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
@@ -95,13 +94,11 @@ export const ContractExecutor = {
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
-            // Normalização MÍNIMA para garantir tipos válidos (Data e Número)
             const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
             const stdAmount = AmountResolver.clean(rawAmount);
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                // A limpeza de descrição segue EXATAMENTE o que foi definido no modelo
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({

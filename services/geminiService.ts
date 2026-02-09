@@ -63,8 +63,8 @@ const safeJsonParse = (input: any, fallback: any = []) => {
 };
 
 /**
- * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO AUDITORIA)
- * Upgrade para raciocínio profundo (Thinking v3) com limites de tokens blindados.
+ * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO PRESERVAÇÃO LITERAL)
+ * Upgrade para extração 1:1, proibindo qualquer alteração textual na descrição.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -83,16 +83,18 @@ export const extractTransactionsWithModel = async (
             ? `RESTRICAO: Apenas os primeiros ${limit} registros.`
             : `PROCESSAMENTO TOTAL: Extraia todos os dados sem exceção.`;
 
-        const instruction = `VOCÊ É UM AUDITOR FINANCEIRO DE ELITE COM FOCO EM CONCILIAÇÃO BANCÁRIA.
+        const instruction = `VOCÊ É UM EXECUTOR DE EXTRAÇÃO LITERAL PARA CONCILIAÇÃO BANCÁRIA.
            
            --- CONTRATO DE EXTRAÇÃO (DNA DO DOCUMENTO) ---
            ${modelContext}
            
-           --- REGRAS DE OURO DE AUDITORIA ---
-           1. MÁXIMA REFLEXÃO: Antes de extrair, analise a estrutura visual do PDF/Texto. Identifique onde estão colunas de Data, Histórico e Valor.
+           --- REGRAS DE OURO DE FIDELIDADE ---
+           1. EXTRAÇÃO LITERAL ABSOLUTA: A 'description' deve ser copiada CARACTERE POR CARACTERE do documento visual. 
+              - MANTENHA: Espaços originais (inclusive múltiplos espaços), pontuação, símbolos e a capitalização (Maiúsculas/Minúsculas) EXATAMENTE como estão. 
+              - PROIBIDO: Normalizar, reescrever, remover termos, corrigir erros de digitação ou 'limpar' o texto original.
            2. DETECÇÃO DE SINAIS: Diferencie Créditos de Débitos. Débitos (saídas) devem SEMPRE ser números negativos no JSON. 
-           3. LIMPEZA DE RUÍDO: Ignore headers, rodapés e linhas de saldo.
-           4. FIDELIDADE AO ADMIN: Use o CONTRATO acima para decidir o que é uma transação válida.
+           3. FILTRAGEM DE LINHAS: Ignore headers, rodapés e linhas de saldo do documento. Extraia apenas as transações.
+           4. SOBERANIA DO CONTRATO: Use o CONTRATO acima para decidir o que constitui uma transação válida.
            ${limitInstruction}
            
            RETORNO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
@@ -110,8 +112,6 @@ export const extractTransactionsWithModel = async (
             contents: { parts },
             config: {
                 temperature: 0,
-                // BLINDAGEM DE TOKENS: Setar ambos garante que o modelo tenha espaço para pensar E responder.
-                // Isso evita o truncamento JSON (Unterminated String) em arquivos longos.
                 maxOutputTokens: 64000, 
                 thinkingConfig: { thinkingBudget: 32000 },
                 responseMimeType: "application/json",
@@ -138,10 +138,6 @@ export const extractTransactionsWithModel = async (
             }
         });
         
-        if (base64Data) {
-            console.log(`[PDF:PHASE:6:AI_RAW_OUTPUT] RESPONSE -> ${response.text.substring(0, 500)}...`);
-        }
-        
         return safeJsonParse(response.text);
     } finally {
         isAIBusy = false;
@@ -158,7 +154,7 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
             contents: {
                 parts: [
                     { inlineData: { data: base64Data, mimeType: 'application/pdf' } },
-                    { text: "Identifique blocos de transações. Retorne array JSON 'rawLines'." }
+                    { text: "Extraia cada linha de transação do documento EXATAMENTE como aparece visualmente. Mantenha espaços e capitalização. Retorne array JSON 'rawLines'." }
                 ]
             },
             config: {
