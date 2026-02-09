@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { FileModel } from '../types';
 import { Logger } from './monitoringService';
@@ -5,38 +6,58 @@ import { get, set, del } from 'idb-keyval';
 
 const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v12';
 
-function safeJsonParse(value: any) {
-    if (!value) return {};
-    if (typeof value === 'object') return value;
-    try {
-        return JSON.parse(value);
-    } catch {
-        return {};
+/**
+ * 🧬 REIDRATADOR SOBERANO (V13 - BLOCK INTEGRITY)
+ * Garante que independentemente de como o Supabase ou o Cache retornem o dado,
+ * o objeto FileModel terá seus campos JSON (mapping, fingerprint, rules) como Objetos.
+ * Especialmente focado em tornar blockRows acessível para modelos de IA.
+ */
+const normalizeModel = (row: any): FileModel => {
+    if (!row) return row;
+    
+    // 1. Hidratação do Fingerprint
+    const fingerprint = typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint;
+    
+    // 2. 🛡️ HIDRATAÇÃO BLINDADA DO MAPPING (Crucial para blockRows)
+    let mapping = row.mapping;
+    if (typeof mapping === 'string') {
+        try {
+            mapping = JSON.parse(mapping);
+        } catch (e) {
+            console.error(`[ModelService] Erro crítico de parse no mapping do modelo ${row.id}`);
+            mapping = { extractionMode: 'COLUMNS', dateColumnIndex: -1, descriptionColumnIndex: -1, amountColumnIndex: -1, skipRowsStart: 0, skipRowsEnd: 0, decimalSeparator: ',', thousandsSeparator: '.' };
+        }
     }
-}
 
-function normalizeMapping(raw: any) {
-    const mapping = safeJsonParse(raw) || {};
+    // 3. 🧪 AUDITORIA DE BLOCO
+    // Verifica se os dados aprendidos (blockRows) foram preservados após a conversão
+    if (mapping && mapping.extractionMode === 'BLOCK') {
+        const rowsCount = Array.isArray(mapping.blockRows) ? mapping.blockRows.length : 0;
+        console.log(`[ModelService:Hydrate] 🎯 Modelo BLOCK "${row.name}" reconhecido. blockRows carregados: ${rowsCount}`);
+    }
 
-    // 🔒 NÃO DESTRUTIVO + COMPATÍVEL PDF/EXCEL
-    const blockRows =
-        mapping.blockRows ??
-        mapping.block_rows ??
-        mapping.rows ??
-        mapping.learnedRows ??
-        mapping.blocks ??
-        mapping.tableBlocks ??
-        mapping.modelRows ??
-        mapping.pdfRows ??
-        mapping.learned ??
-        [];
+    // 4. Hidratação de Parsing Rules
+    const parsingRules = row.parsing_rules 
+        ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) 
+        : { ignoredKeywords: [], rowFilters: [] };
 
     return {
-        ...mapping,
-        blockRows: Array.isArray(blockRows) ? blockRows : [],
-        blockText: mapping.blockText || mapping.block_text || mapping.text || ''
+        ...row,
+        id: row.id,
+        name: row.name,
+        user_id: row.user_id,
+        version: row.version || 1,
+        lineage_id: row.lineage_id || row.id,
+        is_active: row.is_active,
+        status: row.status || 'approved',
+        fingerprint,
+        mapping,
+        parsingRules,
+        snippet: row.snippet,
+        createdAt: row.created_at || new Date().toISOString(),
+        lastUsedAt: row.last_used_at
     };
-}
+};
 
 export const modelService = {
     getUserModels: async (userId: string): Promise<FileModel[]> => {
@@ -48,40 +69,14 @@ export const modelService = {
             
             if (error) throw error;
 
-            const mapDbRowToModel = (row: any): FileModel => {
-                const fingerprint = safeJsonParse(row.fingerprint);
-                const mapping = normalizeMapping(row.mapping);
-
-                const parsingRules = row.parsing_rules
-                    ? safeJsonParse(row.parsing_rules)
-                    : { ignoredKeywords: [], rowFilters: [] };
-
-                return {
-                    ...row,
-                    id: row.id,
-                    name: row.name,
-                    user_id: row.user_id,
-                    version: row.version || 1,
-                    lineage_id: row.lineage_id || row.id,
-                    is_active: row.is_active,
-                    status: row.status || 'approved',
-                    fingerprint,
-                    mapping,
-                    parsingRules,
-                    snippet: row.snippet,
-                    createdAt: row.created_at || new Date().toISOString(),
-                    lastUsedAt: row.last_used_at
-                };
-            };
-
-            const remoteModels = data ? data.map(mapDbRowToModel) : [];
+            const remoteModels = data ? data.map(normalizeModel) : [];
             await set(PERSISTENT_STORAGE_KEY, remoteModels);
             return remoteModels;
 
         } catch (e) {
-            console.warn("[ModelService] Falha na rede, tentando ler cache local...", e);
+            console.warn("[ModelService] Usando cache local...", e);
             const cached = await get(PERSISTENT_STORAGE_KEY);
-            return Array.isArray(cached) ? cached : [];
+            return Array.isArray(cached) ? cached.map(normalizeModel) : [];
         }
     },
 
@@ -96,7 +91,14 @@ export const modelService = {
                     .eq('lineage_id', model.lineage_id);
             }
 
-            const safeMapping = normalizeMapping(model.mapping);
+            // 🛡️ GARANTIA DE PERSISTÊNCIA BLOCK (V22)
+            // Mapeia explicitamente rascunhos do editor para o campo oficial blockRows
+            if (model.mapping && model.mapping.extractionMode === 'BLOCK') {
+                const anyMapping = model.mapping as any;
+                const learnedRows = anyMapping.blockRows || anyMapping.rows || anyMapping.examples || anyMapping.learnedRows || [];
+                model.mapping.blockRows = learnedRows;
+                console.log(`[ModelService:Save] Modelo BLOCK salvo com blockRows: ${learnedRows.length}`);
+            }
 
             const { data, error } = await supabase
                 .from('file_models')
@@ -107,9 +109,9 @@ export const modelService = {
                     lineage_id: model.lineage_id || `mod-${Date.now()}`,
                     is_active: true,
                     status: model.status || 'approved',
-                    fingerprint: JSON.stringify(model.fingerprint),
-                    mapping: JSON.stringify(safeMapping),
-                    parsing_rules: JSON.stringify(model.parsingRules),
+                    fingerprint: model.fingerprint,
+                    mapping: model.mapping,
+                    parsing_rules: model.parsingRules,
                     snippet: model.snippet
                 }])
                 .select('*')
@@ -117,7 +119,7 @@ export const modelService = {
 
             if (error) throw error;
             await del(PERSISTENT_STORAGE_KEY);
-            return data;
+            return normalizeModel(data); // 🧱 Hidratação imediata pós-save
         } catch (error) {
             Logger.error("Erro ao salvar modelo", error);
             throw error;
@@ -126,18 +128,22 @@ export const modelService = {
 
     updateModel: async (id: string, updates: Partial<FileModel>): Promise<FileModel | null> => {
         try {
-            const safeMapping = updates.mapping
-                ? normalizeMapping(updates.mapping)
-                : undefined;
+            // 🛡️ GARANTIA DE PERSISTÊNCIA BLOCK EM UPDATE (V22)
+            if (updates.mapping && updates.mapping.extractionMode === 'BLOCK') {
+                const anyMapping = updates.mapping as any;
+                const learnedRows = anyMapping.blockRows || anyMapping.rows || anyMapping.examples || anyMapping.learnedRows || [];
+                updates.mapping.blockRows = learnedRows;
+                console.log(`[ModelService:Save] Modelo BLOCK salvo com blockRows: ${learnedRows.length}`);
+            }
 
             const { data, error } = await supabase
                 .from('file_models')
                 .update({
                     name: updates.name,
                     status: updates.status,
-                    fingerprint: updates.fingerprint ? JSON.stringify(updates.fingerprint) : undefined,
-                    mapping: safeMapping ? JSON.stringify(safeMapping) : undefined,
-                    parsing_rules: updates.parsingRules ? JSON.stringify(updates.parsingRules) : undefined,
+                    fingerprint: updates.fingerprint,
+                    mapping: updates.mapping,
+                    parsing_rules: updates.parsingRules,
                     snippet: updates.snippet,
                     last_used_at: new Date().toISOString()
                 })
@@ -147,7 +153,7 @@ export const modelService = {
 
             if (error) throw error;
             await del(PERSISTENT_STORAGE_KEY);
-            return data;
+            return normalizeModel(data); // 🧱 Hidratação imediata pós-update
         } catch (error) {
             Logger.error("Erro ao atualizar modelo", error);
             throw error;
@@ -164,13 +170,9 @@ export const modelService = {
     },
 
     getAllModelsAdmin: async (): Promise<FileModel[]> => {
-        const { data, error } = await supabase
-            .from('file_models')
-            .select('*')
-            .order('created_at', { ascending: false });
-
+        const { data, error } = await supabase.from('file_models').select('*').order('created_at', { ascending: false });
         if (error) return [];
-        return data as any[];
+        return (data as any[]).map(normalizeModel); // 🧱 Hidratação para Admin
     },
 
     updateModelName: async (id: string, name: string) => {

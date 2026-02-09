@@ -1,166 +1,106 @@
 import { Transaction, FileModel } from '../../types';
+import { DateResolver } from '../processors/DateResolver';
+import { AmountResolver } from '../processors/AmountResolver';
+import { NameResolver } from '../processors/NameResolver';
 
 /**
- * 📜 CONTRACT EXECUTOR (V68 - SAFE HYDRATED BLOCK)
+ * 📜 CONTRACT EXECUTOR (V67 - HARDENED EXECUTIVE MODE)
  * -------------------------------------------------------
- * O modelo aprendido é a VERDADE ABSOLUTA.
- * IA é proibida na execução.
- * Nenhuma inferência, OCR ou adivinhação é permitida.
+ * Executa o contrato aprendido no Laboratório com rigor absoluto.
+ * No modo BLOCK, ele reproduz o aprendizado fixado e protege contra falhas de tipo.
  */
 export const ContractExecutor = {
-    async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
+    async apply(model: FileModel, adaptedInput: any, _globalKeywords: string[] = []): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
-        const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
-        const { mapping } = model;
+        // 🛡️ ÚLTIMA LINHA DE DEFESA: Se o mapping chegar como string, tenta parsear localmente
+        let mapping = model.mapping;
+        if (typeof mapping === 'string') {
+            try {
+                mapping = JSON.parse(mapping);
+            } catch (e) {
+                console.error("[ContractExecutor] Falha fatal ao parsear mapping stringificado.");
+                return [];
+            }
+        }
 
+        const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
+        
         /**
-         * 🧱 MODO BLOCO (PDF / VISUAL)
-         * Executa apenas dados aprendidos e persistidos.
+         * 🧱 MODO BLOCO (DETERMINÍSTICO E FIXO)
+         * O contrato de bloco agora retorna EXATAMENTE o que foi aprendido no laboratório.
          */
         if (mapping.extractionMode === 'BLOCK') {
-            const learnedRows = hydrateBlockRows(mapping);
-
-            if (!Array.isArray(learnedRows) || learnedRows.length === 0) {
-                console.warn('[ContractExecutor] BLOCK sem dados aprendidos no modelo.');
+            const learnedRows = mapping.blockRows || [];
+            
+            if (learnedRows.length === 0) {
+                console.warn("[ContractExecutor] Alerta: Modelo BLOCK sem blockRows (dados aprendidos) salvo.");
                 return [];
             }
 
-            return learnedRows
-                .filter((tx: any) => tx && (tx.date || tx.description || tx.amount))
-                .map((tx: any, idx: number) => {
-                    const safeDate = normalizeDate(tx.date);
-                    if (!safeDate) return null;
-
-                    const numAmount = normalizeAmount(tx.amount);
-
-                    return {
-                        id: `viva-block-${model.id}-${idx}-${Date.now()}`,
-                        date: safeDate,
-                        description: String(tx.description || '').trim(),
-                        rawDescription: String(tx.description || '').trim(),
-                        amount: numAmount,
-                        originalAmount: String(tx.amount || ''),
-                        cleanedDescription: String(tx.description || '').trim(),
-                        contributionType: tx.tipo || (numAmount >= 0 ? 'ENTRADA' : 'SAÍDA'),
-                        paymentMethod: tx.forma || 'OUTROS',
-                        bank_id: model.id
-                    };
-                })
-                .filter(Boolean) as Transaction[];
+            // Mapeia os dados aprendidos para o contexto atual (IDs únicos por execução)
+            return learnedRows.map((tx: any, idx: number) => ({
+                id: `viva-block-${model.id}-${idx}-${Date.now()}`,
+                date: tx.date || "---",
+                description: String(tx.description || "").toUpperCase().trim(),
+                rawDescription: tx.rawDescription || tx.description,
+                amount: Number(tx.amount) || 0,
+                originalAmount: String(tx.originalAmount || tx.amount),
+                cleanedDescription: tx.description,
+                contributionType: tx.contributionType || 'AUTO',
+                paymentMethod: tx.paymentMethod || 'OUTROS',
+                bank_id: model.id
+            }));
         }
 
         /**
-         * 🚀 MODO COLUNAS (EXCEL / CSV)
-         * Determinístico e seguro.
+         * 🚀 MODO COLUNAS (DETERMINÍSTICO - EXCEL/CSV)
+         * Réplica exata da simulação sobre o texto bruto.
          */
-        if (!rawText?.trim()) return [];
-
+        if (!rawText.trim()) return [];
+        
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
+        const currentYear = new Date().getFullYear();
+        const modelKeywords = mapping.ignoredKeywords || [];
 
         lines.forEach((line, idx) => {
             if (idx < (mapping.skipRowsStart || 0)) return;
 
-            const delimiter = line.includes(';')
-                ? ';'
-                : (line.includes('\t') ? '\t' : ',');
-
-            const cells = line.split(delimiter).map(c => String(c || '').trim());
-
+            const delimiter = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
+            const cells = line.split(delimiter).map(c => c.trim());
+            
             const rawDate = cells[mapping.dateColumnIndex] || "";
             const rawDesc = cells[mapping.descriptionColumnIndex] || "";
             const rawAmount = cells[mapping.amountColumnIndex] || "";
-            const rawForm =
-                (mapping.paymentMethodColumnIndex !== undefined &&
-                 mapping.paymentMethodColumnIndex >= 0)
-                    ? cells[mapping.paymentMethodColumnIndex]
-                    : "";
+            const rawForm = (mapping.paymentMethodColumnIndex !== undefined && mapping.paymentMethodColumnIndex >= 0) 
+                ? cells[mapping.paymentMethodColumnIndex] 
+                : "";
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
-            const safeDate = normalizeDate(rawDate);
-            if (!safeDate) return;
+            const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
+            const stdAmount = AmountResolver.clean(rawAmount);
+            const numAmount = parseFloat(stdAmount);
 
-            const numAmount = normalizeAmount(rawAmount);
-
-            results.push({
-                id: `viva-col-${model.id}-${idx}-${Date.now()}`,
-                date: safeDate,
-                description: rawDesc,
-                rawDescription: rawDesc,
-                amount: numAmount,
-                originalAmount: rawAmount,
-                cleanedDescription: rawDesc,
-                contributionType: isNaN(numAmount) ? 'AUTO' : (numAmount >= 0 ? 'ENTRADA' : 'SAÍDA'),
-                paymentMethod: rawForm || 'OUTROS',
-                bank_id: model.id
-            });
+            if (isoDate && !isNaN(numAmount)) {
+                const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, []);
+                
+                results.push({
+                    id: `viva-col-${model.id}-${idx}-${Date.now()}`,
+                    date: isoDate,
+                    description: learnedDescription, 
+                    rawDescription: rawDesc, 
+                    amount: numAmount,
+                    originalAmount: rawAmount,
+                    cleanedDescription: learnedDescription,
+                    contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
+                    paymentMethod: rawForm || 'OUTROS',
+                    bank_id: model.id
+                });
+            }
         });
 
         return results;
     }
 };
-
-/**
- * 🧱 Hidrata blockRows vindos do banco/build
- */
-function hydrateBlockRows(mapping: any): any[] {
-    let rows =
-        mapping.blockRows ??
-        mapping.rows ??
-        mapping.learnedRows ??
-        [];
-
-    if (typeof rows === 'string') {
-        try {
-            rows = JSON.parse(rows);
-        } catch {
-            rows = [];
-        }
-    }
-
-    if (!Array.isArray(rows) && typeof rows === 'object') {
-        rows = Object.values(rows);
-    }
-
-    return Array.isArray(rows) ? rows : [];
-}
-
-/**
- * 🛡️ Normaliza datas e bloqueia valores inválidos
- */
-function normalizeDate(input: any): string | null {
-    if (!input) return null;
-
-    const raw = String(input).trim();
-    if (!raw) return null;
-    if (raw === '0000-00-00') return null;
-
-    // dd/mm/yyyy
-    if (raw.includes('/')) {
-        const [d, m, y] = raw.split('/');
-        if (y && y.length === 4) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-
-    // yyyy-mm-dd
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
-    return null;
-}
-
-/**
- * 🛡️ Normaliza valores monetários
- */
-function normalizeAmount(input: any): number {
-    if (input === null || input === undefined) return 0;
-
-    const num = Number(
-        String(input)
-            .replace(/\s/g, '')
-            .replace(/\./g, '')
-            .replace(',', '.')
-    );
-
-    return isNaN(num) ? 0 : num;
-}

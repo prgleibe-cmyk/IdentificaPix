@@ -3,24 +3,24 @@ import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V21 - ABSOLUTE RAW PIPELINE)
+ * 🎛️ INGESTION ORCHESTRATOR (V20 - SOVEREIGN SHIELD)
  * -------------------------------------------------------
- * Ponto soberano de entrada.
- * Quando há modelo aprendido, o conteúdo é tratado como
- * entidade sagrada: sem adapters, sem parsers, sem normalização.
+ * Ponto central de decisão de processamento. 
+ * Se houver um modelo, o sistema ignora parsers legados e 
+ * utiliza apenas o Contrato Aprendido.
  */
 export const IngestionOrchestrator = {
     /**
-     * Regra de Ouro:
-     * Nunca alterar o conteúdo antes do contrato.
+     * Preserva o conteúdo bruto. 
+     * Regra de Ouro: Proibido alterar o input antes da aplicação do modelo.
      */
     normalizeRawContent(content: string): string {
-        return content ?? "";
+        return content || "";
     },
 
     async processVirtualData(
-        sourceName: string,
-        transactions: Transaction[],
+        sourceName: string, 
+        transactions: Transaction[], 
         _globalKeywords: string[]
     ): Promise<any> {
         return {
@@ -33,38 +33,30 @@ export const IngestionOrchestrator = {
     },
 
     /**
-     * FUNIL SOBERANO
-     * O arquivo entra bruto e sai apenas pelo contrato aprendido.
+     * O FUNIL SOBERANO: 
+     * Identifica se o arquivo é "conhecido" (tem modelo).
+     * Se sim, envia direto para o ContractExecutor através do StrategyEngine.
      */
     async processFile(
-        file: File,
-        content: string,
-        models: FileModel[],
+        file: File, 
+        content: string, 
+        models: FileModel[], 
         globalKeywords: string[]
     ): Promise<any> {
-        // DNA sempre do conteúdo original
+        // 1. Gera DNA do conteúdo totalmente bruto
         const fingerprint = Fingerprinter.generate(content);
-
-        // Payload absolutamente cru
-        const adaptedInput = {
-            __rawText: content,
-            __base64: (file as any)?.base64,
-            __source: 'file',
-            __sovereign: true,       // <- BLINDAGEM
-            __bypassAdapters: true, // <- BLINDAGEM
-            __bypassParsers: true   // <- BLINDAGEM
-        };
-
+        
+        // 2. Aciona o motor de estratégias que agora prioriza o bypass de modelos
         const result = await StrategyEngine.process(
-            file.name,
-            adaptedInput,
-            models,
+            file.name, 
+            { __rawText: content, __source: 'file' }, 
+            models, 
             globalKeywords
         );
-
+        
         return {
             source: 'upload',
-            transactions: Array.isArray(result?.transactions) ? result.transactions : [],
+            transactions: result.transactions || [],
             status: result.status,
             fileName: result.fileName || file.name,
             fingerprint: result.fingerprint || fingerprint || { columnCount: 0 },

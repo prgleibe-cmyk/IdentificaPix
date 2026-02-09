@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useContext, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useUI } from '../../contexts/UIContext';
@@ -95,10 +94,10 @@ export const FilePreprocessorModal: React.FC<{
         try {
             const finalSnippet = gridData.map(row => row.join(';')).join('\n');
             
-            // CONTRATO DE PERSISTÊNCIA TOTAL (V18):
-            // Garante que o mapping state seja a base, preservando o blockContract.
-            // Une as regras de parsing originais para não perder seletores ou filtros avançados.
+            // CONTRATO DE PERSISTÊNCIA TOTAL (V19):
+            // Injeta as blockRows (transações aprendidas) no mapping se estiver no modo BLOCK.
             const learnedKeywords = activeMapping.ignoredKeywords || [];
+            const isBlock = activeMapping.extractionMode === 'BLOCK';
             
             const modelData: any = { 
                 name: finalName, 
@@ -107,9 +106,12 @@ export const FilePreprocessorModal: React.FC<{
                 lineage_id: initialModel ? initialModel.lineage_id : `mod-${Date.now()}`, 
                 is_active: true, 
                 fingerprint: { ...detectedFingerprint }, 
-                mapping: { ...activeMapping }, // PERSISTÊNCIA INTEGRAL DO OBJETO MAPPING
+                mapping: { 
+                    ...activeMapping, 
+                    blockRows: isBlock ? processedTransactions : [] 
+                },
                 parsingRules: { 
-                    ...initialModel?.parsingRules, // Preserva filtros legados
+                    ...initialModel?.parsingRules, 
                     ignoredKeywords: learnedKeywords, 
                     rowFilters: initialModel?.parsingRules?.rowFilters || [] 
                 }, 
@@ -129,7 +131,7 @@ export const FilePreprocessorModal: React.FC<{
             console.error("[Preprocessor:Persist] Fail:", e);
             showToast("Erro ao salvar padrão.", "error"); 
         } finally { setIsSavingModel(false); }
-    }, [activeMapping, detectedFingerprint, user, gridData, initialModel, onSuccess, onClose, showToast, fetchModels]);
+    }, [activeMapping, detectedFingerprint, user, gridData, initialModel, processedTransactions, onSuccess, onClose, showToast, fetchModels]);
 
     return createPortal(
         <div className="fixed inset-0 z-[9999] bg-[#050B14]/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fade-in overflow-hidden">
