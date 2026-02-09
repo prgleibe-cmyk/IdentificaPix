@@ -7,7 +7,7 @@ import { get, set, del } from 'idb-keyval';
 const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v12';
 
 /**
- * 🧬 REIDRATADOR SOBERANO (V13 - BLOCK INTEGRITY)
+ * 🧬 REIDRATADOR SOBERANO (V14 - BLOCK INTEGRITY)
  * Garante que independentemente de como o Supabase ou o Cache retornem o dado,
  * o objeto FileModel terá seus campos JSON (mapping, fingerprint, rules) como Objetos.
  * Especialmente focado em tornar blockRows acessível para modelos de IA.
@@ -29,11 +29,17 @@ const normalizeModel = (row: any): FileModel => {
         }
     }
 
-    // 3. 🧪 AUDITORIA DE BLOCO
-    // Verifica se os dados aprendidos (blockRows) foram preservados após a conversão
+    // 3. 🧪 AUDITORIA E REPARO DE BLOCO
+    // Garante que se as linhas estiverem com nomes alternativos no JSON do banco, elas sejam movidas para blockRows
     if (mapping && mapping.extractionMode === 'BLOCK') {
+        if (!Array.isArray(mapping.blockRows) || mapping.blockRows.length === 0) {
+            const alternativeRows = mapping.rows || mapping.examples || mapping.learnedRows || [];
+            if (alternativeRows.length > 0) {
+                mapping.blockRows = alternativeRows;
+            }
+        }
         const rowsCount = Array.isArray(mapping.blockRows) ? mapping.blockRows.length : 0;
-        console.log(`[ModelService:Hydrate] 🎯 Modelo BLOCK "${row.name}" reconhecido. blockRows carregados: ${rowsCount}`);
+        console.log(`[ModelService:Hydrate] 🎯 Modelo BLOCK "${row.name}" reidratado. blockRows: ${rowsCount}`);
     }
 
     // 4. Hidratação de Parsing Rules
@@ -91,11 +97,15 @@ export const modelService = {
                     .eq('lineage_id', model.lineage_id);
             }
 
-            // 🛡️ GARANTIA DE PERSISTÊNCIA BLOCK (V22)
+            // 🛡️ GARANTIA DE PERSISTÊNCIA BLOCK (V23)
             // Mapeia explicitamente rascunhos do editor para o campo oficial blockRows
             if (model.mapping && model.mapping.extractionMode === 'BLOCK') {
                 const anyMapping = model.mapping as any;
-                const learnedRows = anyMapping.blockRows || anyMapping.rows || anyMapping.examples || anyMapping.learnedRows || [];
+                const learnedRows = Array.isArray(anyMapping.blockRows) ? anyMapping.blockRows :
+                                   Array.isArray(anyMapping.rows) ? anyMapping.rows :
+                                   Array.isArray(anyMapping.examples) ? anyMapping.examples :
+                                   Array.isArray(anyMapping.learnedRows) ? anyMapping.learnedRows : [];
+                
                 model.mapping.blockRows = learnedRows;
                 console.log(`[ModelService:Save] Modelo BLOCK salvo com blockRows: ${learnedRows.length}`);
             }
@@ -128,10 +138,14 @@ export const modelService = {
 
     updateModel: async (id: string, updates: Partial<FileModel>): Promise<FileModel | null> => {
         try {
-            // 🛡️ GARANTIA DE PERSISTÊNCIA BLOCK EM UPDATE (V22)
+            // 🛡️ GARANTIA DE PERSISTÊNCIA BLOCK EM UPDATE (V23)
             if (updates.mapping && updates.mapping.extractionMode === 'BLOCK') {
                 const anyMapping = updates.mapping as any;
-                const learnedRows = anyMapping.blockRows || anyMapping.rows || anyMapping.examples || anyMapping.learnedRows || [];
+                const learnedRows = Array.isArray(anyMapping.blockRows) ? anyMapping.blockRows :
+                                   Array.isArray(anyMapping.rows) ? anyMapping.rows :
+                                   Array.isArray(anyMapping.examples) ? anyMapping.examples :
+                                   Array.isArray(anyMapping.learnedRows) ? anyMapping.learnedRows : [];
+                
                 updates.mapping.blockRows = learnedRows;
                 console.log(`[ModelService:Save] Modelo BLOCK salvo com blockRows: ${learnedRows.length}`);
             }
