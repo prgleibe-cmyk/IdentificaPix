@@ -121,6 +121,7 @@ export interface FileModel {
   mapping: {
     extractionMode?: 'COLUMNS' | 'BLOCK';
     blockContract?: string;
+    learnedSnapshot?: any;
     dateColumnIndex: number;
     descriptionColumnIndex: number;
     amountColumnIndex: number;

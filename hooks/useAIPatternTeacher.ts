@@ -52,23 +52,27 @@ export const useAIPatternTeacher = ({
             - Forma: "${learnedPatternSource.corrected.paymentMethod}"
             
             --- TAREFA E REGRAS CRÍTICAS (BLINDADAS) ---
-            1. PROIBIDO ADIVINHAR: Sua inteligência deve se limitar a replicar a relação física entre o Bruto e o Gabarito.
+            1. PROIBIDO ADIVINHAR OU MELHORAR: Sua inteligência deve se limitar a replicar a relação física entre o Bruto e o Gabarito.
             2. CONVENÇÃO BANCÁRIA (DÉBITO): Se o Admin definiu um valor como NEGATIVO e no Bruto ele possui o sufixo "D" ou "DEBITO", aprenda que esse padrão significa multiplicação por -1.
-            3. FORMA DE PAGAMENTO: Extraia a coluna "Forma" seguindo EXATAMENTE a lógica que o Admin aplicou na Linha Mestra.
-            4. FIDELIDADE TOTAL: Gere uma "blockRecipe" JSON técnica que permita encontrar TODAS as linhas similares a esta no documento e transformá-las EXATAMENTE como no gabarito.`
+            3. FORMA DE PAGAMENTO: ExtraIA a coluna "Forma" seguindo EXATAMENTE a lógica que o Admin aplicou na Linha Mestra.
+            4. FIDELIDADE TOTAL: Gere uma "blockRecipe" JSON técnica que permita encontrar TODAS as linhas similares a esta no documento e transformá-las EXATAMENTE como no gabarito sem alterar um único caractere ou símbolo do texto original.`
             
-            : `VOCÊ É UM IDENTIFICADOR DE POSIÇÕES FIXAS. 
+            : `VOCÊ É UM IDENTIFICADOR DE POSIÇÕES FIXAS PARA DOCUMENTOS ESTRUTURADOS. 
             Exemplo Bruto: "${learnedPatternSource.originalRaw.join(' ; ')}"
             GABARITO ABSOLUTO: Data: "${learnedPatternSource.corrected.date}", Nome: "${learnedPatternSource.corrected.description}", Valor: "${learnedPatternSource.corrected.amount}", Forma: "${learnedPatternSource.corrected.paymentMethod}"
-            Determine os índices de 0 a N correspondentes ao GABARITO. Não adivinhe, use apenas a relação física.`;
+            
+            TAREFA:
+            1. Determine os índices de 0 a N correspondentes ao GABARITO.
+            2. Não tente normalizar, corrigir ou reescrever o texto agora. 
+            3. Identifique palavras que devem ser removidas (ignoredKeywords) apenas se for estritamente necessário para que o texto bruto resulte na Descrição do Gabarito.
+            4. Se o Gabarito for identico ao Bruto em determinada coluna, não sugira nenhuma limpeza.`;
             // @frozen-block-end: TEACHER_RIGID_PROMPT
 
             const parts: any[] = [];
 
             /**
              * 🛡️ AJUSTE DE ECONOMIA DE TOKENS (JANELA ESQUERDA APENAS)
-             * Em vez de enviar o PDF inteiro ou o texto completo, enviamos apenas o conteúdo processado
-             * que está visível na gridData (limitada a 50 linhas).
+             * Empregamos apenas o contexto necessário da grid para orientar o aprendizado.
              */
             const visibleContext = gridData.map(row => row.join(';')).join('\n');
             parts.push({ text: `AMOSTRA DO DOCUMENTO (CONTEÚDO DA JANELA ESQUERDA):\n${visibleContext}` });
@@ -105,9 +109,12 @@ export const useAIPatternTeacher = ({
             const result = JSON.parse(response.text || "{}");
             
             setActiveMapping((prev: any) => {
+                console.log("[TRAIN:SNAPSHOT] Linha modelo salva literal");
+                
                 const base = {
                     ...prev,
-                    extractionMode: isBlockMode ? 'BLOCK' : 'COLUMNS'
+                    extractionMode: isBlockMode ? 'BLOCK' : 'COLUMNS',
+                    learnedSnapshot: { ...learnedPatternSource.corrected } // Preservação literal do gabarito como contrato
                 };
 
                 if (isBlockMode) {

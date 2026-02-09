@@ -41,6 +41,7 @@ export const ContractExecutor = {
                      * Não aplicamos toUpperCase, não limpamos strings, não mudamos sinais.
                      * O Gemini entrega o que aprendeu na Simulação do Laboratório.
                      */
+                    console.log("[BLOCK:FIDELITY] Snapshot aplicado sem mutação");
                     return {
                         id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                         date: tx.date,

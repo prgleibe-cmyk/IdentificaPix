@@ -113,17 +113,20 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                         const rows = Array.isArray(aiResults) ? aiResults : (aiResults?.rows || []);
 
                         if (rows && rows.length > 0) {
-                            const modelKeywords = mapping.ignoredKeywords || [];
-                            
                             const mapped = rows.map((tx: any, i: number) => {
                                 const aiDesc = tx.description || "";
-                                // PARIDADE V3: Limpeza determinística aplicada na simulação
-                                const cleanedDesc = NameResolver.clean(aiDesc, modelKeywords, cleaningKeywords);
+                                
+                                /**
+                                 * 🛡️ FIDELIDADE LITERAL: No modo BLOCK, o contrato é soberano.
+                                 * Ignoramos o NameResolver.clean para não distorcer o que a IA extraiu
+                                 * baseada no gabarito literal do Admin.
+                                 */
+                                const finalDesc = aiDesc;
                                 
                                 return {
                                     id: `ai-extracted-${i}-${Date.now()}`,
                                     date: tx.date || "---",
-                                    description: cleanedDesc,
+                                    description: finalDesc,
                                     rawDescription: aiDesc,
                                     amount: tx.amount || 0,
                                     originalAmount: String(tx.amount || "0"),
