@@ -3,29 +3,25 @@ import { Fingerprinter } from '../processors/Fingerprinter';
 import { StrategyEngine } from '../strategies';
 
 /**
- * 🎛️ INGESTION ORCHESTRATOR (V19 - ABSOLUTE TRUTH ENFORCEMENT)
+ * 🎛️ INGESTION ORCHESTRATOR (V20 - SOVEREIGN SHIELD)
  * -------------------------------------------------------
- * Garante a integridade total do arquivo original.
- * O conteúdo é preservado sem NENHUMA alteração prévia ao matching.
- * Proibido trim, toUpperCase ou qualquer limpeza antes do motor de estratégias.
+ * Ponto central de decisão de processamento. 
+ * Se houver um modelo, o sistema ignora parsers legados e 
+ * utiliza apenas o Contrato Aprendido.
  */
 export const IngestionOrchestrator = {
     /**
-     * Retorna o conteúdo original preservado. 
-     * Implementa a regra de 'Zero Reprocessamento' pré-modelo.
+     * Preserva o conteúdo bruto. 
+     * Regra de Ouro: Proibido alterar o input antes da aplicação do modelo.
      */
     normalizeRawContent(content: string): string {
-        if (!content) return "";
-        
-        // RIGOR V19: Proibido alterar o input bruto. 
-        // O conteúdo deve chegar ao StrategyEngine exatamente como foi lido do arquivo.
-        return content;
+        return content || "";
     },
 
     async processVirtualData(
         sourceName: string, 
         transactions: Transaction[], 
-        globalKeywords: string[]
+        _globalKeywords: string[]
     ): Promise<any> {
         return {
             source: 'virtual',
@@ -36,15 +32,21 @@ export const IngestionOrchestrator = {
         };
     },
 
+    /**
+     * O FUNIL SOBERANO: 
+     * Identifica se o arquivo é "conhecido" (tem modelo).
+     * Se sim, envia direto para o ContractExecutor através do StrategyEngine.
+     */
     async processFile(
         file: File, 
         content: string, 
         models: FileModel[], 
         globalKeywords: string[]
     ): Promise<any> {
-        // Usa o conteúdo TOTALMENTE BRUTO para o fingerprinting
+        // 1. Gera DNA do conteúdo totalmente bruto
         const fingerprint = Fingerprinter.generate(content);
         
+        // 2. Aciona o motor de estratégias que agora prioriza o bypass de modelos
         const result = await StrategyEngine.process(
             file.name, 
             { __rawText: content, __source: 'file' }, 
