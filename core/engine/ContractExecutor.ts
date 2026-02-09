@@ -6,10 +6,11 @@ import { NameResolver } from '../processors/NameResolver';
 import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V62 - FROZEN LITERAL ENFORCEMENT)
+ * 📜 CONTRACT EXECUTOR (V63 - KEYWORD CLEANING RESTORED)
  * -------------------------------------------------------
- * Implementa a regra de congelamento de dados pós-modelo.
- * O valor extraído é transportado intacto até a Lista Viva.
+ * Implementa a regra de extração com limpeza seletiva.
+ * Preserva o texto original no rawDescription, mas limpa
+ * a descrição visual baseada nas keywords do Admin.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
@@ -29,35 +30,37 @@ export const ContractExecutor = {
 
             try {
                 if (rawBase64) {
-                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> FROZEN_MODE`);
+                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> CLEANING_ACTIVE`);
                 }
                 
                 const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
                 const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
                 
                 const finalRows = rows.map((tx: any, idx: number) => {
+                    const aiLiteralDesc = String(tx.description || "");
+
                     /**
-                     * 🔒 CONGELAMENTO LITERAL:
-                     * O texto retornado pela IA (que segue o gabarito do modelo) é preservado integralmente.
-                     * PROIBIDO: NameResolver.clean, toUpperCase, trim ou qualquer Regex.
+                     * 🎯 REATIVAÇÃO DA LIMPEZA:
+                     * Aplicamos o NameResolver.clean para remover termos como PIX, TED, etc.
+                     * definidos globalmente no Admin ou especificamente no Modelo.
                      */
-                    const txDescriptionLiteral = String(tx.description || "");
+                    const cleanedDescription = NameResolver.clean(aiLiteralDesc, modelKeywords, globalKeywords);
 
                     const txObj = {
                         id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                         date: tx.date,
-                        description: txDescriptionLiteral, 
-                        rawDescription: txDescriptionLiteral, 
+                        description: cleanedDescription, // Descrição Limpa (Visual)
+                        rawDescription: aiLiteralDesc,   // Descrição Bit-a-Bit (Backup)
                         amount: tx.amount,
                         originalAmount: String(tx.amount),
-                        cleanedDescription: txDescriptionLiteral, // No modo bloco, cleaned == literal
+                        cleanedDescription: cleanedDescription, 
                         contributionType: tx.tipo || 'AUTO',
                         paymentMethod: tx.forma || 'OUTROS',
                         bank_id: model.id
                     };
 
                     if (rawBase64 && idx === 0) {
-                        console.log(`[PDF:PHASE:7:FROZEN_ROW] DATA -> ${txDescriptionLiteral}`);
+                        console.log(`[PDF:PHASE:7:CLEANED_ROW] RAW -> ${aiLiteralDesc} | CLEAN -> ${cleanedDescription}`);
                     }
 
                     return txObj;
@@ -65,7 +68,7 @@ export const ContractExecutor = {
 
                 return finalRows;
             } catch (e) { 
-                console.error("[ContractExecutor] Erro na leitura literal IA:", e);
+                console.error("[ContractExecutor] Erro na leitura IA:", e);
                 return []; 
             }
         }
@@ -95,7 +98,7 @@ export const ContractExecutor = {
             const numAmount = parseFloat(stdAmount);
 
             if (isoDate && !isNaN(numAmount)) {
-                // No Excel, a limpeza segue o aprendizado de palavras-chave ignoradas
+                // Aplica a limpeza de palavras-chave ignoradas
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
                 results.push({
