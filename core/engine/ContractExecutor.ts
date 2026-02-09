@@ -1,70 +1,59 @@
 import { Transaction, FileModel } from '../../types';
 import { DateResolver } from '../processors/DateResolver';
 import { AmountResolver } from '../processors/AmountResolver';
-import { extractTransactionsWithModel } from '../../services/geminiService';
 
 /**
- * 📜 CONTRACT EXECUTOR (V63 - SOVEREIGN FREEZE)
+ * 📜 CONTRACT EXECUTOR (V64 - DETERMINISTIC BLOCK)
  * -------------------------------------------------------
  * O modelo aprendido é a VERDADE ABSOLUTA.
- * Nenhuma limpeza, reescrita, normalização ou inferência
- * pode alterar o conteúdo aprendido.
+ * IA é proibida na execução.
+ * Nenhuma limpeza, inferência ou reinterpretação é permitida.
  */
 export const ContractExecutor = {
-    async apply(model: FileModel, adaptedInput: any): Promise<Transaction[]> {
+    async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
         const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
-        const rawBase64 = adaptedInput?.__base64;
-
-        if (!rawText && !rawBase64) return [];
+        if (!rawText?.trim() && model.mapping.extractionMode !== 'BLOCK') return [];
 
         const { mapping } = model;
 
         /**
-         * 🧱 MODO BLOCO (PDF / IA VISION)
-         * O contrato é soberano.
-         * Nenhuma mutação semântica é permitida após a extração.
+         * 🧱 MODO BLOCO (PDF / VISUAL)
+         * EXECUÇÃO DETERMINÍSTICA.
+         * Usa exclusivamente o que foi aprendido e salvo no modelo.
          */
         if (mapping.extractionMode === 'BLOCK') {
-            try {
-                const aiResult = await extractTransactionsWithModel(
-                    rawText,
-                    mapping.blockContract || '',
-                    rawBase64
-                );
+            const learnedRows =
+                mapping.blockRows ||
+                mapping.rows ||
+                mapping.learnedRows ||
+                [];
 
-                const rows = Array.isArray(aiResult)
-                    ? aiResult
-                    : (aiResult?.rows || []);
-
-                return rows.map((tx: any, idx: number) => {
-                    const frozenDescription = tx.description;
-
-                    return {
-                        id: `viva-block-${model.id}-${idx}-${Date.now()}`,
-                        date: tx.date,
-                        description: frozenDescription,
-                        rawDescription: frozenDescription,
-                        amount: tx.amount,
-                        originalAmount: String(tx.amount),
-                        cleanedDescription: frozenDescription,
-                        contributionType: tx.tipo || 'AUTO',
-                        paymentMethod: tx.forma || 'OUTROS',
-                        bank_id: model.id
-                    };
-                });
-            } catch (e) {
-                console.error("[ContractExecutor] Falha na extração soberana:", e);
+            if (!Array.isArray(learnedRows) || learnedRows.length === 0) {
+                console.warn('[ContractExecutor] BLOCK sem dados aprendidos no modelo.');
                 return [];
             }
+
+            return learnedRows.map((tx: any, idx: number) => ({
+                id: `viva-block-${model.id}-${idx}-${Date.now()}`,
+                date: tx.date,
+                description: tx.description,
+                rawDescription: tx.description,
+                amount: Number(tx.amount),
+                originalAmount: String(tx.amount),
+                cleanedDescription: tx.description,
+                contributionType: tx.tipo || 'AUTO',
+                paymentMethod: tx.forma || 'OUTROS',
+                bank_id: model.id
+            }));
         }
 
         /**
          * 🚀 MODO COLUNAS (EXCEL / CSV)
-         * Replica exatamente o modelo aprendido.
+         * Também determinístico: replica o modelo, sem IA.
          */
-        const lines = rawText.split(/\r?\n/).filter(l => l.length > 0);
+        const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
 
