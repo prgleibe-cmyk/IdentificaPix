@@ -5,11 +5,39 @@ import { get, set, del } from 'idb-keyval';
 
 const PERSISTENT_STORAGE_KEY = 'identificapix-models-storage-v12';
 
+function safeJsonParse(value: any) {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return {};
+    }
+}
+
+function normalizeMapping(raw: any) {
+    const mapping = safeJsonParse(raw) || {};
+
+    // 🔒 Reconstrução soberana dos dados aprendidos
+    const blockRows =
+        mapping.blockRows ??
+        mapping.block_rows ??
+        mapping.rows ??
+        mapping.learnedRows ??
+        [];
+
+    return {
+        ...mapping,
+        blockRows: Array.isArray(blockRows) ? blockRows : [],
+        blockText: mapping.blockText || mapping.block_text || ''
+    };
+}
+
 export const modelService = {
     /**
      * Recupera os modelos acessíveis ao usuário:
-     * 1. Modelos Globais (Qualquer modelo com is_active = true)
-     * 2. Modelos Privados (Modelos criados pelo próprio usuário, incluindo rascunhos)
+     * 1. Modelos Globais
+     * 2. Modelos Privados
      */
     getUserModels: async (userId: string): Promise<FileModel[]> => {
         try {
@@ -21,18 +49,11 @@ export const modelService = {
             if (error) throw error;
 
             const mapDbRowToModel = (row: any): FileModel => {
-                const fingerprint = typeof row.fingerprint === 'string'
-                    ? JSON.parse(row.fingerprint)
-                    : row.fingerprint;
-
-                const mapping = typeof row.mapping === 'string'
-                    ? JSON.parse(row.mapping)
-                    : row.mapping;
+                const fingerprint = safeJsonParse(row.fingerprint);
+                const mapping = normalizeMapping(row.mapping);
 
                 const parsingRules = row.parsing_rules
-                    ? (typeof row.parsing_rules === 'string'
-                        ? JSON.parse(row.parsing_rules)
-                        : row.parsing_rules)
+                    ? safeJsonParse(row.parsing_rules)
                     : { ignoredKeywords: [], rowFilters: [] };
 
                 return {
@@ -75,11 +96,7 @@ export const modelService = {
                     .eq('lineage_id', model.lineage_id);
             }
 
-            const safeMapping = {
-                ...model.mapping,
-                blockRows: model.mapping?.blockRows || [],
-                blockText: model.mapping?.blockText || ''
-            };
+            const safeMapping = normalizeMapping(model.mapping);
 
             const { data, error } = await supabase
                 .from('file_models')
@@ -110,11 +127,7 @@ export const modelService = {
     updateModel: async (id: string, updates: Partial<FileModel>): Promise<FileModel | null> => {
         try {
             const safeMapping = updates.mapping
-                ? {
-                    ...updates.mapping,
-                    blockRows: updates.mapping?.blockRows || [],
-                    blockText: updates.mapping?.blockText || ''
-                }
+                ? normalizeMapping(updates.mapping)
                 : undefined;
 
             const { data, error } = await supabase
