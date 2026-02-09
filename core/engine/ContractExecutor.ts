@@ -1,7 +1,7 @@
 import { Transaction, FileModel } from '../../types';
 
 /**
- * 📜 CONTRACT EXECUTOR (V66 - SAFE DETERMINISTIC)
+ * 📜 CONTRACT EXECUTOR (V67 - SAFE DETERMINISTIC FIXED)
  * -------------------------------------------------------
  * O modelo aprendido é a VERDADE ABSOLUTA.
  * IA é proibida na execução.
@@ -23,9 +23,6 @@ export const ContractExecutor = {
                 mapping.blockRows ??
                 mapping.rows ??
                 mapping.learnedRows ??
-                adaptedInput?.__blockRows ??
-                adaptedInput?.__rows ??
-                adaptedInput?.__learnedRows ??
                 [];
 
             if (!Array.isArray(learnedRows) || learnedRows.length === 0) {
@@ -33,18 +30,28 @@ export const ContractExecutor = {
                 return [];
             }
 
-            return learnedRows.map((tx: any, idx: number) => ({
-                id: `viva-block-${model.id}-${idx}-${Date.now()}`,
-                date: tx.date,
-                description: tx.description,
-                rawDescription: tx.description,
-                amount: Number(tx.amount),
-                originalAmount: String(tx.amount),
-                cleanedDescription: tx.description,
-                contributionType: tx.tipo || 'AUTO',
-                paymentMethod: tx.forma || 'OUTROS',
-                bank_id: model.id
-            }));
+            return learnedRows
+                .filter((tx: any) => tx && (tx.date || tx.description || tx.amount))
+                .map((tx: any, idx: number) => {
+                    const safeDate = normalizeDate(tx.date);
+                    if (!safeDate) return null;
+
+                    const numAmount = normalizeAmount(tx.amount);
+
+                    return {
+                        id: `viva-block-${model.id}-${idx}-${Date.now()}`,
+                        date: safeDate,
+                        description: String(tx.description || '').trim(),
+                        rawDescription: String(tx.description || '').trim(),
+                        amount: numAmount,
+                        originalAmount: String(tx.amount || ''),
+                        cleanedDescription: String(tx.description || '').trim(),
+                        contributionType: tx.tipo || (numAmount >= 0 ? 'ENTRADA' : 'SAÍDA'),
+                        paymentMethod: tx.forma || 'OUTROS',
+                        bank_id: model.id
+                    };
+                })
+                .filter(Boolean) as Transaction[];
         }
 
         /**
@@ -63,7 +70,7 @@ export const ContractExecutor = {
                 ? ';'
                 : (line.includes('\t') ? '\t' : ',');
 
-            const cells = line.split(delimiter);
+            const cells = line.split(delimiter).map(c => String(c || '').trim());
 
             const rawDate = cells[mapping.dateColumnIndex] || "";
             const rawDesc = cells[mapping.descriptionColumnIndex] || "";
@@ -76,19 +83,17 @@ export const ContractExecutor = {
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
-            // 🛡️ Proteção de data inválida
-            if (!rawDate || rawDate.trim().length < 4) return;
+            const safeDate = normalizeDate(rawDate);
+            if (!safeDate) return;
 
-            const numAmount = Number(
-                String(rawAmount).replace(/\./g, '').replace(',', '.')
-            );
+            const numAmount = normalizeAmount(rawAmount);
 
             results.push({
                 id: `viva-col-${model.id}-${idx}-${Date.now()}`,
-                date: rawDate,
+                date: safeDate,
                 description: rawDesc,
                 rawDescription: rawDesc,
-                amount: isNaN(numAmount) ? 0 : numAmount,
+                amount: numAmount,
                 originalAmount: rawAmount,
                 cleanedDescription: rawDesc,
                 contributionType: isNaN(numAmount) ? 'AUTO' : (numAmount >= 0 ? 'ENTRADA' : 'SAÍDA'),
@@ -100,3 +105,41 @@ export const ContractExecutor = {
         return results;
     }
 };
+
+/**
+ * 🛡️ Normaliza datas e bloqueia valores inválidos
+ */
+function normalizeDate(input: any): string | null {
+    if (!input) return null;
+
+    const raw = String(input).trim();
+    if (!raw) return null;
+    if (raw === '0000-00-00') return null;
+
+    // dd/mm/yyyy
+    if (raw.includes('/')) {
+        const [d, m, y] = raw.split('/');
+        if (y && y.length === 4) return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    // yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+    return null;
+}
+
+/**
+ * 🛡️ Normaliza valores monetários
+ */
+function normalizeAmount(input: any): number {
+    if (input === null || input === undefined) return 0;
+
+    const num = Number(
+        String(input)
+            .replace(/\s/g, '')
+            .replace(/\./g, '')
+            .replace(',', '.')
+    );
+
+    return isNaN(num) ? 0 : num;
+}
