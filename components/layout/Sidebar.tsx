@@ -93,17 +93,18 @@ export const Sidebar: React.FC = () => {
 
             <div className="relative z-10 flex flex-col h-full">
                 
-                <div className={`flex flex-col items-center justify-center py-6 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
+                <div className={`flex flex-col items-center justify-center py-8 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
                     <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
-                        <div className="absolute -inset-6 bg-blue-500/20 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                        <div className="absolute -inset-10 bg-blue-500/20 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                            <div className="relative bg-gradient-to-br from-white/10 via-white/5 to-transparent p-2.5 rounded-xl border border-white/20 backdrop-blur-xl shadow-xl">
-                                <img src="/pwa/icon-512.png" className="h-10 w-auto object-contain" alt="Logo" />
+                            <div className="relative bg-gradient-to-br from-white/20 via-white/5 to-transparent p-4 rounded-[2.5rem] border border-white/20 backdrop-blur-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] ring-1 ring-white/10">
+                                <img src="/pwa/icon-512.png" className={`${isCollapsed ? 'h-10' : 'h-20'} w-auto object-contain transition-all duration-500 drop-shadow-2xl`} alt="Logo" />
+                                <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-tr from-white/10 to-transparent opacity-40 pointer-events-none"></div>
                             </div>
                         </div>
                     </div>
                     {!isCollapsed && (
-                        <div className="mt-4 text-center">
+                        <div className="mt-6 text-center">
                             <span className="font-display font-black text-2xl tracking-tight text-white block leading-none">
                                 Identifica<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Pix</span>
                             </span>
