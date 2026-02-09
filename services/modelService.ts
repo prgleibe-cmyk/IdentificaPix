@@ -15,21 +15,31 @@ function safeJsonParse(value: any) {
     }
 }
 
+/**
+ * 🔒 Normaliza e reconstrói soberanamente o mapping aprendido
+ */
 function normalizeMapping(raw: any) {
     const mapping = safeJsonParse(raw) || {};
 
-    // 🔒 Reconstrução soberana dos dados aprendidos
+    // 🧱 Reconstrução blindada dos dados aprendidos
     const blockRows =
         mapping.blockRows ??
         mapping.block_rows ??
         mapping.rows ??
         mapping.learnedRows ??
+        mapping.learned_rows ??
         [];
+
+    const blockText =
+        mapping.blockText ??
+        mapping.block_text ??
+        mapping.text ??
+        '';
 
     return {
         ...mapping,
         blockRows: Array.isArray(blockRows) ? blockRows : [],
-        blockText: mapping.blockText || mapping.block_text || ''
+        blockText: typeof blockText === 'string' ? blockText : ''
     };
 }
 
@@ -91,7 +101,8 @@ export const modelService = {
             if (!session) throw new Error("Sessão expirada.");
 
             if (model.lineage_id) {
-                await supabase.from('file_models')
+                await supabase
+                    .from('file_models')
                     .update({ is_active: false })
                     .eq('lineage_id', model.lineage_id);
             }
