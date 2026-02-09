@@ -121,7 +121,6 @@ export interface FileModel {
   mapping: {
     extractionMode?: 'COLUMNS' | 'BLOCK';
     blockContract?: string;
-    blockRows?: any[]; // 🧱 Transações aprendidas e fixadas no modo BLOCK
     dateColumnIndex: number;
     descriptionColumnIndex: number;
     amountColumnIndex: number;

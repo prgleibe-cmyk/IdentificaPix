@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAIClient = () => {
@@ -32,6 +33,7 @@ const safeJsonParse = (input: any, fallback: any = []) => {
     if (result) return result;
 
     // 2. Recuperação de Truncamento (Brute-force closing)
+    // Buscamos o último fechamento de objeto válido para salvar o que já foi extraído
     let lastBrace = sanitized.lastIndexOf('}');
     
     const possibleClosures = [
@@ -52,6 +54,7 @@ const safeJsonParse = (input: any, fallback: any = []) => {
                 return result;
             }
         }
+        // Retrocede para o fechamento de objeto anterior
         lastBrace = sanitized.lastIndexOf('}', lastBrace - 1);
     }
 
@@ -60,8 +63,8 @@ const safeJsonParse = (input: any, fallback: any = []) => {
 };
 
 /**
- * 🎯 MOTOR DE EXTRAÇÃO SOBERANO (MODO DETERMINÍSTICO / EXECUTIVO)
- * No modo de contrato, o Gemini atua apenas como um parser técnico de baixo nível.
+ * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO AUDITORIA)
+ * Upgrade para raciocínio profundo (Thinking v3) com limites de tokens blindados.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -74,37 +77,31 @@ export const extractTransactionsWithModel = async (
 
     try {
         const ai = getAIClient();
-        const isContractExecution = modelContext?.includes("CONTRATO RIGOROSO");
         
         const isPreview = !!limit;
         const limitInstruction = isPreview 
-            ? `RESTRICAO: Processe apenas os primeiros ${limit} registros.`
-            : `PROCESSAMENTO TOTAL: Extraia todos os dados do documento.`;
+            ? `RESTRICAO: Apenas os primeiros ${limit} registros.`
+            : `PROCESSAMENTO TOTAL: Extraia todos os dados sem exceção.`;
 
-        // 🛡️ BLINDAGEM DE PROMPT: Modo Executivo remove qualquer subjetividade ou "inteligência auditora".
-        const instruction = isContractExecution 
-            ? `VOCÊ É UM MOTOR DE PARSE DETERMINÍSTICO DE BAIXO NÍVEL. 
-               
-               --- CONTRATO DE MAPEAMENTO (ÚNICA VERDADE ABSOLUTA) ---
-               ${modelContext}
-               
-               --- REGRAS TÉCNICAS DE EXECUÇÃO ---
-               1. Extraia os dados seguindo a estrutura exata e as relações físicas do CONTRATO acima. 
-               2. PROIBIDO: Adicionar, limpar, resumir, corrigir ou interpretar descrições.
-               3. PROIBIDO: Alterar sinais de valores (+/-) ou formatos de datas fora do mapeamento literal.
-               4. Extraia cada linha como um objeto individual sem agrupar.
-               5. ${limitInstruction}
-               
-               RETORNO OBRIGATÓRIO: JSON rigoroso { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`
-            : `VOCÊ É UM AUDITOR FINANCEIRO. Extraia as transações seguindo este contexto: ${modelContext}. 
-               Sinal de Débito = Negativo. 
-               RETORNO: JSON { "rows": [] }`;
+        const instruction = `VOCÊ É UM AUDITOR FINANCEIRO DE ELITE COM FOCO EM CONCILIAÇÃO BANCÁRIA.
+           
+           --- CONTRATO DE EXTRAÇÃO (DNA DO DOCUMENTO) ---
+           ${modelContext}
+           
+           --- REGRAS DE OURO DE AUDITORIA ---
+           1. MÁXIMA REFLEXÃO: Antes de extrair, analise a estrutura visual do PDF/Texto. Identifique onde estão colunas de Data, Histórico e Valor.
+           2. DETECÇÃO DE SINAIS: Diferencie Créditos de Débitos. Débitos (saídas) devem SEMPRE ser números negativos no JSON. 
+           3. LIMPEZA DE RUÍDO: Ignore headers, rodapés e linhas de saldo.
+           4. FIDELIDADE AO ADMIN: Use o CONTRATO acima para decidir o que é uma transação válida.
+           ${limitInstruction}
+           
+           RETORNO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
 
         const parts: any[] = [];
         if (base64Data) {
             parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
         } else {
-            parts.push({ text: `CONTEÚDO BRUTO DO DOCUMENTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
+            parts.push({ text: `CONTEÚDO BRUTO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
         }
         parts.push({ text: instruction });
 
@@ -112,11 +109,11 @@ export const extractTransactionsWithModel = async (
             model: 'gemini-3-pro-preview', 
             contents: { parts },
             config: {
-                temperature: 0, // Zero criatividade/variabilidade
+                temperature: 0,
+                // BLINDAGEM DE TOKENS: Setar ambos garante que o modelo tenha espaço para pensar E responder.
+                // Isso evita o truncamento JSON (Unterminated String) em arquivos longos.
                 maxOutputTokens: 64000, 
-                // 🛑 DESATIVAÇÃO DE REASONING EM MODO EXECUTIVO
-                // Forçamos o modelo a não "pensar" ou "raciocinar", apenas realizar o mapeamento direto de tokens.
-                thinkingConfig: { thinkingBudget: isContractExecution ? 0 : 32000 },
+                thinkingConfig: { thinkingBudget: 32000 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
