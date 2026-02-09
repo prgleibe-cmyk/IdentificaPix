@@ -1,33 +1,28 @@
 import { Transaction, FileModel } from '../../types';
-import { DateResolver } from '../processors/DateResolver';
-import { AmountResolver } from '../processors/AmountResolver';
 
 /**
- * 📜 CONTRACT EXECUTOR (V64 - DETERMINISTIC BLOCK)
+ * 📜 CONTRACT EXECUTOR (V65 - ABSOLUTE DETERMINISM)
  * -------------------------------------------------------
  * O modelo aprendido é a VERDADE ABSOLUTA.
  * IA é proibida na execução.
- * Nenhuma limpeza, inferência ou reinterpretação é permitida.
+ * Nenhuma limpeza, inferência, OCR ou normalização é permitida.
  */
 export const ContractExecutor = {
     async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
         const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
-        if (!rawText?.trim() && model.mapping.extractionMode !== 'BLOCK') return [];
-
         const { mapping } = model;
 
         /**
          * 🧱 MODO BLOCO (PDF / VISUAL)
-         * EXECUÇÃO DETERMINÍSTICA.
          * Usa exclusivamente o que foi aprendido e salvo no modelo.
          */
         if (mapping.extractionMode === 'BLOCK') {
             const learnedRows =
-                mapping.blockRows ||
-                mapping.rows ||
-                mapping.learnedRows ||
+                mapping.blockRows ??
+                mapping.rows ??
+                mapping.learnedRows ??
                 [];
 
             if (!Array.isArray(learnedRows) || learnedRows.length === 0) {
@@ -51,11 +46,12 @@ export const ContractExecutor = {
 
         /**
          * 🚀 MODO COLUNAS (EXCEL / CSV)
-         * Também determinístico: replica o modelo, sem IA.
+         * Determinístico e fiel ao arquivo + modelo aprendido.
          */
+        if (!rawText?.trim()) return [];
+
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
         const results: Transaction[] = [];
-        const currentYear = new Date().getFullYear();
 
         lines.forEach((line, idx) => {
             if (idx < (mapping.skipRowsStart || 0)) return;
@@ -77,24 +73,22 @@ export const ContractExecutor = {
 
             if (!rawDate && !rawDesc && !rawAmount) return;
 
-            const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
-            const stdAmount = AmountResolver.clean(rawAmount);
-            const numAmount = parseFloat(stdAmount);
+            const numAmount = Number(
+                String(rawAmount).replace(/\./g, '').replace(',', '.')
+            );
 
-            if (isoDate && !isNaN(numAmount)) {
-                results.push({
-                    id: `viva-col-${model.id}-${idx}-${Date.now()}`,
-                    date: isoDate,
-                    description: rawDesc,
-                    rawDescription: rawDesc,
-                    amount: numAmount,
-                    originalAmount: rawAmount,
-                    cleanedDescription: rawDesc,
-                    contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
-                    paymentMethod: rawForm || 'OUTROS',
-                    bank_id: model.id
-                });
-            }
+            results.push({
+                id: `viva-col-${model.id}-${idx}-${Date.now()}`,
+                date: rawDate,
+                description: rawDesc,
+                rawDescription: rawDesc,
+                amount: isNaN(numAmount) ? 0 : numAmount,
+                originalAmount: rawAmount,
+                cleanedDescription: rawDesc,
+                contributionType: isNaN(numAmount) ? 'AUTO' : (numAmount >= 0 ? 'ENTRADA' : 'SAÍDA'),
+                paymentMethod: rawForm || 'OUTROS',
+                bank_id: model.id
+            });
         });
 
         return results;
