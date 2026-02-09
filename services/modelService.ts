@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { FileModel } from '../types';
 import { Logger } from './monitoringService';
@@ -14,8 +13,6 @@ export const modelService = {
      */
     getUserModels: async (userId: string): Promise<FileModel[]> => {
         try {
-            // Ajuste de Escopo Global: Removemos a restrição única de user_id
-            // para incluir todos os modelos ativos no sistema (DNA Compartilhado).
             const { data, error } = await supabase
                 .from('file_models')
                 .select('*')
@@ -24,13 +21,22 @@ export const modelService = {
             if (error) throw error;
 
             const mapDbRowToModel = (row: any): FileModel => {
-                // Reidratação segura de campos JSONB
-                const fingerprint = typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint;
-                const mapping = typeof row.mapping === 'string' ? JSON.parse(row.mapping) : row.mapping;
-                const parsingRules = row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] };
+                const fingerprint = typeof row.fingerprint === 'string'
+                    ? JSON.parse(row.fingerprint)
+                    : row.fingerprint;
+
+                const mapping = typeof row.mapping === 'string'
+                    ? JSON.parse(row.mapping)
+                    : row.mapping;
+
+                const parsingRules = row.parsing_rules
+                    ? (typeof row.parsing_rules === 'string'
+                        ? JSON.parse(row.parsing_rules)
+                        : row.parsing_rules)
+                    : { ignoredKeywords: [], rowFilters: [] };
 
                 return {
-                    ...row, // Preserva campos não mapeados explicitamente (DNA extra, patterns, etc)
+                    ...row,
                     id: row.id,
                     name: row.name,
                     user_id: row.user_id,
@@ -69,6 +75,12 @@ export const modelService = {
                     .eq('lineage_id', model.lineage_id);
             }
 
+            const safeMapping = {
+                ...model.mapping,
+                blockRows: model.mapping?.blockRows || [],
+                blockText: model.mapping?.blockText || ''
+            };
+
             const { data, error } = await supabase
                 .from('file_models')
                 .insert([{
@@ -78,9 +90,9 @@ export const modelService = {
                     lineage_id: model.lineage_id || `mod-${Date.now()}`,
                     is_active: true,
                     status: model.status || 'approved',
-                    fingerprint: model.fingerprint,
-                    mapping: model.mapping,
-                    parsing_rules: model.parsingRules, // Mantém paridade snake_case
+                    fingerprint: JSON.stringify(model.fingerprint),
+                    mapping: JSON.stringify(safeMapping),
+                    parsing_rules: JSON.stringify(model.parsingRules),
                     snippet: model.snippet
                 }])
                 .select('*')
@@ -97,14 +109,22 @@ export const modelService = {
 
     updateModel: async (id: string, updates: Partial<FileModel>): Promise<FileModel | null> => {
         try {
+            const safeMapping = updates.mapping
+                ? {
+                    ...updates.mapping,
+                    blockRows: updates.mapping?.blockRows || [],
+                    blockText: updates.mapping?.blockText || ''
+                }
+                : undefined;
+
             const { data, error } = await supabase
                 .from('file_models')
                 .update({
                     name: updates.name,
                     status: updates.status,
-                    fingerprint: updates.fingerprint,
-                    mapping: updates.mapping,
-                    parsing_rules: updates.parsingRules,
+                    fingerprint: updates.fingerprint ? JSON.stringify(updates.fingerprint) : undefined,
+                    mapping: safeMapping ? JSON.stringify(safeMapping) : undefined,
+                    parsing_rules: updates.parsingRules ? JSON.stringify(updates.parsingRules) : undefined,
                     snippet: updates.snippet,
                     last_used_at: new Date().toISOString()
                 })
@@ -131,7 +151,11 @@ export const modelService = {
     },
 
     getAllModelsAdmin: async (): Promise<FileModel[]> => {
-        const { data, error } = await supabase.from('file_models').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase
+            .from('file_models')
+            .select('*')
+            .order('created_at', { ascending: false });
+
         if (error) return [];
         return data as any[];
     },
