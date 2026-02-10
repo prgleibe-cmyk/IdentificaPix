@@ -24,6 +24,9 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
+// Rota de Health Check para o Coolify detectar que o server está vivo
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
@@ -48,11 +51,26 @@ app.use('/api/inbox', inboxRoutes(ai));
 app.get('*', (req, res) => {
   if (req.url.startsWith('/api/')) return res.status(404).end();
   const indexPath = path.join(distPath, 'index.html');
-  if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
-  res.status(500).send('Frontend not built.');
+  
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  
+  // Se o frontend não foi buildado, mostra erro amigável
+  res.status(500).send(`
+    <html>
+      <body style="background:#051024;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
+        <div style="text-align:center;">
+          <h1>IdentificaPix Server Ativo</h1>
+          <p>Erro: O diretório 'dist' não foi encontrado. Verifique o processo de build.</p>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
 const PORT = process.env.PORT || 3000;
+// CRÍTICO: Escutar em 0.0.0.0 é obrigatório para containers
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[IdentificaPix Server] Running on port ${PORT}`);
+  console.log(`[IdentificaPix Server] Listening on http://0.0.0.0:${PORT}`);
 });

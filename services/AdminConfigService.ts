@@ -65,7 +65,10 @@ export const AdminConfigService = {
                     { onConflict: 'key' }
                 );
 
-            if (error) throw error;
+            if (error) {
+                console.error("[AdminConfig] Erro no UPSERT:", error);
+                throw error;
+            }
             
             Logger.info(`[AdminConfig] Configuração '${key}' salva com sucesso.`);
 
