@@ -22,7 +22,8 @@ import {
     PresentationChartLineIcon,
     DocumentDuplicateIcon,
     TableCellsIcon,
-    CloudArrowUpIcon
+    CloudArrowUpIcon,
+    LinkIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {

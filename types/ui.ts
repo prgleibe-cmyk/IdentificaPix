@@ -1,11 +1,10 @@
 
 import { MatchResult, Transaction } from './domain';
 
-export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis' | 'launched';
+export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis' | 'launched' | 'connectors';
 export type Theme = 'light' | 'dark';
 export type Language = 'pt';
 
-// Added to fix "Module 'types' has no exported member 'SettingsTab'"
 export type SettingsTab = 'params' | 'associations' | 'preferences' | 'automation';
 
 export interface DeletingItem {

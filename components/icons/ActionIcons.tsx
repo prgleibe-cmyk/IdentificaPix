@@ -221,3 +221,18 @@ export const ArrowsPointingInIcon: React.FC<any> = (props) => (
         <path d="m12 12-10 10" />
     </BaseIcon>
 );
+
+export const DevicePhoneMobileIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+        <line x1="12" y1="18" x2="12.01" y2="18" />
+    </BaseIcon>
+);
+
+export const LightBulbIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5" />
+        <path d="M9 18h6" />
+        <path d="M10 22h4" />
+    </BaseIcon>
+);

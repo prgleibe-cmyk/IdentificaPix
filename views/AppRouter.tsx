@@ -15,6 +15,7 @@ import { SavedReportsView } from './SavedReportsView';
 import { AdminView } from './AdminView';
 import { SmartAnalysisView } from './SmartAnalysisView';
 import { LaunchedView } from './LaunchedView';
+import { ConnectorsView } from './ConnectorsView';
 
 // --- Modals ---
 import { EditBankModal } from '../components/modals/EditBankModal';
@@ -45,6 +46,7 @@ export const AppRouter: React.FC = () => {
         case 'settings': return <SettingsView />;
         case 'smart_analysis': return <SmartAnalysisView />;
         case 'launched': return <LaunchedView />;
+        case 'connectors': return <ConnectorsView />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
         default: return <DashboardView />;
     }

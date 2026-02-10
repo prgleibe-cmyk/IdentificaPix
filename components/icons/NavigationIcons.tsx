@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BaseIcon } from './BaseIcon';
 
@@ -5,6 +6,13 @@ export const HomeIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
         <polyline points="9 22 9 12 15 12 15 22" />
+    </BaseIcon>
+);
+
+export const LinkIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </BaseIcon>
 );
 
