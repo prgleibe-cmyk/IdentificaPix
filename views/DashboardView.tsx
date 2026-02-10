@@ -31,10 +31,9 @@ export const DashboardView: React.FC = () => {
             <div className="flex-1 flex flex-col h-full animate-fade-in-up pb-6">
                 <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 px-1 flex-shrink-0">
                     <div className="relative shrink-0 w-fit">
-                        <div className="absolute inset-0 bg-brand-blue/20 blur-3xl rounded-full animate-pulse"></div>
                         <img 
                             src="/pwa/icon-512.png" 
-                            className="h-72 w-auto object-contain relative z-10 drop-shadow-2xl" 
+                            className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
                             alt="IdentificaPix Logo" 
                         />
                     </div>

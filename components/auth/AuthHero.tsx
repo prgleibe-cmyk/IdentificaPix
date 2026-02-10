@@ -8,15 +8,12 @@ export const AuthHero: React.FC = () => {
             {/* Logo Section */}
             <div className="flex items-center gap-8 perspective-[1000px]">
                 <div className="relative group animate-pulse-soft">
-                    <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-[60px] animate-pulse"></div>
-                    <div className="relative w-36 h-36 bg-gradient-to-br from-white/10 via-white/5 to-transparent rounded-[2rem] border border-white/20 backdrop-blur-2xl shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)] flex items-center justify-center transform rotate-y-12 rotate-x-12 group-hover:rotate-0 transition-transform duration-700">
-                        <img 
-                            src="/pwa/icon-512.png" 
-                            className="h-28 w-auto object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.4)]" 
-                            alt="Logo IdentificaPix" 
-                        />
-                        <div className="absolute top-0 left-0 w-full h-full rounded-[2rem] bg-gradient-to-br from-white/20 to-transparent opacity-40 pointer-events-none"></div>
-                    </div>
+                    <div className="absolute inset-0 bg-cyan-500/10 rounded-full blur-[60px] animate-pulse"></div>
+                    <img 
+                        src="/pwa/icon-512.png" 
+                        className="h-52 w-auto object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.6)] transform rotate-y-12 rotate-x-6 group-hover:rotate-0 transition-all duration-700 ease-out" 
+                        alt="Logo IdentificaPix" 
+                    />
                 </div>
                 <div>
                     <h1 className="text-5xl font-black text-white tracking-tighter leading-none mb-1 drop-shadow-xl">IdentificaPix</h1>

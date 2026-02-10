@@ -95,12 +95,9 @@ export const Sidebar: React.FC = () => {
                 
                 <div className={`flex flex-col items-center justify-center py-8 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
                     <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
-                        <div className="absolute -inset-10 bg-blue-500/20 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                        <div className="absolute -inset-10 bg-blue-500/10 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                            <div className="relative bg-gradient-to-br from-white/20 via-white/5 to-transparent p-0 rounded-[2rem] border border-white/20 backdrop-blur-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] ring-1 ring-white/10 overflow-hidden">
-                                <img src="/pwa/icon-512.png" className={`${isCollapsed ? 'h-16' : 'h-52'} w-auto object-contain transition-all duration-500 drop-shadow-2xl`} alt="Logo" />
-                                <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-white/10 to-transparent opacity-40 pointer-events-none"></div>
-                            </div>
+                            <img src="/pwa/icon-512.png" className={`${isCollapsed ? 'h-16' : 'h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]`} alt="Logo" />
                         </div>
                     </div>
                     {!isCollapsed && (
