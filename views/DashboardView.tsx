@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { useDashboardController } from '../hooks/useDashboardController';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
@@ -21,6 +20,7 @@ export const DashboardView: React.FC = () => {
         summary, user, setActiveView, t, language, identificationRate, 
         pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession 
     } = useDashboardController();
+    const [imgError, setImgError] = useState(false);
 
     if (hasActiveSession && !hasData) {
         return <DashboardSkeleton />;
@@ -32,7 +32,8 @@ export const DashboardView: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 px-1 flex-shrink-0">
                     <div className="relative shrink-0 w-fit">
                         <img 
-                            src="/pwa/icon-512.png" 
+                            src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
+                            onError={() => setImgError(true)}
                             className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
                             alt="IdentificaPix Logo" 
                         />
@@ -64,7 +65,12 @@ export const DashboardView: React.FC = () => {
         <div className="flex flex-col h-full gap-4 animate-fade-in pb-4 overflow-y-auto custom-scrollbar">
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <div className="flex items-center gap-3">
-                    <img src="/pwa/icon-512.png" className="h-8 w-auto object-contain" alt="Logo" />
+                    <img 
+                        src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
+                        onError={() => setImgError(true)}
+                        className="h-8 w-auto object-contain" 
+                        alt="Logo" 
+                    />
                     <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">Dashboard</h2>
                 </div>
                 {summary.isHistorical && (

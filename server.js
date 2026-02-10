@@ -19,11 +19,27 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// --- DIAGNÓSTICOS DE IMAGEM ---
+const distPath = path.join(__dirname, 'dist');
+const pwaPath = path.join(distPath, 'pwa');
+
+console.log(`[IdentificaPix] Iniciando servidor...`);
+
+if (fs.existsSync(distPath)) {
+    const logoExists = fs.existsSync(path.join(distPath, 'logo.png'));
+    const pwaExists = fs.existsSync(pwaPath);
+    console.log(`[Server] logo.png em dist: ${logoExists ? '✅' : '❌'}`);
+    console.log(`[Server] pasta pwa em dist: ${pwaExists ? '✅' : '❌'}`);
+    if (pwaExists) {
+        console.log(`[Server] Arquivos PWA: ${fs.readdirSync(pwaPath).join(', ')}`);
+    }
+}
+
 // Middlewares
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Health check para o Coolify detectar que o container está saudável
+// Health check
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Inicialização da IA Gemini
@@ -37,35 +53,28 @@ if (process.env.API_KEY) {
     }
 }
 
-// Registro Seguro de Rotas
+// Registro de Rotas
 try {
     app.use('/api/gmail', gmailRoutes(ai));
     app.use('/api/payment', paymentRoutes);
     app.use('/api/ai', aiRoutes(ai));
     app.use('/api/inbox', inboxRoutes(ai));
-    console.log("[IdentificaPix] API Routes Registered.");
 } catch (error) {
     console.error("[IdentificaPix] Route Registration Error:", error.message);
 }
 
-// Pasta de arquivos estáticos (Vite build)
-const distPath = path.join(__dirname, 'dist');
+// Pasta de arquivos estáticos
 app.use(express.static(distPath));
 
-// SPA Fallback: Serve o index.html para qualquer rota não mapeada (essencial para React Router)
+// SPA Fallback
 app.get('*', (req, res) => {
-    if (req.url.startsWith('/api/')) {
-        return res.status(404).json({ error: 'API Endpoint Not Found' });
-    }
+    if (req.url.startsWith('/api/')) return res.status(404).json({ error: 'Not Found' });
     const indexPath = path.join(distPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-        return res.sendFile(indexPath);
-    }
-    res.status(200).send("IdentificaPix Server is Running. Frontend dist not found yet.");
+    if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+    res.status(200).send("IdentificaPix Server Active.");
 });
 
-// Porta 3000 (O padrão que funcionava perfeitamente)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[IdentificaPix] Servidor rodando na porta ${PORT}`);
+    console.log(`[IdentificaPix] Rodando em http://0.0.0.0:${PORT}`);
 });

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -33,6 +32,7 @@ export const Sidebar: React.FC = () => {
     const { openPaymentModal } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [imgError, setImgError] = useState(false);
     
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -98,7 +98,12 @@ export const Sidebar: React.FC = () => {
                     <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
                         <div className="absolute -inset-10 bg-blue-500/10 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                            <img src="/pwa/icon-512.png" className={`${isCollapsed ? 'h-16' : 'h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]`} alt="Logo" />
+                            <img 
+                                src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
+                                onError={() => setImgError(true)}
+                                className={`${isCollapsed ? 'h-16' : 'h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]`} 
+                                alt="Logo" 
+                            />
                         </div>
                     </div>
                     {!isCollapsed && (

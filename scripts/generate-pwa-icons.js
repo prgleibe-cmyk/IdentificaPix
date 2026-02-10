@@ -2,26 +2,28 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-/**
- * IDENTIFICAPIX - PWA ASSET GENERATOR (SAFE VERSION)
- * Copia a logo real para os ícones do PWA sem sobrescrever indevidamente.
- */
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const targetDir = path.join(__dirname, '../public/pwa');
-const sourceLogo = path.join(__dirname, '../public/logo.png');
+// Tenta encontrar a logo em vários lugares possíveis
+const projectRoot = path.join(__dirname, '..');
+const possibleSources = [
+    path.join(projectRoot, 'public/logo.png'),
+    path.join(projectRoot, 'logo.png'),
+    path.join(projectRoot, 'public/icon.png'),
+];
+
+let sourceLogo = possibleSources.find(p => fs.existsSync(p));
+const targetDir = path.join(projectRoot, 'public/pwa');
 
 console.log("[PWA-Generator] Iniciando materialização de ativos...");
 
-if (!fs.existsSync(sourceLogo)) {
-    console.error(`[PWA-Generator] ❌ Logo base não encontrada em: ${sourceLogo}`);
-    process.exit(1);
+if (!sourceLogo) {
+    console.warn("[PWA-Generator] ⚠️ Nenhuma logo base (logo.png) encontrada. Pulando geração de ícones PWA.");
+    process.exit(0); // Sai sem erro para não travar o build do Coolify
 }
 
 if (!fs.existsSync(targetDir)) {
-    console.log(`[PWA-Generator] Criando diretório: ${targetDir}`);
     fs.mkdirSync(targetDir, { recursive: true });
 }
 
@@ -31,12 +33,13 @@ const icons = [
     'maskable-icon-512.png'
 ];
 
-icons.forEach(filename => {
-    const filePath = path.join(targetDir, filename);
+try {
+    icons.forEach(filename => {
+        fs.copyFileSync(sourceLogo, path.join(targetDir, filename));
+        console.log(`[PWA-Generator] ✅ Gerado: ${filename}`);
+    });
+} catch (e) {
+    console.error("[PWA-Generator] ❌ Erro ao copiar ícones:", e.message);
+}
 
-    fs.copyFileSync(sourceLogo, filePath);
-
-    console.log(`[PWA-Generator] Gerado: ${filename}`);
-});
-
-console.log("[PWA-Generator] Concluído com sucesso.");
+console.log("[PWA-Generator] Processo concluído.");
