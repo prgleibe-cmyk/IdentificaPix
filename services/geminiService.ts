@@ -10,13 +10,11 @@ let isAIBusy = false;
 
 /**
  * 🛡️ PARSER RESILIENTE (V4 - ULTRA RECOVERY)
- * Recupera o máximo de dados de um JSON truncado pela IA ou rede.
  */
 const safeJsonParse = (input: any, fallback: any = []) => {
     if (!input) return fallback;
     let sanitized = String(input).trim();
     
-    // Limpeza de Markdown
     sanitized = sanitized.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
 
     const tryParse = (str: string) => {
@@ -28,41 +26,27 @@ const safeJsonParse = (input: any, fallback: any = []) => {
         } catch { return null; }
     };
 
-    // 1. Tentativa Direta (Standard)
     let result = tryParse(sanitized);
     if (result) return result;
 
-    // 2. Recuperação de Truncamento (Brute-force closing)
     let lastBrace = sanitized.lastIndexOf('}');
-    
-    const possibleClosures = [
-        '',           
-        ']',          
-        ']}',         
-        '"}]}',       
-        '"}',         
-    ];
+    const possibleClosures = ['', ']', ']}', '"}]}', '"}'];
 
     while (lastBrace > 0) {
         const base = sanitized.substring(0, lastBrace + 1);
         for (const closure of possibleClosures) {
             const candidate = base + closure;
             result = tryParse(candidate);
-            if (result) {
-                console.warn("[GeminiService] JSON recuperado via truncamento na posição:", lastBrace);
-                return result;
-            }
+            if (result) return result;
         }
         lastBrace = sanitized.lastIndexOf('}', lastBrace - 1);
     }
 
-    console.error("[GeminiService] Falha total ao recuperar JSON corrompido.");
     return fallback;
 };
 
 /**
  * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO PRESERVAÇÃO LITERAL ABSOLUTA)
- * Upgrade para extração bit-a-bit, proibindo qualquer alteração textual.
  */
 export const extractTransactionsWithModel = async (
     rawText: string, 
@@ -89,11 +73,8 @@ export const extractTransactionsWithModel = async (
            
            --- REGRAS DE OURO DE PRESERVAÇÃO ---
            1. FIDELIDADE TEXTUAL TOTAL: A 'description' deve ser copiada EXATAMENTE como aparece visualmente.
-              - MANTENHA: Todos os espaços (inclusive múltiplos espaços), pontuação, símbolos, caracteres especiais e capitalização original.
-              - PROIBIDO: Realizar trim(), remover palavras, corrigir erros, normalizar espaços ou 'limpar' o texto. Se houver um erro de digitação no PDF, copie o erro.
            2. DETECÇÃO DE SINAIS: Identifique se é Crédito ou Débito. Valores de saída (Débitos) devem ser SEMPRE negativos no JSON.
-           3. FILTRAGEM: Extraia apenas as transações. Ignore headers de página e rodapés que não façam parte da linha da transação.
-           4. SOBERANIA: O CONTRATO acima define o que constitui o início e fim de cada campo.
+           3. FILTRAGEM: Extraia apenas as transações. Ignore headers de página e rodapés.
            ${limitInstruction}
            
            RETORNO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
@@ -111,8 +92,9 @@ export const extractTransactionsWithModel = async (
             contents: { parts },
             config: {
                 temperature: 0,
-                maxOutputTokens: 64000, 
-                thinkingConfig: { thinkingBudget: 32000 },
+                // Aumentado para suportar listas muito longas e evitar o corte em 24 linhas
+                maxOutputTokens: 96000, 
+                thinkingConfig: { thinkingBudget: 24000 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,

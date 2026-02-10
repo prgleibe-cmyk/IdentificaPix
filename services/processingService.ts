@@ -24,18 +24,35 @@ function normalizeIngestionInput(input: any) {
     return input;
 }
 
-export const findMatchingModel = (content: string, models: FileModel[]): { model: FileModel, score: number } | null => {
+export const findMatchingModel = (content: string, models: FileModel[], fileName: string = ''): { model: FileModel, score: number } | null => {
     if (!models || models.length === 0) return null;
     const fileFp = Fingerprinter.generate(content);
     if (!fileFp) return null;
     
-    // RIGOR ABSOLUTO: O match deve ser baseado no HeaderHash (DNA estrutural).
-    const bestMatch = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
+    // Identifica se é um placeholder de PDF
+    const isPdfPlaceholder = content.includes('[DOCUMENTO_PDF_VISUAL]');
     
-    if (content === '[DOCUMENTO_PDF_VISUAL]') {
-        console.log(`[PDF:PHASE:5:MATCHER] DNA:${fileFp.headerHash} -> MATCH:${bestMatch?.name || 'NONE'}`);
-    }
+    if (isPdfPlaceholder) {
+        // Busca todos os modelos que batem com o DNA de PDF
+        const candidates = models.filter(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
+        
+        if (candidates.length === 0) return null;
+        if (candidates.length === 1) return { model: candidates[0], score: 100 };
 
+        // DESEMPATE INTELIGENTE: Se houver mais de um modelo de PDF, 
+        // verifica qual nome de modelo está contido no nome do arquivo enviado.
+        const fileKey = fileName.toLowerCase();
+        const bestMatch = candidates.find(m => {
+            const modelKey = m.name.toLowerCase().replace('.pdf', '').split('.')[0];
+            return fileKey.includes(modelKey);
+        }) || candidates[0];
+
+        console.log(`[PDF:MATCHER] Ambiguidade resolvida para ${fileName} -> Aplicando: ${bestMatch.name}`);
+        return { model: bestMatch, score: 100 };
+    }
+    
+    // RIGOR ABSOLUTO para outros formatos (CSV/XLSX)
+    const bestMatch = models.find(m => m.is_active && m.fingerprint.headerHash === fileFp.headerHash);
     return bestMatch ? { model: bestMatch, score: 100 } : null;
 };
 
@@ -50,20 +67,18 @@ export const processFileContent = async (
     base64?: string 
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
-    // IngestionOrchestrator V19 agora preserva o conteúdo 100% bruto
     const rawContent = IngestionOrchestrator.normalizeRawContent(content);
     
-    const matchResult = findMatchingModel(rawContent, models);
+    // Passamos o fileName para ajudar na disambiguação de PDFs
+    const matchResult = findMatchingModel(rawContent, models, fileName);
     const targetModel = matchResult?.model;
 
-    // Criamos o input adaptado preservando o Base64 se ele existir
     const adaptedInput = {
         __rawText: rawContent,
         __base64: base64, 
         __source: 'file'
     };
 
-    // O StrategyEngine agora decide se processa ou se pede modelo.
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 
