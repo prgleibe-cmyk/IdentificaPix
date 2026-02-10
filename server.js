@@ -23,7 +23,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Health check simples para o Coolify detectar que o container subiu
+// Health check para o Coolify detectar que o container subiu corretamente
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Inicialização da IA Gemini
@@ -59,7 +59,7 @@ app.get('*', (req, res) => {
     res.status(200).send("IdentificaPix Server is Running on port 3001.");
 });
 
-// Porta 3001 (A mesma que você usava com sucesso antes)
+// Porta 3001 (Original do projeto que funciona no seu Coolify)
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`[IdentificaPix] Servidor rodando na porta ${PORT}`);
