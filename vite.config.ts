@@ -31,10 +31,9 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
-      // Garante explicitamente que a pasta public (incluindo /pwa) seja copiada para dist
+      // Garante explicitamente que a pasta public seja copiada para dist
       copyPublicDir: true,
       sourcemap: false,
-      // Usamos o padrão (esbuild) para evitar erros de dependência opcional no CI/CD
       minify: 'esbuild',
       rollupOptions: {
         output: {

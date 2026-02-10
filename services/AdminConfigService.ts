@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { Logger } from './monitoringService';
 
