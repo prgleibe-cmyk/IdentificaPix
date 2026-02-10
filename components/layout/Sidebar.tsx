@@ -93,7 +93,7 @@ export const Sidebar: React.FC = () => {
 
             <div className="relative z-10 flex flex-col h-full">
                 
-                <div className={`flex flex-col items-center justify-center py-8 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
+                <div className={`flex flex-col items-center justify-center pt-4 pb-2 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
                     <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
                         <div className="absolute -inset-10 bg-blue-500/10 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
@@ -101,7 +101,7 @@ export const Sidebar: React.FC = () => {
                         </div>
                     </div>
                     {!isCollapsed && (
-                        <div className="mt-6 text-center">
+                        <div className="mt-1 text-center">
                             <span className="font-display font-black text-2xl tracking-tight text-white block leading-none">
                                 Identifica<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Pix</span>
                             </span>
