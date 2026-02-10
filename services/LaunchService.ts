@@ -9,7 +9,7 @@ const hashesInFlight = new Set<string>();
 
 export const LaunchService = {
     /**
-     * 🛡️ FUNIL DE NORMALIZAÇÃO PARA HASH
+     * 🛡️ FUNIL DE NORMALIZAÇÃO PARA HASH (V4 - ESTABILIDADE ABSOLUTA)
      * Gera uma representação normalizada apenas para evitar duplicatas.
      */
     normalizeTriplet: (t: any) => {
@@ -21,8 +21,12 @@ export const LaunchService = {
         }
         const finalDate = isoDate || rawDate || '0000-00-00';
 
-        // cleanName é usado APENAS para o Hash de deduplicação
-        const cleanName = NameResolver.normalize(t.description || t.rawDescription || 'SEM_DESCRICAO');
+        /**
+         * 🎯 REATIVAÇÃO: Priorizamos o texto BRUTO (Literal) para o Hash.
+         * Isso garante que, se o usuário subir o mesmo arquivo, o Hash será idêntico,
+         * independente de como a IA limpou a descrição visual.
+         */
+        const cleanName = NameResolver.normalize(t.rawDescription || t.description || 'SEM_DESCRICAO');
         const finalValue = Number(t.amount || 0).toFixed(2);
 
         return { finalDate, cleanName, finalValue };
@@ -40,8 +44,7 @@ export const LaunchService = {
     },
 
     /**
-     * 🚀 LANÇAMENTO NA LISTA VIVA (PRESERVAÇÃO LITERAL)
-     * Garante que o valor armazenado seja exatamente o recebido.
+     * 🚀 LANÇAMENTO NA LISTA VIVA (PRESERVAÇÃO LITERAL COM BLOQUEIO DE DUPLICADOS)
      */
     async launchToBank(
         userId: string, 
@@ -58,13 +61,15 @@ export const LaunchService = {
         const currentBankId = isUuid ? bankId : null;
 
         try {
+            // Busca todos os hashes existentes no banco para este usuário
             const existingData = await consolidationService.getExistingTransactionsForDedup(userId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
             const toPersist = transactions
-                .map((item, idx) => {
+                .map((item) => {
                     const finalRowHash = this.computeBaseHash(item, userId);
                     
+                    // Bloqueia se já existe no banco ou se está sendo processado agora (inFlight)
                     if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {
                         return null; 
                     }
@@ -72,15 +77,10 @@ export const LaunchService = {
                     hashesInFlight.add(finalRowHash);
                     const { finalDate } = this.normalizeTriplet(item);
 
-                    /**
-                     * 🔒 PRESERVAÇÃO LITERAL NO BANCO:
-                     * Usamos 'item.description' que já vem congelado do ContractExecutor.
-                     * Não chamamos NameResolver.normalize aqui para o campo de armazenamento.
-                     */
-                    const dbEntry = {
+                    return {
                         transaction_date: finalDate,
                         amount: item.amount,
-                        description: item.description, // LITERAL ABSOLUTO
+                        description: item.description, // Descrição visual (pode ser a limpa)
                         type: (item.amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
                         pix_key: currentBankId ? (item.paymentMethod || 'OUTROS') : bankId, 
                         source: source,
@@ -89,8 +89,6 @@ export const LaunchService = {
                         row_hash: finalRowHash,
                         status: 'pending' as const
                     };
-
-                    return dbEntry;
                 })
                 .filter((item): item is NonNullable<typeof item> => item !== null);
 
@@ -99,6 +97,7 @@ export const LaunchService = {
                 await consolidationService.addTransactions(toPersist as any);
             }
             
+            // Limpa o cache de voo após o processamento
             setTimeout(() => {
                 toPersist.forEach(t => { if(t.row_hash) hashesInFlight.delete(t.row_hash); });
             }, 5000);
