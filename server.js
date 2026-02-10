@@ -19,60 +19,48 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// 1. MIDDLEWARES BÁSICOS
+// Middlewares
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// 2. HEALTH CHECK (Prioridade para o Coolify detectar que o app está vivo)
+// Health check para o Coolify (Nginx)
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
-// 3. INICIALIZAÇÃO DA IA
+// IA
 let ai = null;
 if (process.env.API_KEY) {
     try {
         ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        console.log("[IdentificaPix] Gemini AI Pronto.");
+        console.log("[IdentificaPix] Gemini AI Initialized.");
     } catch (e) {
-        console.error("[IdentificaPix] Erro IA:", e.message);
+        console.error("[IdentificaPix] AI Init Error:", e.message);
     }
 }
 
-// 4. ROTAS DA API
+// APIs
 app.use('/api/gmail', gmailRoutes(ai));
 app.use('/api/payment', paymentRoutes);
 app.use('/api/ai', aiRoutes(ai));
 app.use('/api/inbox', inboxRoutes(ai));
 
-// 5. SERVIÇO DE ARQUIVOS ESTÁTICOS (FRONTEND)
+// Arquivos Estáticos
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// 6. SPA FALLBACK
+// SPA Fallback
 app.get('*', (req, res) => {
     if (req.url.startsWith('/api/')) {
-        return res.status(404).json({ error: 'Endpoint não encontrado' });
+        return res.status(404).json({ error: 'Not Found' });
     }
-
     const indexPath = path.join(distPath, 'index.html');
     if (fs.existsSync(indexPath)) {
         return res.sendFile(indexPath);
     }
-    
-    // Fallback amigável
-    res.status(200).send(`
-        <html>
-            <body style="background:#051024;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-                <div style="text-align:center;padding:40px;border:1px solid rgba(255,255,255,0.1);border-radius:24px;background:rgba(255,255,255,0.05);">
-                    <h1 style="color:#4285F4;">IdentificaPix v2.5</h1>
-                    <p style="opacity:0.7;">Servidor Online na Porta 3001.</p>
-                </div>
-            </body>
-        </html>
-    `);
+    res.status(200).send("IdentificaPix Server is Running on port 3001.");
 });
 
-// 7. PORTA 3001 (Revertida conforme solicitado)
+// Porta 3001 (Original do projeto)
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[IdentificaPix] Rodando em http://0.0.0.0:${PORT}`);
+    console.log(`[IdentificaPix] Servidor rodando na porta ${PORT}`);
 });

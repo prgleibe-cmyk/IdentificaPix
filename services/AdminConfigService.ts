@@ -1,17 +1,12 @@
 import { supabase } from './supabaseClient';
 import { Logger } from './monitoringService';
 
-// ⚠️ “Configuração Administrativa Persistente — NÃO HARDCODAR”
-// ⚠️ “Qualquer ajuste do Admin deve ser salvo no Supabase”
-
+/**
+ * SERVIÇO DE CONFIGURAÇÃO ADMINISTRATIVA (V4 - PERSISTÊNCIA GARANTIDA)
+ */
 export const AdminConfigService = {
-    // Cache em memória para evitar leituras repetidas e garantir performance
     cache: new Map<string, any>(),
 
-    /**
-     * Recupera uma configuração do Banco de Dados.
-     * Retorna NULL se não existir.
-     */
     async get<T>(key: string): Promise<T | null> {
         if (this.cache.has(key)) {
             return this.cache.get(key) as T;
@@ -43,16 +38,11 @@ export const AdminConfigService = {
         }
     },
 
-    /**
-     * Salva uma configuração no Supabase usando UPSERT (Update or Insert).
-     * Garante que apenas uma linha exista para cada chave de configuração.
-     */
     async set<T>(key: string, value: T): Promise<void> {
-        // Atualiza cache imediatamente para refletir na UI (Optimistic)
         this.cache.set(key, value);
 
         try {
-            // O uso de onConflict: 'key' exige que a coluna 'key' tenha constraint UNIQUE no banco
+            // O onConflict: 'key' agora funciona pois o SQL V12 adicionou a constraint UNIQUE
             const { error } = await supabase
                 .from('admin_config')
                 .upsert(
@@ -69,7 +59,7 @@ export const AdminConfigService = {
                 throw error;
             }
             
-            Logger.info(`[AdminConfig] Configuração '${key}' salva com sucesso.`);
+            Logger.info(`[AdminConfig] Configuração '${key}' persistida.`);
 
         } catch (e) {
             Logger.error(`[AdminConfig] Falha de persistência para '${key}'`, e);
@@ -77,9 +67,6 @@ export const AdminConfigService = {
         }
     },
 
-    /**
-     * Recupera todas as configurações para carga inicial.
-     */
     async getAll(): Promise<Record<string, any>> {
         try {
             const { data, error } = await supabase
@@ -95,7 +82,7 @@ export const AdminConfigService = {
             });
             return config;
         } catch (e) {
-            console.warn("[AdminConfig] Falha ao carregar configurações em lote.", e);
+            console.warn("[AdminConfig] Falha ao carregar lote.", e);
             return {};
         }
     }
