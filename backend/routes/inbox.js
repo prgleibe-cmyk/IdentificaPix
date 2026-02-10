@@ -1,29 +1,34 @@
-
 import express from 'express';
-import { Type } from "@google/genai";
 import { createClient } from '@supabase/supabase-js';
 
 const router = express.Router();
 
-// No backend, idealmente usaríamos a SERVICE_ROLE_KEY para ignorar RLS, 
-// mas para o teste usaremos as envs disponíveis.
-const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
 export default (ai) => {
+    // Configuração do Supabase Admin interna para a rota
+    const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+    
+    let supabaseAdmin = null;
+    if (supabaseKey) {
+        try {
+            supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+            console.log("[Inbox API] Supabase Client Initialized.");
+        } catch (e) {
+            console.error("[Inbox API] Supabase Init Error:", e.message);
+        }
+    }
+
     router.post('/:userId/:bankId', async (req, res) => {
         const { userId, bankId } = req.params;
         const { text } = req.body;
 
-        if (!ai) return res.status(500).json({ error: "IA não configurada" });
+        if (!ai) return res.status(500).json({ error: "IA não configurada no servidor." });
+        if (!supabaseAdmin) return res.status(500).json({ error: "Conexão com banco de dados não configurada." });
         if (!text) return res.status(400).json({ error: "Conteúdo da mensagem vazio" });
 
         try {
-            console.log(`[Inbox API] Processando mensagem para Usuário: ${userId}`);
+            console.log(`[Inbox API] Processando notificação para Usuário: ${userId}`);
 
-            // 1. Gemini Pro para extração de alta fidelidade
-            // Usamos o modelo Pro para garantir que o nome do pagador seja isolado corretamente
             const response = await ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
                 contents: `Analise esta notificação bancária: "${text}".
@@ -40,10 +45,8 @@ export default (ai) => {
 
             const data = JSON.parse(response.text);
 
-            // 2. Hash anti-duplicidade (evita que o mesmo SMS processe duas vezes)
             const rowHash = `sms_${userId}_${bankId}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
 
-            // 3. Inserção via Cliente Admin (Bypassing RLS)
             const { error } = await supabaseAdmin
                 .from('consolidated_transactions')
                 .insert({
@@ -61,17 +64,16 @@ export default (ai) => {
 
             if (error) {
                 if (error.code === '23505') {
-                    return res.json({ success: true, message: "Transação já existia (duplicata)" });
+                    return res.json({ success: true, message: "Transação já registrada." });
                 }
                 throw error;
             }
 
-            console.log(`[Inbox API] Sucesso: Transação de ${data.description} injetada.`);
             res.json({ success: true, message: "Transação injetada na Lista Viva" });
 
         } catch (error) {
-            console.error("[Inbox API] Erro:", error.message);
-            res.status(500).json({ error: "Falha ao processar notificação" });
+            console.error("[Inbox API] Erro no processamento:", error.message);
+            res.status(500).json({ error: "Falha ao processar notificação via IA." });
         }
     });
 
