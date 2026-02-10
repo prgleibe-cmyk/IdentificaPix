@@ -34,7 +34,7 @@ export const DashboardView: React.FC = () => {
                         <div className="absolute inset-0 bg-brand-blue/20 blur-3xl rounded-full animate-pulse"></div>
                         <img 
                             src="/pwa/icon-512.png" 
-                            className="h-28 w-auto object-contain relative z-10 drop-shadow-2xl" 
+                            className="h-40 w-auto object-contain relative z-10 drop-shadow-2xl" 
                             alt="IdentificaPix Logo" 
                         />
                     </div>
