@@ -1,6 +1,6 @@
 
-// Service Worker IdentificaPix - Versão 7
-const CACHE_NAME = 'identificapix-v7';
+// Service Worker IdentificaPix - Versão 8
+const CACHE_NAME = 'identificapix-v8';
 
 // Ativos que devem ser buscados SEMPRE na rede para garantir atualização de ícones no Windows
 const BYPASS_CACHE = [
