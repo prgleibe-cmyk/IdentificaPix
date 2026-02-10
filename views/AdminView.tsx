@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -26,76 +27,46 @@ type AdminTab = 'settings' | 'users' | 'audit' | 'models';
 
 const FIX_SQL = `
 -- ============================================================
--- SCRIPT DE CORREÇÃO DEFINITIVA (V11 - Configs & Persistence)
+-- SCRIPT DE CORREÇÃO DEFINITIVA (V12 - Persistence Fix)
 -- ============================================================
 
 BEGIN;
 
--- 1. Tabela de Configurações Administrativas
+-- 1. Garantir Tabela de Configurações Administrativas
 CREATE TABLE IF NOT EXISTS public.admin_config (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    key TEXT UNIQUE NOT NULL,
+    key TEXT NOT NULL,
     value JSONB NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Garantir que a coluna 'key' seja única caso a tabela já exista sem a constraint
+-- 2. CRÍTICO: Garantir que a coluna 'key' é única para o UPSERT funcionar
 DO $$ 
 BEGIN 
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'admin_config_key_key'
     ) THEN
+        -- Limpa duplicatas antes de adicionar a constraint (mantém a mais recente)
+        DELETE FROM public.admin_config a 
+        WHERE a.id NOT IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY key ORDER BY updated_at DESC) as rn
+                FROM public.admin_config
+            ) t WHERE rn = 1
+        );
+        
         ALTER TABLE public.admin_config ADD CONSTRAINT admin_config_key_key UNIQUE (key);
     END IF;
 END $$;
 
--- 2. Garantir que a tabela consolidated_transactions tem as colunas corretas
-CREATE TABLE IF NOT EXISTS public.consolidated_transactions (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    transaction_date DATE NOT NULL,
-    amount NUMERIC(15,2) NOT NULL,
-    description TEXT NOT NULL,
-    type TEXT CHECK (type IN ('income', 'expense')),
-    pix_key TEXT,
-    source TEXT DEFAULT 'file',
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'identified', 'resolved')),
-    bank_id UUID REFERENCES public.banks(id) ON DELETE SET NULL,
-    row_hash TEXT,
-    is_confirmed BOOLEAN DEFAULT false
-);
-
--- Adicionar colunas caso a tabela já exista mas esteja incompleta
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='bank_id') THEN
-        ALTER TABLE public.consolidated_transactions ADD COLUMN bank_id UUID REFERENCES public.banks(id) ON DELETE SET NULL;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='row_hash') THEN
-        ALTER TABLE public.consolidated_transactions ADD COLUMN row_hash TEXT;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='consolidated_transactions' AND COLUMN_NAME='is_confirmed') THEN
-        ALTER TABLE public.consolidated_transactions ADD COLUMN is_confirmed BOOLEAN DEFAULT false;
-    END IF;
-END $$;
-
--- 3. Políticas RLS
+-- 3. Políticas RLS para garantir acesso do Admin
 ALTER TABLE public.admin_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.consolidated_transactions ENABLE ROW LEVEL SECURITY;
 
--- Política para Admin Config
 DROP POLICY IF EXISTS "Enable read access for all" ON public.admin_config;
 CREATE POLICY "Enable read access for all" ON public.admin_config FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Enable all access for authenticated users" ON public.admin_config;
 CREATE POLICY "Enable all access for authenticated users" ON public.admin_config FOR ALL USING (auth.role() = 'authenticated');
-
-DROP POLICY IF EXISTS "Users can manage their own transactions" ON public.consolidated_transactions;
-CREATE POLICY "Users can manage their own transactions" ON public.consolidated_transactions
-    FOR ALL USING (auth.uid() = user_id);
 
 COMMIT;
 `;
@@ -111,7 +82,7 @@ export const AdminView: React.FC = () => {
 
     const copySql = () => {
         navigator.clipboard.writeText(FIX_SQL);
-        showToast("SQL V11 copiado! Execute no Supabase SQL Editor.", "success");
+        showToast("SQL V12 copiado! Execute no Supabase SQL Editor.", "success");
     };
 
     const runDiagnostics = async () => {
@@ -207,10 +178,10 @@ export const AdminView: React.FC = () => {
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.geminiKey ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><span className="text-xs font-bold text-slate-700">Chave Gemini (process.env)</span>{diagResult.geminiKey ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.supabaseStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão Supabase</span>{diagResult.supabaseError && <span className="text-[10px] text-red-500 mt-1">{diagResult.supabaseError}</span>}</div>{diagResult.supabaseStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
-                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V11)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">ESTÁVEL</span></div>
+                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V12)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">ESTÁVEL</span></div>
                                         <div className="mt-1">
-                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script atualiza as tabelas para suportar a persistência total de configurações e palavras-chave.</p>
-                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V11</button>
+                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script resolve o problema das palavras-chave sumindo e garante que o servidor suba no Coolify.</p>
+                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V12</button>
                                         </div>
                                     </div>
                                 </div>
