@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -24,7 +23,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// 2. HEALTH CHECK (Prioridade 0 para o Coolify/Nginx)
+// 2. HEALTH CHECK (Prioridade para o Coolify detectar que o app está vivo)
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // 3. INICIALIZAÇÃO DA IA
@@ -32,9 +31,9 @@ let ai = null;
 if (process.env.API_KEY) {
     try {
         ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        console.log("[Server] Gemini AI Initialized.");
+        console.log("[IdentificaPix] Gemini AI Pronto.");
     } catch (e) {
-        console.error("[Server] Gemini Init Fail:", e.message);
+        console.error("[IdentificaPix] Erro IA:", e.message);
     }
 }
 
@@ -50,7 +49,6 @@ app.use(express.static(distPath));
 
 // 6. SPA FALLBACK
 app.get('*', (req, res) => {
-    // Se for uma rota de API que não existe, retorna 404 em vez de carregar o HTML
     if (req.url.startsWith('/api/')) {
         return res.status(404).json({ error: 'Endpoint não encontrado' });
     }
@@ -60,26 +58,21 @@ app.get('*', (req, res) => {
         return res.sendFile(indexPath);
     }
     
-    // Fallback amigável se a pasta dist ainda não existir (ajuda no debug do Coolify)
+    // Fallback amigável
     res.status(200).send(`
         <html>
             <body style="background:#051024;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
                 <div style="text-align:center;padding:40px;border:1px solid rgba(255,255,255,0.1);border-radius:24px;background:rgba(255,255,255,0.05);">
-                    <h1 style="color:#4285F4;">IdentificaPix v2.3</h1>
-                    <p style="opacity:0.7;">O servidor backend está respondendo na porta 3001.</p>
-                    <div style="margin-top:20px;padding:15px;background:rgba(234,67,53,0.2);border-radius:12px;color:#ff8a80;">
-                        <strong>Aviso:</strong> Pasta 'dist' não encontrada. Verifique se o comando 'npm run build' foi executado.
-                    </div>
+                    <h1 style="color:#4285F4;">IdentificaPix v2.5</h1>
+                    <p style="opacity:0.7;">Servidor Online na Porta 3001.</p>
                 </div>
             </body>
         </html>
     `);
 });
 
-// 7. PORTA E BINDING
+// 7. PORTA 3001 (Revertida conforme solicitado)
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[IdentificaPix] Servidor iniciado com sucesso.`);
-    console.log(`[IdentificaPix] Porta: ${PORT}`);
-    console.log(`[IdentificaPix] Bind: 0.0.0.0 (Docker Compatible)`);
+    console.log(`[IdentificaPix] Rodando em http://0.0.0.0:${PORT}`);
 });
