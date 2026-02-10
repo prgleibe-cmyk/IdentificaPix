@@ -3,8 +3,7 @@ import { NameResolver } from '../../core/processors/NameResolver';
 import { parseDate } from '../utils/parsingUtils';
 
 /**
- * Lógica de filtragem UNIVERSAL e ROBUSTA.
- * Suporta busca por partes de data, valores flexíveis e texto.
+ * Lógica de filtragem UNIVERSAL e ROBUSTA para transações puras.
  */
 export const filterTransactionByUniversalQuery = (tx: Transaction, query: string): boolean => {
     if (!query || !query.trim() || !tx) return true;
@@ -46,11 +45,61 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
 };
 
 /**
- * Lógica de filtragem para Resultados de Conciliação.
+ * Lógica de filtragem UNIVERSAL para Resultados de Conciliação.
+ * Expandida para incluir nome do contribuinte e da igreja no escopo de busca.
  */
 export const filterByUniversalQuery = (result: MatchResult, query: string): boolean => {
     if (!query || !query.trim() || !result) return true;
-    return filterTransactionByUniversalQuery(result.transaction, query);
+    
+    const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
+    const tx = result.transaction;
+    
+    // 1. Dados identificados (Soberania do MatchResult)
+    const contribName = (result.contributor?.cleanedName || result.contributor?.name || '').toLowerCase();
+    const churchName = (result.church?.name || '').toLowerCase();
+    const typeStr = (result.contributionType || result.contributor?.contributionType || tx?.contributionType || '').toLowerCase();
+    
+    // 2. Dados bancários (Transaction)
+    const bankDesc = (tx?.description || '').toLowerCase();
+    const cleanedDesc = (tx?.cleanedDescription || '').toLowerCase();
+    
+    // 3. Valor (Ponto e Vírgula)
+    const amount = Math.abs(tx?.amount || 0);
+    const amountStrFixed = amount.toFixed(2);
+    const amountStrComma = amountStrFixed.replace('.', ',');
+    
+    // 4. Lógica de Data (BR e ISO)
+    const rawDate = tx?.date || '';
+    const dateNormalized = rawDate.replace(/-/g, '/');
+    const dateParts = dateNormalized.split('/');
+    let dateBr = '';
+    let dateShort = '';
+    if (dateParts.length === 3) {
+        if (dateParts[0].length === 4) {
+            dateBr = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+            dateShort = `${dateParts[2]}/${dateParts[1]}`;
+        } else {
+            dateBr = dateNormalized;
+            dateShort = `${dateParts[0]}/${dateParts[1]}`;
+        }
+    }
+
+    return terms.every(term => {
+        // Busca em todos os campos disponíveis
+        if (contribName.includes(term)) return true;
+        if (churchName.includes(term)) return true;
+        if (bankDesc.includes(term)) return true;
+        if (cleanedDesc.includes(term)) return true;
+        if (typeStr.includes(term)) return true;
+        if (amountStrFixed.includes(term)) return true;
+        if (amountStrComma.includes(term)) return true;
+        
+        // Busca em formatos de data
+        const dateTerm = term.replace(/[-.]/g, '/');
+        if (dateBr.includes(dateTerm) || dateShort.includes(dateTerm)) return true;
+        
+        return false;
+    });
 };
 
 /**
@@ -135,7 +184,6 @@ export const applyAdvancedFilters = (results: MatchResult[], filters: SearchFilt
 
         // 5. Valor
         const vFilter = filters.valueFilter;
-        // Fix: Removed unintentional comparison between number and string on line 129. vFilter.value1 is number | null.
         const hasValue1 = vFilter && vFilter.value1 !== null && vFilter.value1 !== undefined;
 
         if (vFilter && vFilter.operator !== 'any' && hasValue1) {
