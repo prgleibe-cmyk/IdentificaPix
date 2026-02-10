@@ -23,10 +23,10 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Health check para o Coolify (Nginx)
+// Health check simples para o Coolify detectar que o container subiu
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
-// IA
+// Inicialização da IA Gemini
 let ai = null;
 if (process.env.API_KEY) {
     try {
@@ -37,17 +37,17 @@ if (process.env.API_KEY) {
     }
 }
 
-// APIs
+// Endpoints da API
 app.use('/api/gmail', gmailRoutes(ai));
 app.use('/api/payment', paymentRoutes);
 app.use('/api/ai', aiRoutes(ai));
 app.use('/api/inbox', inboxRoutes(ai));
 
-// Arquivos Estáticos
+// Pasta de arquivos estáticos gerada pelo build do Vite
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// SPA Fallback
+// Fallback para Single Page Application (SPA)
 app.get('*', (req, res) => {
     if (req.url.startsWith('/api/')) {
         return res.status(404).json({ error: 'Not Found' });
@@ -59,7 +59,7 @@ app.get('*', (req, res) => {
     res.status(200).send("IdentificaPix Server is Running on port 3001.");
 });
 
-// Porta 3001 (Original do projeto)
+// Porta 3001 (A mesma que você usava com sucesso antes)
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`[IdentificaPix] Servidor rodando na porta ${PORT}`);
