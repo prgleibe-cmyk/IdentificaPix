@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePaymentController } from './payment/usePaymentController';
@@ -6,9 +5,9 @@ import { PaymentConfigPanel } from './payment/PaymentConfigPanel';
 import { PaymentActionPanel } from './payment/PaymentActionPanel';
 
 /**
- * 💳 PAYMENT MODAL (V2 - REFACTORED)
+ * 💳 PAYMENT MODAL (V2.1 - CLEANUP COMPLETE)
  * Orquestrador central do fluxo de upgrade e assinatura.
- * Dividido em módulos menores para manutenção e performance.
+ * Removida qualquer referência a pacotes de IA para simplificar a experiência.
  */
 export const PaymentModal: React.FC = () => {
     const controller = usePaymentController();
@@ -26,11 +25,8 @@ export const PaymentModal: React.FC = () => {
                     usageStats={controller.usageStats}
                     numSlots={controller.numSlots}
                     setNumSlots={controller.setNumSlots}
-                    aiPacks={controller.aiPacks}
-                    setAiPacks={controller.setAiPacks}
                     step={controller.step}
                     pricePerExtra={systemSettings.pricePerExtra}
-                    pricePerAiBlock={systemSettings.pricePerAiBlock}
                 />
 
                 {/* Coluna 2: Checkout e Status */}

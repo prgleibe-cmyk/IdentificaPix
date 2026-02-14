@@ -23,7 +23,7 @@ export interface AuthContextType {
   addSubscriptionDays: (days: number) => Promise<void>;
   registerPayment: (amount: number, method: string, notes?: string, receiptUrl?: string) => Promise<void>;
   incrementAiUsage: () => Promise<void>;
-  updateLimits: (slots: number, aiPacks: number) => Promise<void>;
+  updateLimits: (slots: number) => Promise<void>;
   systemSettings: SystemSettings;
   updateSystemSettings: (settings: Partial<SystemSettings>) => Promise<void>;
 }

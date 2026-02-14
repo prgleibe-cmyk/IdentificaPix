@@ -20,7 +20,6 @@ export const usePaymentController = () => {
     const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
     const [numSlots, setNumSlots] = useState(1);
-    const [aiPacks, setAiPacks] = useState(0); 
     const pollingInterval = useRef<any>(null);
 
     useEffect(() => {
@@ -31,13 +30,11 @@ export const usePaymentController = () => {
 
     const BASE_PRICE = subscription.customPrice ?? systemSettings.monthlyPrice ?? 79.90;
     const PRICE_PER_EXTRA = systemSettings.pricePerExtra || 19.90; 
-    const PRICE_PER_AI_BLOCK = systemSettings.pricePerAiBlock || 15.00;
 
     const calculateTotal = useMemo(() => {
         const extraSlots = Math.max(0, numSlots - 1);
-        const aiCost = aiPacks * PRICE_PER_AI_BLOCK;
-        return BASE_PRICE + (extraSlots * PRICE_PER_EXTRA) + aiCost;
-    }, [BASE_PRICE, PRICE_PER_EXTRA, PRICE_PER_AI_BLOCK, numSlots, aiPacks]);
+        return BASE_PRICE + (extraSlots * PRICE_PER_EXTRA);
+    }, [BASE_PRICE, PRICE_PER_EXTRA, numSlots]);
 
     const usageStats = useMemo(() => {
         const totalDays = subscription.totalDays || 30;
@@ -61,10 +58,11 @@ export const usePaymentController = () => {
         if (pollingInterval.current) clearInterval(pollingInterval.current);
         if (step === 'payment') setIsLoading(true);
         try {
-            const aiLimitToAdd = aiPacks * 1000;
-            const description = `Upgrade: ${numSlots} Slots, +${aiLimitToAdd} AI (${paymentMethod})`;
+            const description = `Upgrade: ${numSlots} Slots (${paymentMethod})`;
             await registerPayment(calculateTotal, paymentMethod, description);
-            await updateLimits(numSlots, aiPacks);
+            // Ao atualizar limites, passamos apenas os slots. 
+            // A função no useAuthActions agora cuidará de tornar a IA ilimitada (limite alto).
+            await updateLimits(numSlots);
             setStep('success');
             showToast("Pagamento confirmado! Acesso liberado.", "success");
             setTimeout(() => handleClose(), 4000);
@@ -86,7 +84,7 @@ export const usePaymentController = () => {
     const handleCheckout = async () => {
         setIsLoading(true);
         try {
-            const description = `Plano: ${numSlots} Slots Unificados, +${aiPacks * 1000} AI`;
+            const description = `Plano: ${numSlots} Slots Unificados com Inteligência Ilimitada`;
             const data = await paymentService.createPayment(
                 calculateTotal, 
                 user?.user_metadata?.full_name || user?.email || 'Cliente', 
@@ -118,7 +116,7 @@ export const usePaymentController = () => {
 
     return {
         step, setStep, isLoading, paymentData, paymentMethod, setPaymentMethod,
-        numSlots, setNumSlots, aiPacks, setAiPacks, calculateTotal, usageStats,
+        numSlots, setNumSlots, calculateTotal, usageStats,
         handleCheckout, handleClose, isPaymentModalOpen, subscription
     };
 };

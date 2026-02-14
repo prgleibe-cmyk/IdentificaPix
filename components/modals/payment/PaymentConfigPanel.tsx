@@ -8,15 +8,12 @@ interface PaymentConfigPanelProps {
     usageStats: any;
     numSlots: number;
     setNumSlots: (v: number) => void;
-    aiPacks: number;
-    setAiPacks: (v: number) => void;
     step: string;
     pricePerExtra: number;
-    pricePerAiBlock: number;
 }
 
 export const PaymentConfigPanel: React.FC<PaymentConfigPanelProps> = ({
-    subscription, usageStats, numSlots, setNumSlots, aiPacks, setAiPacks, step, pricePerExtra, pricePerAiBlock
+    subscription, usageStats, numSlots, setNumSlots, step, pricePerExtra
 }) => (
     <div className="p-8 flex flex-col h-full overflow-y-auto custom-scrollbar relative z-10 bg-white/50 dark:bg-slate-900/30">
         <div className="flex justify-between items-start mb-8">
@@ -43,17 +40,23 @@ export const PaymentConfigPanel: React.FC<PaymentConfigPanelProps> = ({
                 </div>
                 <ProgressBar percent={usageStats.days.percent} colorClass={usageStats.days.left < 5 ? "bg-red-500" : "bg-emerald-500"} glowColor={usageStats.days.left < 5 ? "bg-red-400" : "bg-emerald-400"} />
             </div>
+            
             <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm relative group">
                 <div className="flex justify-between items-end mb-2 relative z-10">
                     <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                         <SparklesIcon className="w-4 h-4" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">IA</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Uso de IA</span>
                     </div>
-                    <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
-                        {usageStats.ai.used}<span className="text-xs text-slate-400 font-medium">/{usageStats.ai.total}</span>
-                    </span>
+                    <div className="flex items-center gap-1">
+                        <span className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                            {usageStats.ai.used}
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-500 uppercase">Ilimitado</span>
+                    </div>
                 </div>
-                <ProgressBar percent={usageStats.ai.percent} colorClass="bg-blue-500" glowColor="bg-blue-400" />
+                <div className="h-1.5 w-full bg-emerald-500/20 rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-emerald-500 w-full opacity-50"></div>
+                </div>
             </div>
         </div>
 
@@ -62,8 +65,27 @@ export const PaymentConfigPanel: React.FC<PaymentConfigPanelProps> = ({
                 <BoltIcon className="w-4 h-4 text-amber-500" />
                 <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Personalizar</h3>
             </div>
-            <Counter value={numSlots} setValue={setNumSlots} label="Cadastros (Slots)" icon={CircleStackIcon} subLabel={numSlots > 1 ? `+${formatCurrency(pricePerExtra * (numSlots - 1))}` : "Plano Base"} disabled={step !== 'config'} />
-            <Counter value={aiPacks} setValue={setAiPacks} stepVal={0} label="Pacote IA (+1000)" icon={SparklesIcon} subLabel={aiPacks > 0 ? `+${formatCurrency(pricePerAiBlock * aiPacks)}` : "Padrão"} disabled={step !== 'config'} />
+            
+            <Counter 
+                value={numSlots} 
+                setValue={setNumSlots} 
+                label="Capacidade de Cadastros" 
+                icon={CircleStackIcon} 
+                subLabel={numSlots > 1 ? `+${formatCurrency(pricePerExtra * (numSlots - 1))}` : "Plano Base (Igreja + Banco)"} 
+                disabled={step !== 'config'} 
+            />
+            
+            <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 flex gap-4 items-start shadow-sm">
+                <div className="p-2 bg-white dark:bg-indigo-900/50 rounded-xl shadow-sm">
+                    <SparklesIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                    <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-100 uppercase tracking-tight">Inteligência Inclusa</h4>
+                    <p className="text-[10px] text-indigo-700 dark:text-indigo-300 mt-1 leading-relaxed">
+                        Esqueça os tokens. Ao assinar, você tem acesso ao processamento por <strong>IA de forma ilimitada</strong> para todos os seus registros bancários.
+                    </p>
+                </div>
+            </div>
         </div>
     </div>
 );

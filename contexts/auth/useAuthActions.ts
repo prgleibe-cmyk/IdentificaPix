@@ -1,3 +1,4 @@
+
 import React, { useCallback } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { SubscriptionStatus } from '../../types';
@@ -17,11 +18,19 @@ export const useAuthActions = (
         refreshSubscription();
     }, [user, refreshSubscription]);
 
-    const updateLimits = useCallback(async (slots: number, aiPacks: number) => {
+    const updateLimits = useCallback(async (slots: number) => {
         if (!user) return;
-        const { data: p } = await supabase.from('profiles').select('limit_ai').eq('id', user.id).single();
-        const newLimit = ((p as any)?.limit_ai || 100) + (aiPacks * 1000);
-        await supabase.from('profiles').update({ limit_ai: newLimit, max_churches: slots, max_banks: slots }).eq('id', user.id);
+        
+        // Ao realizar qualquer upgrade de slots, definimos o limite de IA para um valor 
+        // virtualmente infinito (999.999 tokens/usos) para não barrar o usuário.
+        const UNLIMITED_AI = 999999;
+        
+        await supabase.from('profiles').update({ 
+            limit_ai: UNLIMITED_AI, 
+            max_churches: slots, 
+            max_banks: slots 
+        }).eq('id', user.id);
+        
         refreshSubscription();
     }, [user, refreshSubscription]);
 

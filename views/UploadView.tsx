@@ -2,14 +2,14 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon, LinkIcon } from '../components/Icons';
-import { GmailButton } from '../features/gmail/GmailButton';
+import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon } from '../components/Icons';
 import { SmartBankCard } from '../components/upload/SmartBankCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
 
 /**
- * UPLOAD VIEW (V9 - DESIGN REFINADO COM BOTÕES PREMIUM)
+ * UPLOAD VIEW (V9 - DESIGN REFINADO)
+ * Removidas funcionalidades de Gmail e SMS (Fase de Homologação)
  */
 export const UploadView: React.FC = () => {
     const { 
@@ -28,18 +28,6 @@ export const UploadView: React.FC = () => {
                 <div>
                     <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">Lançar Dados</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">Selecione seus extratos para identificação automática inteligente.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    {/* BOTÃO AUTOMAÇÃO SMS - Design Premium Violeta/Indigo (Conectividade) */}
-                    <button 
-                        onClick={() => setActiveView('connectors')}
-                        className="relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-violet-600 via-indigo-600 to-indigo-700 hover:from-violet-500 hover:to-indigo-600 transition-all shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 active:scale-95 border border-white/10 group"
-                    >
-                        <LinkIcon className="w-3.5 h-3.5 stroke-[2.5] group-hover:rotate-12 transition-transform" />
-                        <span>Automação SMS</span>
-                    </button>
-                    
-                    <GmailButton />
                 </div>
             </div>
 
