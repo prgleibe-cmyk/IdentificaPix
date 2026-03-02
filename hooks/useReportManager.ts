@@ -94,7 +94,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
         // Dedup: Evita salvar exatamente o mesmo dado que já foi enviado
-        const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
+        // AJUSTE: Inclui o número de itens confirmados no payload para detectar mudanças de status de confirmação
+        const confirmedCount = results?.filter(r => r.isConfirmed || r.transaction?.isConfirmed).length || 0;
+        const currentPayload = JSON.stringify({ 
+            r: results?.length || 0, 
+            c: confirmedCount,
+            s: !!spreadsheetData 
+        });
+        
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
