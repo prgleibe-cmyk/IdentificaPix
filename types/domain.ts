@@ -149,7 +149,6 @@ export interface SavedReport {
   createdAt: string;
   recordCount: number;
   user_id: string;
-  final_confirmation?: boolean;
   data: {
     results: MatchResult[];
     sourceFiles: any[];

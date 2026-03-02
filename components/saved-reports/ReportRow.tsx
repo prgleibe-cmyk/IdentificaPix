@@ -74,11 +74,6 @@ export const ReportRow: React.FC<ReportRowProps> = ({
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate cursor-default group-hover:text-brand-blue transition-colors">
                                     {report.name}
                                 </span>
-                                {report.final_confirmation && (
-                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[8px] font-black uppercase tracking-tighter shrink-0">
-                                        Confirmado
-                                    </span>
-                                )}
                                 <button 
                                     onClick={() => onStartEdit(report)}
                                     className="opacity-0 group-hover/edit:opacity-100 p-1 text-slate-400 hover:text-brand-blue transition-all"
