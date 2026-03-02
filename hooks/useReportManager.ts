@@ -55,6 +55,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         createdAt: r.created_at,
                         recordCount: r.record_count,
                         user_id: r.user_id,
+                        final_confirmation: !!r.final_confirmation,
                         data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
                     }));
                     setSavedReports(hydrated);
@@ -114,10 +115,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
 
+        // AJUSTE: Calcula se o relatório está totalmente confirmado (todos os itens bloqueados)
+        const isFinalConfirmed = mergedData.results && mergedData.results.length > 0 && mergedData.results.every((r: any) => r.isConfirmed || r.transaction?.isConfirmed);
+
         // Atualiza estado local de forma otimista
         setSavedReports(prev => prev.map(r => r.id === reportId ? {
             ...r,
             recordCount,
+            final_confirmation: isFinalConfirmed,
             data: mergedData
         } : r));
 
@@ -126,7 +131,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             .from('saved_reports')
             .update({ 
                 data: mergedData as any,
-                record_count: recordCount 
+                record_count: recordCount,
+                final_confirmation: isFinalConfirmed
             })
             .eq('id', reportId);
 
@@ -167,6 +173,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             ? savingReportState.spreadsheetData.rows.length 
             : savingReportState.results.length;
 
+        const isFinalConfirmed = (savingReportState.results && savingReportState.results.length > 0 && savingReportState.results.every((r: any) => r.isConfirmed || r.transaction?.isConfirmed)) || false;
+
         const newReportId = `rep-${Date.now()}`;
         const newReport: SavedReport = {
             id: newReportId,
@@ -174,6 +182,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
             user_id: user.id,
+            final_confirmation: isFinalConfirmed,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -190,6 +199,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: newReport.name,
             record_count: newReport.recordCount,
             user_id: newReport.user_id,
+            final_confirmation: isFinalConfirmed,
             data: newReport.data as any
         });
 

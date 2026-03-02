@@ -34,9 +34,9 @@ export interface LearnedAssociationsTable {
 }
 
 export interface SavedReportsTable {
-  Row: { created_at: string; data: Json; id: string; name: string; record_count: number; user_id: string }
-  Insert: { created_at?: string; data: Json; id?: string; name: string; record_count: number; user_id: string }
-  Update: { created_at?: string; data?: Json; id?: string; name?: string; record_count?: number; user_id?: string }
+  Row: { created_at: string; data: Json; id: string; name: string; record_count: number; user_id: string; final_confirmation: boolean | null }
+  Insert: { created_at?: string; data: Json; id?: string; name: string; record_count: number; user_id: string; final_confirmation?: boolean | null }
+  Update: { created_at?: string; data?: Json; id?: string; name?: string; record_count?: number; user_id?: string; final_confirmation?: boolean | null }
   Relationships: [{ foreignKeyName: "saved_reports_user_id_fkey", columns: ["user_id"], isOneToOne: false, referencedRelation: "users", referencedColumns: ["id"] }]
 }
 
