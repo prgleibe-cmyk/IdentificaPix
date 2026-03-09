@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
@@ -16,6 +15,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 };
 
 const MAX_REPORTS_PER_USER = 60;
+const MAX_RESULTS_PER_REPORT = 1000;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     
@@ -25,12 +25,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
 
     /**
-     * 📥 CARGA INICIAL (REIDRATAÇÃO DO BACKEND)
-     * Garante que ao recarregar a página, a lista de relatórios (e planilhas vinculadas) seja recuperada.
+     * 📥 CARGA INICIAL OTIMIZADA
+     * Não carrega JSON pesado (data) para evitar queries lentas.
      */
     useEffect(() => {
         if (!user) {
@@ -42,7 +41,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             try {
                 const { data, error } = await supabase
                     .from('saved_reports')
-                    .select('*')
+                    .select('id,name,created_at,record_count,user_id')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false });
 
@@ -55,7 +54,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         createdAt: r.created_at,
                         recordCount: r.record_count,
                         user_id: r.user_id,
-                        data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
+                        data: undefined
                     }));
                     setSavedReports(hydrated);
                 }
@@ -80,41 +79,36 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [user, showToast]);
 
     /**
-     * 🔐 PERSISTÊNCIA MESTRE (UPSERT COM MERGE)
-     * Salva as alterações de uma planilha ou conciliação sem apagar os dados existentes do outro tipo.
+     * 🔐 AUTOSAVE OTIMIZADO
      */
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user || !reportId) return;
         
-        // Busca o estado atual local para merge (evita perda de dados em atualizações parciais)
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-        // Bloqueio de salvamento vazio: só impede se AMBOS forem inexistentes
         if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
-        // Dedup: Evita salvar exatamente o mesmo dado que já foi enviado
         const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
-        // Lógica de Merge: Preserva o que já existe se o novo for omitido
+        const safeResults = (results || []).slice(0, MAX_RESULTS_PER_REPORT);
+
         const mergedData = {
             ...currentData,
-            results: (results && results.length > 0) ? results : currentData.results,
+            results: safeResults.length > 0 ? safeResults : currentData.results,
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
 
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
 
-        // Atualiza estado local de forma otimista
         setSavedReports(prev => prev.map(r => r.id === reportId ? {
             ...r,
             recordCount,
             data: mergedData
         } : r));
 
-        // Persistência Cloud
         const { error } = await supabase
             .from('saved_reports')
             .update({ 
@@ -126,8 +120,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
             showToast("Falha ao salvar alterações no servidor.", "error");
-        } else {
-            showToast("Alterações salvas no servidor.", "success");
         }
     }, [user, showToast, savedReports]);
 
@@ -143,8 +135,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
     /**
-     * CRIA NOVO REGISTRO
-     * Retorna o ID gerado para que o controlador possa marcar como "Relatório Ativo".
+     * CRIA NOVO RELATÓRIO
      */
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
@@ -156,11 +147,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const isSpreadsheet = savingReportState.type === 'spreadsheet';
+
+        const safeResults = (savingReportState.results || []).slice(0, MAX_RESULTS_PER_REPORT);
+
         const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
             ? savingReportState.spreadsheetData.rows.length 
-            : savingReportState.results.length;
+            : safeResults.length;
 
         const newReportId = `rep-${Date.now()}`;
+
         const newReport: SavedReport = {
             id: newReportId,
             name: name,
@@ -168,7 +163,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             recordCount: recordCount,
             user_id: user.id,
             data: {
-                results: savingReportState.results || [],
+                results: safeResults,
                 sourceFiles: [],
                 bankStatementFile: null,
                 spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
@@ -200,8 +195,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (!user) return;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
+
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', user.id);
+
+        await supabase
+            .from('saved_reports')
+            .delete()
+            .lt('created_at', dateThreshold.toISOString())
+            .eq('user_id', user.id);
+
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
     }, [user, savedReports, showToast]);
 
