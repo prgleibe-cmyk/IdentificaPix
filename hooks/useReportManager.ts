@@ -33,9 +33,6 @@ export const useReportManager = (
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    /**
-     * 🧠 usado pelo autosave inteligente
-     */
     const lastSavedPayloadRef = useRef<string>("");
 
     useEffect(() => {
@@ -127,7 +124,7 @@ export const useReportManager = (
 
         const mergedData: any = {
             ...currentData,
-            results: safeResults.length ? safeResults : currentData.results,
+            results: results ? safeResults : currentData.results,
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
 
@@ -148,11 +145,6 @@ export const useReportManager = (
             mergedData
         });
 
-        /**
-         * 🧠 autosave inteligente
-         * evita salvar se nada mudou
-         * EXCETO quando for finalização
-         */
         if (!finalized && payloadString === lastSavedPayloadRef.current) {
             return;
         }
