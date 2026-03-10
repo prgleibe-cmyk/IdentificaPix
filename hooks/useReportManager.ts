@@ -163,7 +163,8 @@ export const useReportManager = (
             .from('saved_reports')
             .update({
                 data: mergedData,
-                record_count: recordCount
+                record_count: recordCount,
+                final_confirmation: mergedData.finalized ?? false
             })
             .eq('id', reportId);
 
