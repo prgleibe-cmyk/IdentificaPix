@@ -151,8 +151,9 @@ export const useReportManager = (
         /**
          * 🧠 autosave inteligente
          * evita salvar se nada mudou
+         * EXCETO quando for finalização
          */
-        if (payloadString === lastSavedPayloadRef.current) {
+        if (!finalized && payloadString === lastSavedPayloadRef.current) {
             return;
         }
 

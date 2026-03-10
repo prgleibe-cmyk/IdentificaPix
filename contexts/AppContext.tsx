@@ -139,7 +139,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (!reportId) return;
 
-        const payload = JSON.stringify(resultsToSave);
+        /**
+         * CORREÇÃO DA PERSISTÊNCIA
+         */
+        const payload = JSON.stringify({
+            results: resultsToSave,
+            changedTransactionId
+        });
 
         if (payload === lastPayloadRef.current) return;
 
@@ -155,76 +161,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             try {
 
-                /**
-                 * 🔧 AJUSTE AQUI
-                 */
-
-                let report = reportManager.savedReports.find(r => r.id === reportId);
-
-                /**
-                 * 🛡 fallback caso o relatório ainda não esteja no estado
-                 */
-                if (!report) {
-
-                    const { data, error } = await supabase
-                        .from("saved_reports")
-                        .select("data")
-                        .eq("id", reportId)
-                        .single();
-
-                    if (error) {
-
-                        console.error("Falha ao recuperar relatório no fallback", error);
-                        return;
-
-                    }
-
-                    report = {
-                        id: reportId,
-                        data: data?.data
-                    } as any;
-                }
-
-                if (changedTransactionId && report?.data?.results) {
-
-                    const updated = report.data.results.map((r: any) => {
-
-                        const changed = resultsToSave.find(
-                            x => x.transaction.id === r.transaction.id
-                        );
-
-                        return changed || r;
-
-                    });
-
-                    await supabase
-                        .from("saved_reports")
-                        .update({
-                            data: {
-                                ...report.data,
-                                results: updated
-                            }
-                        })
-                        .eq("id", reportId);
-
-                }
-                else {
-
-                    await reportManager.overwriteSavedReport(
-                        reportId,
-                        resultsToSave
-                    );
-
-                }
-
-            } catch (err) {
-
-                console.error("Persistência falhou, fallback acionado", err);
-
                 await reportManager.overwriteSavedReport(
                     reportId,
                     resultsToSave
                 );
+
+            } catch (err) {
+
+                console.error("Persistência falhou", err);
 
             } finally {
 
@@ -232,7 +176,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             }
 
-        }, 2000);
+        }, 800);
 
     }, [
         reconciliation.activeReportId,
