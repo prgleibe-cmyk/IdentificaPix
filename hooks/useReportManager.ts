@@ -17,28 +17,38 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 const MAX_RESULTS_PER_REPORT = 1000;
 
-export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    
+export const useReportManager = (
+    user: any | null,
+    showToast: (msg: string, type: 'success' | 'error') => void
+) => {
+
     const userSuffix = user ? `-${user.id}` : '-guest';
+
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
+    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(
+        `identificapix-search-filters${userSuffix}`,
+        DEFAULT_SEARCH_FILTERS
+    );
+
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    const lastSavedPayloadRef = useRef<string>('');
-
     /**
-     * 📥 CARGA INICIAL OTIMIZADA
-     * Não carrega JSON pesado (data) para evitar queries lentas.
+     * 🧠 usado pelo autosave inteligente
      */
+    const lastSavedPayloadRef = useRef<string>("");
+
     useEffect(() => {
+
         if (!user) {
             setSavedReports([]);
             return;
         }
 
         const fetchReports = async () => {
+
             try {
+
                 const { data, error } = await supabase
                     .from('saved_reports')
                     .select('id,name,created_at,record_count,user_id')
@@ -48,7 +58,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 if (error) throw error;
 
                 if (data) {
-                    const hydrated: SavedReport[] = data.map(r => ({
+
+                    const hydrated: SavedReport[] = data.map((r: any) => ({
                         id: r.id,
                         name: r.name,
                         createdAt: r.created_at,
@@ -56,14 +67,21 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         user_id: r.user_id,
                         data: undefined
                     }));
+
                     setSavedReports(hydrated);
+
                 }
+
             } catch (err) {
-                console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
+
+                console.error("[ReportManager] erro ao carregar relatórios", err);
+
             }
+
         };
 
         fetchReports();
+
     }, [user]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
@@ -71,161 +89,202 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!user) return;
-        setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
-        const { error } = await supabase.from('saved_reports').update({ name: newName }).eq('id', reportId);
-        if (error) showToast('Erro ao renomear relatório.', 'error');
-        else showToast('Relatório renomeado.', 'success');
-    }, [user, showToast]);
 
-    /**
-     * 🔐 AUTOSAVE OTIMIZADO
-     */
-    const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user || !reportId) return;
-        
-        const existingReport = savedReports.find(r => r.id === reportId);
-        const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
+        if (!user) return;
 
-        if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
-
-        const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
-        if (lastSavedPayloadRef.current === currentPayload + reportId) return;
-        lastSavedPayloadRef.current = currentPayload + reportId;
-
-        const safeResults = (results || []).slice(0, MAX_RESULTS_PER_REPORT);
-
-        const mergedData = {
-            ...currentData,
-            results: safeResults.length > 0 ? safeResults : currentData.results,
-            spreadsheet: spreadsheetData || currentData.spreadsheet
-        };
-
-        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
-
-        setSavedReports(prev => prev.map(r => r.id === reportId ? {
-            ...r,
-            recordCount,
-            data: mergedData
-        } : r));
+        setSavedReports(prev =>
+            prev.map(r => r.id === reportId ? { ...r, name: newName } : r)
+        );
 
         const { error } = await supabase
             .from('saved_reports')
-            .update({ 
-                data: mergedData as any,
-                record_count: recordCount 
+            .update({ name: newName })
+            .eq('id', reportId);
+
+        if (error) showToast('Erro ao renomear relatório.', 'error');
+        else showToast('Relatório renomeado.', 'success');
+
+    }, [user, showToast]);
+
+    const overwriteSavedReport = useCallback(async (
+        reportId: string,
+        results: MatchResult[],
+        spreadsheetData?: SpreadsheetData,
+        finalized?: boolean
+    ) => {
+
+        if (!user || !reportId) return;
+
+        const existingReport = savedReports.find(r => r.id === reportId);
+
+        const currentData = existingReport?.data || {
+            results: [],
+            sourceFiles: [],
+            bankStatementFile: null
+        };
+
+        const safeResults = (results || []).slice(0, MAX_RESULTS_PER_REPORT);
+
+        const mergedData: any = {
+            ...currentData,
+            results: safeResults.length ? safeResults : currentData.results,
+            spreadsheet: spreadsheetData || currentData.spreadsheet
+        };
+
+        if (finalized) {
+
+            mergedData.finalized = true;
+            mergedData.finalizedAt = new Date().toISOString();
+
+        }
+
+        const recordCount = spreadsheetData?.rows
+            ? spreadsheetData.rows.length
+            : (mergedData.results?.length || 0);
+
+        const payloadString = JSON.stringify({
+            reportId,
+            recordCount,
+            mergedData
+        });
+
+        /**
+         * 🧠 autosave inteligente
+         * evita salvar se nada mudou
+         */
+        if (payloadString === lastSavedPayloadRef.current) {
+            return;
+        }
+
+        lastSavedPayloadRef.current = payloadString;
+
+        setSavedReports(prev =>
+            prev.map(r =>
+                r.id === reportId
+                    ? { ...r, recordCount, data: mergedData }
+                    : r
+            )
+        );
+
+        const { error } = await supabase
+            .from('saved_reports')
+            .update({
+                data: mergedData,
+                record_count: recordCount
             })
             .eq('id', reportId);
 
         if (error) {
-            console.error("[AutoSave] Erro ao persistir no Supabase:", error);
-            showToast("Falha ao salvar alterações no servidor.", "error");
+
+            console.error("[AutoSave] erro:", error);
+            showToast("Falha ao salvar alterações.", "error");
+
         }
+
     }, [user, showToast, savedReports]);
 
-    const saveFilteredReport = useCallback((results: MatchResult[]) => {
-        setSavingReportState({
-            type: 'search',
-            results: results,
-            groupName: 'Filtrado'
-        });
+    const openSaveReportModal = useCallback((state: SavingReportState) => {
+        setSavingReportState(state);
     }, []);
-    
-    const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
-    const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
-    
-    /**
-     * CRIA NOVO RELATÓRIO
-     */
+
+    const closeSaveReportModal = useCallback(() => {
+        setSavingReportState(null);
+    }, []);
+
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
+
         if (!savingReportState || !user) return null;
-        
+
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
+
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
             closeSaveReportModal();
             return null;
+
         }
 
-        const isSpreadsheet = savingReportState.type === 'spreadsheet';
-
-        const safeResults = (savingReportState.results || []).slice(0, MAX_RESULTS_PER_REPORT);
-
-        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
-            ? savingReportState.spreadsheetData.rows.length 
-            : safeResults.length;
+        const safeResults = (savingReportState.results || [])
+            .slice(0, MAX_RESULTS_PER_REPORT);
 
         const newReportId = `rep-${Date.now()}`;
 
         const newReport: SavedReport = {
             id: newReportId,
-            name: name,
+            name,
             createdAt: new Date().toISOString(),
-            recordCount: recordCount,
+            recordCount: safeResults.length,
             user_id: user.id,
             data: {
                 results: safeResults,
                 sourceFiles: [],
                 bankStatementFile: null,
-                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
+                finalized: false
             }
         };
 
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
-        
-        const { error } = await supabase.from('saved_reports').insert({
-            id: newReport.id,
-            name: newReport.name,
-            record_count: newReport.recordCount,
-            user_id: newReport.user_id,
-            data: newReport.data as any
-        });
+
+        const { error } = await supabase
+            .from('saved_reports')
+            .insert({
+                id: newReport.id,
+                name: newReport.name,
+                record_count: newReport.recordCount,
+                user_id: newReport.user_id,
+                data: newReport.data
+            });
 
         if (error) {
-            setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
+
+            setSavedReports(prev =>
+                prev.filter(r => r.id !== newReport.id)
+            );
+
             showToast('Erro ao salvar relatório.', 'error');
+
             return null;
-        } else {
-            showToast('Relatório criado!', 'success');
-            return newReportId;
+
         }
-    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
-    const deleteOldReports = useCallback(async (dateThreshold: Date) => {
-        if (!user) return;
-        const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
-        if (reportsToDelete.length === 0) return;
+        showToast('Relatório criado!', 'success');
 
-        setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
+        return newReportId;
 
-        await supabase
-            .from('saved_reports')
-            .delete()
-            .lt('created_at', dateThreshold.toISOString())
-            .eq('user_id', user.id);
-
-        showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [user, savedReports, showToast]);
-
-    const allHistoricalResults = useMemo(() => {
-        return savedReports
-            .filter(r => r.data && r.data.results)
-            .flatMap(report => report.data!.results);
-    }, [savedReports]);
+    }, [
+        savingReportState,
+        user,
+        showToast,
+        closeSaveReportModal,
+        savedReports.length
+    ]);
 
     return useMemo(() => ({
-        savedReports, setSavedReports,
+
+        savedReports,
+        setSavedReports,
         maxSavedReports: MAX_REPORTS_PER_USER,
-        searchFilters, setSearchFilters,
-        isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
-        savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
-        updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports,
-        allHistoricalResults
+
+        searchFilters,
+        setSearchFilters,
+
+        isSearchFiltersOpen,
+        openSearchFilters,
+        closeSearchFilters,
+        clearSearchFilters,
+
+        savingReportState,
+        openSaveReportModal,
+        closeSaveReportModal,
+
+        confirmSaveReport,
+        overwriteSavedReport,
+        updateSavedReportName
+
     }), [
-        savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
-        setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
-        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports
+        savedReports,
+        searchFilters,
+        isSearchFiltersOpen,
+        savingReportState
     ]);
 };

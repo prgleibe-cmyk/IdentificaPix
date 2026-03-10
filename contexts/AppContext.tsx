@@ -1,5 +1,5 @@
 import { MatchResult, Transaction } from '../types';
-import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
 import { useReferenceData } from '../hooks/useReferenceData';
@@ -22,6 +22,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+
+    const autosaveTimerRef = useRef<any>(null);
+    const lastPayloadRef = useRef<string>("");
 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast);
@@ -47,9 +50,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
-    /**
-     * 👁️ VISUALIZADOR DE RELATÓRIOS
-     */
     const viewSavedReport = useCallback(async (reportId: string) => {
 
         const report = reportManager.savedReports.find(r => r.id === reportId);
@@ -129,10 +129,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast
     ]);
 
-    /**
-     * 🚀 PERSISTÊNCIA OTIMIZADA
-     * Salva apenas a transação alterada
-     */
     const persistActiveReport = useCallback(async (
         customResults?: MatchResult[],
         changedTransactionId?: string
@@ -143,66 +139,100 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (!reportId) return;
 
-        const report = reportManager.savedReports.find(r => r.id === reportId);
+        const payload = JSON.stringify(resultsToSave);
 
-        if (!resultsToSave?.length && !report?.data?.spreadsheet) return;
+        if (payload === lastPayloadRef.current) return;
 
-        setIsSyncing(true);
+        lastPayloadRef.current = payload;
 
-        try {
+        if (autosaveTimerRef.current) {
+            clearTimeout(autosaveTimerRef.current);
+        }
 
-            /**
-             * 🚀 MODO RÁPIDO
-             */
-            if (changedTransactionId && report?.data?.results) {
+        autosaveTimerRef.current = setTimeout(async () => {
 
-                const updated = report.data.results.map((r: any) => {
+            setIsSyncing(true);
 
-                    const changed = resultsToSave.find(
-                        x => x.transaction.id === r.transaction.id
-                    );
-
-                    return changed || r;
-
-                });
-
-                await supabase
-                    .from("saved_reports")
-                    .update({
-                        data: {
-                            ...report.data,
-                            results: updated
-                        }
-                    })
-                    .eq("id", reportId);
-
-            }
-            else {
+            try {
 
                 /**
-                 * 🛡 FALLBACK
+                 * 🔧 AJUSTE AQUI
                  */
+
+                let report = reportManager.savedReports.find(r => r.id === reportId);
+
+                /**
+                 * 🛡 fallback caso o relatório ainda não esteja no estado
+                 */
+                if (!report) {
+
+                    const { data, error } = await supabase
+                        .from("saved_reports")
+                        .select("data")
+                        .eq("id", reportId)
+                        .single();
+
+                    if (error) {
+
+                        console.error("Falha ao recuperar relatório no fallback", error);
+                        return;
+
+                    }
+
+                    report = {
+                        id: reportId,
+                        data: data?.data
+                    } as any;
+                }
+
+                if (changedTransactionId && report?.data?.results) {
+
+                    const updated = report.data.results.map((r: any) => {
+
+                        const changed = resultsToSave.find(
+                            x => x.transaction.id === r.transaction.id
+                        );
+
+                        return changed || r;
+
+                    });
+
+                    await supabase
+                        .from("saved_reports")
+                        .update({
+                            data: {
+                                ...report.data,
+                                results: updated
+                            }
+                        })
+                        .eq("id", reportId);
+
+                }
+                else {
+
+                    await reportManager.overwriteSavedReport(
+                        reportId,
+                        resultsToSave
+                    );
+
+                }
+
+            } catch (err) {
+
+                console.error("Persistência falhou, fallback acionado", err);
+
                 await reportManager.overwriteSavedReport(
                     reportId,
                     resultsToSave
                 );
 
+            } finally {
+
+                setTimeout(() => setIsSyncing(false), 400);
+
             }
 
-        } catch (err) {
-
-            console.error("Persistência rápida falhou, fallback acionado", err);
-
-            await reportManager.overwriteSavedReport(
-                reportId,
-                resultsToSave
-            );
-
-        } finally {
-
-            setTimeout(() => setIsSyncing(false), 400);
-
-        }
+        }, 2000);
 
     }, [
         reconciliation.activeReportId,
@@ -210,9 +240,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportManager
     ]);
 
-    /**
-     * 📝 WRAPPER SAVE REPORT
-     */
     const wrappedConfirmSaveReport = useCallback(async (name: string) => {
 
         const newId = await reportManager.confirmSaveReport(name);
@@ -253,9 +280,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const summary = useSummaryData(reconciliation, reportManager);
 
-    /**
-     * 💾 SALVAR EDIÇÃO
-     */
     const saveSmartEdit = useCallback(async (result: MatchResult) => {
 
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
