@@ -134,16 +134,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * Salva apenas a transação alterada
      */
     const persistActiveReport = useCallback(async (
-  customResults?: MatchResult[],
-  changedTransactionId?: string
-) => {
+        customResults?: MatchResult[],
+        changedTransactionId?: string
+    ) => {
 
-  const reportId = reconciliation.activeReportId;
-  const resultsToSave = customResults || reconciliation.matchResults;
+        const reportId = reconciliation.activeReportId;
+        const resultsToSave = customResults || reconciliation.matchResults;
 
-  console.log("PERSISTINDO RELATÓRIO", reportId, resultsToSave.length);
-
-  if (!reportId) return;
+        if (!reportId) return;
 
         const report = reportManager.savedReports.find(r => r.id === reportId);
 
