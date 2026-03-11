@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
-import { consolidationService } from '../services/ConsolidationService';
+import { consolidationService } from '../services/consolidationService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
