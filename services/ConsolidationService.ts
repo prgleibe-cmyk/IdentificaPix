@@ -102,21 +102,25 @@ export const consolidationService = {
      * Atualiza marcação de confirmação final
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean) => {
-        try {
-            if (!ids || ids.length === 0) return true;
+    try {
+        if (!ids || ids.length === 0) return true;
 
-            const { error } = await supabase
-                .from('consolidated_transactions')
-                .update({ is_confirmed })
-                .in('id', ids);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error("[Consolidation] Erro ao atualizar confirmação:", error);
-            return false;
-        }
-    },
+        const { data, error } = await supabase
+            .from('consolidated_transactions')
+            .update({ is_confirmed })
+            .in('id', ids)
+            .select();
+
+        console.log("[ConfirmarFinal] Linhas atualizadas:", data);
+
+        if (error) throw error;
+
+        return true;
+    } catch (error) {
+        console.error("[Consolidation] Erro ao atualizar confirmação:", error);
+        return false;
+    }
+},
 
     /**
      * Recupera hashes existentes para deduplicação com PAGINAÇÃO AUTOMÁTICA.
