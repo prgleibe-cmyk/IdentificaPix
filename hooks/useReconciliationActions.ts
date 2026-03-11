@@ -130,14 +130,20 @@ export const useReconciliationActions = ({
     console.log("[ConfirmarFinal] IDs recebidos:", txIds);
 
     const idsToUpdate = txIds.filter(
-  id => !id.startsWith('ghost')
-);
+      id => !id.startsWith('ghost')
+    );
 
     console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
 
-    // 🔵 AJUSTE NECESSÁRIO: persistir confirmação no banco
+    // 🔵 Persistir confirmação no banco
     if (idsToUpdate.length > 0) {
+
         await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
+
+        // 🔴 SINCRONIZA COM O BANCO
+        if (reconciliation.reloadTransactions) {
+            await reconciliation.reloadTransactions();
+        }
     }
 
     const currentResults = [...reconciliation.matchResults];
