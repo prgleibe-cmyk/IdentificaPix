@@ -131,32 +131,32 @@ export const consolidationService = {
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean) => {
 
-        try {
+    try {
 
-            if (!ids || ids.length === 0) return true;
+        if (!ids || ids.length === 0) return true;
 
-            const { data, error } = await supabase
-                .from('consolidated_transactions')
-                .update({
-                    is_confirmed,
-                    status: is_confirmed ? 'confirmed' : 'pending'
-                })
-                .in('id', ids)
-                .select();
+        const { data, error } = await supabase
+            .from('consolidated_transactions')
+            .update({
+                is_confirmed,
+                status: is_confirmed ? 'resolved' : 'pending'
+            })
+            .in('id', ids)
+            .select();
 
-            console.log("[ConfirmarFinal] Linhas atualizadas:", data);
+        console.log("[ConfirmarFinal] Linhas atualizadas:", data);
 
-            if (error) throw error;
+        if (error) throw error;
 
-            return true;
+        return true;
 
-        } catch (error) {
+    } catch (error) {
 
-            console.error("[Consolidation] Erro ao atualizar confirmação:", error);
-            return false;
+        console.error("[Consolidation] Erro ao atualizar confirmação:", error);
+        return false;
 
-        }
-    },
+    }
+},
 
     getExistingTransactionsForDedup: async (userId: string) => {
 
