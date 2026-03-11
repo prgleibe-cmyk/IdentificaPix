@@ -127,7 +127,7 @@ export const useReconciliationActions = ({
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
   const toggleConfirmation = useCallback(async (txIds: string[], confirmed: boolean) => {
-    
+
     console.log("[ConfirmarFinal] IDs recebidos:", txIds);
 
 const idsToUpdate = txIds.filter(
@@ -135,12 +135,6 @@ const idsToUpdate = txIds.filter(
 );
 
 console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
-
-    const idsToUpdate = txIds.filter(id => !id.startsWith('ghost') && !id.startsWith('sim'));
-    
-    if (idsToUpdate.length > 0) {
-        await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
-    }
 
     const currentResults = [...reconciliation.matchResults];
     currentResults.forEach(r => {
