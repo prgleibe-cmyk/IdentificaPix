@@ -127,6 +127,15 @@ export const useReconciliationActions = ({
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
   const toggleConfirmation = useCallback(async (txIds: string[], confirmed: boolean) => {
+    
+    console.log("[ConfirmarFinal] IDs recebidos:", txIds);
+
+const idsToUpdate = txIds.filter(
+  id => !id.startsWith('ghost') && !id.startsWith('sim')
+);
+
+console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
+
     const idsToUpdate = txIds.filter(id => !id.startsWith('ghost') && !id.startsWith('sim'));
     
     if (idsToUpdate.length > 0) {
