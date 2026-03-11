@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
@@ -35,7 +34,7 @@ export const consolidationService = {
                         pix_key: t.pix_key || null,
                         source: t.source || 'file',
                         user_id: t.user_id,
-                        bank_id: t.bank_id || null, 
+                        bank_id: t.bank_id || null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false
@@ -58,25 +57,31 @@ export const consolidationService = {
 
                 if (error) {
                     console.error("[Consolidation:INSERT_ERROR]", error);
-                    // Se o erro for especificamente a coluna is_confirmed ausente, tentamos sem ela como fallback de emergência
+
                     if (error.message.includes("is_confirmed") || error.code === 'PGRST204' || error.message.includes("column \"is_confirmed\"")) {
                          console.warn("[Consolidation] Coluna 'is_confirmed' ausente no banco. Executando fallback sem confirmação.");
+
                          const recoveryChunk = chunk.map(({ is_confirmed, ...rest }: any) => rest);
+
                          const { data: recData, error: recError } = await supabase
                             .from('consolidated_transactions')
                             .insert(recoveryChunk)
                             .select('*');
+
                          if (recError) throw new Error(recError.message);
                          if (recData) results.push(...recData);
+
                     } else {
                         throw new Error(error.message);
                     }
+
                 } else if (data) {
                     results.push(...data);
                 }
             }
             
             return results;
+
         } catch (e: any) {
             console.error("[Consolidation:CRITICAL_FAIL]", e);
             throw e;
@@ -92,6 +97,7 @@ export const consolidationService = {
             
             if (error) throw error;
             return true;
+
         } catch (error) {
             console.error("[Consolidation] Erro ao atualizar status:", error);
             return false;
@@ -102,30 +108,33 @@ export const consolidationService = {
      * Atualiza marcação de confirmação final
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean) => {
-    try {
-        if (!ids || ids.length === 0) return true;
+        try {
 
-        const { data, error } = await supabase
-            .from('consolidated_transactions')
-            .update({ is_confirmed })
-            .in('id', ids)
-            .select();
+            if (!ids || ids.length === 0) return true;
 
-        console.log("[ConfirmarFinal] Linhas atualizadas:", data);
+            const { data, error } = await supabase
+                .from('consolidated_transactions')
+                .update({ is_confirmed })
+                .in('id', ids)
+                .select();
 
-        if (error) throw error;
+            console.log("[ConfirmarFinal] Linhas atualizadas:", data);
 
-        return true;
-    } catch (error) {
-        console.error("[Consolidation] Erro ao atualizar confirmação:", error);
-        return false;
-    }
-},
+            if (error) throw error;
+
+            return true;
+
+        } catch (error) {
+            console.error("[Consolidation] Erro ao atualizar confirmação:", error);
+            return false;
+        }
+    },
 
     /**
      * Recupera hashes existentes para deduplicação com PAGINAÇÃO AUTOMÁTICA.
      */
     getExistingTransactionsForDedup: async (userId: string) => {
+
         if (!userId) throw new Error("UserID é obrigatório.");
         
         let allHashes: { row_hash: string | null }[] = [];
@@ -134,7 +143,9 @@ export const consolidationService = {
         let hasMore = true;
 
         try {
+
             while (hasMore) {
+
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('row_hash')
@@ -146,12 +157,16 @@ export const consolidationService = {
                 if (data && data.length > 0) {
                     allHashes = [...allHashes, ...data];
                     from += step;
+
                     if (data.length < step) hasMore = false;
+
                 } else {
                     hasMore = false;
                 }
             }
+
             return allHashes;
+
         } catch (e: any) {
             console.error("[Consolidation:DEDUP_FETCH_FAIL]", e);
             throw e;
@@ -159,7 +174,9 @@ export const consolidationService = {
     },
 
     deletePendingTransactions: async (userId: string, bankId?: string) => {
+
         try {
+
             if (!userId) return false;
 
             let query = supabase
@@ -169,14 +186,22 @@ export const consolidationService = {
                 .eq('status', 'pending');
 
             if (bankId && bankId !== 'all') {
+
                 const isVirtual = bankId === 'gmail-sync' || bankId === 'virtual' || bankId === 'gmail-virtual-bank';
                 const isProbablyUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
-                if (isVirtual || !isProbablyUuid) query = query.is('bank_id', null);
-                else query = query.eq('bank_id', bankId);
+
+                if (isVirtual || !isProbablyUuid)
+                    query = query.is('bank_id', null);
+                else
+                    query = query.eq('bank_id', bankId);
             }
+
             const { error } = await query;
+
             if (error) throw error;
+
             return true;
+
         } catch (error) {
             throw error;
         }
@@ -186,6 +211,7 @@ export const consolidationService = {
      * Recupera transações pendentes (Lista Viva) com PAGINAÇÃO AUTOMÁTICA.
      */
     getPendingTransactions: async (userId: string) => {
+
         if (!userId) return [];
         
         let allTransactions: any[] = [];
@@ -194,48 +220,64 @@ export const consolidationService = {
         let hasMore = true;
 
         try {
+
             while (hasMore) {
-                // Tentativa inicial com todos os campos
+
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
+                    .eq('is_confirmed', false) // 🔴 AJUSTE DE PERSISTÊNCIA
                     .order('transaction_date', { ascending: false })
                     .range(from, from + step - 1);
 
                 if (error) {
-                    // Fallback se a coluna is_confirmed não existir (Erro 400 ou código PostgREST específico)
+
                     if (error.message.includes("is_confirmed") || error.code === 'PGRST204' || String(error.status) === '400') {
+
                          console.warn("[Consolidation] Coluna 'is_confirmed' ausente no banco ao buscar. Executando fallback.");
+
                          const { data: fallbackData, error: fallbackError } = await supabase
                             .from('consolidated_transactions')
                             .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key')
                             .eq('user_id', userId)
                             .eq('status', 'pending')
+                            .eq('is_confirmed', false) // 🔴 AJUSTE DE PERSISTÊNCIA
                             .order('transaction_date', { ascending: false })
                             .range(from, from + step - 1);
                          
                          if (fallbackError) throw fallbackError;
+
                          if (fallbackData && fallbackData.length > 0) {
+
                              allTransactions = [...allTransactions, ...fallbackData];
                              from += step;
+
                              if (fallbackData.length < step) hasMore = false;
+
                          } else {
                              hasMore = false;
                          }
+
                     } else {
                         throw error;
                     }
+
                 } else if (data && data.length > 0) {
+
                     allTransactions = [...allTransactions, ...data];
                     from += step;
+
                     if (data.length < step) hasMore = false;
+
                 } else {
                     hasMore = false;
                 }
             }
+
             return allTransactions;
+
         } catch (e: any) {
             console.error("[Consolidation:FETCH_FAIL]", e);
             throw e; 
@@ -243,14 +285,18 @@ export const consolidationService = {
     },
 
     deleteTransactionById: async (id: string) => {
+
         try {
+
             const { error } = await supabase
                 .from('consolidated_transactions')
                 .delete()
                 .eq('id', id);
             
             if (error) throw error;
+
             return true;
+
         } catch (error) {
             throw error;
         }
