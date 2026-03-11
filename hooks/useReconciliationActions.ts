@@ -139,8 +139,6 @@ if (idsToUpdate.length > 0) {
     await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
 }
 
-        await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
-
         // 🔴 SINCRONIZA COM O BANCO
         if (reconciliation.reloadTransactions) {
             await reconciliation.reloadTransactions();
