@@ -3,6 +3,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
+import { consolidationService } from '../services/consolidationService';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
@@ -61,6 +62,8 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     const handleBulkConfirm = async () => {
 
         toggleConfirmation(selectedIds, true);
+
+        await consolidationService.updateConfirmationStatus(selectedIds, true);
 
         await saveCurrentReportChanges();
 
