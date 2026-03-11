@@ -146,10 +146,6 @@ export const useReconciliationActions = ({
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
 
-  /**
-   * 🔒 CONFIRMAÇÃO FINAL (CORRIGIDA)
-   * Agora usa imutabilidade para garantir persistência correta
-   */
   const toggleConfirmation = useCallback(async (txIds: string[], confirmed: boolean) => {
 
     const idsToUpdate = txIds.filter(id => !id.startsWith('ghost') && !id.startsWith('sim'));
@@ -187,9 +183,6 @@ export const useReconciliationActions = ({
   }, [reconciliation, showToast, onAfterAction]);
 
 
-  /**
-   * ↩️ DESFAZER IDENTIFICAÇÃO
-   */
   const undoIdentification = useCallback(async (txId: string) => {
 
     const existing = reconciliation.matchResults.find(
