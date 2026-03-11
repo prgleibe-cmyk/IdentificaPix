@@ -130,13 +130,14 @@ export const useReconciliationActions = ({
     console.log("[ConfirmarFinal] IDs recebidos:", txIds);
 
     const idsToUpdate = txIds.filter(
-      id => !id.startsWith('ghost')
-    );
+  id => /^[0-9a-fA-F-]{36}$/.test(id) && !id.startsWith('ghost')
+);
 
-    console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
+console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
 
-    // 🔵 Persistir confirmação no banco
-    if (idsToUpdate.length > 0) {
+if (idsToUpdate.length > 0) {
+    await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
+}
 
         await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
 
