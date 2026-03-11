@@ -130,8 +130,8 @@ export const useReconciliationActions = ({
     console.log("[ConfirmarFinal] IDs recebidos:", txIds);
 
     const idsToUpdate = txIds.filter(
-      id => !id.startsWith('ghost') && !id.startsWith('sim')
-    );
+  id => !id.startsWith('ghost')
+);
 
     console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
 
