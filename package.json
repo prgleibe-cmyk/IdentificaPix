@@ -8,12 +8,12 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-  "dev": "vite",
-  "build": "vite build",
-  "type-check": "tsc",
-  "start": "node server.js",
-  "preview": "vite preview"
-}
+    "dev": "vite",
+    "build": "vite build",
+    "type-check": "tsc",
+    "start": "node server.js",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "@google/genai": "*",
     "@supabase/supabase-js": "^2.39.0",
