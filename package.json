@@ -8,13 +8,12 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "generate-icons": "node scripts/generate-pwa-icons.js || true",
-    "dev": "npm run generate-icons && vite",
-    "build": "vite build",
-    "type-check": "tsc",
-    "start": "npm run generate-icons && node server.js",
-    "preview": "vite preview"
-  },
+  "dev": "vite",
+  "build": "vite build",
+  "type-check": "tsc",
+  "start": "node server.js",
+  "preview": "vite preview"
+}
   "dependencies": {
     "@google/genai": "*",
     "@supabase/supabase-js": "^2.39.0",
