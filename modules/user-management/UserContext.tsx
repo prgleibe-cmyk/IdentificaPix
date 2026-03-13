@@ -17,92 +17,73 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [authEmail, setAuthEmail] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchProfile = async (userId: string) => {
+    const fetchProfile = async (userId: string, userEmail: string | null) => {
+        if (!userId) return;
         setLoading(true);
-        console.log("AUDIT: Iniciando busca de perfil para:", userId);
+        
         try {
+            // 1. Tenta buscar pelo ID real do usuário (Cenário ideal)
             let { data, error } = await supabase
                 .from('user_profiles')
                 .select('*')
                 .eq('id', userId)
                 .single();
 
-            // Se não encontrar pelo ID, tenta buscar pelo E-mail (Resgate de Perfil)
-            // Tratamos 404, 406 e PGRST116 como "não encontrado"
-            const isNotFoundError = error && (
-                error.code === 'PGRST116' || 
-                (error as any).status === 404 || 
-                (error as any).status === 406 ||
-                (error as any).status === '406'
-            );
+            if (data && !error) {
+                console.log(`[UserContext] Perfil carregado via ID: ${data.role} | Congregação: ${data.congregation_id}`);
+                setProfile(data as UserProfile);
+                setLoading(false);
+                return;
+            }
 
-            if (isNotFoundError && authEmail) {
-                console.log("AUDIT: Perfil não encontrado por ID. Tentando resgate por e-mail:", authEmail);
-                const { data: emailData, error: emailError } = await supabase
+            // 2. Se não encontrou por ID, tenta o resgate pelo e-mail (Cenário: Novo Tesoureiro ou Admin sem ID)
+            if (userEmail) {
+                const cleanEmail = userEmail.toLowerCase().trim();
+                console.log(`[UserContext] ID não encontrado. Tentando resgate por e-mail: ${cleanEmail}`);
+                
+                const { data: emailData } = await supabase
                     .from('user_profiles')
                     .select('*')
-                    .eq('email', authEmail)
+                    .eq('email', cleanEmail)
                     .single();
                 
-                if (emailData && !emailError) {
-                    console.log("AUDIT: Perfil encontrado por e-mail! Vinculando ID...");
-                    const { data: updatedData, error: updateError } = await supabase
+                if (emailData) {
+                    console.log(`[UserContext] Perfil encontrado por e-mail. Vinculando ID ${userId}...`);
+                    const { data: claimed, error: claimError } = await supabase
                         .from('user_profiles')
                         .update({ id: userId } as any)
-                        .eq('email', authEmail)
+                        .eq('email', cleanEmail)
                         .select()
                         .single();
                     
-                    if (!updateError) {
-                        data = updatedData;
-                        error = null;
+                    if (!claimError && claimed) {
+                        console.log(`[UserContext] Vínculo realizado com sucesso: ${claimed.role}`);
+                        setProfile(claimed as UserProfile);
+                        setLoading(false);
+                        return;
                     }
                 }
             }
 
-            if (error) {
-                console.log("AUDIT: Erro na busca de perfil:", JSON.stringify(error));
-                
-                // FALLBACK DEFINITIVO PARA PRODUÇÃO:
-                // Se houver qualquer erro ao buscar o perfil (tabela não existe, RLS, 404, etc)
-                // assumimos que é um usuário legado que deve ter acesso total (Admin).
-                // Isso evita o "Acesso Negado" em produção durante a migração.
-                
-                console.log("AUDIT: Aplicando fallback preventivo de Administrador Legado devido a erro na busca.");
-                const { data: userData } = await supabase.auth.getUser();
-                if (userData.user) {
-                    const adminProfile: UserProfile = {
-                        id: userData.user.id,
-                        main_account_id: userData.user.id,
-                        role: 'admin',
-                        congregation_id: null,
-                        permissions: ADMIN_PERMISSIONS,
-                        is_active: true,
-                        email: userData.user.email
-                    };
-                    setProfile(adminProfile);
-                    
-                    // Sincronização silenciosa apenas se for erro de "não encontrado"
-                    if (error.code === 'PGRST116') {
-                        try {
-                            await supabase.from('user_profiles').insert([{
-                                id: adminProfile.id,
-                                main_account_id: adminProfile.main_account_id,
-                                role: adminProfile.role,
-                                permissions: adminProfile.permissions,
-                                is_active: true
-                            }] as any);
-                        } catch (e) { /* Silencioso */ }
-                    }
-                    return;
-                }
-                setProfile(null);
+            // 3. Fallback Master (Última instância de segurança para o dono do sistema)
+            const isMasterAdmin = userEmail?.toLowerCase().trim() === 'identificapix@gmail.com';
+            if (isMasterAdmin) {
+                console.warn("[UserContext] Aplicando Fallback Master Admin para identificapix@gmail.com");
+                setProfile({
+                    id: userId,
+                    main_account_id: userId,
+                    role: 'admin',
+                    congregation_id: null,
+                    permissions: ADMIN_PERMISSIONS,
+                    is_active: true,
+                    email: userEmail || undefined
+                });
             } else {
-                console.log("AUDIT: Perfil encontrado no banco:", data);
-                setProfile(data as UserProfile);
+                console.error("[UserContext] Nenhum perfil encontrado e usuário não é Master Admin. Acesso Negado.");
+                setProfile(null);
             }
         } catch (err) {
-            console.error('AUDIT: Erro inesperado no fetchProfile:', err);
+            console.error('[UserContext] Erro crítico no carregamento de perfil:', err);
             setProfile(null);
         } finally {
             setLoading(false);
@@ -112,8 +93,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (session?.user) {
-                setAuthEmail(session.user.email || null);
-                fetchProfile(session.user.id);
+                const email = session.user.email || null;
+                setAuthEmail(email);
+                fetchProfile(session.user.id, email);
             } else {
                 setProfile(null);
                 setAuthEmail(null);
@@ -121,11 +103,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         });
 
-        // Check initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
-                setAuthEmail(session.user.email || null);
-                fetchProfile(session.user.id);
+                const email = session.user.email || null;
+                setAuthEmail(email);
+                fetchProfile(session.user.id, email);
             } else {
                 setLoading(false);
             }
@@ -137,7 +119,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshProfile = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-            await fetchProfile(session.user.id);
+            await fetchProfile(session.user.id, session.user.email || null);
         }
     };
 
