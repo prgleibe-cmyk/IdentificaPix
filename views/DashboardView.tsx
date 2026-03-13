@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useDashboardController } from '../hooks/useDashboardController';
-import { usePermissions } from '../modules/user-management/usePermissions';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
 import {
@@ -21,7 +20,6 @@ export const DashboardView: React.FC = () => {
         summary, user, setActiveView, t, language, identificationRate, 
         pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession 
     } = useDashboardController();
-    const { can } = usePermissions();
     const [imgError, setImgError] = useState(false);
 
     if (hasActiveSession && !hasData) {
@@ -53,10 +51,10 @@ export const DashboardView: React.FC = () => {
                         icon={<UploadIcon />}
                         title={t('empty.dashboard.title')}
                         message={t('empty.dashboard.message')}
-                        action={can('can_upload_files') ? {
+                        action={{
                             text: t('empty.dashboard.action'),
                             onClick: () => setActiveView('upload'),
-                        } : undefined}
+                        }}
                     />
                 </div>
             </div>

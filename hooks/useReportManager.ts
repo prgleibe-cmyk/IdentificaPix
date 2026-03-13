@@ -3,7 +3,6 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
-import { useUser } from '../modules/user-management/UserContext';
 
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
     dateRange: { start: null, end: null },
@@ -19,9 +18,8 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { profile } = useUser();
-    const effectiveUserId = profile?.main_account_id || user?.id;
-    const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
+    
+    const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
@@ -35,7 +33,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * Garante que ao recarregar a página, a lista de relatórios (e planilhas vinculadas) seja recuperada.
      */
     useEffect(() => {
-        if (!effectiveUserId) {
+        if (!user) {
             setSavedReports([]);
             return;
         }
@@ -45,7 +43,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 const { data, error } = await supabase
                     .from('saved_reports')
                     .select('*')
-                    .eq('user_id', effectiveUserId)
+                    .eq('user_id', user.id)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
@@ -74,19 +72,19 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!effectiveUserId) return;
+        if(!user) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await supabase.from('saved_reports').update({ name: newName }).eq('id', reportId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
-    }, [effectiveUserId, showToast]);
+    }, [user, showToast]);
 
     /**
      * 🔐 PERSISTÊNCIA MESTRE (UPSERT COM MERGE)
      * Salva as alterações de uma planilha ou conciliação sem apagar os dados existentes do outro tipo.
      */
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!effectiveUserId || !reportId) return;
+        if (!user || !reportId) return;
         
         // Busca o estado atual local para merge (evita perda de dados em atualizações parciais)
         const existingReport = savedReports.find(r => r.id === reportId);
@@ -149,7 +147,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * Retorna o ID gerado para que o controlador possa marcar como "Relatório Ativo".
      */
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
-        if (!savingReportState || !effectiveUserId) return null;
+        if (!savingReportState || !user) return null;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -168,7 +166,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
-            user_id: effectiveUserId,
+            user_id: user.id,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -199,13 +197,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
-        if (!effectiveUserId) return;
+        if (!user) return;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', user.id);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [effectiveUserId, savedReports, showToast]);
+    }, [user, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         return savedReports
