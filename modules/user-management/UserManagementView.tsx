@@ -20,11 +20,25 @@ const PERMISSION_LABELS: Record<string, string> = {
 
 export const UserManagementView: React.FC = () => {
     const { profile: adminProfile } = useUser();
+    const { isRole } = usePermissions();
     const { churches } = useReferenceData(adminProfile, (m, t) => console.log(m, t));
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+
+    // Bloqueio de segurança: Se não for admin, não renderiza nada
+    if (!isRole('admin')) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                <Shield className="w-16 h-16 text-red-500 mb-4 opacity-20" />
+                <h2 className="text-xl font-black text-slate-800 dark:text-white">Acesso Negado</h2>
+                <p className="text-slate-500 text-sm max-w-xs mt-2">
+                    Esta área é exclusiva para administradores do sistema.
+                </p>
+            </div>
+        );
+    }
 
     // Form State
     const [email, setEmail] = useState('');
