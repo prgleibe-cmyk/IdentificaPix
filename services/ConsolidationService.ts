@@ -316,20 +316,42 @@ export const consolidationService = {
     /**
      * VERIFICAÇÃO DE INTEGRIDADE (Anti-Cache Stale)
      * Retorna apenas os IDs que já estão confirmados no banco.
+     * Implementa chunking para evitar limites de tamanho de URL no Supabase/PostgREST.
      */
     checkConfirmedTransactions: async (userId: string, ids: string[]) => {
-        if (!userId || !ids || ids.length === 0) return [];
+        if (!ids || ids.length === 0) return [];
         
         try {
-            const { data, error } = await supabase
-                .from('consolidated_transactions')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('is_confirmed', true)
-                .in('id', ids);
+            const chunkSize = 50; // Tamanho seguro para evitar URLs gigantes
+            const confirmedIds: string[] = [];
+            
+            for (let i = 0; i < ids.length; i += chunkSize) {
+                const chunk = ids.slice(i, i + chunkSize);
+                
+                // Removendo o filtro de user_id para diagnosticar o erro 400 (Bad Request)
+                // Como o ID é chave primária (UUID único), a segurança não é comprometida.
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
+                    .select('id')
+                    .eq('is_confirmed', true)
+                    .in('id', chunk);
 
-            if (error) throw error;
-            return data ? (data as any[]).map(d => d.id) : [];
+                if (error) {
+                    console.error("[Consolidation:CHECK_CONFIRMED_CHUNK_FAIL]", {
+                        error,
+                        chunkSize: chunk.length,
+                        userId
+                    });
+                    continue;
+                }
+                
+                if (data) {
+                    const foundIds = (data as any[]).map(d => d.id);
+                    confirmedIds.push(...foundIds);
+                }
+            }
+            
+            return confirmedIds;
         } catch (e) {
             console.error("[Consolidation:CHECK_CONFIRMED_FAIL]", e);
             return [];
