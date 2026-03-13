@@ -59,38 +59,60 @@ export const useReconciliation = ({
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
     const processingFilesRef = useRef<Set<string>>(new Set());
-    const lastValidatedReportId = useRef<string | null>(null);
+    const lastValidatedHash = useRef<string>('');
+    const isValidating = useRef<boolean>(false);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
      * Valida se as transações no cache local já foram confirmadas no banco por outro dispositivo.
+     * Executa sempre que o matchResults muda significativamente.
      */
     useEffect(() => {
-        if (user && matchResults.length > 0 && activeReportId !== lastValidatedReportId.current) {
-            const cleanStaleCache = async () => {
-                const realIds = matchResults
-                    .map(r => r.transaction.id)
-                    .filter(id => /^[0-9a-fA-F-]{36}$/.test(id));
-                
-                if (realIds.length === 0) {
-                    lastValidatedReportId.current = activeReportId;
-                    return;
-                }
+        if (!user || matchResults.length === 0 || isValidating.current) return;
 
-                try {
-                    const confirmedIds = await consolidationService.checkConfirmedTransactions(user.id, realIds);
-                    if (confirmedIds.length > 0) {
-                        setMatchResults(prev => prev.filter(r => !confirmedIds.includes(r.transaction.id)));
-                        console.log(`[CacheSync] Removidas ${confirmedIds.length} transações já confirmadas em outro dispositivo.`);
-                    }
-                    lastValidatedReportId.current = activeReportId;
-                } catch (e) {
-                    console.error("[CacheSync] Erro ao validar integridade do cache:", e);
+        // Gera um hash simples dos IDs para evitar validações redundantes
+        const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
+        if (currentIdsHash === lastValidatedHash.current) return;
+
+        const cleanStaleCache = async () => {
+            isValidating.current = true;
+            
+            const realIds = matchResults
+                .map(r => r.transaction.id)
+                .filter(id => /^[0-9a-fA-F-]{36}$/.test(id));
+            
+            if (realIds.length === 0) {
+                lastValidatedHash.current = currentIdsHash;
+                isValidating.current = false;
+                return;
+            }
+
+            try {
+                const confirmedIds = await consolidationService.checkConfirmedTransactions(user.id, realIds);
+                
+                if (confirmedIds.length > 0) {
+                    console.log(`[CacheSync] Detectadas ${confirmedIds.length} transações já confirmadas no banco. Limpando cache local...`);
+                    
+                    setMatchResults(prev => {
+                        const filtered = prev.filter(r => !confirmedIds.includes(r.transaction.id));
+                        // Atualiza o hash com o novo estado para evitar re-validação imediata
+                        lastValidatedHash.current = filtered.map(r => r.transaction.id).sort().join(',');
+                        return filtered;
+                    });
+                } else {
+                    lastValidatedHash.current = currentIdsHash;
                 }
-            };
-            cleanStaleCache();
-        }
-    }, [user, matchResults, activeReportId, setMatchResults]);
+            } catch (e) {
+                console.error("[CacheSync] Erro ao validar integridade do cache:", e);
+            } finally {
+                isValidating.current = false;
+            }
+        };
+
+        // Debounce leve para evitar múltiplas chamadas durante hidratação pesada
+        const timer = setTimeout(cleanStaleCache, 500);
+        return () => clearTimeout(timer);
+    }, [user, matchResults, setMatchResults]);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
