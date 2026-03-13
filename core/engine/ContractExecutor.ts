@@ -38,6 +38,9 @@ export const ContractExecutor = {
                 
                 const finalRows = rows.map((tx: any, idx: number) => {
                     const aiLiteralDesc = String(tx.description || "");
+                    
+                    // Para PDF/IA, tentamos compor uma "identidade bruta" única se houver metadados extras
+                    const rawIdentity = tx.raw_line || aiLiteralDesc;
 
                     /**
                      * 🎯 REATIVAÇÃO DA LIMPEZA:
@@ -50,7 +53,7 @@ export const ContractExecutor = {
                         id: `viva-block-${model.id}-${idx}-${Date.now()}`,
                         date: tx.date,
                         description: cleanedDescription, // Descrição Limpa (Visual)
-                        rawDescription: aiLiteralDesc,   // Descrição Bit-a-Bit (Backup)
+                        rawDescription: rawIdentity,     // Identidade Completa (Deduplicação)
                         amount: tx.amount,
                         originalAmount: String(tx.amount),
                         cleanedDescription: cleanedDescription, 
@@ -101,11 +104,14 @@ export const ContractExecutor = {
                 // Aplica a limpeza de palavras-chave ignoradas
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
+                // Captura a linha completa para garantir deduplicação sensível a todas as colunas (ex: Saldo)
+                const fullRawLine = line.trim();
+
                 results.push({
                     id: `viva-col-${model.id}-${idx}-${Date.now()}`,
                     date: isoDate,
                     description: learnedDescription, 
-                    rawDescription: rawDesc, 
+                    rawDescription: fullRawLine, 
                     amount: numAmount,
                     originalAmount: rawAmount,
                     cleanedDescription: learnedDescription,

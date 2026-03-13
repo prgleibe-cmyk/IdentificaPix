@@ -34,7 +34,14 @@ export const LaunchService = {
 
     computeBaseHash: (t: any, userId: string) => {
         const { finalDate, cleanName, finalValue } = LaunchService.normalizeTriplet(t);
-        const rawKey = `U${userId}|D${finalDate}|N${cleanName}|V${finalValue}`;
+        
+        /**
+         * 🛡️ IDENTIDADE ESTENDIDA (V5)
+         * Incluímos o rawDescription (linha bruta) no Hash.
+         * Isso garante que se o Saldo ou qualquer outra coluna for diferente, o Hash muda.
+         */
+        const rawContent = String(t.rawDescription || t.description || '').trim().toUpperCase();
+        const rawKey = `U${userId}|D${finalDate}|N${cleanName}|V${finalValue}|R${rawContent}`;
         
         let hash = 5381;
         for (let i = 0; i < rawKey.length; i++) {
