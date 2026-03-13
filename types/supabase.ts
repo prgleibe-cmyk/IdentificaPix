@@ -1,22 +1,22 @@
 import { Json } from './supabase/base';
-import * as Core from './supabase/tables_core';
-import * as App from './supabase/tables_app';
+import { AdminConfigTable, BanksTable, ChurchesTable, ProfilesTable } from './supabase/tables_core';
+import { AutomationMacrosTable, ConsolidatedTransactionsTable, FileModelsTable, LearnedAssociationsTable, SavedReportsTable, PaymentsTable } from './supabase/tables_app';
 
 export type { Json };
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
-      admin_config: Core.AdminConfigTable;
-      automation_macros: App.AutomationMacrosTable;
-      banks: Core.BanksTable;
-      churches: Core.ChurchesTable;
-      consolidated_transactions: App.ConsolidatedTransactionsTable;
-      file_models: App.FileModelsTable;
-      learned_associations: App.LearnedAssociationsTable;
-      saved_reports: App.SavedReportsTable;
-      profiles: Core.ProfilesTable;
-      payments: App.PaymentsTable;
+      admin_config: AdminConfigTable;
+      automation_macros: AutomationMacrosTable;
+      banks: BanksTable;
+      churches: ChurchesTable;
+      consolidated_transactions: ConsolidatedTransactionsTable;
+      file_models: FileModelsTable;
+      learned_associations: LearnedAssociationsTable;
+      saved_reports: SavedReportsTable;
+      profiles: ProfilesTable;
+      payments: PaymentsTable;
     }
     Views: {
       [_ in never]: never

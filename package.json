@@ -8,10 +8,12 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "vite",
+    "generate-icons": "node scripts/generate-pwa-icons.js || true",
+    "dev": "npm run generate-icons && vite",
     "build": "vite build",
     "type-check": "tsc",
-    "start": "node server.js",
+    "lint": "tsc --noEmit",
+    "start": "npm run generate-icons && node server.js",
     "preview": "vite preview"
   },
   "dependencies": {

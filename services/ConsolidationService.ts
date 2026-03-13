@@ -311,5 +311,28 @@ export const consolidationService = {
             throw error;
 
         }
+    },
+
+    /**
+     * VERIFICAÇÃO DE INTEGRIDADE (Anti-Cache Stale)
+     * Retorna apenas os IDs que já estão confirmados no banco.
+     */
+    checkConfirmedTransactions: async (userId: string, ids: string[]) => {
+        if (!userId || !ids || ids.length === 0) return [];
+        
+        try {
+            const { data, error } = await supabase
+                .from('consolidated_transactions')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('is_confirmed', true)
+                .in('id', ids);
+
+            if (error) throw error;
+            return data ? (data as any[]).map(d => d.id) : [];
+        } catch (e) {
+            console.error("[Consolidation:CHECK_CONFIRMED_FAIL]", e);
+            return [];
+        }
     }
 };
