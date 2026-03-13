@@ -5,6 +5,7 @@ import React from 'react';
 import { RootProvider, SessionProvider } from './contexts/AppProviders';
 import { useSessionController, useContentController } from './hooks/useAppController';
 import { UIProvider } from './contexts/UIContext';
+import { UserProvider, useUser } from './modules/user-management/UserContext';
 
 // --- Views & Router ---
 import { AppRouter, ModalsRenderer } from './views/AppRouter';
@@ -18,14 +19,17 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner';
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
     const { isLoading, initialDataLoaded, toast } = useContentController();
+    const { loading: userLoading } = useUser();
 
-    if (!initialDataLoaded) {
+    if (!initialDataLoaded || userLoading) {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#051024]">
                 <div className="flex flex-col items-center">
                     <img src="/pwa/icon-512.png" className="h-96 w-auto mb-8 object-contain animate-fade-in" alt="IdentificaPix" />
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-4"></div>
-                    <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
+                    <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">
+                        {userLoading ? 'Carregando Perfil' : 'Iniciando Sistema'}
+                    </p>
                 </div>
             </div>
         );
@@ -87,7 +91,9 @@ export default function App() {
     return (
         <RootProvider>
             <UIProvider>
-                <AppContent />
+                <UserProvider>
+                    <AppContent />
+                </UserProvider>
             </UIProvider>
         </RootProvider>
     );

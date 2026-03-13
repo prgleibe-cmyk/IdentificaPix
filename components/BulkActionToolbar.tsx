@@ -3,6 +3,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
+import { AccessControl } from '../modules/user-management/AccessControl';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
@@ -68,15 +69,17 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                         Identificar
                     </button>
 
-                    {canConfirm && (
-                        <button
-                            onClick={handleBulkConfirm}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border border-emerald-500/20"
-                        >
-                            <LockClosedIcon className="w-2.5 h-2.5" />
-                            Confirmar Final
-                        </button>
-                    )}
+                    <AccessControl permission="can_confirm_final">
+                        {canConfirm && (
+                            <button
+                                onClick={handleBulkConfirm}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border border-emerald-500/20"
+                            >
+                                <LockClosedIcon className="w-2.5 h-2.5" />
+                                Confirmar Final
+                            </button>
+                        )}
+                    </AccessControl>
 
                     <button
                         onClick={onClear}

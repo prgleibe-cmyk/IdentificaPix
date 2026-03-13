@@ -6,12 +6,16 @@ import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
+import { useUser } from '../modules/user-management/UserContext';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
+    const { profile } = useUser();
     const { subscription, systemSettings } = useAuth();
-    const userSuffix = user ? `-${user.id}` : '-guest';
+    
+    const effectiveUserId = profile?.main_account_id || user?.id;
+    const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
     const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
@@ -28,20 +32,25 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
     useEffect(() => {
-        if (!user) return;
+        if (!effectiveUserId) return;
         const syncData = async () => {
-            const { data: b } = await supabase.from('banks').select('*').eq('user_id', user.id);
+            const { data: b } = await supabase.from('banks').select('*').eq('user_id', effectiveUserId);
             if (b) setBanks(b);
-            const { data: c } = await supabase.from('churches').select('*').eq('user_id', user.id);
+            
+            let query = supabase.from('churches').select('*').eq('user_id', effectiveUserId);
+            if (profile?.congregation_id) {
+                query = query.eq('id', profile.congregation_id);
+            }
+            const { data: c } = await query;
             if (c) setChurches(c);
         };
         syncData();
-    }, [user, setBanks, setChurches]);
+    }, [effectiveUserId, profile?.congregation_id, setBanks, setChurches]);
 
     useEffect(() => {
-        if (!user) return;
+        if (!effectiveUserId) return;
         const fetchAssociations = async () => {
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', effectiveUserId);
             if (data) {
                 setLearnedAssociations(data.map(d => ({
                     id: d.id, 
@@ -54,10 +63,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             }
         };
         fetchAssociations();
-    }, [user]);
+    }, [effectiveUserId]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
-        if (!user || !matchResult.church) return;
+        if (!effectiveUserId || !matchResult.church) return;
 
         const contributorObj = matchResult.contributor;
         const contributorName = contributorObj?.cleanedName || contributorObj?.name || matchResult.transaction.cleanedDescription || matchResult.transaction.description;
@@ -69,7 +78,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             contributorNormalizedName: contributorName, 
             churchId: matchResult.church.id, 
             bankId: 'global',
-            user_id: user.id 
+            user_id: effectiveUserId 
         };
 
         setLearnedAssociations(prev => {
@@ -82,7 +91,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 .from('learned_associations')
                 .select('id')
                 .eq('normalized_description', normalizedDesc)
-                .eq('user_id', user.id)
+                .eq('user_id', effectiveUserId)
                 .maybeSingle();
 
             if (existing) {
@@ -92,7 +101,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 }).eq('id', existing.id);
             } else {
                 await supabase.from('learned_associations').insert({ 
-                    user_id: user.id, 
+                    user_id: effectiveUserId, 
                     normalized_description: normalizedDesc, 
                     contributor_normalized_name: contributorName, 
                     church_id: matchResult.church.id
@@ -101,15 +110,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error("Erro ao persistir aprendizado:", err);
         }
-    }, [user]);
+    }, [effectiveUserId]);
 
     const fetchModels = useCallback(async () => {
-        if (!user) return;
+        if (!effectiveUserId) return;
         try {
-            const models = await modelService.getUserModels(user.id);
+            const models = await modelService.getUserModels(effectiveUserId);
             setFileModels(models);
         } catch (e) { console.error(e); }
-    }, [user]);
+    }, [effectiveUserId]);
 
     useEffect(() => { fetchModels(); }, [fetchModels]);
 
@@ -124,19 +133,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [closeEditBank, setBanks, showToast]);
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
-        if(!user) return false;
+        if(!effectiveUserId) return false;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await supabase.from('banks').insert([{ name, user_id: user.id }]).select();
+        const { data } = await supabase.from('banks').insert([{ name, user_id: effectiveUserId }]).select();
         if (data) {
             setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
             return true;
         }
         return false;
-    }, [user, banks, subscription.maxBanks, setBanks, showToast]);
+    }, [effectiveUserId, banks, subscription.maxBanks, setBanks, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
@@ -149,19 +158,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [closeEditChurch, setChurches, showToast]);
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
-        if(!user) return false;
+        if(!effectiveUserId) return false;
         if (churches.length >= (subscription.maxChurches || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await supabase.from('churches').insert([{ ...formData, user_id: user.id }]).select();
+        const { data } = await supabase.from('churches').insert([{ ...formData, user_id: effectiveUserId }]).select();
         if (data) {
             setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');
             return true;
         }
         return false;
-    }, [user, churches, subscription.maxChurches, setChurches, showToast]);
+    }, [effectiveUserId, churches, subscription.maxChurches, setChurches, showToast]);
 
     const addContributionKeyword = useCallback((keyword: string) => {
         const upper = keyword.trim().toUpperCase();

@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
+import { usePermissions } from '../../modules/user-management/usePermissions';
 import { ViewType } from '../../types';
 import { 
     HomeIcon, 
@@ -22,13 +23,15 @@ import {
     DocumentDuplicateIcon,
     TableCellsIcon,
     CloudArrowUpIcon,
-    LinkIcon
+    LinkIcon,
+    UserIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings } = useAuth();
+    const { isRole } = usePermissions();
     const { openPaymentModal } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -64,9 +67,14 @@ export const Sidebar: React.FC = () => {
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
             { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-5 h-5"/> },
         ];
+        
+        if (isRole('admin')) {
+            items.push({ view: 'users', labelKey: 'Usuários', icon: <UserIcon className="w-5 h-5"/> });
+        }
+
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <ShieldCheckIcon className="w-5 h-5"/>, special: true });
         return items;
-    }, [isAdmin]);
+    }, [isAdmin, isRole]);
 
     const getStatusStyle = () => {
         if (subscription.isExpired) return 'border-red-500/30 text-red-400 bg-red-500/10';
