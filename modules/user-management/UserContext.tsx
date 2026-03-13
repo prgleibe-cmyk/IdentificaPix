@@ -28,7 +28,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .single();
 
             // Se não encontrar pelo ID, tenta buscar pelo E-mail (Resgate de Perfil)
-            if ((error && (error.code === 'PGRST116' || (error as any).status === 404)) && authEmail) {
+            // Tratamos 404, 406 e PGRST116 como "não encontrado"
+            const isNotFoundError = error && (
+                error.code === 'PGRST116' || 
+                (error as any).status === 404 || 
+                (error as any).status === 406 ||
+                (error as any).status === '406'
+            );
+
+            if (isNotFoundError && authEmail) {
                 console.log("AUDIT: Perfil não encontrado por ID. Tentando resgate por e-mail:", authEmail);
                 const { data: emailData, error: emailError } = await supabase
                     .from('user_profiles')
