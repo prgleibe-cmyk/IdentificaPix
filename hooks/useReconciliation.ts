@@ -22,6 +22,7 @@ import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { useLiveListSync } from './useLiveListSync';
 import { usePersistentState } from './usePersistentState';
 import { consolidationService } from '../services/ConsolidationService';
+import { supabase } from '../services/supabaseClient';
 
 export const useReconciliation = ({
     user,
@@ -55,6 +56,7 @@ export const useReconciliation = ({
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
+    const [triggerSync, setTriggerSync] = useState(0);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
@@ -63,14 +65,44 @@ export const useReconciliation = ({
     const isValidating = useRef<boolean>(false);
 
     /**
+     * 📡 REALTIME SYNC (Escuta mudanças de confirmação)
+     */
+    useEffect(() => {
+        if (!user?.id) return;
+        
+        const channel = supabase
+            .channel(`reconciliation-status-sync-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'consolidated_transactions',
+                    filter: `user_id=eq.${user.id}`
+                },
+                (payload) => {
+                    if (payload.new && payload.new.is_confirmed === true) {
+                        // Força a re-validação do cache local
+                        lastValidatedHash.current = '';
+                        setTriggerSync(prev => prev + 1);
+                    }
+                }
+            )
+            .subscribe();
+            
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id]);
+
+    /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
      * Valida se as transações no cache local já foram confirmadas no banco por outro dispositivo.
-     * Executa sempre que o matchResults muda significativamente.
+     * Em vez de remover, atualiza o status para 'FECHADO'.
      */
     useEffect(() => {
         if (!user || matchResults.length === 0 || isValidating.current) return;
 
-        // Gera um hash simples dos IDs para evitar validações redundantes
         const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
         if (currentIdsHash === lastValidatedHash.current) return;
 
@@ -91,13 +123,24 @@ export const useReconciliation = ({
                 const confirmedIds = await consolidationService.checkConfirmedTransactions(user.id, realIds);
                 
                 if (confirmedIds.length > 0) {
-                    console.log(`[CacheSync] Detectadas ${confirmedIds.length} transações já confirmadas no banco. Limpando cache local...`);
-                    
                     setMatchResults(prev => {
-                        const filtered = prev.filter(r => !confirmedIds.includes(r.transaction.id));
-                        // Atualiza o hash com o novo estado para evitar re-validação imediata
-                        lastValidatedHash.current = filtered.map(r => r.transaction.id).sort().join(',');
-                        return filtered;
+                        let hasChanges = false;
+                        const updated = prev.map(r => {
+                            if (confirmedIds.includes(r.transaction.id) && !r.isConfirmed) {
+                                hasChanges = true;
+                                return { 
+                                    ...r, 
+                                    isConfirmed: true, 
+                                    transaction: { ...r.transaction, isConfirmed: true } 
+                                };
+                            }
+                            return r;
+                        });
+                        
+                        if (!hasChanges) return prev;
+                        
+                        lastValidatedHash.current = updated.map(r => r.transaction.id).sort().join(',');
+                        return updated;
                     });
                 } else {
                     lastValidatedHash.current = currentIdsHash;
@@ -109,10 +152,9 @@ export const useReconciliation = ({
             }
         };
 
-        // Debounce leve para evitar múltiplas chamadas durante hidratação pesada
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
-    }, [user, matchResults, setMatchResults]);
+    }, [user, matchResults, setMatchResults, triggerSync]);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,

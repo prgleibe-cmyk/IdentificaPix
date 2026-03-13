@@ -319,7 +319,7 @@ export const consolidationService = {
      * Implementa chunking para evitar limites de tamanho de URL no Supabase/PostgREST.
      */
     checkConfirmedTransactions: async (userId: string, ids: string[]) => {
-        if (!ids || ids.length === 0) return [];
+        if (!userId || !ids || ids.length === 0) return [];
         
         try {
             const chunkSize = 50; // Tamanho seguro para evitar URLs gigantes
@@ -328,11 +328,10 @@ export const consolidationService = {
             for (let i = 0; i < ids.length; i += chunkSize) {
                 const chunk = ids.slice(i, i + chunkSize);
                 
-                // Removendo o filtro de user_id para diagnosticar o erro 400 (Bad Request)
-                // Como o ID é chave primária (UUID único), a segurança não é comprometida.
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('id')
+                    .eq('user_id', userId)
                     .eq('is_confirmed', true)
                     .in('id', chunk);
 
