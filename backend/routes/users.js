@@ -10,11 +10,23 @@ export default () => {
     
     // Função para obter o cliente Supabase atualizado com as chaves do ambiente
     const getSupabaseAdmin = () => {
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-        const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || hardcodedAnon;
+        // Tenta várias nomenclaturas comuns
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                               process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
+                               process.env.SERVICE_ROLE_KEY ||
+                               process.env.SUPABASE_SERVICE_KEY;
+                               
+        const anonKey = process.env.SUPABASE_ANON_KEY || 
+                        process.env.VITE_SUPABASE_ANON_KEY || 
+                        process.env.ANON_KEY ||
+                        hardcodedAnon;
+                        
         const key = serviceRoleKey || anonKey;
 
-        if (!key) return null;
+        if (!key) {
+            console.error("[Users API] Nenhuma chave Supabase encontrada no ambiente.");
+            return null;
+        }
 
         try {
             return {
@@ -24,7 +36,8 @@ export default () => {
                         persistSession: false
                     }
                 }),
-                isServiceRole: !!serviceRoleKey
+                isServiceRole: !!serviceRoleKey,
+                keyUsed: serviceRoleKey ? 'SERVICE_ROLE' : 'ANON'
             };
         } catch (e) {
             console.error("[Users API] Supabase Init Error:", e.message);
@@ -34,16 +47,26 @@ export default () => {
 
     // Rota de diagnóstico para verificar as chaves (sem mostrá-las inteiras)
     router.get('/debug-env', (req, res) => {
-        const srk = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-        const ak = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+        const srk = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
+                    process.env.SERVICE_ROLE_KEY ||
+                    process.env.SUPABASE_SERVICE_KEY;
+                    
+        const ak = process.env.SUPABASE_ANON_KEY || 
+                   process.env.VITE_SUPABASE_ANON_KEY || 
+                   process.env.ANON_KEY;
         
         res.json({
             hasServiceRoleKey: !!srk,
             serviceRoleKeyLength: srk ? srk.length : 0,
-            serviceRoleKeyStart: srk ? `${srk.substring(0, 5)}...` : 'N/A',
+            serviceRoleKeyStart: srk ? `${srk.substring(0, 10)}...` : 'N/A',
             hasAnonKey: !!ak,
-            anonKeyStart: ak ? `${ak.substring(0, 5)}...` : 'N/A',
-            nodeEnv: process.env.NODE_ENV || 'development'
+            detectedKeys: Object.keys(process.env).filter(k => 
+                k.includes('SUPABASE') || k.includes('API_KEY') || k.includes('VITE_') || k.includes('SERVICE')
+            ),
+            envFileExists: fs.existsSync(path.join(process.cwd(), '.env')),
+            cwd: process.cwd(),
+            nodeVersion: process.version
         });
     });
 
@@ -52,13 +75,12 @@ export default () => {
         const supabase = getSupabaseAdmin();
 
         if (!supabase || !supabase.client) {
-            return res.status(500).json({ error: "Erro de configuração: Cliente Supabase não pôde ser inicializado." });
+            return res.status(500).json({ error: "Erro de configuração: Cliente Supabase não pôde ser inicializado. Verifique as variáveis de ambiente." });
         }
 
+        // Removemos o bloqueio fatal para ver o erro real do Supabase se a chave for insuficiente
         if (!supabase.isServiceRole) {
-            return res.status(500).json({ 
-                error: "A chave 'SUPABASE_SERVICE_ROLE_KEY' não foi encontrada no ambiente. Esta chave é obrigatória para criar usuários via API. Verifique se ela está configurada corretamente no seu servidor de hospedagem." 
-            });
+            console.warn("[Users API] Aviso: SUPABASE_SERVICE_ROLE_KEY não detectada. Tentando com chave disponível...");
         }
         if (!email || !password || !churchId || !ownerId) {
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
