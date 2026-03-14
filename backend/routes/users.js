@@ -10,8 +10,8 @@ export default () => {
     
     // Função para obter o cliente Supabase atualizado com as chaves do ambiente
     const getSupabaseAdmin = () => {
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const anonKey = process.env.SUPABASE_ANON_KEY || hardcodedAnon;
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+        const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || hardcodedAnon;
         const key = serviceRoleKey || anonKey;
 
         if (!key) return null;
@@ -34,8 +34,8 @@ export default () => {
 
     // Rota de diagnóstico para verificar as chaves (sem mostrá-las inteiras)
     router.get('/debug-env', (req, res) => {
-        const srk = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const ak = process.env.SUPABASE_ANON_KEY;
+        const srk = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+        const ak = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
         
         res.json({
             hasServiceRoleKey: !!srk,

@@ -1,6 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+console.log(`[Server] Verificando variáveis de ambiente...`);
+console.log(`[Server] SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Detectada (tamanho: ' + process.env.SUPABASE_SERVICE_ROLE_KEY.length + ')' : 'NÃO ENCONTRADA'}`);
+console.log(`[Server] API_KEY: ${process.env.API_KEY ? 'Detectada' : 'NÃO ENCONTRADA'}`);
+
 import express from 'express';
 import cors from 'cors';
 import { GoogleGenAI } from "@google/genai";
@@ -45,9 +49,11 @@ app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Inicialização da IA Gemini
 let ai = null;
-if (process.env.API_KEY) {
+const geminiKey = process.env.API_KEY || process.env.VITE_GEMINI_API_KEY;
+
+if (geminiKey) {
     try {
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        ai = new GoogleGenAI({ apiKey: geminiKey });
         console.log("[IdentificaPix] Gemini AI Initialized.");
     } catch (e) {
         console.error("[IdentificaPix] AI Init Error:", e.message);
