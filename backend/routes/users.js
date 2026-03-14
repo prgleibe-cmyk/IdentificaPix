@@ -6,12 +6,23 @@ const router = express.Router();
 
 export default () => {
     const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+    // Fallback para a chave anon conhecida se não houver no env
+    const hardcodedAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
+    
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = process.env.SUPABASE_ANON_KEY || hardcodedAnon;
+    
+    const supabaseKey = serviceRoleKey || anonKey;
     
     let supabaseAdmin = null;
     if (supabaseKey) {
         try {
-            supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+            supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            });
         } catch (e) {
             console.error("[Users API] Supabase Init Error:", e.message);
         }
@@ -20,7 +31,16 @@ export default () => {
     router.post('/create', async (req, res) => {
         const { email, password, churchId, permissions, ownerId } = req.body;
 
-        if (!supabaseAdmin) return res.status(500).json({ error: "Conexão com banco de dados não configurada." });
+        if (!supabaseAdmin) {
+            return res.status(500).json({ error: "Erro de configuração: Cliente Supabase não inicializado." });
+        }
+
+        // Verificação específica para a chave de serviço (necessária para auth.admin)
+        if (!serviceRoleKey) {
+            return res.status(500).json({ 
+                error: "A chave 'SUPABASE_SERVICE_ROLE_KEY' não foi encontrada no ambiente. Esta chave é obrigatória para criar usuários via API." 
+            });
+        }
         if (!email || !password || !churchId || !ownerId) {
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
         }
