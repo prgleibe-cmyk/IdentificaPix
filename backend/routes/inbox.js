@@ -4,25 +4,24 @@ import { createClient } from '@supabase/supabase-js';
 const router = express.Router();
 
 export default (ai) => {
-    // Configuração do Supabase Admin interna para a rota
     const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
     const hardcodedAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
     
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || hardcodedAnon;
-    
-    let supabaseAdmin = null;
-    if (supabaseKey) {
+    const getSupabaseAdmin = () => {
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || hardcodedAnon;
+        if (!supabaseKey) return null;
         try {
-            supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-            console.log("[Inbox API] Supabase Client Initialized.");
+            return createClient(supabaseUrl, supabaseKey);
         } catch (e) {
             console.error("[Inbox API] Supabase Init Error:", e.message);
+            return null;
         }
-    }
+    };
 
     router.post('/:userId/:bankId', async (req, res) => {
         const { userId, bankId } = req.params;
         const { text } = req.body;
+        const supabaseAdmin = getSupabaseAdmin();
 
         if (!ai) return res.status(500).json({ error: "IA não configurada no servidor." });
         if (!supabaseAdmin) return res.status(500).json({ error: "Conexão com banco de dados não configurada." });

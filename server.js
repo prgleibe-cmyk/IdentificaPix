@@ -1,6 +1,8 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { GoogleGenAI } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -12,8 +14,6 @@ import paymentRoutes from './backend/routes/payments.js';
 import aiRoutes from './backend/routes/ai.js';
 import inboxRoutes from './backend/routes/inbox.js';
 import usersRoutes from './backend/routes/users.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
