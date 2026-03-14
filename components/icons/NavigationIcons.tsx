@@ -32,6 +32,15 @@ export const UserPlusIcon: React.FC<any> = (props) => (
     </BaseIcon>
 );
 
+export const UsersIcon: React.FC<any> = (props) => (
+    <BaseIcon {...props}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="8.5" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </BaseIcon>
+);
+
 export const ChevronDownIcon: React.FC<any> = (props) => (
     <BaseIcon {...props}>
         <polyline points="6 9 12 15 18 9" />

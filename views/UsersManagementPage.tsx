@@ -1,0 +1,316 @@
+
+import React, { useState } from 'react';
+import { useUI } from '../contexts/UIContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useReferenceData } from '../hooks/useReferenceData';
+import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon } from '../components/Icons';
+
+export const UsersManagementPage: React.FC = () => {
+    const { setActiveView } = useUI();
+    const { subscription, user: authUser } = useAuth();
+    const { churches } = useReferenceData(authUser, () => {});
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        churchId: '',
+        permissions: {
+            confirmFinal: false,
+            identifyPayments: false,
+            undoIdentification: false,
+            downloadFile: false,
+            printReport: false
+        }
+    });
+
+    // Redirecionamento de segurança se não for owner
+    if (subscription.role !== 'owner') {
+        setActiveView('dashboard');
+        return null;
+    }
+
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!formData.churchId) {
+            setStatusMessage({ type: 'error', text: 'Por favor, selecione uma congregação.' });
+            return;
+        }
+
+        setLoading(true);
+        setStatusMessage(null);
+        
+        // Mapeamento para a estrutura JSON solicitada
+        const permissionsObject = {
+            "confirmar_final": formData.permissions.confirmFinal,
+            "identificar": formData.permissions.identifyPayments,
+            "desfazer_identificacao": formData.permissions.undoIdentification,
+            "baixar_arquivo": formData.permissions.downloadFile,
+            "imprimir": formData.permissions.printReport
+        };
+
+        try {
+            const response = await fetch('/api/users/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: formData.name,
+                    email: formData.email,
+                    password: formData.password,
+                    churchId: formData.churchId,
+                    permissions: permissionsObject,
+                    ownerId: authUser?.id
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro ao criar usuário');
+            }
+
+            setStatusMessage({ type: 'success', text: 'Usuário criado com sucesso!' });
+            
+            // Limpar formulário
+            setFormData({
+                name: '',
+                email: '',
+                password: '',
+                churchId: '',
+                permissions: {
+                    confirmFinal: false,
+                    identifyPayments: false,
+                    undoIdentification: false,
+                    downloadFile: false,
+                    printReport: false
+                }
+            });
+
+            // Fechar modal após sucesso
+            setTimeout(() => {
+                setIsModalOpen(false);
+                setStatusMessage(null);
+            }, 2000);
+
+        } catch (error: any) {
+            console.error("Erro ao criar usuário:", error);
+            setStatusMessage({ type: 'error', text: error.message || 'Falha ao criar usuário secundário.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const togglePermission = (key: keyof typeof formData.permissions) => {
+        setFormData(prev => ({
+            ...prev,
+            permissions: {
+                ...prev.permissions,
+                [key]: !prev.permissions[key]
+            }
+        }));
+    };
+
+    return (
+        <div className="flex flex-col h-full gap-6 animate-fade-in pb-6 overflow-y-auto custom-scrollbar">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-brand-blue/10 rounded-2xl text-brand-blue">
+                        <UsersIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">Usuários</h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium">
+                            Gerencie os acessos das congregações vinculadas à sua igreja.
+                        </p>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 rounded-full shadow-md shadow-blue-500/30 hover:-translate-y-0.5 transition-all tracking-wide uppercase"
+                >
+                    <PlusCircleIcon className="w-3.5 h-3.5" />
+                    <span>Criar Usuário</span>
+                </button>
+            </div>
+
+            {/* Listagem (Estado Vazio) */}
+            <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-800/50 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-700/50 min-h-[400px]">
+                <div className="flex flex-col items-center text-center p-8">
+                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700">
+                        <UserIcon className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Nenhum usuário cadastrado ainda.</h3>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-xs text-sm font-medium">
+                        Comece adicionando novos usuários para permitir que outras pessoas gerenciem suas congregações.
+                    </p>
+                </div>
+            </div>
+
+            {/* Modal de Criação */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-deep/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-scale-in border border-slate-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
+                        <div className="px-8 pt-8 pb-4 flex justify-between items-center flex-shrink-0">
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Novo Usuário</h3>
+                            <button 
+                                onClick={() => setIsModalOpen(false)}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400"
+                            >
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateUser} className="flex flex-col flex-1 min-h-0">
+                            <div className="px-8 py-4 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                                {statusMessage && (
+                                    <div className={`p-4 rounded-2xl text-sm font-bold flex items-center gap-3 animate-fade-in ${
+                                        statusMessage.type === 'success' 
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                            : 'bg-red-50 text-red-700 border border-red-100'
+                                    }`}>
+                                        <div className={`w-2 h-2 rounded-full ${statusMessage.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                        {statusMessage.text}
+                                    </div>
+                                )}
+                                <div className="space-y-4">
+                                    {/* Nome */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Nome Completo</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                                                <UserIcon className="w-5 h-5" />
+                                            </div>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={formData.name}
+                                                onChange={e => setFormData({...formData, name: e.target.value})}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                placeholder="Ex: João Silva"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Email */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">E-mail</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                                                <EnvelopeIcon className="w-5 h-5" />
+                                            </div>
+                                            <input
+                                                type="email"
+                                                required
+                                                value={formData.email}
+                                                onChange={e => setFormData({...formData, email: e.target.value})}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                placeholder="joao@exemplo.com"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Senha */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Senha Provisória</label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                                                <LockClosedIcon className="w-5 h-5" />
+                                            </div>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={formData.password}
+                                                onChange={e => setFormData({...formData, password: e.target.value})}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Congregação */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Congregação</label>
+                                        <select
+                                            required
+                                            value={formData.churchId}
+                                            onChange={e => setFormData({...formData, churchId: e.target.value})}
+                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium appearance-none"
+                                        >
+                                            <option value="">Selecionar Congregação</option>
+                                            {churches.length > 0 ? (
+                                                churches.map(church => (
+                                                    <option key={church.id} value={church.id}>{church.name}</option>
+                                                ))
+                                            ) : (
+                                                <option disabled>Nenhuma congregação cadastrada.</option>
+                                            )}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Permissões */}
+                                <div className="space-y-3">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Permissões de Acesso</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            { key: 'confirmFinal', label: 'Confirmar final' },
+                                            { key: 'identifyPayments', label: 'Identificar pagamentos' },
+                                            { key: 'undoIdentification', label: 'Desfazer identificação' },
+                                            { key: 'downloadFile', label: 'Baixar arquivo' },
+                                            { key: 'printReport', label: 'Imprimir relatório' }
+                                        ].map(perm => (
+                                            <label 
+                                                key={perm.key}
+                                                className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.permissions[perm.key as keyof typeof formData.permissions]}
+                                                    onChange={() => togglePermission(perm.key as keyof typeof formData.permissions)}
+                                                    className="w-5 h-5 rounded-lg border-slate-300 text-brand-blue focus:ring-brand-blue/20"
+                                                />
+                                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-brand-blue transition-colors">
+                                                    {perm.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2.5rem] border-t border-slate-100 dark:border-slate-700/50 flex-shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="px-6 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className={`px-8 py-2.5 rounded-full shadow-lg shadow-blue-500/30 text-xs font-bold text-white bg-gradient-to-r from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 active:bg-blue-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                >
+                                    {loading ? (
+                                        <>
+                                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span>Processando...</span>
+                                        </>
+                                    ) : (
+                                        'Criar Usuário'
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};

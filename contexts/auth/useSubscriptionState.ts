@@ -15,7 +15,9 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         aiLimit: 100, 
         aiUsage: 0,
         maxChurches: 2, 
-        maxBanks: 2
+        maxBanks: 2,
+        role: 'owner',
+        ownerId: ''
     });
 
     const lastProcessedUserId = useRef<string | null>(null);
@@ -64,7 +66,9 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 aiLimit: p.limit_ai || settings.baseAiLimit,
                 aiUsage: p.usage_ai || 0,
                 maxChurches: p.max_churches || settings.baseSlots,
-                maxBanks: p.max_banks || settings.baseSlots
+                maxBanks: p.max_banks || settings.baseSlots,
+                role: p.role || 'owner',
+                ownerId: p.owner_id || userId
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);

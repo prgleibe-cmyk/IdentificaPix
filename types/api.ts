@@ -31,4 +31,6 @@ export interface SubscriptionStatus {
   maxChurches: number;
   maxBanks: number;
   customPrice?: number;
+  role: 'owner' | 'member';
+  ownerId: string;
 }

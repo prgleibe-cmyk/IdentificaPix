@@ -39,6 +39,9 @@ export interface ProfilesTable {
     trial_ends_at: string | null; subscription_ends_at: string | null;
     is_blocked: boolean; is_lifetime: boolean; custom_price: number | null;
     limit_ai: number | null; usage_ai: number; max_churches: number | null; max_banks: number | null;
+    owner_id: string | null; role: 'owner' | 'member';
+    permissions: Json | null;
+    congregation: string | null;
   }
   Insert: {
     id: string; email?: string | null; name?: string | null; created_at?: string;
@@ -46,6 +49,9 @@ export interface ProfilesTable {
     trial_ends_at?: string | null; subscription_ends_at?: string | null;
     is_blocked?: boolean; is_lifetime?: boolean; custom_price?: number | null;
     limit_ai?: number | null; usage_ai?: number; max_churches?: number | null; max_banks?: number | null;
+    owner_id?: string | null; role?: 'owner' | 'member';
+    permissions?: Json | null;
+    congregation?: string | null;
   }
   Update: {
     id?: string; email?: string | null; name?: string | null; created_at?: string;
@@ -53,6 +59,9 @@ export interface ProfilesTable {
     trial_ends_at?: string | null; subscription_ends_at?: string | null;
     is_blocked?: boolean; is_lifetime?: boolean; custom_price?: number | null;
     limit_ai?: number | null; usage_ai?: number; max_churches?: number | null; max_banks?: number | null;
+    owner_id?: string | null; role?: 'owner' | 'member';
+    permissions?: Json | null;
+    congregation?: string | null;
   }
   Relationships: [{
     foreignKeyName: "profiles_id_fkey"

@@ -22,7 +22,8 @@ import {
     DocumentDuplicateIcon,
     TableCellsIcon,
     CloudArrowUpIcon,
-    LinkIcon
+    LinkIcon,
+    UserIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -84,6 +85,13 @@ export const Sidebar: React.FC = () => {
         try { await signOut(); } finally { setIsLoggingOut(false); }
     };
 
+    // --- USER_MANAGEMENT_BLOCK ---
+    const showUsersButton = subscription.role === 'owner';
+    const handleUsersClick = () => {
+        setActiveView('users');
+    };
+    // -----------------------------
+
     return (
         <aside className={`relative h-screen flex flex-col transition-all duration-500 z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
             
@@ -129,6 +137,20 @@ export const Sidebar: React.FC = () => {
                             )}
                         </button>
                     ))}
+
+                    {/* USER_MANAGEMENT_BLOCK */}
+                    {showUsersButton && (
+                        <button
+                            onClick={handleUsersClick}
+                            className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === 'users' ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                        >
+                            <UserIcon className={`w-5 h-5 transition-transform ${activeView === 'users' ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}`} />
+                            {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">Usuários</span>}
+                            {activeView === 'users' && !isCollapsed && (
+                                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_8px_rgba(79,230,208,0.8)]"></div>
+                            )}
+                        </button>
+                    )}
                 </nav>
 
                 <div className={`mt-auto border-t border-white/5 bg-[#0F172A]/80 backdrop-blur-md p-4 flex flex-col gap-3 relative z-20`}>

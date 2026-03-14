@@ -11,6 +11,7 @@ import gmailRoutes from './backend/routes/gmail.js';
 import paymentRoutes from './backend/routes/payments.js';
 import aiRoutes from './backend/routes/ai.js';
 import inboxRoutes from './backend/routes/inbox.js';
+import usersRoutes from './backend/routes/users.js';
 
 dotenv.config();
 
@@ -59,6 +60,7 @@ try {
     app.use('/api/payment', paymentRoutes);
     app.use('/api/ai', aiRoutes(ai));
     app.use('/api/inbox', inboxRoutes(ai));
+    app.use('/api/users', usersRoutes());
 } catch (error) {
     console.error("[IdentificaPix] Route Registration Error:", error.message);
 }
