@@ -166,5 +166,82 @@ export default () => {
         }
     });
 
+    // Listar usuários de um owner
+    router.get('/list/:ownerId', async (req, res) => {
+        const { ownerId } = req.params;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase || !supabase.client) {
+            return res.status(500).json({ error: "Erro de configuração" });
+        }
+
+        try {
+            console.log("[Users API] Listando usuários para owner:", ownerId);
+            const { data, error } = await supabase.client
+                .from('profiles')
+                .select('*')
+                .eq('owner_id', ownerId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            res.json(data || []);
+        } catch (error) {
+            console.error("[Users API] Erro ao listar usuários:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Excluir usuário
+    router.delete('/delete/:userId', async (req, res) => {
+        const { userId } = req.params;
+        const { ownerId } = req.query;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase || !supabase.client) {
+            return res.status(500).json({ error: "Erro de configuração" });
+        }
+
+        if (!ownerId) {
+            return res.status(400).json({ error: "ownerId é obrigatório para exclusão." });
+        }
+
+        try {
+            console.log("[Users API] Tentando excluir usuário:", userId, "solicitado por owner:", ownerId);
+            
+            // 1. Validar se o solicitante é o owner desse usuário
+            const { data: userProfile, error: userError } = await supabase.client
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', userId)
+                .single();
+
+            if (userError) {
+                console.error("[Users API] Erro ao buscar perfil para exclusão:", userError);
+                throw userError;
+            }
+
+            if (userProfile.owner_id !== ownerId) {
+                console.error("[Users API] Tentativa de exclusão não autorizada. Owner do perfil:", userProfile.owner_id, "Solicitante:", ownerId);
+                return res.status(403).json({ error: "Sem permissão para excluir este usuário." });
+            }
+
+            // 2. Excluir do Auth (isso deve disparar a exclusão do profile se houver trigger, senão excluímos manualmente)
+            const { error: authError } = await supabase.client.auth.admin.deleteUser(userId);
+            if (authError) {
+                console.error("[Users API] Erro ao excluir do Auth:", authError);
+                throw authError;
+            }
+
+            // 3. Garantir que o profile foi removido (caso não haja trigger)
+            await supabase.client.from('profiles').delete().eq('id', userId);
+
+            console.log("[Users API] Usuário excluído com sucesso!");
+            res.json({ success: true });
+        } catch (error) {
+            console.error("[Users API] Erro fatal ao excluir usuário:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return router;
 };

@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useReferenceData } from '../hooks/useReferenceData';
-import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon } from '../components/Icons';
+import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon, TrashIcon } from '../components/Icons';
+import { supabase } from '../services/supabaseClient';
 
 export const UsersManagementPage: React.FC = () => {
     const { setActiveView } = useUI();
@@ -12,6 +13,8 @@ export const UsersManagementPage: React.FC = () => {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [users, setUsers] = useState<any[]>([]);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [formData, setFormData] = useState({
         name: '',
@@ -32,6 +35,27 @@ export const UsersManagementPage: React.FC = () => {
         setActiveView('dashboard');
         return null;
     }
+
+    const fetchUsers = useCallback(async () => {
+        if (!authUser?.id) return;
+        
+        setIsLoadingUsers(true);
+        try {
+            // Usando a API do backend para listar usuários, ignorando RLS do frontend
+            const response = await fetch(`/api/users/list/${authUser.id}`);
+            if (!response.ok) throw new Error('Falha ao buscar usuários');
+            const data = await response.json();
+            setUsers(data || []);
+        } catch (error) {
+            console.error("Erro ao buscar usuários:", error);
+        } finally {
+            setIsLoadingUsers(false);
+        }
+    }, [authUser?.id]);
+
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
 
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,6 +102,9 @@ export const UsersManagementPage: React.FC = () => {
 
             setStatusMessage({ type: 'success', text: 'Usuário criado com sucesso!' });
             
+            // Recarregar lista
+            fetchUsers();
+            
             // Limpar formulário
             setFormData({
                 name: '',
@@ -104,6 +131,30 @@ export const UsersManagementPage: React.FC = () => {
             setStatusMessage({ type: 'error', text: error.message || 'Falha ao criar usuário secundário.' });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!window.confirm('Deseja realmente excluir este usuário? Esta ação não pode ser desfeita.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/users/delete/${userId}?ownerId=${authUser?.id}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || 'Erro ao excluir usuário');
+            }
+
+            // Recarregar lista
+            fetchUsers();
+            alert('Usuário excluído com sucesso!');
+        } catch (error: any) {
+            console.error("Erro ao excluir usuário:", error);
+            alert(`Falha ao excluir usuário: ${error.message}`);
         }
     };
 
@@ -142,18 +193,83 @@ export const UsersManagementPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* Listagem (Estado Vazio) */}
-            <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-800/50 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-700/50 min-h-[400px]">
-                <div className="flex flex-col items-center text-center p-8">
-                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700">
-                        <UserIcon className="w-10 h-10 text-slate-300 dark:text-slate-600" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Nenhum usuário cadastrado ainda.</h3>
-                    <p className="text-slate-500 dark:text-slate-400 max-w-xs text-sm font-medium">
-                        Comece adicionando novos usuários para permitir que outras pessoas gerenciem suas congregações.
-                    </p>
+            {/* Listagem */}
+            {isLoadingUsers ? (
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="w-10 h-10 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin" />
                 </div>
-            </div>
+            ) : users.length > 0 ? (
+                <div className="flex-1 overflow-hidden bg-white dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/50 shadow-sm flex flex-col">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-slate-700/50">
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Congregação</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Permissões</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
+                                {users.map((user) => {
+                                    const church = churches.find(c => c.id === user.congregation);
+                                    const perms = user.permissions || {};
+                                    const activePermsCount = Object.values(perms).filter(v => v === true).length;
+
+                                    return (
+                                        <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 font-bold uppercase">
+                                                        {user.name?.substring(0, 2) || user.email?.substring(0, 2)}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-bold text-slate-900 dark:text-white">{user.name || 'Sem nome'}</div>
+                                                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">{user.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                                                    {church?.name || 'Não vinculada'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-bold rounded-full">
+                                                        {activePermsCount} Permissões
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button 
+                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
+                                                    title="Excluir Usuário"
+                                                    onClick={() => handleDeleteUser(user.id)}
+                                                >
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-800/50 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-700/50 min-h-[400px]">
+                    <div className="flex flex-col items-center text-center p-8">
+                        <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700">
+                            <UserIcon className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Nenhum usuário cadastrado ainda.</h3>
+                        <p className="text-slate-500 dark:text-slate-400 max-w-xs text-sm font-medium">
+                            Comece adicionando novos usuários para permitir que outras pessoas gerenciem suas congregações.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Modal de Criação */}
             {isModalOpen && (
