@@ -131,11 +131,11 @@ export default () => {
             const newUser = authData.user;
             console.log("[Users API] Usuário criado no Auth com ID:", newUser.id);
 
-            // 3. Criar registro na tabela profiles
-            console.log("[Users API] Criando perfil na tabela profiles...");
+            // 3. Criar ou atualizar registro na tabela profiles
+            console.log("[Users API] Criando/Atualizando perfil na tabela profiles...");
             const { error: profileError } = await supabase.client
                 .from('profiles')
-                .insert({
+                .upsert({
                     id: newUser.id,
                     email: email,
                     name: req.body.name, // Nome completo do formulário
@@ -143,7 +143,7 @@ export default () => {
                     role: 'member',
                     permissions: permissions,
                     congregation: churchId // Usando o ID da congregação
-                });
+                }, { onConflict: 'id' });
 
             if (profileError) {
                 console.error("[Users API] Erro ao criar perfil:", profileError);
