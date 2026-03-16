@@ -1,8 +1,13 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
+                   process.env.SERVICE_ROLE_KEY ||
+                   process.env.SUPABASE_SERVICE_KEY;
+
 console.log(`[Server] Verificando variáveis de ambiente...`);
-console.log(`[Server] SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Detectada (tamanho: ' + process.env.SUPABASE_SERVICE_ROLE_KEY.length + ')' : 'NÃO ENCONTRADA'}`);
+console.log(`[Server] Supabase Service Key: ${serviceKey ? 'Detectada (tamanho: ' + serviceKey.length + ')' : 'NÃO ENCONTRADA'}`);
 console.log(`[Server] API_KEY: ${process.env.API_KEY ? 'Detectada' : 'NÃO ENCONTRADA'}`);
 
 import express from 'express';

@@ -70,7 +70,10 @@ export const UsersManagementPage: React.FC = () => {
             const result = await response.json();
 
             if (!response.ok) {
-                throw new Error(result.error || 'Erro ao criar usuário');
+                // Se o backend retornou um erro estruturado, usamos ele
+                const errorMessage = result.error || 'Erro ao criar usuário';
+                const errorDetails = result.details ? ` (${result.details})` : '';
+                throw new Error(`${errorMessage}${errorDetails}`);
             }
 
             setStatusMessage({ type: 'success', text: 'Usuário criado com sucesso!' });

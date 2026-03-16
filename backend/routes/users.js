@@ -1,6 +1,8 @@
 
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
@@ -57,6 +59,7 @@ export default () => {
                    process.env.ANON_KEY;
         
         res.json({
+            supabaseUrl: supabaseUrl,
             hasServiceRoleKey: !!srk,
             serviceRoleKeyLength: srk ? srk.length : 0,
             serviceRoleKeyStart: srk ? `${srk.substring(0, 10)}...` : 'N/A',
@@ -71,34 +74,46 @@ export default () => {
     });
 
     router.post('/create', async (req, res) => {
+        console.log("[Users API] Recebida requisição de criação de usuário:", req.body.email);
         const { email, password, churchId, permissions, ownerId } = req.body;
         const supabase = getSupabaseAdmin();
 
         if (!supabase || !supabase.client) {
+            console.error("[Users API] Falha ao inicializar Supabase");
             return res.status(500).json({ error: "Erro de configuração: Cliente Supabase não pôde ser inicializado. Verifique as variáveis de ambiente." });
         }
 
         // Removemos o bloqueio fatal para ver o erro real do Supabase se a chave for insuficiente
         if (!supabase.isServiceRole) {
-            console.warn("[Users API] Aviso: SUPABASE_SERVICE_ROLE_KEY não detectada. Tentando com chave disponível...");
+            console.warn("[Users API] Aviso: Chave de serviço (Service Role) não detectada. Tentando com chave disponível...");
         }
+        
         if (!email || !password || !churchId || !ownerId) {
+            console.error("[Users API] Dados incompletos:", { email, hasPassword: !!password, churchId, ownerId });
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
         }
 
         try {
             // 1. Verificar se o solicitante é OWNER
+            console.log("[Users API] Verificando permissão do owner:", ownerId);
             const { data: ownerProfile, error: ownerError } = await supabase.client
                 .from('profiles')
                 .select('role')
                 .eq('id', ownerId)
                 .single();
 
-            if (ownerError || !ownerProfile || ownerProfile.role !== 'owner') {
+            if (ownerError) {
+                console.error("[Users API] Erro ao buscar perfil do owner:", ownerError);
+                throw new Error(`Erro ao validar permissão: ${ownerError.message}`);
+            }
+
+            if (!ownerProfile || ownerProfile.role !== 'owner') {
+                console.error("[Users API] Usuário não é owner ou não encontrado:", ownerProfile);
                 return res.status(403).json({ error: "Apenas usuários titulares podem criar novos usuários." });
             }
 
             // 2. Criar usuário no Supabase Auth
+            console.log("[Users API] Criando usuário no Auth...");
             const { data: authData, error: authError } = await supabase.client.auth.admin.createUser({
                 email,
                 password,
@@ -106,6 +121,7 @@ export default () => {
             });
 
             if (authError) {
+                console.error("[Users API] Erro no Auth.admin.createUser:", authError);
                 if (authError.message.includes('already registered')) {
                     return res.status(400).json({ error: "Este e-mail já está cadastrado no sistema." });
                 }
@@ -113,8 +129,10 @@ export default () => {
             }
 
             const newUser = authData.user;
+            console.log("[Users API] Usuário criado no Auth com ID:", newUser.id);
 
             // 3. Criar registro na tabela profiles
+            console.log("[Users API] Criando perfil na tabela profiles...");
             const { error: profileError } = await supabase.client
                 .from('profiles')
                 .insert({
@@ -128,16 +146,23 @@ export default () => {
                 });
 
             if (profileError) {
+                console.error("[Users API] Erro ao criar perfil:", profileError);
                 // Se falhar ao criar o perfil, tentamos remover o usuário do auth para manter consistência
+                console.log("[Users API] Removendo usuário do Auth devido a falha no perfil...");
                 await supabase.client.auth.admin.deleteUser(newUser.id);
                 throw profileError;
             }
 
+            console.log("[Users API] Usuário e perfil criados com sucesso!");
             res.json({ success: true, message: "Usuário criado com sucesso", userId: newUser.id });
 
         } catch (error) {
-            console.error("[Users API] Erro na criação de usuário:", error.message);
-            res.status(500).json({ error: "Falha ao criar usuário secundário. Verifique os dados e tente novamente." });
+            console.error("[Users API] Erro fatal na criação de usuário:", error);
+            res.status(500).json({ 
+                error: error.message || "Falha ao criar usuário secundário.",
+                details: error.details || error.hint || null,
+                code: error.code || null
+            });
         }
     });
 
