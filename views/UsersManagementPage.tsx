@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useReferenceData } from '../hooks/useReferenceData';
-import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon, TrashIcon } from '../components/Icons';
+import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon, TrashIcon, PencilIcon } from '../components/Icons';
 import { supabase } from '../services/supabaseClient';
 
 export const UsersManagementPage: React.FC = () => {
@@ -15,6 +15,8 @@ export const UsersManagementPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+    const [editingUser, setEditingUser] = useState<any | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [formData, setFormData] = useState({
         name: '',
@@ -57,7 +59,7 @@ export const UsersManagementPage: React.FC = () => {
         fetchUsers();
     }, [fetchUsers]);
 
-    const handleCreateUser = async (e: React.FormEvent) => {
+    const handleSubmitUser = async (e: React.FormEvent) => {
         e.preventDefault();
         
         if (!formData.churchId) {
@@ -78,60 +80,90 @@ export const UsersManagementPage: React.FC = () => {
         };
 
         try {
-            const response = await fetch('/api/users/create', {
+            const url = editingUser ? `/api/users/update/${editingUser.id}` : '/api/users/create';
+            const body = {
+                name: formData.name,
+                email: formData.email,
+                churchId: formData.churchId,
+                permissions: permissionsObject,
+                ownerId: authUser?.id
+            };
+
+            // Se for criação ou se a senha foi preenchida na edição
+            if (!editingUser || formData.password) {
+                Object.assign(body, {
+                    password: formData.password
+                });
+            }
+
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: formData.name,
-                    email: formData.email,
-                    password: formData.password,
-                    churchId: formData.churchId,
-                    permissions: permissionsObject,
-                    ownerId: authUser?.id
-                })
+                body: JSON.stringify(body)
             });
 
             const result = await response.json();
 
             if (!response.ok) {
-                // Se o backend retornou um erro estruturado, usamos ele
-                const errorMessage = result.error || 'Erro ao criar usuário';
+                const errorMessage = result.error || 'Erro ao processar usuário';
                 const errorDetails = result.details ? ` (${result.details})` : '';
                 throw new Error(`${errorMessage}${errorDetails}`);
             }
 
-            setStatusMessage({ type: 'success', text: 'Usuário criado com sucesso!' });
+            setStatusMessage({ type: 'success', text: editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!' });
             
             // Recarregar lista
             fetchUsers();
             
-            // Limpar formulário
-            setFormData({
-                name: '',
-                email: '',
-                password: '',
-                churchId: '',
-                permissions: {
-                    confirmFinal: false,
-                    identifyPayments: false,
-                    undoIdentification: false,
-                    downloadFile: false,
-                    printReport: false
-                }
-            });
-
-            // Fechar modal após sucesso
+            // Limpar formulário e fechar após delay
             setTimeout(() => {
-                setIsModalOpen(false);
-                setStatusMessage(null);
-            }, 2000);
+                handleCloseModal();
+            }, 1500);
 
         } catch (error: any) {
-            console.error("Erro ao criar usuário:", error);
-            setStatusMessage({ type: 'error', text: error.message || 'Falha ao criar usuário secundário.' });
+            console.error("Erro ao processar usuário:", error);
+            setStatusMessage({ type: 'error', text: error.message || 'Falha na operação.' });
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleEditClick = (user: any) => {
+        const perms = user.permissions || {};
+        setEditingUser(user);
+        setFormData({
+            name: user.name || '',
+            email: user.email || '',
+            password: '', // Não editamos senha aqui por enquanto
+            churchId: user.congregation || '',
+            permissions: {
+                confirmFinal: !!perms.confirmar_final,
+                identifyPayments: !!perms.identificar,
+                undoIdentification: !!perms.desfazer_identificacao,
+                downloadFile: !!perms.baixar_arquivo,
+                printReport: !!perms.imprimir
+            }
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingUser(null);
+        setStatusMessage(null);
+        setFormData({
+            name: '',
+            email: '',
+            password: '',
+            churchId: '',
+            permissions: {
+                confirmFinal: false,
+                identifyPayments: false,
+                undoIdentification: false,
+                downloadFile: false,
+                printReport: false
+            }
+        });
     };
 
     const handleDeleteUser = async (userId: string) => {
@@ -168,6 +200,11 @@ export const UsersManagementPage: React.FC = () => {
         }));
     };
 
+    const filteredUsers = users.filter(user => 
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <div className="flex flex-col h-full gap-6 animate-fade-in pb-6 overflow-y-auto custom-scrollbar">
             {/* Header */}
@@ -184,13 +221,27 @@ export const UsersManagementPage: React.FC = () => {
                     </div>
                 </div>
 
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 rounded-full shadow-md shadow-blue-500/30 hover:-translate-y-0.5 transition-all tracking-wide uppercase"
-                >
-                    <PlusCircleIcon className="w-3.5 h-3.5" />
-                    <span>Criar Usuário</span>
-                </button>
+                <div className="flex items-center gap-3">
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                            <UsersIcon className="w-4 h-4" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Buscar usuário..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full text-xs font-medium focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all w-48 md:w-64"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 rounded-full shadow-md shadow-blue-500/30 hover:-translate-y-0.5 transition-all tracking-wide uppercase"
+                    >
+                        <PlusCircleIcon className="w-3.5 h-3.5" />
+                        <span>Criar Usuário</span>
+                    </button>
+                </div>
             </div>
 
             {/* Listagem */}
@@ -198,7 +249,7 @@ export const UsersManagementPage: React.FC = () => {
                 <div className="flex-1 flex items-center justify-center">
                     <div className="w-10 h-10 border-4 border-brand-blue/30 border-t-brand-blue rounded-full animate-spin" />
                 </div>
-            ) : users.length > 0 ? (
+            ) : filteredUsers.length > 0 ? (
                 <div className="flex-1 overflow-hidden bg-white dark:bg-slate-800/50 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/50 shadow-sm flex flex-col">
                     <div className="overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
@@ -211,7 +262,7 @@ export const UsersManagementPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
-                                {users.map((user) => {
+                                {filteredUsers.map((user) => {
                                     const church = churches.find(c => c.id === user.congregation);
                                     const perms = user.permissions || {};
                                     const activePermsCount = Object.values(perms).filter(v => v === true).length;
@@ -242,13 +293,22 @@ export const UsersManagementPage: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <button 
-                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
-                                                    title="Excluir Usuário"
-                                                    onClick={() => handleDeleteUser(user.id)}
-                                                >
-                                                    <TrashIcon className="w-5 h-5" />
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button 
+                                                        className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/10 rounded-xl transition-all"
+                                                        title="Editar Usuário"
+                                                        onClick={() => handleEditClick(user)}
+                                                    >
+                                                        <PencilIcon className="w-5 h-5" />
+                                                    </button>
+                                                    <button 
+                                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-all"
+                                                        title="Excluir Usuário"
+                                                        onClick={() => handleDeleteUser(user.id)}
+                                                    >
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -263,29 +323,35 @@ export const UsersManagementPage: React.FC = () => {
                         <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-700">
                             <UserIcon className="w-10 h-10 text-slate-300 dark:text-slate-600" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Nenhum usuário cadastrado ainda.</h3>
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                            {searchTerm ? 'Nenhum usuário encontrado' : 'Nenhum usuário cadastrado ainda.'}
+                        </h3>
                         <p className="text-slate-500 dark:text-slate-400 max-w-xs text-sm font-medium">
-                            Comece adicionando novos usuários para permitir que outras pessoas gerenciem suas congregações.
+                            {searchTerm 
+                                ? 'Não encontramos nenhum usuário correspondente à sua busca.' 
+                                : 'Comece adicionando novos usuários para permitir que outras pessoas gerenciem suas congregações.'}
                         </p>
                     </div>
                 </div>
             )}
 
-            {/* Modal de Criação */}
+            {/* Modal de Cadastro/Edição */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-deep/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-scale-in border border-slate-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
                         <div className="px-8 pt-8 pb-4 flex justify-between items-center flex-shrink-0">
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Novo Usuário</h3>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                            </h3>
                             <button 
-                                onClick={() => setIsModalOpen(false)}
+                                onClick={handleCloseModal}
                                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400"
                             >
                                 <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
 
-                        <form onSubmit={handleCreateUser} className="flex flex-col flex-1 min-h-0">
+                        <form onSubmit={handleSubmitUser} className="flex flex-col flex-1 min-h-0">
                             <div className="px-8 py-4 space-y-6 overflow-y-auto custom-scrollbar flex-1">
                                 {statusMessage && (
                                     <div className={`p-4 rounded-2xl text-sm font-bold flex items-center gap-3 animate-fade-in ${
@@ -336,14 +402,16 @@ export const UsersManagementPage: React.FC = () => {
 
                                     {/* Senha */}
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Senha Provisória</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">
+                                            {editingUser ? 'Nova Senha (deixe em branco para manter)' : 'Senha Provisória'}
+                                        </label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                                                 <LockClosedIcon className="w-5 h-5" />
                                             </div>
                                             <input
                                                 type="password"
-                                                required
+                                                required={!editingUser}
                                                 value={formData.password}
                                                 onChange={e => setFormData({...formData, password: e.target.value})}
                                                 className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
@@ -406,7 +474,7 @@ export const UsersManagementPage: React.FC = () => {
                             <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2.5rem] border-t border-slate-100 dark:border-slate-700/50 flex-shrink-0">
                                 <button
                                     type="button"
-                                    onClick={() => setIsModalOpen(false)}
+                                    onClick={handleCloseModal}
                                     className="px-6 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
                                 >
                                     Cancelar
@@ -422,7 +490,7 @@ export const UsersManagementPage: React.FC = () => {
                                             <span>Processando...</span>
                                         </>
                                     ) : (
-                                        'Criar Usuário'
+                                        editingUser ? 'Salvar Alterações' : 'Criar Usuário'
                                     )}
                                 </button>
                             </div>

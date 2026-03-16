@@ -243,5 +243,70 @@ export default () => {
         }
     });
 
+    // Atualizar usuário
+    router.post('/update/:userId', async (req, res) => {
+        const { userId } = req.params;
+        const { name, churchId, permissions, ownerId } = req.body;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase || !supabase.client) {
+            return res.status(500).json({ error: "Erro de configuração" });
+        }
+
+        try {
+            console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
+            
+            // 1. Validar se o solicitante é o owner desse usuário
+            const { data: userProfile, error: userError } = await supabase.client
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', userId)
+                .single();
+
+            if (userError) throw userError;
+
+            if (userProfile.owner_id !== ownerId) {
+                return res.status(403).json({ error: "Sem permissão para editar este usuário." });
+            }
+
+            // 2. Atualizar no Auth se email ou senha forem fornecidos
+            if (req.body.email || req.body.password) {
+                console.log("[Users API] Atualizando dados no Auth...");
+                const updateData = {};
+                if (req.body.email) updateData.email = req.body.email;
+                if (req.body.password) updateData.password = req.body.password;
+
+                const { error: authUpdateError } = await supabase.client.auth.admin.updateUserById(
+                    userId,
+                    updateData
+                );
+
+                if (authUpdateError) {
+                    console.error("[Users API] Erro ao atualizar Auth:", authUpdateError);
+                    throw authUpdateError;
+                }
+            }
+
+            // 3. Atualizar o profile
+            const { error: updateError } = await supabase.client
+                .from('profiles')
+                .update({
+                    name: name,
+                    email: req.body.email || undefined, // Atualiza o email no profile também se mudou
+                    permissions: permissions,
+                    congregation: churchId
+                })
+                .eq('id', userId);
+
+            if (updateError) throw updateError;
+
+            console.log("[Users API] Usuário atualizado com sucesso!");
+            res.json({ success: true });
+        } catch (error) {
+            console.error("[Users API] Erro ao atualizar usuário:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return router;
 };
