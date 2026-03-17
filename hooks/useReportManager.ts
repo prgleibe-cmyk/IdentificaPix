@@ -64,7 +64,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     if (subscription.role === 'member' && subscription.congregationId) {
                         hydrated = hydrated.filter(report => {
                             if (!report.data || !report.data.results) return false;
-                            return report.data.results.some(res => res.church?.id === subscription.congregationId);
+                            return report.data.results.some(res => (res.church?.id || res._churchId) === subscription.congregationId);
                         });
                     }
 
@@ -219,10 +219,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
-        return savedReports
+        let results = savedReports
             .filter(r => r.data && r.data.results)
             .flatMap(report => report.data!.results);
-    }, [savedReports]);
+            
+        // Filtro de Segurança para Membros: Apenas associações da sua igreja
+        if (subscription.role === 'member' && subscription.congregationId) {
+            results = results.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        }
+        
+        return results;
+    }, [savedReports, subscription.role, subscription.congregationId]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,

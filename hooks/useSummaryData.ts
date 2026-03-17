@@ -1,11 +1,19 @@
 import { useMemo } from 'react';
 import { MatchResult } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
+import { useAuth } from '../contexts/AuthContext';
 
 export const useSummaryData = (reconciliation: any, reportManager: any) => {
+    const { subscription } = useAuth();
+
     return useMemo(() => {
-        const results = reconciliation.matchResults;
+        let results = reconciliation.matchResults;
         const hasSession = reconciliation.hasActiveSession;
+
+        // Filtro de Segurança para Membros: Apenas dados da sua congregação
+        if (subscription.role === 'member' && subscription.congregationId) {
+            results = results.filter((r: any) => (r.church?.id || r._churchId) === subscription.congregationId);
+        }
         
         let identifiedCount = 0;
         let unidentifiedCount = 0;

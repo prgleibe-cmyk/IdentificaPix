@@ -34,13 +34,14 @@ import { ModelRequiredModal } from '../components/modals/ModelRequiredModal';
 
 export const AppRouter: React.FC = () => {
     const { activeView } = useUI();
-    const { user } = useAuth();
+    const { user, subscription } = useAuth();
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
+    const isOwner = subscription.role === 'owner';
     
     switch (activeView) {
         case 'dashboard': return <DashboardView />;
         case 'upload': return <UploadView />;
-        case 'cadastro': return <RegisterView />;
+        case 'cadastro': return isOwner ? <RegisterView /> : <DashboardView />;
         case 'reports': return <ReportsView />;
         case 'search': return <SearchView />;
         case 'savedReports': return <SavedReportsView />;
@@ -48,7 +49,7 @@ export const AppRouter: React.FC = () => {
         case 'smart_analysis': return <SmartAnalysisView />;
         case 'launched': return <LaunchedView />;
         case 'connectors': return <ConnectorsView />;
-        case 'users': return <UsersManagementPage />;
+        case 'users': return isOwner ? <UsersManagementPage /> : <DashboardView />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
         default: return <DashboardView />;
     }

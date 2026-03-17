@@ -79,6 +79,7 @@ export interface MatchResult {
   };
   suggestion?: Contributor;
   _injectedId?: string;
+  _churchId?: string;
   launchedAt?: string;
 }
 

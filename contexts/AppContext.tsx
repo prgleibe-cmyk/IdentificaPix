@@ -65,7 +65,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     .single();
                 
                 if (error) throw error;
-                const parsedData = typeof data?.data === 'string' ? JSON.parse(data.data) : data?.data;
+                const rawData = data?.data;
+                const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                 results = parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             }
@@ -76,10 +77,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                 // Se tiver resultados de conciliação, carrega na lista viva e vai para Relatórios
                 if (results && results.length > 0) {
-                    const hydrated = results.map((r: any) => ({
+                    let hydrated = results.map((r: any) => ({
                         ...r,
                         church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
                     }));
+
+                    // Filtro de Segurança para Membros: Ver apenas sua própria igreja dentro do relatório
+                    if (subscription.role === 'member' && subscription.congregationId) {
+                        hydrated = hydrated.filter((r: any) => r.church?.id === subscription.congregationId);
+                    }
+
                     reconciliation.setMatchResults(hydrated);
                     setActiveView('reports');
                 } 
