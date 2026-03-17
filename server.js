@@ -23,6 +23,7 @@ import paymentRoutes from './backend/routes/payments.js';
 import aiRoutes from './backend/routes/ai.js';
 import inboxRoutes from './backend/routes/inbox.js';
 import usersRoutes from './backend/routes/users.js';
+import { authMiddleware } from './backend/middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,9 @@ if (geminiKey) {
 
 // Registro de Rotas
 try {
+    // Aplicar middleware de autenticação para todas as rotas /api
+    app.use('/api', authMiddleware);
+    
     app.use('/api/gmail', gmailRoutes(ai));
     app.use('/api/payment', paymentRoutes);
     app.use('/api/ai', aiRoutes(ai));
