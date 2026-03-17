@@ -130,10 +130,19 @@ export const UsersManagementPage: React.FC = () => {
 
     const handleEditClick = (user: any) => {
         const perms = user.permissions || {};
-        const congregationRaw = user.congregation || '';
-        const churchIds = typeof congregationRaw === 'string' 
-            ? congregationRaw.split(',').map((id: string) => id.trim()).filter((id: string) => !!id)
-            : Array.isArray(congregationRaw) ? congregationRaw : [];
+        const congregationRaw = user.congregation;
+        
+        // Tenta ler do JSON de permissões primeiro (suporte a múltiplos IDs em coluna UUID)
+        let churchIds: string[] = [];
+        if (Array.isArray(perms.congregationIds)) {
+            churchIds = perms.congregationIds;
+        } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
+            churchIds = congregationRaw.split(',').map((id: string) => id.trim()).filter((id: string) => !!id);
+        } else if (Array.isArray(congregationRaw)) {
+            churchIds = congregationRaw;
+        } else if (congregationRaw) {
+            churchIds = [congregationRaw];
+        }
 
         setEditingUser(user);
         setFormData({
@@ -288,10 +297,19 @@ export const UsersManagementPage: React.FC = () => {
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                     {(() => {
-                                                        const congregationRaw = user.congregation || '';
-                                                        const ids = typeof congregationRaw === 'string' 
-                                                            ? congregationRaw.split(',').map((id: string) => id.trim()).filter((id: string) => !!id)
-                                                            : Array.isArray(congregationRaw) ? congregationRaw : [];
+                                                        const perms = user.permissions || {};
+                                                        const congregationRaw = user.congregation;
+                                                        
+                                                        let ids: string[] = [];
+                                                        if (Array.isArray(perms.congregationIds)) {
+                                                            ids = perms.congregationIds;
+                                                        } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
+                                                            ids = congregationRaw.split(',').map((id: string) => id.trim()).filter((id: string) => !!id);
+                                                        } else if (Array.isArray(congregationRaw)) {
+                                                            ids = congregationRaw;
+                                                        } else if (congregationRaw) {
+                                                            ids = [congregationRaw];
+                                                        }
                                                         
                                                         if (ids.length === 0) return <span className="text-xs text-slate-400">Nenhuma</span>;
                                                         

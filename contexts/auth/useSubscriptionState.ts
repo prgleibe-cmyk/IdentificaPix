@@ -57,11 +57,20 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             }
 
             const congregationRaw = p.congregation;
+            const permissions = p.permissions || {};
             let congregationIds: string[] = [];
-            if (Array.isArray(congregationRaw)) {
+            
+            // Tenta ler do JSON de permissões primeiro (suporte a múltiplos IDs em coluna UUID)
+            if (Array.isArray(permissions.congregationIds)) {
+                congregationIds = permissions.congregationIds;
+            } else if (Array.isArray(congregationRaw)) {
                 congregationIds = congregationRaw;
-            } else if (typeof congregationRaw === 'string') {
+            } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
+                // Fallback para string separada por vírgula (se a coluna não for UUID no futuro)
                 congregationIds = congregationRaw.split(',').map(id => id.trim()).filter(id => !!id);
+            } else if (congregationRaw) {
+                // Caso seja um único UUID na coluna congregation
+                congregationIds = [congregationRaw];
             }
 
             setSubscription({

@@ -93,7 +93,14 @@ export default () => {
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
         }
 
-        const congregationValue = Array.isArray(churchIds) ? churchIds.join(',') : churchIds;
+        const permissionsObject = {
+            "confirmar_final": permissions.confirmar_final,
+            "identificar": permissions.identificar,
+            "desfazer_identificacao": permissions.desfazer_identificacao,
+            "baixar_arquivo": permissions.baixar_arquivo,
+            "imprimir": permissions.imprimir,
+            "congregationIds": churchIds // Armazenamos o array completo no JSON de permissões
+        };
 
         try {
             // 1. Verificar se o solicitante é OWNER
@@ -143,8 +150,8 @@ export default () => {
                     name: req.body.name, // Nome completo do formulário
                     owner_id: ownerId,
                     role: 'member',
-                    permissions: permissions,
-                    congregation: congregationValue // Usando os IDs das congregações (separados por vírgula)
+                    permissions: permissionsObject,
+                    congregation: churchIds[0] || null // Apenas o primeiro ID (UUID) para evitar erro de sintaxe
                 }, { onConflict: 'id' });
 
             if (profileError) {
@@ -258,7 +265,10 @@ export default () => {
         try {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
             
-            const congregationValue = Array.isArray(churchIds) ? churchIds.join(',') : churchIds;
+            const permissionsObject = {
+                ...permissions,
+                "congregationIds": churchIds // Armazenamos o array completo no JSON de permissões
+            };
             
             // 1. Validar se o solicitante é o owner desse usuário
             const { data: userProfile, error: userError } = await supabase.client
@@ -297,8 +307,8 @@ export default () => {
                 .update({
                     name: name,
                     email: req.body.email || undefined, // Atualiza o email no profile também se mudou
-                    permissions: permissions,
-                    congregation: congregationValue
+                    permissions: permissionsObject,
+                    congregation: churchIds[0] || null // Apenas o primeiro ID (UUID)
                 })
                 .eq('id', userId);
 
