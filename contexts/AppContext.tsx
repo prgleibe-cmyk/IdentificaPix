@@ -91,9 +91,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
                     }));
 
-                    // Filtro de Segurança para Membros: Ver apenas sua própria igreja dentro do relatório
-                    if (subscription.role === 'member' && subscription.congregationId) {
-                        hydrated = hydrated.filter((r: any) => r.church?.id === subscription.congregationId);
+                    // Filtro de Segurança para Membros: Ver apenas suas igrejas autorizadas dentro do relatório
+                    if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+                        hydrated = hydrated.filter((r: any) => subscription.congregationIds.includes(r.church?.id || r._churchId));
                     }
 
                     reconciliation.setMatchResults(hydrated);

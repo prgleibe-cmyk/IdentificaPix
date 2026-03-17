@@ -9,6 +9,7 @@ interface SearchToolbarProps {
     onOpenFilters: () => void;
     onPrint: () => void;
     onSave: () => void;
+    role?: string;
 }
 
 const UnifiedButton = ({ 
@@ -65,9 +66,11 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
     activeFilterCount, 
     onOpenFilters, 
     onPrint, 
-    onSave 
+    onSave,
+    role
 }) => {
     const { t } = useTranslation();
+    const isOwner = role === 'owner';
 
     return (
         <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
@@ -86,14 +89,17 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
                     icon={PrinterIcon}
                     label={t('common.print')}
                     variant="info"
+                    isLast={!isOwner}
                  />
-                 <UnifiedButton 
-                    onClick={onSave}
-                    icon={FloppyDiskIcon}
-                    label={t('common.save')}
-                    isLast={true}
-                    variant="success"
-                 />
+                 {isOwner && (
+                    <UnifiedButton 
+                        onClick={onSave}
+                        icon={FloppyDiskIcon}
+                        label={t('common.save')}
+                        isLast={true}
+                        variant="success"
+                    />
+                 )}
             </div>
         </div>
     );

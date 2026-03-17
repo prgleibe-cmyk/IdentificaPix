@@ -63,15 +63,15 @@ export const useReconciliation = ({
 
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
-        if (subscription?.role === 'member' && subscription.congregationId) {
-            return matchResults.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            return matchResults.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
         return matchResults;
     }, [matchResults, subscription]);
 
     const filteredLaunchedResults = useMemo(() => {
-        if (subscription?.role === 'member' && subscription.congregationId) {
-            return launchedResults.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            return launchedResults.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
         return launchedResults;
     }, [launchedResults, subscription]);
@@ -186,8 +186,8 @@ export const useReconciliation = ({
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         // Filtro de segurança para membros no preview
         let filteredResults = results;
-        if (subscription?.role === 'member' && subscription.congregationId) {
-            filteredResults = results.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
 
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());

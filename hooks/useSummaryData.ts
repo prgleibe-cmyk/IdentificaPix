@@ -11,8 +11,8 @@ export const useSummaryData = (reconciliation: any, reportManager: any) => {
         const hasSession = reconciliation.hasActiveSession;
 
         // Filtro de Segurança para Membros: Apenas dados da sua congregação
-        if (subscription.role === 'member' && subscription.congregationId) {
-            results = results.filter((r: any) => (r.church?.id || r._churchId) === subscription.congregationId);
+        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            results = results.filter((r: any) => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
         
         let identifiedCount = 0;

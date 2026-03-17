@@ -61,11 +61,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }));
 
                     // Se for membro, filtra relatórios que contenham resultados da sua congregação
-                    if (subscription.role === 'member' && subscription.congregationId) {
+                    if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
                         hydrated = hydrated.filter(report => {
                             if (!report.data || !report.data.results || report.data.results.length === 0) return false;
-                            // Deve conter APENAS resultados da sua congregação
-                            return report.data.results.every(res => (res.church?.id || res._churchId) === subscription.congregationId);
+                            // Deve conter APENAS resultados das suas congregações
+                            return report.data.results.every(res => subscription.congregationIds.includes(res.church?.id || res._churchId));
                         });
                     }
 
@@ -225,8 +225,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             .flatMap(report => report.data!.results);
             
         // Filtro de Segurança para Membros: Apenas associações da sua igreja
-        if (subscription.role === 'member' && subscription.congregationId) {
-            results = results.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
         
         return results;

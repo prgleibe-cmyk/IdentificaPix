@@ -56,6 +56,7 @@ export const ReportsView: React.FC = () => {
                     onPrint={ctrl.handlePrint}
                     onSaveReport={ctrl.handleSaveReport}
                     hasActiveReport={!!ctrl.activeReportId}
+                    role={subscription.role}
                 />
             </div>
 

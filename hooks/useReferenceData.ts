@@ -36,9 +36,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             
             let query = supabase.from('churches').select('*').eq('user_id', ownerId);
             
-            // Se for membro, filtra apenas pela congregação autorizada
-            if (subscription.role === 'member' && subscription.congregationId) {
-                query = query.eq('id', subscription.congregationId);
+            // Se for membro, filtra apenas pelas congregações autorizadas
+            if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+                query = query.in('id', subscription.congregationIds);
             }
             
             const { data: c } = await query;

@@ -56,6 +56,14 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 if (daysRemaining <= 0) { status = 'expired'; daysRemaining = 0; }
             }
 
+            const congregationRaw = p.congregation;
+            let congregationIds: string[] = [];
+            if (Array.isArray(congregationRaw)) {
+                congregationIds = congregationRaw;
+            } else if (typeof congregationRaw === 'string') {
+                congregationIds = congregationRaw.split(',').map(id => id.trim()).filter(id => !!id);
+            }
+
             setSubscription({
                 plan: status as any,
                 daysRemaining: Math.max(0, daysRemaining),
@@ -69,7 +77,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 maxBanks: p.max_banks || settings.baseSlots,
                 role: p.role || 'owner',
                 ownerId: p.owner_id || userId,
-                congregationId: p.congregation
+                congregationId: congregationIds[0] || undefined,
+                congregationIds: congregationIds
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);

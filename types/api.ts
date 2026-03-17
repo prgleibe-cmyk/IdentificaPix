@@ -34,4 +34,5 @@ export interface SubscriptionStatus {
   role: 'owner' | 'member';
   ownerId: string;
   congregationId?: string;
+  congregationIds?: string[];
 }

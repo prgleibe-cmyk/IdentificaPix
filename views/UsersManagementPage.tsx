@@ -22,7 +22,7 @@ export const UsersManagementPage: React.FC = () => {
         name: '',
         email: '',
         password: '',
-        churchId: '',
+        churchIds: [] as string[],
         permissions: {
             confirmFinal: false,
             identifyPayments: false,
@@ -62,8 +62,8 @@ export const UsersManagementPage: React.FC = () => {
     const handleSubmitUser = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!formData.churchId) {
-            setStatusMessage({ type: 'error', text: 'Por favor, selecione uma congregação.' });
+        if (formData.churchIds.length === 0) {
+            setStatusMessage({ type: 'error', text: 'Por favor, selecione pelo menos uma congregação.' });
             return;
         }
 
@@ -84,7 +84,7 @@ export const UsersManagementPage: React.FC = () => {
             const body = {
                 name: formData.name,
                 email: formData.email,
-                churchId: formData.churchId,
+                churchIds: formData.churchIds,
                 permissions: permissionsObject,
                 ownerId: authUser?.id
             };
@@ -130,12 +130,17 @@ export const UsersManagementPage: React.FC = () => {
 
     const handleEditClick = (user: any) => {
         const perms = user.permissions || {};
+        const congregationRaw = user.congregation || '';
+        const churchIds = typeof congregationRaw === 'string' 
+            ? congregationRaw.split(',').map((id: string) => id.trim()).filter((id: string) => !!id)
+            : Array.isArray(congregationRaw) ? congregationRaw : [];
+
         setEditingUser(user);
         setFormData({
             name: user.name || '',
             email: user.email || '',
             password: '', // Não editamos senha aqui por enquanto
-            churchId: user.congregation || '',
+            churchIds: churchIds,
             permissions: {
                 confirmFinal: !!perms.confirmar_final,
                 identifyPayments: !!perms.identificar,
@@ -155,7 +160,7 @@ export const UsersManagementPage: React.FC = () => {
             name: '',
             email: '',
             password: '',
-            churchId: '',
+            churchIds: [],
             permissions: {
                 confirmFinal: false,
                 identifyPayments: false,
@@ -256,7 +261,7 @@ export const UsersManagementPage: React.FC = () => {
                             <thead>
                                 <tr className="border-b border-slate-100 dark:border-slate-700/50">
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Congregação</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Congregações</th>
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Permissões</th>
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
                                 </tr>
@@ -281,9 +286,25 @@ export const UsersManagementPage: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                                                    {church?.name || 'Não vinculada'}
-                                                </span>
+                                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                    {(() => {
+                                                        const congregationRaw = user.congregation || '';
+                                                        const ids = typeof congregationRaw === 'string' 
+                                                            ? congregationRaw.split(',').map((id: string) => id.trim()).filter((id: string) => !!id)
+                                                            : Array.isArray(congregationRaw) ? congregationRaw : [];
+                                                        
+                                                        if (ids.length === 0) return <span className="text-xs text-slate-400">Nenhuma</span>;
+                                                        
+                                                        return ids.map((id: string) => {
+                                                            const church = churches.find(c => c.id === id);
+                                                            return (
+                                                                <span key={id} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md whitespace-nowrap">
+                                                                    {church?.name || 'Desconhecida'}
+                                                                </span>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
@@ -420,24 +441,38 @@ export const UsersManagementPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Congregação */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Congregação</label>
-                                        <select
-                                            required
-                                            value={formData.churchId}
-                                            onChange={e => setFormData({...formData, churchId: e.target.value})}
-                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium appearance-none"
-                                        >
-                                            <option value="">Selecionar Congregação</option>
+                                    {/* Congregações */}
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Congregações Autorizadas</label>
+                                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                             {churches.length > 0 ? (
                                                 churches.map(church => (
-                                                    <option key={church.id} value={church.id}>{church.name}</option>
+                                                    <label 
+                                                        key={church.id}
+                                                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.churchIds.includes(church.id)}
+                                                            onChange={() => {
+                                                                setFormData(prev => {
+                                                                    const ids = prev.churchIds.includes(church.id)
+                                                                        ? prev.churchIds.filter(id => id !== church.id)
+                                                                        : [...prev.churchIds, church.id];
+                                                                    return { ...prev, churchIds: ids };
+                                                                });
+                                                            }}
+                                                            className="w-5 h-5 rounded-lg border-slate-300 text-brand-blue focus:ring-brand-blue/20"
+                                                        />
+                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-brand-blue transition-colors">
+                                                            {church.name}
+                                                        </span>
+                                                    </label>
                                                 ))
                                             ) : (
-                                                <option disabled>Nenhuma congregação cadastrada.</option>
+                                                <p className="text-xs text-slate-500 italic p-2">Nenhuma congregação cadastrada.</p>
                                             )}
-                                        </select>
+                                        </div>
                                     </div>
                                 </div>
 

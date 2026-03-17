@@ -75,7 +75,7 @@ export default () => {
 
     router.post('/create', async (req, res) => {
         console.log("[Users API] Recebida requisição de criação de usuário:", req.body.email);
-        const { email, password, churchId, permissions, ownerId } = req.body;
+        const { email, password, churchIds, permissions, ownerId } = req.body;
         const supabase = getSupabaseAdmin();
 
         if (!supabase || !supabase.client) {
@@ -88,10 +88,12 @@ export default () => {
             console.warn("[Users API] Aviso: Chave de serviço (Service Role) não detectada. Tentando com chave disponível...");
         }
         
-        if (!email || !password || !churchId || !ownerId) {
-            console.error("[Users API] Dados incompletos:", { email, hasPassword: !!password, churchId, ownerId });
+        if (!email || !password || !churchIds || !ownerId) {
+            console.error("[Users API] Dados incompletos:", { email, hasPassword: !!password, churchIds, ownerId });
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
         }
+
+        const congregationValue = Array.isArray(churchIds) ? churchIds.join(',') : churchIds;
 
         try {
             // 1. Verificar se o solicitante é OWNER
@@ -142,7 +144,7 @@ export default () => {
                     owner_id: ownerId,
                     role: 'member',
                     permissions: permissions,
-                    congregation: churchId // Usando o ID da congregação
+                    congregation: congregationValue // Usando os IDs das congregações (separados por vírgula)
                 }, { onConflict: 'id' });
 
             if (profileError) {
@@ -246,7 +248,7 @@ export default () => {
     // Atualizar usuário
     router.post('/update/:userId', async (req, res) => {
         const { userId } = req.params;
-        const { name, churchId, permissions, ownerId } = req.body;
+        const { name, churchIds, permissions, ownerId } = req.body;
         const supabase = getSupabaseAdmin();
 
         if (!supabase || !supabase.client) {
@@ -255,6 +257,8 @@ export default () => {
 
         try {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
+            
+            const congregationValue = Array.isArray(churchIds) ? churchIds.join(',') : churchIds;
             
             // 1. Validar se o solicitante é o owner desse usuário
             const { data: userProfile, error: userError } = await supabase.client
@@ -294,7 +298,7 @@ export default () => {
                     name: name,
                     email: req.body.email || undefined, // Atualiza o email no profile também se mudou
                     permissions: permissions,
-                    congregation: churchId
+                    congregation: congregationValue
                 })
                 .eq('id', userId);
 

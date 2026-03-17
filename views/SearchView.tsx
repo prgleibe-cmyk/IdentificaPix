@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useTranslation } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ResultsTable } from '../components/ResultsTable';
 import { EmptyState } from '../components/EmptyState';
 import { SearchIcon } from '../components/Icons';
@@ -15,6 +16,7 @@ import { SearchSummary } from '../components/search/SearchSummary';
  */
 export const SearchView: React.FC = () => {
     const { t } = useTranslation();
+    const { subscription } = useAuth();
     const ctrl = useSearchController();
 
     if (ctrl.allHistoricalResults.length === 0) {
@@ -38,6 +40,7 @@ export const SearchView: React.FC = () => {
                 onOpenFilters={ctrl.openSearchFilters}
                 onPrint={ctrl.handlePrint}
                 onSave={() => ctrl.saveFilteredReport(ctrl.filteredResults)}
+                role={subscription.role}
             />
             
             <SearchBar 

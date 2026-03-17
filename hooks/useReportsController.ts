@@ -30,21 +30,25 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Forçar categoria e igreja para membros
+    // Forçar categoria para membros
     useEffect(() => {
-        if (subscription.role === 'member' && subscription.congregationId) {
+        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             setActiveCategory('churches');
-            setSelectedReportId(subscription.congregationId);
+            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
+                setSelectedReportId(subscription.congregationIds[0]);
+            }
         }
-    }, [subscription]);
+    }, [subscription, selectedReportId]);
 
     useEffect(() => {
         if (!reportPreviewData) return;
         
-        // Se for membro, não permite mudar de categoria ou igreja
-        if (subscription.role === 'member' && subscription.congregationId) {
+        // Se for membro, garante que está na categoria correta e com uma igreja válida
+        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             setActiveCategory('churches');
-            setSelectedReportId(subscription.congregationId);
+            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
+                setSelectedReportId(subscription.congregationIds[0]);
+            }
             return;
         }
 
@@ -72,8 +76,8 @@ export const useReportsController = () => {
         let entries = Object.entries(reportPreviewData.income)
             .filter(([id]) => id !== 'unidentified');
             
-        if (subscription.role === 'member' && subscription.congregationId) {
-            entries = entries.filter(([id]) => id === subscription.congregationId);
+        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            entries = entries.filter(([id]) => subscription.congregationIds.includes(id));
         }
 
         return entries.map(([id, results]) => {
@@ -91,11 +95,10 @@ export const useReportsController = () => {
     const counts = useMemo(() => {
         const incomeGroups = reportPreviewData?.income || {};
         
-        if (subscription.role === 'member' && subscription.congregationId) {
-            const myChurchResults = incomeGroups[subscription.congregationId] || [];
+        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             return { 
                 general: 0, 
-                churches: 1, 
+                churches: subscription.congregationIds.length, 
                 pending: 0, 
                 expenses: 0 
             };
@@ -114,8 +117,12 @@ export const useReportsController = () => {
         
         try {
             // 1. Seleção da base por categoria com trava de segurança para membros
-            if (subscription.role === 'member' && subscription.congregationId) {
-                data = reportPreviewData.income?.[subscription.congregationId] || [];
+            if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+                if (selectedReportId && subscription.congregationIds.includes(selectedReportId)) {
+                    data = reportPreviewData.income?.[selectedReportId] || [];
+                } else {
+                    data = reportPreviewData.income?.[subscription.congregationIds[0]] || [];
+                }
             } else if (activeCategory === 'general') {
                 const incomeGroups = reportPreviewData.income || {};
                 data = (Object.values(incomeGroups) as MatchResult[][]).flat();
