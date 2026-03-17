@@ -93,6 +93,12 @@ export default () => {
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
         }
 
+        // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado
+        if (req.user.id !== ownerId) {
+            console.error("[Users API] Tentativa de criação não autorizada. Autenticado:", req.user.id, "Solicitado:", ownerId);
+            return res.status(403).json({ error: "Acesso negado: Você só pode criar usuários para sua própria conta." });
+        }
+
         const permissionsObject = {
             "confirmar_final": permissions.confirmar_final,
             "identificar": permissions.identificar,
@@ -180,6 +186,11 @@ export default () => {
         const { ownerId } = req.params;
         const supabase = getSupabaseAdmin();
 
+        // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado
+        if (req.user.id !== ownerId) {
+            return res.status(403).json({ error: "Acesso negado: Você só pode listar seus próprios usuários." });
+        }
+
         if (!supabase || !supabase.client) {
             return res.status(500).json({ error: "Erro de configuração" });
         }
@@ -212,6 +223,11 @@ export default () => {
 
         if (!ownerId) {
             return res.status(400).json({ error: "ownerId é obrigatório para exclusão." });
+        }
+
+        // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado
+        if (req.user.id !== ownerId) {
+            return res.status(403).json({ error: "Acesso negado: Você só pode excluir usuários da sua própria conta." });
         }
 
         try {
@@ -264,6 +280,11 @@ export default () => {
 
         try {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
+            
+            // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado
+            if (req.user.id !== ownerId) {
+                return res.status(403).json({ error: "Acesso negado: Você só pode editar usuários da sua própria conta." });
+            }
             
             const permissionsObject = {
                 ...permissions,

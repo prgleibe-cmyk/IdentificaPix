@@ -27,6 +27,11 @@ export default (ai) => {
         const { text } = req.body;
         const supabaseAdmin = getSupabaseAdmin();
 
+        // Validação IDOR: Garantir que o usuário autenticado é o dono dos dados
+        if (req.user.id !== userId) {
+            return res.status(403).json({ error: "Acesso negado: Você não pode processar notificações para outro usuário." });
+        }
+
         if (!ai) return res.status(500).json({ error: "IA não configurada no servidor." });
         if (!supabaseAdmin) return res.status(500).json({ error: "Conexão com banco de dados não configurada." });
         if (!text) return res.status(400).json({ error: "Conteúdo da mensagem vazio" });
