@@ -1,4 +1,5 @@
 
+import { supabase } from './supabaseClient';
 import { Logger } from './monitoringService';
 
 export interface PaymentResponse {
@@ -31,9 +32,15 @@ export const paymentService = {
         Logger.info(`Initiating Real Payment [${method}]...`, { amount, customerName, email });
 
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
             const response = await fetch('/api/payment/create', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     amount,
                     name: customerName,
@@ -92,7 +99,14 @@ export const paymentService = {
      */
     checkPaymentStatus: async (paymentId: string): Promise<'PENDING' | 'RECEIVED' | 'OVERDUE' | 'CONFIRMED'> => {
         try {
-            const response = await fetch(`/api/payment/status/${paymentId}`);
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            const response = await fetch(`/api/payment/status/${paymentId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (!response.ok) return 'PENDING';
             
             const data = await response.json();

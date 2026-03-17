@@ -43,8 +43,16 @@ export const UsersManagementPage: React.FC = () => {
         
         setIsLoadingUsers(true);
         try {
+            // Obter token da sessão
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
             // Usando a API do backend para listar usuários, ignorando RLS do frontend
-            const response = await fetch(`/api/users/list/${authUser.id}`);
+            const response = await fetch(`/api/users/list/${authUser.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (!response.ok) throw new Error('Falha ao buscar usuários');
             const data = await response.json();
             setUsers(data || []);
@@ -96,9 +104,15 @@ export const UsersManagementPage: React.FC = () => {
                 });
             }
 
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify(body)
             });
 
@@ -186,8 +200,14 @@ export const UsersManagementPage: React.FC = () => {
         }
 
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
             const response = await fetch(`/api/users/delete/${userId}?ownerId=${authUser?.id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
             });
 
             if (!response.ok) {
