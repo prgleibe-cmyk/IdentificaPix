@@ -17,21 +17,26 @@ import { PLACEHOLDER_CHURCH } from '../services/processingService';
 export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user } = useAuth();
+    const { user, subscription } = useAuth();
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
 
+    const effectiveUser = useMemo(() => {
+        if (!user) return null;
+        return { ...user, id: subscription.ownerId || user.id };
+    }, [user, subscription.ownerId]);
+
     const modalController = useModalController();
-    const referenceData = useReferenceData(user, showToast);
-    const reportManager = useReportManager(user, showToast);
+    const referenceData = useReferenceData(effectiveUser, showToast);
+    const reportManager = useReportManager(effectiveUser, showToast);
     
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user, churches: referenceData.churches, banks: referenceData.banks,
+        user: effectiveUser, churches: referenceData.churches, banks: referenceData.banks,
         fileModels: referenceData.fileModels, fetchModels: referenceData.fetchModels,
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance, customIgnoreKeywords: effectiveIgnoreKeywords,
@@ -132,7 +137,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         onAfterAction: persistActiveReport 
     });
 
-    const { confirmDeletion } = useDataDeletion({ user, modalController, referenceData, reportManager, reconciliation, showToast });
+    const { confirmDeletion } = useDataDeletion({ user: effectiveUser, modalController, referenceData, reportManager, reconciliation, showToast });
     const { runAiAutoIdentification } = useAiAutoIdentify({ 
         reconciliation, 
         referenceData, 

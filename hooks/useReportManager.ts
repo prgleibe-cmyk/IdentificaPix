@@ -1,5 +1,6 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
@@ -18,7 +19,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    
+    const { subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
@@ -39,17 +40,18 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
+            const ownerId = subscription.ownerId || user.id;
             try {
                 const { data, error } = await supabase
                     .from('saved_reports')
                     .select('*')
-                    .eq('user_id', user.id)
+                    .eq('user_id', ownerId)
                     .order('created_at', { ascending: false });
 
                 if (error) throw error;
 
                 if (data) {
-                    const hydrated: SavedReport[] = data.map(r => ({
+                    let hydrated: SavedReport[] = data.map(r => ({
                         id: r.id,
                         name: r.name,
                         createdAt: r.created_at,
@@ -57,6 +59,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         user_id: r.user_id,
                         data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
                     }));
+
+                    // Se for membro, filtra relatórios que contenham resultados da sua congregação
+                    if (subscription.role === 'member' && subscription.congregationId) {
+                        hydrated = hydrated.filter(report => {
+                            if (!report.data || !report.data.results) return false;
+                            return report.data.results.some(res => res.church?.id === subscription.congregationId);
+                        });
+                    }
+
                     setSavedReports(hydrated);
                 }
             } catch (err) {
@@ -148,6 +159,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      */
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
+        const ownerId = subscription.ownerId || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -166,7 +178,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
-            user_id: user.id,
+            user_id: ownerId,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -198,12 +210,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
+        const ownerId = subscription.ownerId || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', user.id);
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [user, savedReports, showToast]);
+    }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         return savedReports

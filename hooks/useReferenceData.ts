@@ -30,9 +30,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) return;
         const syncData = async () => {
-            const { data: b } = await supabase.from('banks').select('*').eq('user_id', user.id);
+            const ownerId = subscription.ownerId || user.id;
+            const { data: b } = await supabase.from('banks').select('*').eq('user_id', ownerId);
             if (b) setBanks(b);
-            const { data: c } = await supabase.from('churches').select('*').eq('user_id', user.id);
+            
+            let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+            
+            // Se for membro, filtra apenas pela congregação autorizada
+            if (subscription.role === 'member' && subscription.congregationId) {
+                query = query.eq('id', subscription.congregationId);
+            }
+            
+            const { data: c } = await query;
             if (c) setChurches(c);
         };
         syncData();
@@ -41,7 +50,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) return;
         const fetchAssociations = async () => {
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
+            const ownerId = subscription.ownerId || user.id;
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId);
             if (data) {
                 setLearnedAssociations(data.map(d => ({
                     id: d.id, 
@@ -64,12 +74,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
         
+        const ownerId = subscription.ownerId || user.id;
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 
             churchId: matchResult.church.id, 
             bankId: 'global',
-            user_id: user.id 
+            user_id: ownerId 
         };
 
         setLearnedAssociations(prev => {
@@ -82,7 +93,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 .from('learned_associations')
                 .select('id')
                 .eq('normalized_description', normalizedDesc)
-                .eq('user_id', user.id)
+                .eq('user_id', ownerId)
                 .maybeSingle();
 
             if (existing) {
@@ -92,7 +103,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 }).eq('id', existing.id);
             } else {
                 await supabase.from('learned_associations').insert({ 
-                    user_id: user.id, 
+                    user_id: ownerId, 
                     normalized_description: normalizedDesc, 
                     contributor_normalized_name: contributorName, 
                     church_id: matchResult.church.id
@@ -105,11 +116,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
+        const ownerId = subscription.ownerId || user.id;
         try {
-            const models = await modelService.getUserModels(user.id);
+            const models = await modelService.getUserModels(ownerId);
             setFileModels(models);
         } catch (e) { console.error(e); }
-    }, [user]);
+    }, [user, subscription.ownerId]);
 
     useEffect(() => { fetchModels(); }, [fetchModels]);
 
@@ -125,18 +137,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
         if(!user) return false;
+        const ownerId = subscription.ownerId || user.id;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await supabase.from('banks').insert([{ name, user_id: user.id }]).select();
+        const { data } = await supabase.from('banks').insert([{ name, user_id: ownerId }]).select();
         if (data) {
             setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
             return true;
         }
         return false;
-    }, [user, banks, subscription.maxBanks, setBanks, showToast]);
+    }, [user, banks, subscription.maxBanks, subscription.ownerId, setBanks, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
@@ -150,18 +163,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
         if(!user) return false;
+        const ownerId = subscription.ownerId || user.id;
         if (churches.length >= (subscription.maxChurches || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await supabase.from('churches').insert([{ ...formData, user_id: user.id }]).select();
+        const { data } = await supabase.from('churches').insert([{ ...formData, user_id: ownerId }]).select();
         if (data) {
             setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');
             return true;
         }
         return false;
-    }, [user, churches, subscription.maxChurches, setChurches, showToast]);
+    }, [user, churches, subscription.maxChurches, subscription.ownerId, setChurches, showToast]);
 
     const addContributionKeyword = useCallback((keyword: string) => {
         const upper = keyword.trim().toUpperCase();

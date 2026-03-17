@@ -68,7 +68,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 maxChurches: p.max_churches || settings.baseSlots,
                 maxBanks: p.max_banks || settings.baseSlots,
                 role: p.role || 'owner',
-                ownerId: p.owner_id || userId
+                ownerId: p.owner_id || userId,
+                congregationId: p.congregation
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);

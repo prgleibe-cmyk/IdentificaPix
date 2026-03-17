@@ -33,4 +33,5 @@ export interface SubscriptionStatus {
   customPrice?: number;
   role: 'owner' | 'member';
   ownerId: string;
+  congregationId?: string;
 }
