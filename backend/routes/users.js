@@ -137,8 +137,17 @@ export default () => {
 
             if (authError) {
                 console.error("[Users API] Erro no Auth.admin.createUser:", authError);
-                if (authError.message.includes('already registered')) {
-                    return res.status(400).json({ error: "Este e-mail já está cadastrado no sistema." });
+                
+                // Supabase retorna 422 e código 'email_exists' para duplicatas
+                const isDuplicate = authError.code === 'email_exists' || 
+                                   (authError.message && authError.message.toLowerCase().includes('already registered')) ||
+                                   (authError.message && authError.message.toLowerCase().includes('already been registered'));
+
+                if (isDuplicate) {
+                    return res.status(409).json({ 
+                        error: "Este e-mail já está cadastrado no sistema.",
+                        code: 'email_exists'
+                    });
                 }
                 throw authError;
             }
@@ -173,8 +182,21 @@ export default () => {
 
         } catch (error) {
             console.error("[Users API] Erro fatal na criação de usuário:", error);
-            res.status(500).json({ 
-                error: error.message || "Falha ao criar usuário secundário.",
+            
+            // Tenta extrair o status code do erro original
+            let statusCode = error.status || 500;
+            let errorMessage = error.message || "Falha ao criar usuário secundário.";
+
+            // Reforço para erro de e-mail duplicado no catch
+            if (error.code === 'email_exists' || 
+                (error.message && error.message.toLowerCase().includes('already registered')) ||
+                (error.message && error.message.toLowerCase().includes('already been registered'))) {
+                statusCode = 409;
+                errorMessage = "Este e-mail já está cadastrado no sistema.";
+            }
+            
+            res.status(statusCode).json({ 
+                error: errorMessage,
                 details: error.details || error.hint || null,
                 code: error.code || null
             });
@@ -339,7 +361,23 @@ export default () => {
             res.json({ success: true });
         } catch (error) {
             console.error("[Users API] Erro ao atualizar usuário:", error);
-            res.status(500).json({ error: error.message });
+            
+            let statusCode = error.status || 500;
+            let errorMessage = error.message || "Falha ao atualizar usuário.";
+
+            // Reforço para erro de e-mail duplicado no catch
+            if (error.code === 'email_exists' || 
+                (error.message && error.message.toLowerCase().includes('already registered')) ||
+                (error.message && error.message.toLowerCase().includes('already been registered'))) {
+                statusCode = 409;
+                errorMessage = "Este e-mail já está sendo usado por outro usuário.";
+            }
+
+            res.status(statusCode).json({ 
+                error: errorMessage,
+                details: error.details || error.hint || null,
+                code: error.code || null
+            });
         }
     });
 
