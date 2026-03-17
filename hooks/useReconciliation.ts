@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { 
     MatchResult, 
     Transaction, 
@@ -26,6 +26,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useReconciliation = ({
     user,
+    subscription,
     churches,
     banks,
     fileModels,
@@ -59,6 +60,21 @@ export const useReconciliation = ({
     const [triggerSync, setTriggerSync] = useState(0);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
+
+    // Filtros de segurança para membros
+    const filteredMatchResults = useMemo(() => {
+        if (subscription?.role === 'member' && subscription.congregationId) {
+            return matchResults.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        }
+        return matchResults;
+    }, [matchResults, subscription]);
+
+    const filteredLaunchedResults = useMemo(() => {
+        if (subscription?.role === 'member' && subscription.congregationId) {
+            return launchedResults.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        }
+        return launchedResults;
+    }, [launchedResults, subscription]);
 
     const processingFilesRef = useRef<Set<string>>(new Set());
     const lastValidatedHash = useRef<string>('');
@@ -168,7 +184,13 @@ export const useReconciliation = ({
     }, [matchResults]);
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
-        const uniqueResults = Array.from(new Map(results.map(r => [r.transaction.id, r])).values());
+        // Filtro de segurança para membros no preview
+        let filteredResults = results;
+        if (subscription?.role === 'member' && subscription.congregationId) {
+            filteredResults = results.filter(r => (r.church?.id || r._churchId) === subscription.congregationId);
+        }
+
+        const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
         
         const incomeResults = uniqueResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING 
@@ -310,14 +332,14 @@ export const useReconciliation = ({
     }, [setLaunchedResults, showToast]);
 
     return {
-        activeBankFiles, contributorFiles, matchResults, reportPreviewData,
+        activeBankFiles, contributorFiles, matchResults: filteredMatchResults, reportPreviewData,
         activeReportId, setActiveReportId, hasActiveSession, setHasActiveSession,
         comparisonType, setComparisonType, selectedBankIds,
         manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
         modelRequiredData, setModelRequiredData,
         loadingAiId, setLoadingAiId, findMatchResult,
-        launchedResults, setLaunchedResults, markAsLaunched, undoLaunch, deleteLaunchedItem,
+        launchedResults: filteredLaunchedResults, setLaunchedResults, markAsLaunched, undoLaunch, deleteLaunchedItem,
         importGmailTransactions, handleStatementUpload, 
         handleContributorsUpload: (content: string, fileName: string, churchId: string) => {
              const church = churches.find((c: any) => c.id === churchId);

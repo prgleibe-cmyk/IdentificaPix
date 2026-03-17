@@ -36,12 +36,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user: effectiveUser, churches: referenceData.churches, banks: referenceData.banks,
-        fileModels: referenceData.fileModels, fetchModels: referenceData.fetchModels,
+        user: effectiveUser,
+        subscription,
+        churches: referenceData.churches,
+        banks: referenceData.banks,
+        fileModels: referenceData.fileModels,
+        fetchModels: referenceData.fetchModels,
         similarityLevel: referenceData.similarityLevel,
-        dayTolerance: referenceData.dayTolerance, customIgnoreKeywords: effectiveIgnoreKeywords,
-        contributionKeywords: referenceData.contributionKeywords, learnedAssociations: referenceData.learnedAssociations,
-        showToast, setIsLoading, setActiveView
+        dayTolerance: referenceData.dayTolerance,
+        customIgnoreKeywords: effectiveIgnoreKeywords,
+        contributionKeywords: referenceData.contributionKeywords,
+        learnedAssociations: referenceData.learnedAssociations,
+        showToast,
+        setIsLoading,
+        setActiveView
     });
 
     /**
@@ -65,7 +73,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     .single();
                 
                 if (error) throw error;
-                const rawData = data?.data;
+                if (!data) throw new Error('Report not found');
+                const rawData = data.data;
                 const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                 results = parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;

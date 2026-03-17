@@ -2,6 +2,7 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 import { EmptyState } from '../components/EmptyState';
 import { EditableReportTable } from '../components/reports/EditableReportTable';
 import { ChartBarIcon } from '../components/Icons';
@@ -21,6 +22,7 @@ export const ReportsView: React.FC = () => {
     const ctrl = useReportsController();
     const { t, language } = useTranslation();
     const { loadingAiId, openSmartEdit } = useContext(AppContext);
+    const { subscription } = useAuth();
 
     if (!ctrl.reportPreviewData) {
         return (
@@ -44,7 +46,7 @@ export const ReportsView: React.FC = () => {
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
-                    <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} />
+                    <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} />
                 </div>
                 {/* Fix: Removed invalid onSaveChanges prop as it is not defined in ReportToolbarProps and not used in the component */}
                 <ReportToolbar 

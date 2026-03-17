@@ -63,8 +63,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     // Se for membro, filtra relatórios que contenham resultados da sua congregação
                     if (subscription.role === 'member' && subscription.congregationId) {
                         hydrated = hydrated.filter(report => {
-                            if (!report.data || !report.data.results) return false;
-                            return report.data.results.some(res => (res.church?.id || res._churchId) === subscription.congregationId);
+                            if (!report.data || !report.data.results || report.data.results.length === 0) return false;
+                            // Deve conter APENAS resultados da sua congregação
+                            return report.data.results.every(res => (res.church?.id || res._churchId) === subscription.congregationId);
                         });
                     }
 

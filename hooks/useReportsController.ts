@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useContext, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
 import { MatchResult } from '../types';
 import { ExportService } from '../services/ExportService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
@@ -22,14 +23,30 @@ export const useReportsController = () => {
     
     const { language } = useTranslation();
     const { setActiveView } = useUI();
+    const { subscription } = useAuth();
     
     const [activeCategory, setActiveCategory] = useState<ReportCategory>('general');
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Forçar categoria e igreja para membros
+    useEffect(() => {
+        if (subscription.role === 'member' && subscription.congregationId) {
+            setActiveCategory('churches');
+            setSelectedReportId(subscription.congregationId);
+        }
+    }, [subscription]);
+
     useEffect(() => {
         if (!reportPreviewData) return;
+        
+        // Se for membro, não permite mudar de categoria ou igreja
+        if (subscription.role === 'member' && subscription.congregationId) {
+            setActiveCategory('churches');
+            setSelectedReportId(subscription.congregationId);
+            return;
+        }
 
         if (activeCategory === 'general') {
             setSelectedReportId('general_all');
@@ -48,13 +65,18 @@ export const useReportsController = () => {
         } else if (activeCategory === 'expenses') {
             setSelectedReportId('all_expenses_group');
         }
-    }, [activeCategory, reportPreviewData]);
+    }, [activeCategory, reportPreviewData, subscription]);
 
     const churchList = useMemo(() => {
         if (!reportPreviewData?.income) return [];
-        return Object.entries(reportPreviewData.income)
-            .filter(([id]) => id !== 'unidentified')
-            .map(([id, results]) => {
+        let entries = Object.entries(reportPreviewData.income)
+            .filter(([id]) => id !== 'unidentified');
+            
+        if (subscription.role === 'member' && subscription.congregationId) {
+            entries = entries.filter(([id]) => id === subscription.congregationId);
+        }
+
+        return entries.map(([id, results]) => {
                 const res = Array.isArray(results) ? results : [];
                 return {
                     id,
@@ -64,24 +86,37 @@ export const useReportsController = () => {
                 };
             })
             .sort((a, b) => a.name.localeCompare(b.name));
-    }, [reportPreviewData]);
+    }, [reportPreviewData, subscription]);
 
     const counts = useMemo(() => {
         const incomeGroups = reportPreviewData?.income || {};
+        
+        if (subscription.role === 'member' && subscription.congregationId) {
+            const myChurchResults = incomeGroups[subscription.congregationId] || [];
+            return { 
+                general: 0, 
+                churches: 1, 
+                pending: 0, 
+                expenses: 0 
+            };
+        }
+
         const general = Object.values(incomeGroups).flat().length;
         const churchesCount = churchList.length;
         const pending = incomeGroups['unidentified']?.length || 0;
         const expenses = reportPreviewData?.expenses?.['all_expenses_group']?.length || 0;
         return { general, churches: churchesCount, pending, expenses };
-    }, [churchList, reportPreviewData]);
+    }, [churchList, reportPreviewData, subscription]);
 
     const activeData = useMemo(() => {
         if (!reportPreviewData) return [];
         let data: MatchResult[] = [];
         
         try {
-            // 1. Seleção da base por categoria
-            if (activeCategory === 'general') {
+            // 1. Seleção da base por categoria com trava de segurança para membros
+            if (subscription.role === 'member' && subscription.congregationId) {
+                data = reportPreviewData.income?.[subscription.congregationId] || [];
+            } else if (activeCategory === 'general') {
                 const incomeGroups = reportPreviewData.income || {};
                 data = (Object.values(incomeGroups) as MatchResult[][]).flat();
             } else if (activeCategory === 'expenses') {

@@ -7,15 +7,20 @@ interface CategoryPillsProps {
     activeCategory: ReportCategory;
     onCategoryChange: (cat: ReportCategory) => void;
     counts: { general: number; churches: number; pending: number; expenses: number };
+    role?: string;
 }
 
-export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, onCategoryChange, counts }) => {
-    const categories = [
+export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, onCategoryChange, counts, role }) => {
+    let categories = [
         { id: 'general', label: 'Geral', count: counts.general, icon: RectangleStackIcon, theme: 'slate' },
         { id: 'churches', label: 'Igrejas', count: counts.churches, icon: BuildingOfficeIcon, theme: 'blue' },
         { id: 'unidentified', label: 'Pendentes', count: counts.pending, icon: ExclamationTriangleIcon, theme: 'amber' },
         { id: 'expenses', label: 'Saídas', count: counts.expenses, icon: BanknotesIcon, theme: 'rose' }
     ];
+
+    if (role === 'member') {
+        categories = categories.filter(cat => cat.id === 'churches');
+    }
 
     return (
         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-0.5 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
