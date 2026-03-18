@@ -87,17 +87,108 @@ export async function generateAiSuggestion(ai, transactionDescription, contribut
     return response.text ? response.text.trim() : "Nenhuma sugestão clara";
 }
 
-export async function createMockPayment(data) {
-    return {
-        id: `pay-${Date.now()}`,
-        status: data.method === 'CREDIT_CARD' ? 'CONFIRMED' : 'PENDING',
-        value: data.amount,
-        method: data.method,
-        pixCopiaECola: data.method === 'PIX' ? "00020126...identificapix-mock" : null,
-        pixQrCodeImage: data.method === 'PIX' ? "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" : null
-    };
+export async function createAsaasPayment(data) {
+    const apiKey = process.env.ASAAS_API_KEY;
+    const apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+
+    if (!apiKey) {
+        console.warn("[Asaas] API Key não configurada. Usando Mock.");
+        return {
+            id: `mock-${Date.now()}`,
+            status: 'PENDING',
+            value: data.amount,
+            method: data.method,
+            pixCopiaECola: "00020126...mock",
+            pixQrCodeImage: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        };
+    }
+
+    try {
+        // 1. Criar ou Buscar Cliente
+        const customerRes = await fetch(`${apiUrl}/customers?email=${encodeURIComponent(data.email || '')}&cpfCnpj=${data.cpfCnpj || ''}`, {
+            headers: { 'access_token': apiKey }
+        });
+        const customers = await customerRes.json();
+        let customerId = customers.data?.[0]?.id;
+
+        if (!customerId) {
+            const newCustomerRes = await fetch(`${apiUrl}/customers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'access_token': apiKey },
+                body: JSON.stringify({
+                    name: data.name || 'Cliente IdentificaPix',
+                    email: data.email,
+                    cpfCnpj: data.cpfCnpj,
+                    notificationDisabled: true
+                })
+            });
+            const newCustomer = await newCustomerRes.json();
+            customerId = newCustomer.id;
+        }
+
+        if (!customerId) throw new Error("Falha ao identificar/criar cliente no Asaas.");
+
+        // 2. Criar Cobrança
+        const paymentPayload = {
+            customer: customerId,
+            billingType: data.method === 'PIX' ? 'PIX' : (data.method === 'BOLETO' ? 'BOLETO' : 'CREDIT_CARD'),
+            value: data.amount,
+            dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Amanhã
+            description: data.description || 'Assinatura IdentificaPix',
+            externalReference: data.userId
+        };
+
+        const paymentRes = await fetch(`${apiUrl}/payments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'access_token': apiKey },
+            body: JSON.stringify(paymentPayload)
+        });
+        const payment = await paymentRes.json();
+
+        if (payment.errors) throw new Error(payment.errors[0].description);
+
+        const result = {
+            id: payment.id,
+            status: payment.status,
+            value: payment.value,
+            method: data.method
+        };
+
+        // 3. Se for PIX, buscar QR Code
+        if (data.method === 'PIX') {
+            const qrCodeRes = await fetch(`${apiUrl}/payments/${payment.id}/pixQrCode`, {
+                headers: { 'access_token': apiKey }
+            });
+            const qrCodeData = await qrCodeRes.json();
+            result.pixCopiaECola = qrCodeData.payload;
+            result.pixQrCodeImage = qrCodeData.encodedImage;
+        } else if (data.method === 'BOLETO') {
+            result.bankSlipUrl = payment.bankSlipUrl;
+        }
+
+        return result;
+    } catch (error) {
+        console.error("[Asaas Service] Erro:", error.message);
+        throw error;
+    }
 }
 
-export async function getMockPaymentStatus(id) {
-    return { id, status: Math.random() > 0.5 ? 'CONFIRMED' : 'PENDING' };
+export async function getAsaasPaymentStatus(id) {
+    const apiKey = process.env.ASAAS_API_KEY;
+    const apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+
+    if (!apiKey || id.startsWith('mock-')) {
+        return { id, status: Math.random() > 0.8 ? 'CONFIRMED' : 'PENDING' };
+    }
+
+    try {
+        const response = await fetch(`${apiUrl}/payments/${id}`, {
+            headers: { 'access_token': apiKey }
+        });
+        const data = await response.json();
+        return { id: data.id, status: data.status };
+    } catch (error) {
+        console.error("[Asaas Status] Erro:", error.message);
+        return { id, status: 'ERROR' };
+    }
 }
