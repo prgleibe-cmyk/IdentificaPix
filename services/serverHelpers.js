@@ -89,7 +89,12 @@ export async function generateAiSuggestion(ai, transactionDescription, contribut
 
 export async function createAsaasPayment(data) {
     const apiKey = process.env.ASAAS_API_KEY;
-    const apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+    let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+
+    // Auto-detect produção baseada na chave para evitar erro de mismatch
+    if (apiKey && apiKey.startsWith('$aact_prod_')) {
+        apiUrl = 'https://www.asaas.com/api/v3';
+    }
 
     if (!apiKey) {
         console.warn("[Asaas] API Key não configurada. Usando Mock.");
@@ -186,7 +191,11 @@ export async function createAsaasPayment(data) {
 
 export async function getAsaasPaymentStatus(id) {
     const apiKey = process.env.ASAAS_API_KEY;
-    const apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+    let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+
+    if (apiKey && apiKey.startsWith('$aact_prod_')) {
+        apiUrl = 'https://www.asaas.com/api/v3';
+    }
 
     if (!apiKey || id.startsWith('mock-')) {
         return { id, status: Math.random() > 0.8 ? 'CONFIRMED' : 'PENDING' };
