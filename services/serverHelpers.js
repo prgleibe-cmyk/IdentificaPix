@@ -88,8 +88,11 @@ export async function generateAiSuggestion(ai, transactionDescription, contribut
 }
 
 export async function createAsaasPayment(data) {
-    const apiKey = process.env.ASAAS_API_KEY;
+    const rawKey = process.env.ASAAS_API_KEY || '';
+    const apiKey = rawKey.trim();
     let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+
+    console.log(`[Asaas Debug] Iniciando checkout - Chave detectada (tamanho: ${apiKey.length})`);
 
     // Auto-detect produção baseada na chave para evitar erro de mismatch
     if (apiKey && apiKey.startsWith('$aact_prod_')) {
@@ -190,7 +193,8 @@ export async function createAsaasPayment(data) {
 }
 
 export async function getAsaasPaymentStatus(id) {
-    const apiKey = process.env.ASAAS_API_KEY;
+    const rawKey = process.env.ASAAS_API_KEY || '';
+    const apiKey = rawKey.trim();
     let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
 
     if (apiKey && apiKey.startsWith('$aact_prod_')) {
