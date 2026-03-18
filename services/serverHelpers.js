@@ -88,11 +88,21 @@ export async function generateAiSuggestion(ai, transactionDescription, contribut
 }
 
 export async function createAsaasPayment(data) {
-    const rawKey = process.env.ASAAS_API_KEY || '';
-    const apiKey = rawKey.trim();
+    let apiKey = (process.env.ASAAS_API_KEY || '').trim();
+    
+    // Limpeza profunda: remove aspas e possíveis prefixos acidentais (como ASAAS_API_KEY=)
+    apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+    if (apiKey.includes('=')) {
+        apiKey = apiKey.split('=').pop().trim();
+        apiKey = apiKey.replace(/^['"]|['"]$/g, ''); // Remove aspas novamente se houver
+    }
+    
     let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
 
     console.log(`[Asaas Debug] Iniciando checkout - Chave detectada (tamanho: ${apiKey.length})`);
+    if (apiKey.length > 0) {
+        console.log(`[Asaas Debug] Início: "${apiKey.substring(0, 10)}...", Fim: "...${apiKey.substring(apiKey.length - 10)}"`);
+    }
 
     // Auto-detect produção baseada na chave para evitar erro de mismatch
     if (apiKey && apiKey.startsWith('$aact_prod_')) {
