@@ -112,21 +112,32 @@ export async function createAsaasPayment(data) {
         let customerId = customers.data?.[0]?.id;
 
         if (!customerId) {
+            const customerPayload = {
+                name: data.name || 'Cliente IdentificaPix',
+                email: data.email,
+                cpfCnpj: data.cpfCnpj,
+                notificationDisabled: true
+            };
+            
             const newCustomerRes = await fetch(`${apiUrl}/customers`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'access_token': apiKey },
-                body: JSON.stringify({
-                    name: data.name || 'Cliente IdentificaPix',
-                    email: data.email,
-                    cpfCnpj: data.cpfCnpj,
-                    notificationDisabled: true
-                })
+                body: JSON.stringify(customerPayload)
             });
             const newCustomer = await newCustomerRes.json();
+            
+            if (newCustomer.errors) {
+                console.error("[Asaas Service] Erro ao criar cliente:", newCustomer.errors);
+                throw new Error(`Erro Asaas: ${newCustomer.errors[0].description}`);
+            }
+            
             customerId = newCustomer.id;
         }
 
-        if (!customerId) throw new Error("Falha ao identificar/criar cliente no Asaas.");
+        if (!customerId) {
+            console.error("[Asaas Service] Resposta inesperada ao buscar/criar cliente:", customers);
+            throw new Error("Falha ao identificar/criar cliente no Asaas.");
+        }
 
         // 2. Criar Cobrança
         const paymentPayload = {

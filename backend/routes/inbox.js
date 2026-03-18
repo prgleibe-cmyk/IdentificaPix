@@ -28,7 +28,9 @@ export default (ai) => {
         const supabaseAdmin = getSupabaseAdmin();
 
         // Validação IDOR: Garantir que o usuário autenticado é o dono dos dados
-        if (req.user.id !== userId) {
+        // Se req.user existir (rota autenticada), validamos o ID.
+        // Se não existir, permitimos (webhook externo sem token).
+        if (req.user && req.user.id !== userId) {
             return res.status(403).json({ error: "Acesso negado: Você não pode processar notificações para outro usuário." });
         }
 

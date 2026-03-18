@@ -9,6 +9,8 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 console.log(`[Server] Verificando variáveis de ambiente...`);
 console.log(`[Server] Supabase Service Key: ${serviceKey ? 'Detectada (tamanho: ' + serviceKey.length + ')' : 'NÃO ENCONTRADA'}`);
 console.log(`[Server] API_KEY: ${process.env.API_KEY ? 'Detectada' : 'NÃO ENCONTRADA'}`);
+console.log(`[Server] ASAAS_API_KEY: ${process.env.ASAAS_API_KEY ? 'Detectada' : 'NÃO ENCONTRADA'}`);
+console.log(`[Server] ASAAS_API_URL: ${process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/v3'}`);
 
 import express from 'express';
 import cors from 'cors';
@@ -68,13 +70,16 @@ if (geminiKey) {
 
 // Registro de Rotas
 try {
-    // Aplicar middleware de autenticação para todas as rotas /api
+    // Rotas públicas ou de webhook (devem vir ANTES do authMiddleware)
+    app.use('/api/payment', paymentRoutes);
+    app.use('/api/inbox', inboxRoutes(ai));
+
+    // Middleware de Autenticação para as demais rotas
     app.use('/api', authMiddleware);
     
+    // Rotas protegidas
     app.use('/api/gmail', gmailRoutes(ai));
-    app.use('/api/payment', paymentRoutes);
     app.use('/api/ai', aiRoutes(ai));
-    app.use('/api/inbox', inboxRoutes(ai));
     app.use('/api/users', usersRoutes());
 } catch (error) {
     console.error("[IdentificaPix] Route Registration Error:", error.message);
