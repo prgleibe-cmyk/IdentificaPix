@@ -90,18 +90,23 @@ export async function generateAiSuggestion(ai, transactionDescription, contribut
 export async function createAsaasPayment(data) {
     let apiKey = (process.env.ASAAS_API_KEY || '').trim();
     
-    // Limpeza profunda: remove aspas e possíveis prefixos acidentais (como ASAAS_API_KEY=)
+    // Limpeza profunda: remove aspas e caracteres invisíveis/não-imprimíveis
     apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+    apiKey = apiKey.replace(/[^\x21-\x7E]/g, ''); // Mantém apenas caracteres ASCII visíveis (sem espaços ou controles)
+    
     if (apiKey.includes('=')) {
         apiKey = apiKey.split('=').pop().trim();
-        apiKey = apiKey.replace(/^['"]|['"]$/g, ''); // Remove aspas novamente se houver
+        apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+        apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
     }
     
-    let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+    // Limpa a URL de barras extras no final
+    let apiUrl = (process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3').trim().replace(/\/$/, '');
 
     console.log(`[Asaas Debug] Iniciando checkout - Chave detectada (tamanho: ${apiKey.length})`);
     if (apiKey.length > 0) {
         console.log(`[Asaas Debug] Início: "${apiKey.substring(0, 10)}...", Fim: "...${apiKey.substring(apiKey.length - 10)}"`);
+        console.log(`[Asaas Debug] URL Alvo: ${apiUrl}`);
     }
 
     // Auto-detect produção baseada na chave para evitar erro de mismatch
@@ -121,11 +126,16 @@ export async function createAsaasPayment(data) {
         };
     }
 
+    const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'access_token': apiKey
+    };
+
     try {
         // 1. Criar ou Buscar Cliente
-        const customerRes = await fetch(`${apiUrl}/customers?email=${encodeURIComponent(data.email || '')}&cpfCnpj=${data.cpfCnpj || ''}`, {
-            headers: { 'access_token': apiKey }
-        });
+        const customerUrl = `${apiUrl}/customers?email=${encodeURIComponent(data.email || '')}&cpfCnpj=${data.cpfCnpj || ''}`;
+        const customerRes = await fetch(customerUrl, { headers });
         const customers = await customerRes.json();
         let customerId = customers.data?.[0]?.id;
 
@@ -139,7 +149,7 @@ export async function createAsaasPayment(data) {
             
             const newCustomerRes = await fetch(`${apiUrl}/customers`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'access_token': apiKey },
+                headers,
                 body: JSON.stringify(customerPayload)
             });
             const newCustomer = await newCustomerRes.json();
@@ -203,9 +213,11 @@ export async function createAsaasPayment(data) {
 }
 
 export async function getAsaasPaymentStatus(id) {
-    const rawKey = process.env.ASAAS_API_KEY || '';
-    const apiKey = rawKey.trim();
-    let apiUrl = process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+    let apiKey = (process.env.ASAAS_API_KEY || '').trim();
+    apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+    apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
+
+    let apiUrl = (process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3').trim().replace(/\/$/, '');
 
     if (apiKey && apiKey.startsWith('$aact_prod_')) {
         apiUrl = 'https://www.asaas.com/api/v3';
@@ -215,10 +227,14 @@ export async function getAsaasPaymentStatus(id) {
         return { id, status: Math.random() > 0.8 ? 'CONFIRMED' : 'PENDING' };
     }
 
+    const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'access_token': apiKey
+    };
+
     try {
-        const response = await fetch(`${apiUrl}/payments/${id}`, {
-            headers: { 'access_token': apiKey }
-        });
+        const response = await fetch(`${apiUrl}/payments/${id}`, { headers });
         const data = await response.json();
         return { id: data.id, status: data.status };
     } catch (error) {
