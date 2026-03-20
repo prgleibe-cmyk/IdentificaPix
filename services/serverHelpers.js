@@ -102,6 +102,16 @@ function sanitizeKey(key) {
 export async function createAsaasPayment(data) {
     let apiKey = (process.env.ASAAS_API_KEY || '').trim();
     
+    // PLANO B: Se existir a chave em Base64, ela tem prioridade total (evita erro de shell $)
+    if (process.env.ASAAS_API_KEY_B64) {
+        try {
+            apiKey = Buffer.from(process.env.ASAAS_API_KEY_B64.trim(), 'base64').toString('utf-8').trim();
+            console.log("[Asaas] Chave decodificada com sucesso via Base64.");
+        } catch (e) {
+            console.error("[Asaas] Erro ao decodificar ASAAS_API_KEY_B64:", e.message);
+        }
+    }
+    
     // Se o usuário tentou escapar com $$ no Coolify, corrigimos para um único $
     if (apiKey.startsWith('$$')) apiKey = apiKey.substring(1);
     
@@ -115,17 +125,21 @@ export async function createAsaasPayment(data) {
         apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
     }
     
-    // Suporte para ASAAS_URL ou ASAAS_API_URL (conforme visto na foto do usuário)
+    // Suporte para ASAAS_URL ou ASAAS_API_URL
     const rawUrl = process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
     let apiUrl = rawUrl.trim().replace(/\/$/, '');
 
     console.log(`[Asaas Debug] Iniciando checkout. Key Length: ${apiKey.length}`);
     if (apiKey.length > 0) {
         console.log(`[Asaas Debug] Key Preview: ${apiKey.substring(0, 12)}...${apiKey.substring(apiKey.length - 8)}`);
-        console.log(`[Asaas Debug] URL Alvo: ${apiUrl}`);
         
-        if (apiKey.includes('$') && !apiKey.includes('$aach_')) {
-            console.warn("[Asaas Warning] A chave parece ter sido corrompida pela expansão do shell (falta a parte $aach_). MARQUE 'Is Literal?' no Coolify.");
+        // Verificação de integridade: Chaves de produção DEVEM ter um segundo $ no meio ($aach_)
+        const hasSecondDollar = apiKey.indexOf('$', 1) !== -1;
+        if (apiKey.startsWith('$aact_prod_') && !hasSecondDollar) {
+            console.error("--- ERRO CRÍTICO DE CONFIGURAÇÃO ---");
+            console.error("[Asaas] A chave foi corrompida pelo Coolify! O segundo símbolo '$' desapareceu.");
+            console.error("[Asaas] SOLUÇÃO: Use a variável ASAAS_API_KEY_B64 conforme as instruções.");
+            console.error("-------------------------------------");
         }
     }
 
@@ -220,6 +234,11 @@ export async function createAsaasPayment(data) {
 
 export async function getAsaasPaymentStatus(id) {
     let apiKey = (process.env.ASAAS_API_KEY || '').trim();
+    if (process.env.ASAAS_API_KEY_B64) {
+        try {
+            apiKey = Buffer.from(process.env.ASAAS_API_KEY_B64.trim(), 'base64').toString('utf-8').trim();
+        } catch (e) {}
+    }
     if (apiKey.startsWith('$$')) apiKey = apiKey.substring(1);
     apiKey = apiKey.replace(/^['"]|['"]$/g, '');
     apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
