@@ -40,7 +40,6 @@ export async function extractTransactionsFromEmails(ai, emails) {
     const emailContext = emails.map(e => `ID: ${e.id}\nDATA: ${e.date}\nCORPO: ${e.body}`).join('\n---\n');
 
     const response = await ai.models.generateContent({
-        // Fix: Upgraded to gemini-3-pro-preview for complex transaction extraction from email bodies
         model: 'gemini-3-pro-preview',
         contents: `Extraia transações financeiras destes e-mails para um JSON array:\n\n${emailContext}`,
         config: {
@@ -79,7 +78,6 @@ export function convertToCsv(transactions) {
 export async function generateAiSuggestion(ai, transactionDescription, contributorNames) {
     if (!ai) throw new Error("AI Client missing");
     const response = await ai.models.generateContent({ 
-        // Fix: Upgraded to gemini-3-pro-preview for higher accuracy in matching descriptions to contributor names
         model: 'gemini-3-pro-preview', 
         contents: `Descrição: "${transactionDescription}". Qual destes é o melhor match? [${contributorNames.join(', ')}]. Responda apenas o nome.`,
         config: { temperature: 0.1 }
@@ -87,41 +85,47 @@ export async function generateAiSuggestion(ai, transactionDescription, contribut
     return response.text ? response.text.trim() : "Nenhuma sugestão clara";
 }
 
+// --- INTEGRAÇÃO ASAAS ---
+
+function sanitizeKey(key) {
+    if (!key) return '';
+    let clean = key.trim();
+    // Remove prefixos comuns se o usuário colou a linha inteira do .env
+    if (clean.includes('=')) clean = clean.split('=').pop().trim();
+    // Remove aspas
+    clean = clean.replace(/^['"]|['"]$/g, '');
+    // Remove caracteres não-imprimíveis/invisíveis
+    clean = clean.replace(/[^\x21-\x7E]/g, '');
+    return clean;
+}
+
 export async function createAsaasPayment(data) {
-    let apiKey = (process.env.ASAAS_API_KEY || '').trim();
-    
-    // Limpeza profunda: remove aspas e caracteres invisíveis/não-imprimíveis
-    apiKey = apiKey.replace(/^['"]|['"]$/g, '');
-    apiKey = apiKey.replace(/[^\x21-\x7E]/g, ''); // Mantém apenas caracteres ASCII visíveis (sem espaços ou controles)
-    
-    if (apiKey.includes('=')) {
-        apiKey = apiKey.split('=').pop().trim();
-        apiKey = apiKey.replace(/^['"]|['"]$/g, '');
-        apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
-    }
-    
-    // Limpa a URL de barras extras no final
+    const apiKey = sanitizeKey(process.env.ASAAS_API_KEY);
     let apiUrl = (process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3').trim().replace(/\/$/, '');
 
-    console.log(`[Asaas Debug] Iniciando checkout - Chave detectada (tamanho: ${apiKey.length})`);
+    // Debug robusto
+    console.log(`[Asaas Debug] Iniciando checkout. Key Length: ${apiKey.length}`);
     if (apiKey.length > 0) {
-        console.log(`[Asaas Debug] Início: "${apiKey.substring(0, 10)}...", Fim: "...${apiKey.substring(apiKey.length - 10)}"`);
-        console.log(`[Asaas Debug] URL Alvo: ${apiUrl}`);
+        console.log(`[Asaas Debug] Key Preview: ${apiKey.substring(0, 12)}...${apiKey.substring(apiKey.length - 8)}`);
+        if (apiKey.includes('$') && !apiKey.includes('$aach_')) {
+            console.warn("[Asaas Warning] A chave parece ter sido corrompida pela expansão do shell (falta a parte $aach_). Use aspas simples no Coolify.");
+        }
     }
 
-    // Auto-detect produção baseada na chave para evitar erro de mismatch
-    if (apiKey && apiKey.startsWith('$aact_prod_')) {
+    // Forçar produção se a chave for de produção
+    if (apiKey.startsWith('$aact_prod_')) {
         apiUrl = 'https://www.asaas.com/api/v3';
     }
 
+    // Fallback para Mock se não houver chave
     if (!apiKey) {
-        console.warn("[Asaas] API Key não configurada. Usando Mock.");
+        console.warn("[Asaas] Usando Mock Payment (Chave ausente)");
         return {
             id: `mock-${Date.now()}`,
             status: 'PENDING',
             value: data.amount,
             method: data.method,
-            pixCopiaECola: "00020126...mock",
+            pixCopiaECola: "00020126...mock-pix",
             pixQrCodeImage: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
         };
     }
@@ -133,57 +137,44 @@ export async function createAsaasPayment(data) {
     };
 
     try {
-        // 1. Criar ou Buscar Cliente
-        const customerUrl = `${apiUrl}/customers?email=${encodeURIComponent(data.email || '')}&cpfCnpj=${data.cpfCnpj || ''}`;
+        // 1. Cliente
+        const customerUrl = `${apiUrl}/customers?email=${encodeURIComponent(data.email || '')}`;
         const customerRes = await fetch(customerUrl, { headers });
-        const customers = await customerRes.json();
-        let customerId = customers.data?.[0]?.id;
+        const customerData = await customerRes.json();
+        let customerId = customerData.data?.[0]?.id;
 
         if (!customerId) {
-            const customerPayload = {
-                name: data.name || 'Cliente IdentificaPix',
-                email: data.email,
-                cpfCnpj: data.cpfCnpj,
-                notificationDisabled: true
-            };
-            
             const newCustomerRes = await fetch(`${apiUrl}/customers`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify(customerPayload)
+                body: JSON.stringify({
+                    name: data.name || 'Cliente IdentificaPix',
+                    email: data.email,
+                    cpfCnpj: data.cpfCnpj,
+                    notificationDisabled: true
+                })
             });
             const newCustomer = await newCustomerRes.json();
-            
-            if (newCustomer.errors) {
-                console.error("[Asaas Service] Erro ao criar cliente:", newCustomer.errors);
-                throw new Error(`Erro Asaas: ${newCustomer.errors[0].description}`);
-            }
-            
+            if (newCustomer.errors) throw new Error(newCustomer.errors[0].description);
             customerId = newCustomer.id;
         }
 
-        if (!customerId) {
-            console.error("[Asaas Service] Resposta inesperada ao buscar/criar cliente:", customers);
-            throw new Error("Falha ao identificar/criar cliente no Asaas.");
-        }
-
-        // 2. Criar Cobrança
+        // 2. Cobrança
         const paymentPayload = {
             customer: customerId,
             billingType: data.method === 'PIX' ? 'PIX' : (data.method === 'BOLETO' ? 'BOLETO' : 'CREDIT_CARD'),
             value: data.amount,
-            dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Amanhã
-            description: data.description || 'Assinatura IdentificaPix',
+            dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+            description: 'Assinatura IdentificaPix',
             externalReference: data.userId
         };
 
         const paymentRes = await fetch(`${apiUrl}/payments`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'access_token': apiKey },
+            headers,
             body: JSON.stringify(paymentPayload)
         });
         const payment = await paymentRes.json();
-
         if (payment.errors) throw new Error(payment.errors[0].description);
 
         const result = {
@@ -193,52 +184,40 @@ export async function createAsaasPayment(data) {
             method: data.method
         };
 
-        // 3. Se for PIX, buscar QR Code
+        // 3. QR Code se PIX
         if (data.method === 'PIX') {
-            const qrCodeRes = await fetch(`${apiUrl}/payments/${payment.id}/pixQrCode`, {
-                headers: { 'access_token': apiKey }
-            });
-            const qrCodeData = await qrCodeRes.json();
-            result.pixCopiaECola = qrCodeData.payload;
-            result.pixQrCodeImage = qrCodeData.encodedImage;
+            const qrRes = await fetch(`${apiUrl}/payments/${payment.id}/pixQrCode`, { headers });
+            const qrData = await qrRes.json();
+            result.pixCopiaECola = qrData.payload;
+            result.pixQrCodeImage = qrData.encodedImage;
         } else if (data.method === 'BOLETO') {
             result.bankSlipUrl = payment.bankSlipUrl;
         }
 
         return result;
     } catch (error) {
-        console.error("[Asaas Service] Erro:", error.message);
+        console.error("[Asaas Error]:", error.message);
         throw error;
     }
 }
 
 export async function getAsaasPaymentStatus(id) {
-    let apiKey = (process.env.ASAAS_API_KEY || '').trim();
-    apiKey = apiKey.replace(/^['"]|['"]$/g, '');
-    apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
-
+    const apiKey = sanitizeKey(process.env.ASAAS_API_KEY);
     let apiUrl = (process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3').trim().replace(/\/$/, '');
 
-    if (apiKey && apiKey.startsWith('$aact_prod_')) {
-        apiUrl = 'https://www.asaas.com/api/v3';
-    }
+    if (apiKey.startsWith('$aact_prod_')) apiUrl = 'https://www.asaas.com/api/v3';
 
     if (!apiKey || id.startsWith('mock-')) {
         return { id, status: Math.random() > 0.8 ? 'CONFIRMED' : 'PENDING' };
     }
 
-    const headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'access_token': apiKey
-    };
-
     try {
-        const response = await fetch(`${apiUrl}/payments/${id}`, { headers });
+        const response = await fetch(`${apiUrl}/payments/${id}`, {
+            headers: { 'Accept': 'application/json', 'access_token': apiKey }
+        });
         const data = await response.json();
         return { id: data.id, status: data.status };
     } catch (error) {
-        console.error("[Asaas Status] Erro:", error.message);
         return { id, status: 'ERROR' };
     }
 }
