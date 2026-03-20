@@ -102,51 +102,42 @@ function sanitizeKey(key) {
 export async function createAsaasPayment(data) {
     let apiKey = '';
     
-    // PRIORIDADE ABSOLUTA: Base64 (Blindada contra Coolify/Linux)
+    // 1. Carregamento da Chave (Prioridade Base64)
     if (process.env.ASAAS_API_KEY_B64) {
         try {
             apiKey = Buffer.from(process.env.ASAAS_API_KEY_B64.trim(), 'base64').toString('utf-8').trim();
-            console.log("[Asaas] Usando chave blindada via Base64.");
+            console.log("[Asaas] Chave carregada via Base64.");
         } catch (e) {
-            console.error("[Asaas] Erro fatal ao decodificar Base64:", e.message);
+            console.error("[Asaas] Erro na decodificação Base64:", e.message);
         }
-    } 
-    // FALLBACK: Chave em texto puro (apenas se não houver Base64)
-    else if (process.env.ASAAS_API_KEY) {
+    } else if (process.env.ASAAS_API_KEY) {
         apiKey = process.env.ASAAS_API_KEY.trim();
-        // Limpeza mínima apenas para texto puro
-        apiKey = apiKey.replace(/^['"]|['"]$/g, '');
-        if (apiKey.includes('=') && !apiKey.startsWith('$')) {
-            apiKey = apiKey.split('=').pop().trim();
-        }
-        console.log("[Asaas] Usando chave em texto puro (Atenção: Risco de corrupção pelo shell).");
     }
 
-    // Suporte para ASAAS_URL ou ASAAS_API_URL
+    // 2. Limpeza e Reparo Automático (A "Mágica")
+    if (apiKey) {
+        // Remove aspas
+        apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+        
+        // AUTO-REPARO: Se o shell comeu o $ antes de aach_, nós devolvemos
+        if (apiKey.includes('aach_') && !apiKey.includes('$aach_')) {
+            console.log("[Asaas] Detectada corrupção de shell. Aplicando auto-reparo no símbolo '$'...");
+            apiKey = apiKey.replace('aach_', '$aach_');
+        }
+
+        const dollarCount = (apiKey.match(/\$/g) || []).length;
+        console.log(`[Asaas Debug] Status Final -> Tamanho: ${apiKey.length} | Símbolos '$': ${dollarCount}`);
+    }
+
+    // Suporte para URL
     const rawUrl = process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
     let apiUrl = rawUrl.trim().replace(/\/$/, '');
 
-    // --- VALIDAÇÃO DE INTEGRIDADE ---
-    if (apiKey) {
-        const dollarCount = (apiKey.match(/\$/g) || []).length;
-        console.log(`[Asaas Debug] Chave carregada. Tamanho: ${apiKey.length} | Símbolos '$': ${dollarCount}`);
-        
-        if (dollarCount < 2 && apiKey.startsWith('$aact_prod_')) {
-            console.error("--- ERRO CRÍTICO ---");
-            console.error("[Asaas] A chave está incompleta! Faltam símbolos '$'.");
-            console.error("[Asaas] Certifique-se de que o Base64 foi gerado da chave COMPLETA.");
-            console.error("--------------------");
-        }
-    }
+    if (apiKey.startsWith('$aact_prod_')) apiUrl = 'https://www.asaas.com/api/v3';
 
-    // Forçar produção se a chave for de produção
-    if (apiKey.startsWith('$aact_prod_')) {
-        apiUrl = 'https://www.asaas.com/api/v3';
-    }
-
-    // Fallback para Mock se não houver chave
+    // Fallback para Mock
     if (!apiKey) {
-        console.warn("[Asaas] Nenhuma chave configurada. Usando Mock.");
+        console.warn("[Asaas] Sem chave. Usando Mock.");
         return {
             id: `mock-${Date.now()}`,
             status: 'PENDING',
@@ -231,28 +222,25 @@ export async function createAsaasPayment(data) {
 export async function getAsaasPaymentStatus(id) {
     let apiKey = '';
     
-    // PRIORIDADE ABSOLUTA: Base64
     if (process.env.ASAAS_API_KEY_B64) {
         try {
             apiKey = Buffer.from(process.env.ASAAS_API_KEY_B64.trim(), 'base64').toString('utf-8').trim();
-        } catch (e) {
-            console.error("[Asaas Status] Erro ao decodificar Base64:", e.message);
-        }
-    } 
-    // FALLBACK: Texto puro
-    else if (process.env.ASAAS_API_KEY) {
-        apiKey = process.env.ASAAS_API_KEY.trim().replace(/^['"]|['"]$/g, '');
-        if (apiKey.includes('=') && !apiKey.startsWith('$')) {
-            apiKey = apiKey.split('=').pop().trim();
+        } catch (e) {}
+    } else if (process.env.ASAAS_API_KEY) {
+        apiKey = process.env.ASAAS_API_KEY.trim();
+    }
+
+    if (apiKey) {
+        apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+        if (apiKey.includes('aach_') && !apiKey.includes('$aach_')) {
+            apiKey = apiKey.replace('aach_', '$aach_');
         }
     }
 
     const rawUrl = process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
     let apiUrl = rawUrl.trim().replace(/\/$/, '');
 
-    if (apiKey.startsWith('$aact_prod_')) {
-        apiUrl = 'https://www.asaas.com/api/v3';
-    }
+    if (apiKey.startsWith('$aact_prod_')) apiUrl = 'https://www.asaas.com/api/v3';
 
     if (!apiKey || id.startsWith('mock-')) {
         return { id, status: Math.random() > 0.8 ? 'CONFIRMED' : 'PENDING' };
