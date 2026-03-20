@@ -102,50 +102,53 @@ function sanitizeKey(key) {
 export async function createAsaasPayment(data) {
     let apiKey = '';
     
-    // 1. Carregamento da Chave (Prioridade Base64)
+    // 1. Carregamento da Chave
     if (process.env.ASAAS_API_KEY_B64) {
         try {
             apiKey = Buffer.from(process.env.ASAAS_API_KEY_B64.trim(), 'base64').toString('utf-8').trim();
-            console.log("[Asaas] Chave carregada via Base64.");
         } catch (e) {
-            console.error("[Asaas] Erro na decodificação Base64:", e.message);
+            console.error("[Asaas] Erro Base64:", e.message);
         }
     } else if (process.env.ASAAS_API_KEY) {
         apiKey = process.env.ASAAS_API_KEY.trim();
     }
 
-    // 2. Limpeza e Reparo Automático (A "Mágica")
+    // 2. Reparo Agressivo da Chave
     if (apiKey) {
-        // Remove aspas
         apiKey = apiKey.replace(/^['"]|['"]$/g, '');
         
-        // AUTO-REPARO: Se o shell comeu o $ antes de aach_, nós devolvemos
-        if (apiKey.includes('aach_') && !apiKey.includes('$aach_')) {
-            console.log("[Asaas] Detectada corrupção de shell. Aplicando auto-reparo no símbolo '$'...");
-            apiKey = apiKey.replace('aach_', '$aach_');
-        }
-
+        // Se a chave começa com $aact mas só tem um $, o segundo foi comido
         const dollarCount = (apiKey.match(/\$/g) || []).length;
-        console.log(`[Asaas Debug] Status Final -> Tamanho: ${apiKey.length} | Símbolos '$': ${dollarCount}`);
+        if (apiKey.startsWith('$aact') && dollarCount === 1) {
+            console.log("[Asaas] Tentando reparo agressivo da chave...");
+            // O segundo $ geralmente fica antes de 'aach' ou no segundo bloco após os ::
+            if (apiKey.includes('aach')) {
+                apiKey = apiKey.replace('aach', '$aach');
+            } else {
+                // Tenta inserir o $ após o segundo conjunto de :: (padrão Asaas)
+                const parts = apiKey.split('::');
+                if (parts.length >= 3 && !parts[2].startsWith('$')) {
+                    parts[2] = '$' + parts[2];
+                    apiKey = parts.join('::');
+                }
+            }
+        }
+        console.log(`[Asaas Debug] Chave Final -> Tamanho: ${apiKey.length} | Símbolos '$': ${(apiKey.match(/\$/g) || []).length}`);
     }
 
-    // Suporte para URL
+    // 3. Validação de Dados do Cliente (CPF/CNPJ é obrigatório para Boleto/Cartão)
+    if ((data.method === 'BOLETO' || data.method === 'CREDIT_CARD') && !data.cpfCnpj) {
+        console.error("[Asaas] Erro: CPF/CNPJ ausente para método:", data.method);
+        throw new Error("CPF ou CNPJ é obrigatório para pagamentos via Boleto ou Cartão.");
+    }
+
     const rawUrl = process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
     let apiUrl = rawUrl.trim().replace(/\/$/, '');
-
     if (apiKey.startsWith('$aact_prod_')) apiUrl = 'https://www.asaas.com/api/v3';
 
-    // Fallback para Mock
     if (!apiKey) {
-        console.warn("[Asaas] Sem chave. Usando Mock.");
-        return {
-            id: `mock-${Date.now()}`,
-            status: 'PENDING',
-            value: data.amount,
-            method: data.method,
-            pixCopiaECola: "00020126...mock-pix",
-            pixQrCodeImage: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-        };
+        console.warn("[Asaas] Usando Mock.");
+        return { id: `mock-${Date.now()}`, status: 'PENDING', value: data.amount, method: data.method };
     }
 
     const headers = {
