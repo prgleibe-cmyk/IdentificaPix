@@ -100,15 +100,32 @@ function sanitizeKey(key) {
 }
 
 export async function createAsaasPayment(data) {
-    const apiKey = sanitizeKey(process.env.ASAAS_API_KEY);
-    let apiUrl = (process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3').trim().replace(/\/$/, '');
+    let apiKey = (process.env.ASAAS_API_KEY || '').trim();
+    
+    // Se o usuário tentou escapar com $$ no Coolify, corrigimos para um único $
+    if (apiKey.startsWith('$$')) apiKey = apiKey.substring(1);
+    
+    // Limpeza profunda: remove aspas e caracteres invisíveis
+    apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+    apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
+    
+    if (apiKey.includes('=')) {
+        apiKey = apiKey.split('=').pop().trim();
+        apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+        apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
+    }
+    
+    // Suporte para ASAAS_URL ou ASAAS_API_URL (conforme visto na foto do usuário)
+    const rawUrl = process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+    let apiUrl = rawUrl.trim().replace(/\/$/, '');
 
-    // Debug robusto
     console.log(`[Asaas Debug] Iniciando checkout. Key Length: ${apiKey.length}`);
     if (apiKey.length > 0) {
         console.log(`[Asaas Debug] Key Preview: ${apiKey.substring(0, 12)}...${apiKey.substring(apiKey.length - 8)}`);
+        console.log(`[Asaas Debug] URL Alvo: ${apiUrl}`);
+        
         if (apiKey.includes('$') && !apiKey.includes('$aach_')) {
-            console.warn("[Asaas Warning] A chave parece ter sido corrompida pela expansão do shell (falta a parte $aach_). Use aspas simples no Coolify.");
+            console.warn("[Asaas Warning] A chave parece ter sido corrompida pela expansão do shell (falta a parte $aach_). MARQUE 'Is Literal?' no Coolify.");
         }
     }
 
@@ -202,8 +219,13 @@ export async function createAsaasPayment(data) {
 }
 
 export async function getAsaasPaymentStatus(id) {
-    const apiKey = sanitizeKey(process.env.ASAAS_API_KEY);
-    let apiUrl = (process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3').trim().replace(/\/$/, '');
+    let apiKey = (process.env.ASAAS_API_KEY || '').trim();
+    if (apiKey.startsWith('$$')) apiKey = apiKey.substring(1);
+    apiKey = apiKey.replace(/^['"]|['"]$/g, '');
+    apiKey = apiKey.replace(/[^\x21-\x7E]/g, '');
+
+    const rawUrl = process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3';
+    let apiUrl = rawUrl.trim().replace(/\/$/, '');
 
     if (apiKey.startsWith('$aact_prod_')) apiUrl = 'https://www.asaas.com/api/v3';
 
