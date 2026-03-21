@@ -79,6 +79,11 @@ export const UsersManagementPage: React.FC = () => {
             return;
         }
 
+        if (formData.bankIds.length === 0) {
+            setStatusMessage({ type: 'error', text: 'Por favor, selecione pelo menos um banco.' });
+            return;
+        }
+
         setLoading(true);
         setStatusMessage(null);
         

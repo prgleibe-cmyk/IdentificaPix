@@ -389,6 +389,8 @@ export default () => {
                 "congregationIds": churchIds // Armazenamos o array completo no JSON de permissões
             };
             
+            console.log("[Users API] permissionsObject final para salvamento:", JSON.stringify(permissionsObject, null, 2));
+            
             // 1. Validar se o solicitante é o owner desse usuário
             const { data: userProfile, error: userError } = await supabase.client
                 .from('profiles')

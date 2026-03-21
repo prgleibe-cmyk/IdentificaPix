@@ -45,21 +45,30 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             } else {
                 // Para usuários secundários, usamos a API backend para contornar limitações de RLS
                 try {
-                    const response = await fetch(`/api/reference/data/${ownerId}`);
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
                     if (response.ok) {
                         const data = await response.json();
                         
                         // Aplicar filtros de permissão no frontend para garantir
                         let filteredBanks = data.banks || [];
-                        if (subscription.bankIds && subscription.bankIds.length > 0) {
-                            filteredBanks = filteredBanks.filter((b: any) => subscription.bankIds!.includes(b.id));
-                        }
-                        setBanks(filteredBanks);
-                        
                         let filteredChurches = data.churches || [];
-                        if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                            filteredChurches = filteredChurches.filter((c: any) => subscription.congregationIds!.includes(c.id));
+                        
+                        if (subscription.role !== 'owner') {
+                            const allowedBankIds = subscription.bankIds || [];
+                            const allowedChurchIds = subscription.congregationIds || [];
+                            
+                            filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                            filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
                         }
+                        
+                        setBanks(filteredBanks);
                         setChurches(filteredChurches);
                     }
                 } catch (error) {

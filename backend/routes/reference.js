@@ -33,29 +33,47 @@ export default () => {
 
         try {
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .select('owner_id')
+                .select('owner_id, role')
                 .eq('id', req.user.id)
                 .single();
+
+            if (profileError) {
+                console.error(`[Reference API] Erro ao buscar perfil do usuário ${req.user.id}:`, profileError.message);
+                return res.status(500).json({ error: 'Erro ao validar permissões.' });
+            }
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
             if (effectiveOwnerId !== ownerId) {
+                console.warn(`[Reference API] Acesso negado: Usuário ${req.user.id} tentou acessar dados do owner ${ownerId}, mas seu owner_id é ${effectiveOwnerId}`);
                 return res.status(403).json({ error: "Acesso negado." });
             }
 
+            console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id}, role: ${profile?.role})`);
+
             // Buscar bancos
-            const { data: banks } = await supabase
+            const { data: banks, error: banksError } = await supabase
                 .from('banks')
                 .select('*')
                 .eq('user_id', ownerId);
+            
+            if (banksError) {
+                console.error(`[Reference API] Erro ao buscar bancos para owner ${ownerId}:`, banksError.message);
+            }
 
             // Buscar igrejas
-            const { data: churches } = await supabase
+            const { data: churches, error: churchesError } = await supabase
                 .from('churches')
                 .select('*')
                 .eq('user_id', ownerId);
+
+            if (churchesError) {
+                console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
+            }
+
+            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos e ${churches?.length || 0} igrejas.`);
 
             res.json({ banks: banks || [], churches: churches || [] });
         } catch (error) {

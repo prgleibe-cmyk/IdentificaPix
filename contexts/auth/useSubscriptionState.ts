@@ -76,24 +76,37 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             }
 
             const congregationRaw = p.congregation;
-            const permissions = p.permissions || {};
+            let permissions = p.permissions || {};
+            
+            // Garantir que permissions seja um objeto (Supabase pode retornar como string se não for JSONB)
+            if (typeof permissions === 'string') {
+                try {
+                    permissions = JSON.parse(permissions);
+                } catch (e) {
+                    console.error("Erro ao parsear permissões:", e);
+                    permissions = {};
+                }
+            }
+            
             let congregationIds: string[] = [];
             let bankIds: string[] = [];
             
-            // Tenta ler do JSON de permissões primeiro (suporte a múltiplos IDs em coluna UUID)
-            if (Array.isArray(permissions.congregationIds)) {
+            // Tenta ler do JSON de permissões primeiro (novo padrão)
+            if (permissions && Array.isArray(permissions.congregationIds)) {
                 congregationIds = permissions.congregationIds;
-            } else if (Array.isArray(congregationRaw)) {
+            } 
+            // Fallback para a coluna congregation (pode ser UUID único ou array)
+            else if (Array.isArray(congregationRaw)) {
                 congregationIds = congregationRaw;
             } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
-                // Fallback para string separada por vírgula (se a coluna não for UUID no futuro)
-                congregationIds = congregationRaw.split(',').map(id => id.trim()).filter(id => !!id);
-            } else if (congregationRaw) {
-                // Caso seja um único UUID na coluna congregation
-                congregationIds = [congregationRaw];
+                if (congregationRaw.includes(',')) {
+                    congregationIds = congregationRaw.split(',').map(id => id.trim()).filter(id => !!id);
+                } else {
+                    congregationIds = [congregationRaw];
+                }
             }
 
-            if (Array.isArray(permissions.bankIds)) {
+            if (permissions && Array.isArray(permissions.bankIds)) {
                 bankIds = permissions.bankIds;
             }
 
@@ -112,7 +125,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 ownerId: p.owner_id || userId,
                 congregationId: congregationIds[0] || undefined,
                 congregationIds: congregationIds,
-                bankIds: bankIds
+                bankIds: bankIds,
+                permissions: permissions
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);

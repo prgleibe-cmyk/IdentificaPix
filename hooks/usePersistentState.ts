@@ -23,9 +23,22 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
 
     useEffect(() => {
         isMounted.current = true;
+        isHydrated.current = false; // Reset hydration flag when key changes
         
         const hydrate = async () => {
             if (!isHeavy) {
+                try {
+                    if (typeof window !== 'undefined') {
+                        const item = window.localStorage.getItem(key);
+                        const value = item ? JSON.parse(item) : initialValue;
+                        if (isMounted.current) {
+                            setState(value);
+                            lastSavedValue.current = JSON.stringify(value);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Erro hidratação leve ${key}:`, error);
+                }
                 isHydrated.current = true;
                 return;
             }

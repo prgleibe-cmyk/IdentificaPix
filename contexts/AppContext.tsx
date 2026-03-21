@@ -170,8 +170,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!referenceData.banks) return [];
         let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.name }));
         
-        if (subscription.role !== 'owner' && subscription.bankIds && subscription.bankIds.length > 0) {
-            list = list.filter((b: any) => subscription.bankIds!.includes(b.id));
+        if (subscription.role !== 'owner') {
+            const allowedIds = subscription.bankIds || [];
+            list = list.filter((b: any) => allowedIds.includes(b.id));
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
