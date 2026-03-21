@@ -9,6 +9,7 @@ export interface PaymentResponse {
     qrCodeImage?: string; 
     barcode?: string;
     bankSlipUrl?: string;
+    invoiceUrl?: string;
     value: number;
     method: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
 }
@@ -81,9 +82,10 @@ export const paymentService = {
                 result.qrCodeImage = data.pixQrCodeImage 
                     ? `data:image/png;base64,${data.pixQrCodeImage}`
                     : undefined;
-            } else if (method === 'BOLETO') {
+            } else if (method === 'BOLETO' || method === 'CREDIT_CARD') {
                 result.bankSlipUrl = data.bankSlipUrl;
-                result.barcode = "Ver Boleto no Link"; 
+                result.invoiceUrl = data.invoiceUrl;
+                result.barcode = method === 'BOLETO' ? "Ver Boleto no Link" : "Ver Fatura no Link"; 
             }
 
             return result;

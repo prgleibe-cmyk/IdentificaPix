@@ -20,11 +20,13 @@ export const usePaymentController = () => {
     const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
     const [numSlots, setNumSlots] = useState(1);
+    const [cpfCnpj, setCpfCnpj] = useState('');
     const pollingInterval = useRef<any>(null);
 
     useEffect(() => {
         if (isPaymentModalOpen) {
             setNumSlots(Math.max(1, subscription.maxChurches || 1));
+            setCpfCnpj('');
         }
     }, [isPaymentModalOpen, subscription.maxChurches]);
 
@@ -82,6 +84,11 @@ export const usePaymentController = () => {
     };
 
     const handleCheckout = async () => {
+        if ((paymentMethod === 'BOLETO' || paymentMethod === 'CREDIT_CARD') && !cpfCnpj) {
+            showToast("CPF ou CNPJ é obrigatório para este método.", "error");
+            return;
+        }
+
         setIsLoading(true);
         try {
             const description = `Plano: ${numSlots} Slots Unificados com Inteligência Ilimitada`;
@@ -91,7 +98,7 @@ export const usePaymentController = () => {
                 description, 
                 paymentMethod, 
                 user?.email,
-                undefined,
+                cpfCnpj,
                 user?.id
             );
             setPaymentData(data);
@@ -110,6 +117,7 @@ export const usePaymentController = () => {
         setStep('config');
         setPaymentData(null);
         setPaymentMethod('PIX');
+        setCpfCnpj('');
         setIsLoading(false);
         closePaymentModal();
     };
@@ -117,6 +125,7 @@ export const usePaymentController = () => {
     return {
         step, setStep, isLoading, paymentData, paymentMethod, setPaymentMethod,
         numSlots, setNumSlots, calculateTotal, usageStats,
-        handleCheckout, handleClose, isPaymentModalOpen, subscription
+        handleCheckout, handleClose, isPaymentModalOpen, subscription,
+        cpfCnpj, setCpfCnpj
     };
 };

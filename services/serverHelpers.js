@@ -211,8 +211,9 @@ export async function createAsaasPayment(data) {
             const qrData = await qrRes.json();
             result.pixCopiaECola = qrData.payload;
             result.pixQrCodeImage = qrData.encodedImage;
-        } else if (data.method === 'BOLETO') {
+        } else if (data.method === 'BOLETO' || data.method === 'CREDIT_CARD') {
             result.bankSlipUrl = payment.bankSlipUrl;
+            result.invoiceUrl = payment.invoiceUrl;
         }
 
         return result;

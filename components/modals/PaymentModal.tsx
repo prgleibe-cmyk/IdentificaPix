@@ -39,6 +39,8 @@ export const PaymentModal: React.FC = () => {
                     isLoading={controller.isLoading}
                     handleCheckout={controller.handleCheckout}
                     handleClose={controller.handleClose}
+                    cpfCnpj={controller.cpfCnpj}
+                    setCpfCnpj={controller.setCpfCnpj}
                 />
 
                 {/* Camada Decorativa de Ruído Local para Visual Premium */}
