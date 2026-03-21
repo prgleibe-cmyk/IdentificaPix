@@ -35,7 +35,7 @@ export const useReportsController = () => {
 
     // Forçar categoria para membros
     useEffect(() => {
-        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             setActiveCategory('churches');
             if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
                 setSelectedReportId(subscription.congregationIds[0]);
@@ -47,7 +47,7 @@ export const useReportsController = () => {
         if (!reportPreviewData) return;
         
         // Se for membro, garante que está na categoria correta e com uma igreja válida
-        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             setActiveCategory('churches');
             if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
                 setSelectedReportId(subscription.congregationIds[0]);
@@ -79,7 +79,7 @@ export const useReportsController = () => {
         let entries = Object.entries(reportPreviewData.income)
             .filter(([id]) => id !== 'unidentified');
             
-        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             entries = entries.filter(([id]) => subscription.congregationIds.includes(id));
         }
 
@@ -98,7 +98,7 @@ export const useReportsController = () => {
     const counts = useMemo(() => {
         const incomeGroups = reportPreviewData?.income || {};
         
-        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
             return { 
                 general: 0, 
                 churches: subscription.congregationIds.length, 
@@ -120,7 +120,7 @@ export const useReportsController = () => {
         
         try {
             // 1. Seleção da base por categoria com trava de segurança para membros
-            if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
                 if (selectedReportId && subscription.congregationIds.includes(selectedReportId)) {
                     data = reportPreviewData.income?.[selectedReportId] || [];
                 } else {
@@ -138,6 +138,9 @@ export const useReportsController = () => {
             // 1.5 Filtro por Banco (Global)
             if (selectedBankId && selectedBankId !== 'all') {
                 data = data.filter(r => String(r.transaction?.bank_id) === selectedBankId);
+            } else if (subscription.role !== 'owner' && subscription.bankIds && subscription.bankIds.length > 0) {
+                // Se for "Todos os Bancos", mas o usuário tem restrição, filtra pelos autorizados
+                data = data.filter(r => subscription.bankIds.includes(String(r.transaction?.bank_id)));
             }
 
             // 2. Aplicação de Filtros Avançados (Modal)
