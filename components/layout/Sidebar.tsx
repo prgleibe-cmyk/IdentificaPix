@@ -32,12 +32,17 @@ export const Sidebar: React.FC = () => {
     const { signOut, user, subscription, systemSettings } = useAuth();
     const { openPaymentModal } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [imgError, setImgError] = useState(false);
     
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
+
+    // Fechar menu mobile ao mudar de view
+    useEffect(() => {
+        setIsMobileMenuOpen(false);
+    }, [activeView]);
 
     useEffect(() => {
         const handler = (e: Event) => {
@@ -103,9 +108,40 @@ export const Sidebar: React.FC = () => {
     // -----------------------------
 
     return (
-        <aside className={`relative h-screen flex flex-col transition-all duration-500 z-50 ${isCollapsed ? 'w-24' : 'w-72'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
-            
-            <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]">
+        <>
+            {/* Mobile Header */}
+            <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#0F172A] border-b border-white/5 flex items-center justify-between px-4 z-[60] shadow-lg">
+                <div className="flex items-center gap-2" onClick={() => setActiveView('dashboard')}>
+                    <img src="/logo.png" className="h-8 w-auto object-contain" alt="Logo" />
+                    <span className="font-display font-black text-lg tracking-tight text-white">
+                        Identifica<span className="text-cyan-400">Pix</span>
+                    </span>
+                </div>
+                <button 
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="p-2 text-slate-400 hover:text-white transition-colors"
+                >
+                    {isMobileMenuOpen ? (
+                        <ChevronLeftIcon className="w-6 h-6" />
+                    ) : (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                    )}
+                </button>
+            </header>
+
+            {/* Mobile Overlay */}
+            {isMobileMenuOpen && (
+                <div 
+                    className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] animate-fade-in"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                />
+            )}
+
+            <aside className={`fixed lg:relative inset-y-0 left-0 h-screen flex flex-col transition-all duration-500 z-[80] ${isCollapsed ? 'w-24' : 'w-72'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
+                
+                <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]">
                 <ChartBarIcon className="absolute -top-12 -right-12 w-64 h-64 text-white transform rotate-12" />
                 <TableCellsIcon className="absolute top-[30%] -left-16 w-56 h-56 text-white transform -rotate-12" />
             </div>
@@ -117,8 +153,7 @@ export const Sidebar: React.FC = () => {
                         <div className="absolute -inset-10 bg-blue-500/10 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
                             <img 
-                                src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
-                                onError={() => setImgError(true)}
+                                src="/logo.png" 
                                 className={`${isCollapsed ? 'h-16' : 'h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]`} 
                                 alt="Logo" 
                             />
@@ -215,9 +250,10 @@ export const Sidebar: React.FC = () => {
                 </div>
             </div>
 
-            <button onClick={() => setIsCollapsed(!isCollapsed)} className="absolute -right-3 top-10 bg-[#0F172A] border border-slate-700 text-slate-400 hover:text-white p-1.5 rounded-full shadow-xl z-50 hover:scale-110 transition-transform">
+            <button onClick={() => setIsCollapsed(!isCollapsed)} className="hidden lg:flex absolute -right-3 top-10 bg-[#0F172A] border border-slate-700 text-slate-400 hover:text-white p-1.5 rounded-full shadow-xl z-50 hover:scale-110 transition-transform">
                 {isCollapsed ? <ChevronRightIcon className="w-3 h-3 stroke-[3]" /> : <ChevronLeftIcon className="w-3 h-3 stroke-[3]" />}
             </button>
         </aside>
+        </>
     );
 };

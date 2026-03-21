@@ -22,7 +22,6 @@ export const DashboardView: React.FC = () => {
         pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession,
         selectedBankId, setSelectedBankId, bankList
     } = useDashboardController();
-    const [imgError, setImgError] = useState(false);
 
     if (hasActiveSession && !hasData) {
         return <DashboardSkeleton />;
@@ -33,8 +32,7 @@ export const DashboardView: React.FC = () => {
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <div className="flex items-center gap-3">
                     <img 
-                        src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
-                        onError={() => setImgError(true)}
+                        src="/logo.png" 
                         className="h-8 w-auto object-contain" 
                         alt="Logo" 
                     />
@@ -63,8 +61,7 @@ export const DashboardView: React.FC = () => {
                     <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 px-1 flex-shrink-0">
                         <div className="relative shrink-0 w-fit">
                             <img 
-                                src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
-                                onError={() => setImgError(true)}
+                                src="/logo.png" 
                                 className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
                                 alt="IdentificaPix Logo" 
                             />

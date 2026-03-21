@@ -44,10 +44,12 @@ export const ReportsView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-2 pb-2 px-1">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2 flex-shrink-0">
-                <div className="flex items-center gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <h2 className="text-lg font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('reports.title')}</h2>
-                    <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} />
+                    <div className="overflow-x-auto pb-1 -mx-1 px-1 custom-scrollbar scrollbar-hide">
+                        <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} />
+                    </div>
                 </div>
                 {/* Fix: Removed invalid onSaveChanges prop as it is not defined in ReportToolbarProps and not used in the component */}
                 <ReportToolbar 
