@@ -1,28 +1,32 @@
 
 // Service Worker IdentificaPix - Versão 8
-const CACHE_NAME = 'identificapix-v8';
-
-// Ativos que devem ser buscados SEMPRE na rede para garantir atualização de ícones no Windows
-const BYPASS_CACHE = [
-  'manifest.json',
+const CACHE_NAME = 'identificapix-v9';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/logo.png',
   '/pwa/icon-192.png',
-  '/pwa/icon-512.png',
   '/pwa/maskable-icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
-  // Força o Service Worker atual a assumir o controle imediatamente
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Caching shell assets');
+      return cache.addAll(ASSETS_TO_CACHE);
+    })
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  // Limpeza de caches antigos para evitar que o Windows use ícones ou manifests obsoletos
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Removendo cache antigo:', cacheName);
+            console.log('[SW] Removing old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -32,14 +36,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  
-  // Regra de Ouro: Manifest e Ícones devem vir sempre da rede (Network Only)
-  // para que o Chrome detecte a mudança e atualize o ícone na Taskbar do Windows.
-  if (BYPASS_CACHE.some(path => url.pathname.includes(path))) {
+  // Estratégia: Cache First, falling back to Network
+  // Exceto para chamadas de API ou recursos dinâmicos
+  if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
     return event.respondWith(fetch(event.request));
   }
 
-  // Para os demais arquivos, mantém o modo pass-through (rede)
-  event.respondWith(fetch(event.request));
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request).then((fetchResponse) => {
+        // Opcionalmente cacheia novos recursos
+        return fetchResponse;
+      });
+    }).catch(() => {
+      // Fallback offline se necessário
+    })
+  );
 });
