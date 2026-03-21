@@ -19,17 +19,17 @@ export const AdminAuditTab: React.FC = () => {
                 const { data: payments, error } = await supabase
                     .from('payments')
                     .select('*')
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
 
                 if (error) throw error;
 
                 if (payments && payments.length > 0) {
-                    const userIds = [...new Set(payments.map(p => p.user_id))];
-                    const { data: profiles } = await supabase.from('profiles').select('id, email, name').in('id', userIds);
+                    const userIds = [...new Set(payments.map((p: any) => p.user_id))];
+                    const { data: profiles } = await supabase.from('profiles').select('id, email, name').in('id', userIds) as { data: any[] | null };
                     
-                    const enriched = payments.map(p => ({
+                    const enriched = payments.map((p: any) => ({
                         ...p,
-                        profile: profiles?.find(prof => prof.id === p.user_id) || { email: 'Desconhecido', name: '---' }
+                        profile: profiles?.find((prof: any) => prof.id === p.user_id) || { email: 'Desconhecido', name: '---' }
                     }));
                     setPaymentsList(enriched);
                 } else {

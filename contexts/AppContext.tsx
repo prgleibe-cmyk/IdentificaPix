@@ -21,6 +21,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
     const effectiveUser = useMemo(() => {
         if (!user) return null;
@@ -70,7 +71,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     .from('saved_reports')
                     .select('data')
                     .eq('id', reportId)
-                    .single();
+                    .single() as { data: any | null, error: any };
                 
                 if (error) throw error;
                 if (!data) throw new Error('Report not found');
@@ -163,7 +164,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         onAfterIdentification: persistActiveReport 
     });
 
-    const summary = useSummaryData(reconciliation, reportManager);
+    const summary = useSummaryData(reconciliation, reportManager, selectedBankId);
+
+    const bankList = useMemo(() => {
+        if (!referenceData.banks) return [];
+        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.name }));
+        
+        if (subscription.role !== 'owner' && subscription.bankIds && subscription.bankIds.length > 0) {
+            list = list.filter((b: any) => subscription.bankIds!.includes(b.id));
+        }
+
+        return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }, [referenceData.banks, subscription]);
 
     const saveSmartEdit = useCallback(async (result: MatchResult) => {
         if (result.status === 'IDENTIFICADO' && result.contributor && result.church) {
@@ -210,6 +222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...reconciliationActions, 
         ...modalController,
         initialDataLoaded, summary, activeSpreadsheetData, saveSmartEdit, isSyncing,
+        selectedBankId, setSelectedBankId, bankList,
         saveCurrentReportChanges: persistActiveReport,
         handleGmailSyncSuccess, confirmDeletion, openManualIdentify, runAiAutoIdentification,
         findMatchResult: reconciliation.findMatchResult,
@@ -219,7 +232,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         referenceData, effectiveIgnoreKeywords, reportManager, wrappedConfirmSaveReport, reconciliation, reconciliationActions,
         modalController, initialDataLoaded, summary, activeSpreadsheetData, 
         saveSmartEdit, isSyncing, persistActiveReport, handleGmailSyncSuccess, confirmDeletion, openManualIdentify,
-        runAiAutoIdentification, viewSavedReport
+        runAiAutoIdentification, viewSavedReport, selectedBankId, setSelectedBankId, bankList
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

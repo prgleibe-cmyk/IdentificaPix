@@ -35,4 +35,5 @@ export interface SubscriptionStatus {
   ownerId: string;
   congregationId?: string;
   congregationIds?: string[];
+  bankIds?: string[];
 }

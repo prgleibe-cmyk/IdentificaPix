@@ -12,6 +12,7 @@ import { useReportsController } from '../hooks/useReportsController';
 import { CategoryPills } from '../components/reports/CategoryPills';
 import { ReportToolbar } from '../components/reports/ReportToolbar';
 import { ChurchChipsList } from '../components/reports/ChurchChipsList';
+import { BankChipsList } from '../components/reports/BankChipsList';
 import { StatsStrip } from '../components/reports/StatsStrip';
 
 /**
@@ -62,6 +63,13 @@ export const ReportsView: React.FC = () => {
 
             {ctrl.activeCategory === 'churches' && (
                 <ChurchChipsList list={ctrl.churchList} selectedId={ctrl.selectedReportId} onSelect={setSelectedIdSafe(ctrl)} />
+            )}
+
+            {ctrl.bankList.length > 0 && (
+                <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Filtrar por Banco</label>
+                    <BankChipsList list={ctrl.bankList} selectedId={ctrl.selectedBankId} onSelect={ctrl.setSelectedBankId} />
+                </div>
             )}
 
             <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative">

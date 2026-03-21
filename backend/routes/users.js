@@ -118,6 +118,7 @@ export default () => {
             "desfazer_identificacao": permissions.desfazer_identificacao,
             "baixar_arquivo": permissions.baixar_arquivo,
             "imprimir": permissions.imprimir,
+            "bankIds": permissions.bankIds || [],
             "congregationIds": churchIds // Armazenamos o array completo no JSON de permissões
         };
 

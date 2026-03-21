@@ -9,7 +9,7 @@ import { supabase } from '../services/supabaseClient';
 export const UsersManagementPage: React.FC = () => {
     const { setActiveView } = useUI();
     const { subscription, user: authUser } = useAuth();
-    const { churches } = useReferenceData(authUser, () => {});
+    const { churches, banks } = useReferenceData(authUser, () => {});
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -23,6 +23,7 @@ export const UsersManagementPage: React.FC = () => {
         email: '',
         password: '',
         churchIds: [] as string[],
+        bankIds: [] as string[],
         permissions: {
             confirmFinal: false,
             identifyPayments: false,
@@ -87,7 +88,9 @@ export const UsersManagementPage: React.FC = () => {
             "identificar": formData.permissions.identifyPayments,
             "desfazer_identificacao": formData.permissions.undoIdentification,
             "baixar_arquivo": formData.permissions.downloadFile,
-            "imprimir": formData.permissions.printReport
+            "imprimir": formData.permissions.printReport,
+            "bankIds": formData.bankIds,
+            "congregationIds": formData.churchIds
         };
 
         try {
@@ -162,12 +165,18 @@ export const UsersManagementPage: React.FC = () => {
             churchIds = [congregationRaw];
         }
 
+        let bankIds: string[] = [];
+        if (Array.isArray(perms.bankIds)) {
+            bankIds = perms.bankIds;
+        }
+
         setEditingUser(user);
         setFormData({
             name: user.name || '',
             email: user.email || '',
             password: '', // Não editamos senha aqui por enquanto
             churchIds: churchIds,
+            bankIds: bankIds,
             permissions: {
                 confirmFinal: !!perms.confirmar_final,
                 identifyPayments: !!perms.identificar,
@@ -187,7 +196,8 @@ export const UsersManagementPage: React.FC = () => {
             name: '',
             email: '',
             password: '',
-            churchIds: [],
+            churchIds: [] as string[],
+            bankIds: [] as string[],
             permissions: {
                 confirmFinal: false,
                 identifyPayments: false,
@@ -296,6 +306,7 @@ export const UsersManagementPage: React.FC = () => {
                                 <tr className="border-b border-slate-100 dark:border-slate-700/50">
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Usuário</th>
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Congregações</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Bancos</th>
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Permissões</th>
                                     <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Ações</th>
                                 </tr>
@@ -343,6 +354,25 @@ export const UsersManagementPage: React.FC = () => {
                                                             return (
                                                                 <span key={id} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md whitespace-nowrap">
                                                                     {church?.name || 'Desconhecida'}
+                                                                </span>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                                    {(() => {
+                                                        const perms = user.permissions || {};
+                                                        const bankIds = perms.bankIds || [];
+                                                        
+                                                        if (bankIds.length === 0) return <span className="text-xs text-slate-400">Nenhum</span>;
+                                                        
+                                                        return bankIds.map((id: string) => {
+                                                            const bank = banks.find(b => b.id === id);
+                                                            return (
+                                                                <span key={id} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md whitespace-nowrap">
+                                                                    {bank?.name || 'Desconhecido'}
                                                                 </span>
                                                             );
                                                         });
@@ -487,7 +517,7 @@ export const UsersManagementPage: React.FC = () => {
                                     {/* Congregações */}
                                     <div className="space-y-3">
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Congregações Autorizadas</label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                        <div className="grid grid-cols-1 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar p-1">
                                             {churches.length > 0 ? (
                                                 churches.map(church => (
                                                     <label 
@@ -514,6 +544,40 @@ export const UsersManagementPage: React.FC = () => {
                                                 ))
                                             ) : (
                                                 <p className="text-xs text-slate-500 italic p-2">Nenhuma congregação cadastrada.</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Bancos */}
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Bancos Autorizados</label>
+                                        <div className="grid grid-cols-1 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar p-1">
+                                            {banks.length > 0 ? (
+                                                banks.map(bank => (
+                                                    <label 
+                                                        key={bank.id}
+                                                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.bankIds.includes(bank.id)}
+                                                            onChange={() => {
+                                                                setFormData(prev => {
+                                                                    const ids = prev.bankIds.includes(bank.id)
+                                                                        ? prev.bankIds.filter(id => id !== bank.id)
+                                                                        : [...prev.bankIds, bank.id];
+                                                                    return { ...prev, bankIds: ids };
+                                                                });
+                                                            }}
+                                                            className="w-5 h-5 rounded-lg border-slate-300 text-brand-blue focus:ring-brand-blue/20"
+                                                        />
+                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-brand-blue transition-colors">
+                                                            {bank.name}
+                                                        </span>
+                                                    </label>
+                                                ))
+                                            ) : (
+                                                <p className="text-xs text-slate-500 italic p-2">Nenhum banco cadastrado.</p>
                                             )}
                                         </div>
                                     </div>

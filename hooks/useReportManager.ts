@@ -46,12 +46,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     .from('saved_reports')
                     .select('*')
                     .eq('user_id', ownerId)
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
 
                 if (error) throw error;
 
                 if (data) {
-                    let hydrated: SavedReport[] = data.map(r => ({
+                    let hydrated: SavedReport[] = data.map((r: any) => ({
                         id: r.id,
                         name: r.name,
                         createdAt: r.created_at,
@@ -86,7 +86,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
-        const { error } = await supabase.from('saved_reports').update({ name: newName }).eq('id', reportId);
+        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
     }, [user, showToast]);
@@ -127,8 +127,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         } : r));
 
         // Persistência Cloud
-        const { error } = await supabase
-            .from('saved_reports')
+        const { error } = await (supabase
+            .from('saved_reports') as any)
             .update({ 
                 data: mergedData as any,
                 record_count: recordCount 
@@ -191,7 +191,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
         
-        const { error } = await supabase.from('saved_reports').insert({
+        const { error } = await (supabase.from('saved_reports') as any).insert({
             id: newReport.id,
             name: newReport.name,
             record_count: newReport.recordCount,

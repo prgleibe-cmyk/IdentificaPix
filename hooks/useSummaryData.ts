@@ -3,16 +3,26 @@ import { MatchResult } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { useAuth } from '../contexts/AuthContext';
 
-export const useSummaryData = (reconciliation: any, reportManager: any) => {
+export const useSummaryData = (reconciliation: any, reportManager: any, selectedBankId?: string | null) => {
     const { subscription } = useAuth();
 
     return useMemo(() => {
         let results = reconciliation.matchResults;
         const hasSession = reconciliation.hasActiveSession;
 
-        // Filtro de Segurança para Membros: Apenas dados da sua congregação
-        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            results = results.filter((r: any) => subscription.congregationIds.includes(r.church?.id || r._churchId));
+        // Filtro de Segurança para Membros: Apenas dados da sua congregação e bancos autorizados
+        if (subscription.role === 'member') {
+            if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+                results = results.filter((r: any) => subscription.congregationIds.includes(r.church?.id || r._churchId));
+            }
+            if (subscription.bankIds && subscription.bankIds.length > 0) {
+                results = results.filter((r: any) => subscription.bankIds.includes(String(r.transaction.bank_id)));
+            }
+        }
+
+        // Filtro de Banco Selecionado (Global)
+        if (selectedBankId && selectedBankId !== 'all') {
+            results = results.filter((r: any) => String(r.transaction.bank_id) === selectedBankId);
         }
         
         let identifiedCount = 0;
@@ -75,5 +85,5 @@ export const useSummaryData = (reconciliation: any, reportManager: any) => {
             methodBreakdown,
             isHistorical: !hasSession && reportManager.savedReports.length > 0
         };
-    }, [reconciliation.matchResults, reconciliation.hasActiveSession, reportManager.savedReports]);
+    }, [reconciliation.matchResults, reconciliation.hasActiveSession, reportManager.savedReports, selectedBankId, subscription]);
 };

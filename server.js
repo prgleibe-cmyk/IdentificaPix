@@ -26,6 +26,7 @@ import paymentRoutes from './backend/routes/payments.js';
 import aiRoutes from './backend/routes/ai.js';
 import inboxRoutes from './backend/routes/inbox.js';
 import usersRoutes from './backend/routes/users.js';
+import referenceRoutes from './backend/routes/reference.js';
 import { authMiddleware } from './backend/middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -82,6 +83,7 @@ try {
     app.use('/api/gmail', gmailRoutes(ai));
     app.use('/api/ai', aiRoutes(ai));
     app.use('/api/users', usersRoutes());
+    app.use('/api/reference', referenceRoutes());
 } catch (error) {
     console.error("[IdentificaPix] Route Registration Error:", error.message);
 }

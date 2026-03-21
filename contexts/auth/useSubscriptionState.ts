@@ -78,6 +78,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const congregationRaw = p.congregation;
             const permissions = p.permissions || {};
             let congregationIds: string[] = [];
+            let bankIds: string[] = [];
             
             // Tenta ler do JSON de permissões primeiro (suporte a múltiplos IDs em coluna UUID)
             if (Array.isArray(permissions.congregationIds)) {
@@ -90,6 +91,10 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             } else if (congregationRaw) {
                 // Caso seja um único UUID na coluna congregation
                 congregationIds = [congregationRaw];
+            }
+
+            if (Array.isArray(permissions.bankIds)) {
+                bankIds = permissions.bankIds;
             }
 
             setSubscription({
@@ -106,7 +111,8 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 role: p.role || 'owner',
                 ownerId: p.owner_id || userId,
                 congregationId: congregationIds[0] || undefined,
-                congregationIds: congregationIds
+                congregationIds: congregationIds,
+                bankIds: bankIds
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);

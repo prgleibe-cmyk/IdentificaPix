@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useDashboardController } from '../hooks/useDashboardController';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
+import { BankChipsList } from '../components/reports/BankChipsList';
 import {
     XCircleIcon,
     UploadIcon,
@@ -18,47 +19,13 @@ import { ChurchLeaderboard } from '../components/dashboard/ChurchLeaderboard';
 export const DashboardView: React.FC = () => {
     const { 
         summary, user, setActiveView, t, language, identificationRate, 
-        pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession 
+        pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession,
+        selectedBankId, setSelectedBankId, bankList
     } = useDashboardController();
     const [imgError, setImgError] = useState(false);
 
     if (hasActiveSession && !hasData) {
         return <DashboardSkeleton />;
-    }
-
-    if (!hasData) {
-        return (
-            <div className="flex-1 flex flex-col h-full animate-fade-in-up pb-6">
-                <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 px-1 flex-shrink-0">
-                    <div className="relative shrink-0 w-fit">
-                        <img 
-                            src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
-                            onError={() => setImgError(true)}
-                            className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
-                            alt="IdentificaPix Logo" 
-                        />
-                    </div>
-                    <div>
-                        <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
-                            {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-violet-500">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>.
-                        </h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-lg mt-3 font-medium">Seu painel de controle financeiro inteligente.</p>
-                    </div>
-                </div>
-
-                <div className="flex-1 flex items-center justify-center">
-                    <EmptyState
-                        icon={<UploadIcon />}
-                        title={t('empty.dashboard.title')}
-                        message={t('empty.dashboard.message')}
-                        action={{
-                            text: t('empty.dashboard.action'),
-                            onClick: () => setActiveView('upload'),
-                        }}
-                    />
-                </div>
-            </div>
-        );
     }
 
     return (
@@ -84,7 +51,47 @@ export const DashboardView: React.FC = () => {
                 )}
             </div>
 
-            <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3 xl:gap-4">
+            {bankList.length > 0 && (
+                <div className="flex flex-col gap-1 px-1">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Filtrar por Banco</label>
+                    <BankChipsList list={bankList} selectedId={selectedBankId} onSelect={setSelectedBankId} />
+                </div>
+            )}
+
+            {!hasData ? (
+                <div className="flex-1 flex flex-col h-full animate-fade-in-up pb-6">
+                    <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 px-1 flex-shrink-0">
+                        <div className="relative shrink-0 w-fit">
+                            <img 
+                                src={imgError ? "/logo.png" : "/pwa/icon-512.png"} 
+                                onError={() => setImgError(true)}
+                                className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
+                                alt="IdentificaPix Logo" 
+                            />
+                        </div>
+                        <div>
+                            <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
+                                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-violet-500">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>.
+                            </h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-lg mt-3 font-medium">Seu painel de controle financeiro inteligente.</p>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-center">
+                        <EmptyState
+                            icon={<UploadIcon />}
+                            title={t('empty.dashboard.title')}
+                            message={t('empty.dashboard.message')}
+                            action={{
+                                text: t('empty.dashboard.action'),
+                                onClick: () => setActiveView('upload'),
+                            }}
+                        />
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3 xl:gap-4">
                 <SummaryCard
                     title={t('dashboard.identifiedContributions')}
                     count={summary.identifiedCount}
@@ -134,6 +141,8 @@ export const DashboardView: React.FC = () => {
                     title={t('dashboard.identifiedValuesByChurch')}
                 />
             </div>
-        </div>
-    );
+            </>
+        )}
+    </div>
+);
 };

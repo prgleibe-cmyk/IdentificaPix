@@ -31,29 +31,52 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         if (!user) return;
         const syncData = async () => {
             const ownerId = subscription.ownerId || user.id;
-            const { data: b } = await supabase.from('banks').select('*').eq('user_id', ownerId);
-            if (b) setBanks(b);
             
-            let query = supabase.from('churches').select('*').eq('user_id', ownerId);
-            
-            // Se for membro, filtra apenas pelas congregações autorizadas
-            if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-                query = query.in('id', subscription.congregationIds);
+            // Se for o dono, pode usar o Supabase diretamente (RLS permite)
+            // Se for membro/admin, usamos a API backend que tem privilégios de Service Role
+            if (subscription.role === 'owner') {
+                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                const { data: b } = await bankQuery;
+                if (b) setBanks(b);
+                
+                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                const { data: c } = await query;
+                if (c) setChurches(c);
+            } else {
+                // Para usuários secundários, usamos a API backend para contornar limitações de RLS
+                try {
+                    const response = await fetch(`/api/reference/data/${ownerId}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Aplicar filtros de permissão no frontend para garantir
+                        let filteredBanks = data.banks || [];
+                        if (subscription.bankIds && subscription.bankIds.length > 0) {
+                            filteredBanks = filteredBanks.filter((b: any) => subscription.bankIds!.includes(b.id));
+                        }
+                        setBanks(filteredBanks);
+                        
+                        let filteredChurches = data.churches || [];
+                        if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+                            filteredChurches = filteredChurches.filter((c: any) => subscription.congregationIds!.includes(c.id));
+                        }
+                        setChurches(filteredChurches);
+                    }
+                } catch (error) {
+                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                }
             }
-            
-            const { data: c } = await query;
-            if (c) setChurches(c);
         };
         syncData();
-    }, [user, setBanks, setChurches]);
+    }, [user, subscription, setBanks, setChurches]);
 
     useEffect(() => {
         if (!user) return;
         const fetchAssociations = async () => {
             const ownerId = subscription.ownerId || user.id;
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId);
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
             if (data) {
-                setLearnedAssociations(data.map(d => ({
+                setLearnedAssociations(data.map((d: any) => ({
                     id: d.id, 
                     normalizedDescription: d.normalized_description,
                     contributorNormalizedName: d.contributor_normalized_name,
@@ -94,15 +117,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 .select('id')
                 .eq('normalized_description', normalizedDesc)
                 .eq('user_id', ownerId)
-                .maybeSingle();
+                .maybeSingle() as { data: any | null };
 
             if (existing) {
-                await supabase.from('learned_associations').update({ 
+                await (supabase.from('learned_associations') as any).update({ 
                     contributor_normalized_name: contributorName, 
                     church_id: matchResult.church.id
                 }).eq('id', existing.id);
             } else {
-                await supabase.from('learned_associations').insert({ 
+                await (supabase.from('learned_associations') as any).insert({ 
                     user_id: ownerId, 
                     normalized_description: normalizedDesc, 
                     contributor_normalized_name: contributorName, 
@@ -131,7 +154,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateBank = useCallback(async (bankId: string, name: string) => {
         setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
         closeEditBank();
-        await supabase.from('banks').update({ name }).eq('id', bankId);
+        await (supabase.from('banks') as any).update({ name }).eq('id', bankId);
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 
@@ -142,7 +165,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await supabase.from('banks').insert([{ name, user_id: ownerId }]).select();
+        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: ownerId }]).select();
         if (data) {
             setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
@@ -157,7 +180,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
         setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
         closeEditChurch();
-        await supabase.from('churches').update(formData).eq('id', churchId);
+        await (supabase.from('churches') as any).update(formData).eq('id', churchId);
         showToast('Igreja atualizada.', 'success');
     }, [closeEditChurch, setChurches, showToast]);
 
@@ -168,7 +191,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await supabase.from('churches').insert([{ ...formData, user_id: ownerId }]).select();
+        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: ownerId }]).select();
         if (data) {
             setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');

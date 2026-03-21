@@ -18,7 +18,10 @@ export const useReportsController = () => {
         matchResults,
         updateReportData,
         runAiAutoIdentification,
-        searchFilters
+        searchFilters,
+        selectedBankId,
+        setSelectedBankId,
+        bankList
     } = useContext(AppContext);
     
     const { language } = useTranslation();
@@ -132,6 +135,11 @@ export const useReportsController = () => {
                 data = reportPreviewData.income?.[selectedReportId] || [];
             }
 
+            // 1.5 Filtro por Banco (Global)
+            if (selectedBankId && selectedBankId !== 'all') {
+                data = data.filter(r => String(r.transaction?.bank_id) === selectedBankId);
+            }
+
             // 2. Aplicação de Filtros Avançados (Modal)
             // A função applyAdvancedFilters cuida da normalização internamente
             if (searchFilters) {
@@ -148,7 +156,7 @@ export const useReportsController = () => {
         
         // Fallback absoluto para garantir que nunca seja undefined
         return Array.isArray(data) ? data : [];
-    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm, searchFilters]);
+    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm, searchFilters, selectedBankId, subscription]);
 
     const sortedData = useMemo(() => {
         const source = Array.isArray(activeData) ? activeData : [];
@@ -222,10 +230,11 @@ export const useReportsController = () => {
     return {
         activeCategory, setActiveCategory,
         selectedReportId, setSelectedReportId,
+        selectedBankId, setSelectedBankId,
         searchTerm, setSearchTerm,
         sortConfig, setSortConfig,
         handleSort,
-        churchList, counts, activeSummary, sortedData,
+        churchList, bankList, counts, activeSummary, sortedData,
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
         handleDownload, handlePrint, handleSaveReport, updateReportData,
         setActiveView, reportPreviewData,

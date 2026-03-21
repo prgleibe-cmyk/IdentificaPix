@@ -63,17 +63,29 @@ export const useReconciliation = ({
 
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
-        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            return matchResults.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+        let results = matchResults;
+        if (subscription?.role === 'member') {
+            if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+                results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+            }
+            if (subscription.bankIds && subscription.bankIds.length > 0) {
+                results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
+            }
         }
-        return matchResults;
+        return results;
     }, [matchResults, subscription]);
 
     const filteredLaunchedResults = useMemo(() => {
-        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            return launchedResults.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+        let results = launchedResults;
+        if (subscription?.role === 'member') {
+            if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+                results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+            }
+            if (subscription.bankIds && subscription.bankIds.length > 0) {
+                results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
+            }
         }
-        return launchedResults;
+        return results;
     }, [launchedResults, subscription]);
 
     const processingFilesRef = useRef<Set<string>>(new Set());

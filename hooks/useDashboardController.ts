@@ -6,7 +6,15 @@ import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 
 export const useDashboardController = () => {
-    const { summary, matchResults, hasActiveSession, savedReports } = useContext(AppContext);
+    const { 
+        summary, 
+        matchResults, 
+        hasActiveSession, 
+        savedReports,
+        selectedBankId,
+        setSelectedBankId,
+        bankList
+    } = useContext(AppContext);
     const { user } = useAuth();
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
@@ -56,6 +64,9 @@ export const useDashboardController = () => {
         maxValuePerChurch,
         hasData,
         getGreeting,
-        hasActiveSession
+        hasActiveSession,
+        selectedBankId,
+        setSelectedBankId,
+        bankList
     };
 };
