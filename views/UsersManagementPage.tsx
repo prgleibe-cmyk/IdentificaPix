@@ -32,8 +32,8 @@ export const UsersManagementPage: React.FC = () => {
         }
     });
 
-    // Redirecionamento de segurança se não for owner
-    if (subscription.role !== 'owner') {
+    // Redirecionamento de segurança se não for owner ou admin
+    if (subscription.role !== 'owner' && subscription.role !== 'admin') {
         setActiveView('dashboard');
         return null;
     }
@@ -41,6 +41,9 @@ export const UsersManagementPage: React.FC = () => {
     const fetchUsers = useCallback(async () => {
         if (!authUser?.id) return;
         
+        const effectiveOwnerId = authUser.owner_id || authUser.id;
+        console.log("[UsersManagement] Buscando usuários para owner:", effectiveOwnerId, "authUser.id:", authUser.id, "authUser.owner_id:", authUser.owner_id);
+
         setIsLoadingUsers(true);
         try {
             // Obter token da sessão
@@ -48,7 +51,7 @@ export const UsersManagementPage: React.FC = () => {
             const token = session?.access_token;
 
             // Usando a API do backend para listar usuários, ignorando RLS do frontend
-            const response = await fetch(`/api/users/list/${authUser.id}`, {
+            const response = await fetch(`/api/users/list/${effectiveOwnerId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -61,7 +64,7 @@ export const UsersManagementPage: React.FC = () => {
         } finally {
             setIsLoadingUsers(false);
         }
-    }, [authUser?.id]);
+    }, [authUser?.id, authUser?.owner_id]);
 
     useEffect(() => {
         fetchUsers();
@@ -88,13 +91,14 @@ export const UsersManagementPage: React.FC = () => {
         };
 
         try {
+            const effectiveOwnerId = authUser?.owner_id || authUser?.id;
             const url = editingUser ? `/api/users/update/${editingUser.id}` : '/api/users/create';
             const body = {
                 name: formData.name,
                 email: formData.email,
                 churchIds: formData.churchIds,
                 permissions: permissionsObject,
-                ownerId: authUser?.id
+                ownerId: effectiveOwnerId
             };
 
             // Se for criação ou se a senha foi preenchida na edição
@@ -200,10 +204,11 @@ export const UsersManagementPage: React.FC = () => {
         }
 
         try {
+            const effectiveOwnerId = authUser?.owner_id || authUser?.id;
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
-            const response = await fetch(`/api/users/delete/${userId}?ownerId=${authUser?.id}`, {
+            const response = await fetch(`/api/users/delete/${userId}?ownerId=${effectiveOwnerId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`

@@ -35,7 +35,26 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
 
             const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;
             const now = new Date();
-            const p = (profileData as any) || {};
+            let p = (profileData as any) || {};
+            
+            // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
+            // If the user has an owner_id different from their own ID, they are a secondary user.
+            if (p.owner_id && p.owner_id !== userId) {
+                const { data: ownerData } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle() as any;
+                if (ownerData) {
+                    // Inherit subscription fields from the Principal user
+                    p.subscription_status = ownerData.subscription_status;
+                    p.subscription_ends_at = ownerData.subscription_ends_at;
+                    p.trial_ends_at = ownerData.trial_ends_at;
+                    p.is_lifetime = ownerData.is_lifetime;
+                    p.is_blocked = ownerData.is_blocked;
+                    p.limit_ai = ownerData.limit_ai;
+                    p.max_churches = ownerData.max_churches;
+                    p.max_banks = ownerData.max_banks;
+                    // Note: usage_ai remains individual to track each user's consumption, 
+                    // but they share the Principal's limit_ai.
+                }
+            }
             
             const isBlocked = p.is_blocked === true;
             const isLifetime = p.is_lifetime === true || p.subscription_status === 'lifetime';

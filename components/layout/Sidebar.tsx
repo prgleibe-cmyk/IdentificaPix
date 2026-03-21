@@ -86,6 +86,8 @@ export const Sidebar: React.FC = () => {
 
     const StatusIcon = subscription.isExpired ? ExclamationTriangleIcon : (subscription.plan === 'lifetime' ? CheckBadgeIcon : SparklesIcon);
 
+    const isSecondaryUser = subscription.ownerId && subscription.ownerId !== user?.id;
+
     const handleLogout = async (e: React.MouseEvent) => {
         e.preventDefault();
         if (isLoggingOut) return;
@@ -94,7 +96,7 @@ export const Sidebar: React.FC = () => {
     };
 
     // --- USER_MANAGEMENT_BLOCK ---
-    const showUsersButton = subscription.role === 'owner';
+    const showUsersButton = subscription.role === 'owner' && !isSecondaryUser;
     const handleUsersClick = () => {
         setActiveView('users');
     };
@@ -180,9 +182,16 @@ export const Sidebar: React.FC = () => {
                             {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
                         </button>
                         
-                        <button onClick={openPaymentModal} className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()}`}>
+                        <button 
+                            onClick={isSecondaryUser ? undefined : openPaymentModal} 
+                            className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()} ${isSecondaryUser ? 'cursor-default' : ''}`}
+                        >
                             <StatusIcon className="w-4 h-4" />
-                            {!isCollapsed && <span className="text-[10px] font-black uppercase tracking-wider">{subscription.daysRemaining} dias</span>}
+                            {!isCollapsed && (
+                                <span className="text-[10px] font-black uppercase tracking-wider">
+                                    {isSecondaryUser ? 'Gerenciado' : `${subscription.daysRemaining} dias`}
+                                </span>
+                            )}
                         </button>
                     </div>
 

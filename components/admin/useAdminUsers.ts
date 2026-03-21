@@ -21,6 +21,8 @@ export const useAdminUsers = () => {
         subscription_ends_at: ''
     });
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [userToDelete, setUserToDelete] = useState<any | null>(null);
 
     const fetchUsers = useCallback(async () => {
         setIsLoadingData(true);
@@ -81,10 +83,10 @@ export const useAdminUsers = () => {
             if (formData.trial_ends_at) updates.trial_ends_at = new Date(formData.trial_ends_at).toISOString();
             if (formData.subscription_ends_at) updates.subscription_ends_at = new Date(formData.subscription_ends_at).toISOString();
 
-            const { error } = await supabase
+            const { error } = await (supabase
                 .from('profiles')
                 .update(updates)
-                .eq('id', editingUser.id);
+                .eq('id', editingUser.id) as any);
 
             if (error) throw error;
 
@@ -98,6 +100,33 @@ export const useAdminUsers = () => {
             setIsSaving(false);
         }
     }, [editingUser, formData, fetchUsers, showToast]);
+
+    const handleDeleteUser = useCallback((user: any) => {
+        setUserToDelete(user);
+    }, []);
+
+    const confirmDeleteUser = useCallback(async () => {
+        if (!userToDelete) return;
+        
+        setIsDeleting(userToDelete.id);
+        try {
+            const { error } = await (supabase
+                .from('profiles')
+                .delete()
+                .eq('id', userToDelete.id) as any);
+
+            if (error) throw error;
+
+            showToast("Usuário excluído com sucesso!", "success");
+            setUserToDelete(null);
+            fetchUsers();
+        } catch (error: any) {
+            console.error("Erro ao excluir usuário:", error);
+            showToast("Erro ao excluir: " + error.message, "error");
+        } finally {
+            setIsDeleting(null);
+        }
+    }, [userToDelete, fetchUsers, showToast]);
 
     const filteredUsers = useMemo(() => {
         return usersList.filter(u => 
@@ -116,8 +145,13 @@ export const useAdminUsers = () => {
         formData,
         setFormData,
         isSaving,
+        isDeleting,
+        userToDelete,
+        setUserToDelete,
         handleEditClick,
         handleSaveUser,
+        handleDeleteUser,
+        confirmDeleteUser,
         fetchUsers
     };
 };

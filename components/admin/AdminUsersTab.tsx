@@ -17,8 +17,13 @@ export const AdminUsersTab: React.FC = () => {
         formData,
         setFormData,
         isSaving,
+        isDeleting,
+        userToDelete,
+        setUserToDelete,
         handleEditClick,
-        handleSaveUser
+        handleSaveUser,
+        handleDeleteUser,
+        confirmDeleteUser
     } = useAdminUsers();
 
     return (
@@ -43,6 +48,8 @@ export const AdminUsersTab: React.FC = () => {
                 users={usersList} 
                 isLoading={isLoadingData} 
                 onEdit={handleEditClick} 
+                onDelete={handleDeleteUser}
+                isDeleting={isDeleting}
             />
 
             {editingUser && (
@@ -54,6 +61,40 @@ export const AdminUsersTab: React.FC = () => {
                     onClose={() => setEditingUser(null)}
                     onSubmit={handleSaveUser}
                 />
+            )}
+
+            {userToDelete && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="p-8">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">Confirmar Exclusão</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
+                                Tem certeza que deseja excluir o usuário <span className="font-bold text-red-500">{userToDelete.email}</span>? 
+                                Esta ação não pode ser desfeita e removerá permanentemente o perfil do usuário.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <button 
+                                    onClick={() => setUserToDelete(null)}
+                                    className="px-5 py-2 text-xs font-bold rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors uppercase"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={confirmDeleteUser}
+                                    disabled={isDeleting === userToDelete.id}
+                                    className="px-6 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-full shadow-lg shadow-red-500/30 transition-all uppercase flex items-center gap-2"
+                                >
+                                    {isDeleting === userToDelete.id ? (
+                                        <>
+                                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            Excluindo...
+                                        </>
+                                    ) : 'Excluir'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
