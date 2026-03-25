@@ -5,6 +5,7 @@ import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { MatchResult } from '../types';
 import { ExportService } from '../services/ExportService';
+import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
@@ -21,17 +22,44 @@ export const useReportsController = () => {
         searchFilters,
         selectedBankId,
         setSelectedBankId,
-        bankList
+        bankList,
+        hydrate
     } = useContext(AppContext);
     
     const { language } = useTranslation();
     const { setActiveView } = useUI();
-    const { subscription } = useAuth();
+    const { subscription, user } = useAuth();
     
     const [activeCategory, setActiveCategory] = useState<ReportCategory>('general');
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Faxina automática de duplicatas ao carregar os relatórios
+    useEffect(() => {
+        const userId = subscription.ownerId || user?.id;
+        if (!userId) return;
+
+        // Evita rodar múltiplas vezes na mesma sessão para performance
+        const sessionKey = `dedupe_done_${userId}`;
+        if (sessionStorage.getItem(sessionKey)) return;
+
+        const runCleanup = async () => {
+            try {
+                const removed = await consolidationService.runGlobalDeduplication(userId);
+                if (removed > 0) {
+                    console.log(`[Deduplication] ${removed} registros duplicados foram limpos.`);
+                    // Atualiza os dados locais para refletir a limpeza no banco
+                    if (hydrate) hydrate();
+                }
+                sessionStorage.setItem(sessionKey, 'true');
+            } catch (e) {
+                console.error("[Deduplication:AUTO_FAIL]", e);
+            }
+        };
+
+        runCleanup();
+    }, [subscription.ownerId, user?.id, updateReportData]);
 
     // Forçar categoria para membros
     useEffect(() => {

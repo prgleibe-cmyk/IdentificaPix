@@ -139,7 +139,7 @@ export const Sidebar: React.FC = () => {
                 />
             )}
 
-            <aside className={`fixed lg:relative inset-y-0 left-0 h-screen flex flex-col transition-all duration-500 z-[80] ${isCollapsed ? 'w-24' : 'w-72'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
+            <aside className={`fixed lg:relative inset-y-0 left-0 h-[100dvh] flex flex-col transition-all duration-500 z-[80] ${isCollapsed ? 'w-24' : 'w-72'} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} bg-[#0F172A] text-white border-r border-white/5 shadow-2xl overflow-hidden`}>
                 
                 <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]">
                 <ChartBarIcon className="absolute -top-12 -right-12 w-64 h-64 text-white transform rotate-12" />
@@ -154,7 +154,7 @@ export const Sidebar: React.FC = () => {
                         <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
                             <img 
                                 src="/logo.png" 
-                                className={`${isCollapsed ? 'h-16' : 'h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]`} 
+                                className={`${isCollapsed ? 'h-16' : 'h-32 lg:h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]`} 
                                 alt="Logo" 
                             />
                         </div>
@@ -168,7 +168,7 @@ export const Sidebar: React.FC = () => {
                     )}
                 </div>
 
-                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar relative z-20">
+                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar relative z-20 min-h-0">
                     {navItems.map((item) => (
                         <button
                             key={item.view}

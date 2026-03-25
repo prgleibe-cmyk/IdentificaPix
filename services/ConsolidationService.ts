@@ -355,5 +355,82 @@ export const consolidationService = {
             console.error("[Consolidation:CHECK_CONFIRMED_FAIL]", e);
             return [];
         }
+    },
+
+    /**
+     * FAXINA GLOBAL DE DUPLICATAS (V1)
+     * Remove registros que possuem o mesmo row_hash, mantendo apenas um.
+     * Garante que as listas "vivas" e históricas fiquem limpas.
+     */
+    runGlobalDeduplication: async (userId: string) => {
+        if (!userId) return 0;
+        
+        try {
+            let allRecords: any[] = [];
+            let from = 0;
+            const step = 1000;
+            let hasMore = true;
+
+            // 1. Busca exaustiva de todos os registros para comparação
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
+                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
+                    .eq('user_id', userId)
+                    .range(from, from + step - 1);
+
+                if (error) throw error;
+                if (data && data.length > 0) {
+                    allRecords = [...allRecords, ...data];
+                    from += step;
+                    if (data.length < step) hasMore = false;
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            // 2. Identifica duplicatas baseadas no row_hash OU no conteúdo exato
+            const seenHashes = new Set<string>();
+            const seenContent = new Set<string>();
+            const duplicateIds: string[] = [];
+
+            allRecords.forEach(rec => {
+                // Chave de conteúdo para pegar duplicatas que podem ter hashes diferentes (por versões antigas do app)
+                const contentKey = `${rec.transaction_date}|${String(rec.description || '').trim().toUpperCase()}|${Number(rec.amount || 0).toFixed(2)}|${rec.type}|${rec.bank_id || 'null'}|${rec.pix_key || 'null'}`;
+                
+                let isDuplicate = false;
+                
+                if (rec.row_hash && seenHashes.has(rec.row_hash)) {
+                    isDuplicate = true;
+                } else if (seenContent.has(contentKey)) {
+                    isDuplicate = true;
+                }
+
+                if (isDuplicate) {
+                    duplicateIds.push(rec.id);
+                } else {
+                    if (rec.row_hash) seenHashes.add(rec.row_hash);
+                    seenContent.add(contentKey);
+                }
+            });
+
+            // 3. Remove as duplicatas em lotes
+            if (duplicateIds.length > 0) {
+                console.log(`[Deduplication] Removendo ${duplicateIds.length} duplicatas encontradas.`);
+                const chunkSize = 100;
+                for (let i = 0; i < duplicateIds.length; i += chunkSize) {
+                    const chunk = duplicateIds.slice(i, i + chunkSize);
+                    await supabase
+                        .from('consolidated_transactions')
+                        .delete()
+                        .in('id', chunk);
+                }
+                return duplicateIds.length;
+            }
+            return 0;
+        } catch (e) {
+            console.error("[Consolidation:DEDUPE_CLEANUP_FAIL]", e);
+            return 0;
+        }
     }
 };
