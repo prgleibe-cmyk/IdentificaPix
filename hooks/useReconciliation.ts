@@ -73,7 +73,7 @@ export const useReconciliation = ({
             }
         }
         return results;
-    }, [matchResults, subscription]);
+    }, [matchResults, subscription.role, subscription.congregationIds?.join(','), subscription.bankIds?.join(',')]);
 
     const filteredLaunchedResults = useMemo(() => {
         let results = launchedResults;
@@ -86,7 +86,7 @@ export const useReconciliation = ({
             }
         }
         return results;
-    }, [launchedResults, subscription]);
+    }, [launchedResults, subscription.role, subscription.congregationIds?.join(','), subscription.bankIds?.join(',')]);
 
     const processingFilesRef = useRef<Set<string>>(new Set());
     const lastValidatedHash = useRef<string>('');
@@ -182,7 +182,7 @@ export const useReconciliation = ({
 
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
-    }, [user, matchResults, setMatchResults, triggerSync]);
+    }, [user?.id, matchResults, setMatchResults, triggerSync]);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,

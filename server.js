@@ -42,8 +42,10 @@ console.log(`[IdentificaPix] Iniciando servidor...`);
 
 if (fs.existsSync(distPath)) {
     const logoExists = fs.existsSync(path.join(distPath, 'logo.png'));
+    const swExists = fs.existsSync(path.join(distPath, 'sw.js'));
     const pwaExists = fs.existsSync(pwaPath);
     console.log(`[Server] logo.png em dist: ${logoExists ? '✅' : '❌'}`);
+    console.log(`[Server] sw.js em dist: ${swExists ? '✅' : '❌'}`);
     console.log(`[Server] pasta pwa em dist: ${pwaExists ? '✅' : '❌'}`);
     if (pwaExists) {
         console.log(`[Server] Arquivos PWA: ${fs.readdirSync(pwaPath).join(', ')}`);
@@ -90,6 +92,16 @@ try {
 
 // Pasta de arquivos estáticos
 app.use(express.static(distPath));
+
+// Rota específica para o Service Worker (evita erro de MIME type)
+app.get('/sw.js', (req, res) => {
+    const swPath = path.join(distPath, 'sw.js');
+    if (fs.existsSync(swPath)) {
+        res.setHeader('Content-Type', 'application/javascript');
+        return res.sendFile(swPath);
+    }
+    res.status(404).send('Not Found');
+});
 
 // SPA Fallback
 app.get('*', (req, res) => {

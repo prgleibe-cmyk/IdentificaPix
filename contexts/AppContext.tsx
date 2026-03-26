@@ -24,9 +24,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
     const effectiveUser = useMemo(() => {
-        if (!user) return null;
-        return { ...user, id: subscription.ownerId || user.id };
-    }, [user, subscription.ownerId]);
+        if (!user || !subscription.ownerId) return null;
+        return { ...user, id: subscription.ownerId };
+    }, [user?.id, subscription.ownerId]); // Use primitive IDs to avoid re-renders if objects change reference but not ID
 
     const modalController = useModalController();
     const referenceData = useReferenceData(effectiveUser, showToast);
@@ -212,7 +212,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return report?.data?.spreadsheet;
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
-    useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
+    useEffect(() => { 
+        if (user === null) {
+            setInitialDataLoaded(true); 
+        } else if (user && subscription.ownerId) {
+            setInitialDataLoaded(true); 
+        }
+    }, [user, subscription.ownerId]);
 
     const value = useMemo(() => ({
         ...referenceData, 

@@ -84,7 +84,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         };
 
         fetchReports();
-    }, [user, subscription]);
+    }, [user?.id, subscription.ownerId, subscription.role, subscription.congregationIds?.join(',')]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);

@@ -89,7 +89,7 @@ export const useLiveListSync = ({
         } finally {
             isHydrating.current = false;
         }
-    }, [user, isCleaning, setBankStatementFile, setSelectedBankIds]);
+    }, [user?.id, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
@@ -123,7 +123,7 @@ export const useLiveListSync = ({
             lastUserId.current = user.id;
             hydrate(true);
         }
-    }, [user, hydrate]);
+    }, [user?.id, hydrate]);
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
