@@ -63,9 +63,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     // Se for membro, filtra relatórios que contenham resultados da sua congregação
                     if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
                         hydrated = hydrated.filter(report => {
-                            if (!report.data || !report.data.results || report.data.results.length === 0) return false;
-                            // Deve conter APENAS resultados das suas congregações
-                            return report.data.results.every(res => subscription.congregationIds.includes(res.church?.id || res._churchId));
+                            const results = report.data?.results || [];
+                            const hasSpreadsheet = !!report.data?.spreadsheet;
+
+                            // Se não tem resultados de conciliação, mas tem planilha, permitimos ver
+                            if (results.length === 0) return hasSpreadsheet;
+
+                            // Se tem resultados, deve conter PELO MENOS UM da sua congregação (mais flexível que 'every')
+                            return results.some(res => 
+                                subscription.congregationIds.includes(res.church?.id || res._churchId)
+                            );
                         });
                     }
 
@@ -230,7 +237,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
         
         return results;
-    }, [savedReports, subscription.role, subscription.congregationId]);
+    }, [savedReports, subscription.role, subscription.congregationIds]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,
