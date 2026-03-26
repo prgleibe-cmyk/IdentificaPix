@@ -61,7 +61,15 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
         } else if (reportManager.savedReports.length > 0) {
             reportManager.savedReports.forEach((rep: any) => {
                 if (rep.data && rep.data.results) {
-                    const repResults = rep.data.results as MatchResult[];
+                    let repResults = rep.data.results as MatchResult[];
+                    
+                    // Filtro de Segurança para Membros no histórico
+                    if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+                        repResults = repResults.filter(r => 
+                            subscription.congregationIds.includes(r.church?.id || r._churchId)
+                        );
+                    }
+
                     identifiedCount += repResults.filter(r => r.status === 'IDENTIFICADO').length;
                     
                     repResults.forEach(r => {
