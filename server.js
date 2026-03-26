@@ -14,6 +14,7 @@ console.log(`[Server] ASAAS_API_KEY_B64: ${process.env.ASAAS_API_KEY_B64 ? 'Dete
 console.log(`[Server] ASAAS_URL: ${process.env.ASAAS_URL || process.env.ASAAS_API_URL || 'https://www.asaas.com/api/v3'}`);
 
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import { GoogleGenAI } from "@google/genai";
 import path from 'path';
@@ -42,6 +43,7 @@ async function startServer() {
     console.log(`[IdentificaPix] Iniciando servidor...`);
 
     // Middlewares
+    app.use(compression());
     app.use(cors());
     app.use(express.json({ limit: '50mb' }));
 
@@ -121,6 +123,12 @@ async function startServer() {
         app.get('*', (req, res) => {
             if (req.url.startsWith('/api/')) return res.status(404).json({ error: 'Not Found' });
             const indexPath = path.join(distPath, 'index.html');
+            
+            // Forçar o navegador a não fazer cache do index.html
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+            
             if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
             res.status(200).send("IdentificaPix Server Active.");
         });

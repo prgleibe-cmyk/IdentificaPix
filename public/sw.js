@@ -1,6 +1,6 @@
 
-// Service Worker IdentificaPix - Versão 10
-const CACHE_NAME = 'identificapix-v11';
+// Service Worker IdentificaPix - Versão 15
+const CACHE_NAME = 'identificapix-v15';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -36,20 +36,34 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Estratégia: Cache First, falling back to Network
-  // Exceto para chamadas de API ou recursos dinâmicos
+  // Estratégia: Network First para o index.html e root, Cache First para o resto
+  const isIndex = event.request.url.endsWith('/') || event.request.url.endsWith('/index.html');
+  
   if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
     return event.respondWith(fetch(event.request));
+  }
+
+  if (isIndex) {
+    // Network First para garantir que sempre pegamos a versão mais nova do index
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clonedResponse = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, clonedResponse);
+          });
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
   }
 
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request).then((fetchResponse) => {
-        // Opcionalmente cacheia novos recursos
         return fetchResponse;
       });
-    }).catch(() => {
-      // Fallback offline se necessário
     })
   );
 });
