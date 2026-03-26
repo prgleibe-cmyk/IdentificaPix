@@ -212,13 +212,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return report?.data?.spreadsheet;
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
+    const isHydrated = useAuth().isHydrated && referenceData.isHydrated && reportManager.isHydrated && reconciliation.isHydrated;
+
     useEffect(() => { 
         if (user === null) {
             setInitialDataLoaded(true); 
-        } else if (user && subscription.ownerId) {
+        } else if (user && subscription.ownerId && isHydrated) {
             setInitialDataLoaded(true); 
         }
-    }, [user, subscription.ownerId]);
+    }, [user, subscription.ownerId, isHydrated]);
 
     const value = useMemo(() => ({
         ...referenceData, 

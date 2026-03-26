@@ -20,11 +20,13 @@ const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     const { subscription } = useAuth();
-    const userSuffix = user ? `-${user.id}` : '-guest';
+    const userSuffix = user ? `-${user.id}` : null;
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
+    const [searchFilters, setSearchFilters, searchFiltersHydrated] = usePersistentState<SearchFilters>(userSuffix ? `identificapix-search-filters${userSuffix}` : null, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
+
+    const isHydrated = searchFiltersHydrated;
 
     // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
@@ -247,11 +249,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
-        allHistoricalResults
+        allHistoricalResults,
+        isHydrated
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports
+        deleteOldReports,
+        isHydrated
     ]);
 };

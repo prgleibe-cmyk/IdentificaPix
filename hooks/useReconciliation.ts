@@ -41,12 +41,12 @@ export const useReconciliation = ({
     setActiveView
 }: any) => {
 
-    const userSuffix = user ? `-${user.id}` : '-guest';
+    const userSuffix = user ? `-${user.id}` : null;
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
-    const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
+    const [activeReportId, setActiveReportId, activeReportIdHydrated] = usePersistentState<string | null>(userSuffix ? `identificapix-active-report-id${userSuffix}` : null, null);
+    const [matchResults, setMatchResults, matchResultsHydrated] = usePersistentState<MatchResult[]>(userSuffix ? `identificapix-match-results${userSuffix}` : null, [], true);
+    const [hasActiveSession, setHasActiveSession, hasActiveSessionHydrated] = usePersistentState<boolean>(userSuffix ? `identificapix-has-session${userSuffix}` : null, false);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
@@ -59,7 +59,9 @@ export const useReconciliation = ({
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     const [triggerSync, setTriggerSync] = useState(0);
     
-    const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
+    const [launchedResults, setLaunchedResults, launchedResultsHydrated] = usePersistentState<MatchResult[]>(userSuffix ? `identificapix-launched${userSuffix}` : null, [], true);
+
+    const isHydrated = activeReportIdHydrated && matchResultsHydrated && hasActiveSessionHydrated && launchedResultsHydrated;
 
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
@@ -418,6 +420,7 @@ export const useReconciliation = ({
         removeTransaction: (id: string) => {
             setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
         },
+        isHydrated,
         hydrate,
         setMatchResults,
         setReportPreviewData

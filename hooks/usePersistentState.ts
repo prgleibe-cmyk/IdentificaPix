@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 
-export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
+export function usePersistentState<T>(key: string | null, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>, boolean] {
     const [state, setState] = useState<T>(() => {
-        if (isHeavy) return initialValue;
+        if (!key || isHeavy) return initialValue;
         try {
             if (typeof window !== 'undefined') {
                 const item = window.localStorage.getItem(key);
@@ -16,6 +16,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
         return initialValue;
     });
 
+    const [isHydratedState, setIsHydratedState] = useState(false);
     const isHydrated = useRef(false);
     const isMounted = useRef(false);
     const timeoutRef = useRef<any>(null);
@@ -24,7 +25,15 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     useEffect(() => {
         isMounted.current = true;
         isHydrated.current = false; // Reset hydration flag when key changes
+        setIsHydratedState(false);
         
+        if (!key) {
+            setState(initialValue);
+            isHydrated.current = true;
+            setIsHydratedState(true);
+            return;
+        }
+
         const hydrate = async () => {
             if (!isHeavy) {
                 try {
@@ -40,6 +49,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                     console.warn(`Erro hidratação leve ${key}:`, error);
                 }
                 isHydrated.current = true;
+                setIsHydratedState(true);
                 return;
             }
 
@@ -55,7 +65,10 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
             } catch (error) {
                 console.warn(`Erro hidratação ${key}:`, error);
             } finally {
-                if (isMounted.current) isHydrated.current = true;
+                if (isMounted.current) {
+                    isHydrated.current = true;
+                    setIsHydratedState(true);
+                }
             }
         };
 
@@ -64,7 +77,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     }, [key, isHeavy]);
 
     useEffect(() => {
-        if (!isHydrated.current || !isMounted.current) return;
+        if (!key || !isHydrated.current || !isMounted.current) return;
 
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
@@ -102,5 +115,5 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
         return () => clearTimeout(timeoutRef.current);
     }, [key, state, isHeavy]);
 
-    return [state, setState];
+    return [state, setState, isHydratedState];
 }

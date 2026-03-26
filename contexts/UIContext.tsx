@@ -25,7 +25,7 @@ interface UIContextType {
 const UIContext = createContext<UIContextType>(null!);
 
 export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [theme, setTheme] = usePersistentState<Theme>('identificapix-theme', 'light');
+    const [theme, setTheme, themeHydrated] = usePersistentState<Theme>('identificapix-theme', 'light');
     const [activeView, setActiveView] = useState<ViewType>('dashboard');
     const [isLoading, setIsLoadingState] = useState<boolean>(false);
     const [parsingProgress, setParsingProgress] = useState<ParsingProgress | null>(null);

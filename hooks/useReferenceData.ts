@@ -11,17 +11,19 @@ const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     const { subscription, systemSettings } = useAuth();
-    const userSuffix = user ? `-${user.id}` : '-guest';
+    const userSuffix = user ? `-${user.id}` : null;
 
-    const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
-    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
+    const [banks, setBanks, banksHydrated] = usePersistentState<Bank[]>(userSuffix ? `identificapix-banks${userSuffix}` : null, []);
+    const [churches, setChurches, churchesHydrated] = usePersistentState<Church[]>(userSuffix ? `identificapix-churches${userSuffix}` : null, []);
     const [fileModels, setFileModels] = useState<FileModel[]>([]);
-    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
-    const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
+    const [similarityLevel, setSimilarityLevel, similarityLevelHydrated] = usePersistentState<number>(userSuffix ? `identificapix-similarity${userSuffix}` : null, 55);
+    const [dayTolerance, setDayTolerance, dayToleranceHydrated] = usePersistentState<number>(userSuffix ? `identificapix-daytolerance${userSuffix}` : null, 2);
     
     const customIgnoreKeywords = useMemo(() => systemSettings?.ignoredKeywords || [], [systemSettings?.ignoredKeywords]);
-    const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
-    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
+    const [contributionKeywords, setContributionKeywords, contributionKeywordsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-contrib-keywords${userSuffix}` : null, DEFAULT_CONTRIBUTION_KEYWORDS);
+    const [paymentMethods, setPaymentMethods, paymentMethodsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-payment-methods${userSuffix}` : null, DEFAULT_PAYMENT_METHODS);
+
+    const isHydrated = banksHydrated && churchesHydrated && similarityLevelHydrated && dayToleranceHydrated && contributionKeywordsHydrated && paymentMethodsHydrated;
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
@@ -242,13 +244,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
-        setBanks, setChurches, setLearnedAssociations
+        setBanks, setChurches, setLearnedAssociations,
+        isHydrated
     }), [
         banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
         customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod,
+        isHydrated
     ]);
 };

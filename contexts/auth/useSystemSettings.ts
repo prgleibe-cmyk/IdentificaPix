@@ -5,7 +5,7 @@ import { AdminConfigService } from '../../services/AdminConfigService';
 import { SystemSettings, DEFAULT_SETTINGS } from './AuthContracts';
 
 export const useSystemSettings = () => {
-    const [systemSettings, setSystemSettings] = usePersistentState<SystemSettings>(
+    const [systemSettings, setSystemSettings, isHydrated] = usePersistentState<SystemSettings>(
         'identificapix-settings-v6', 
         DEFAULT_SETTINGS
     );
@@ -48,5 +48,5 @@ export const useSystemSettings = () => {
         }
     }, [setSystemSettings]);
 
-    return { systemSettings, updateSystemSettings, settingsRef };
+    return { systemSettings, updateSystemSettings, settingsRef, isHydrated };
 };
