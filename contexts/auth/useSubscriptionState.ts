@@ -63,6 +63,9 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const now = new Date();
             let p = (profileData as any) || {};
             
+            // Fallback ownerId if not present
+            if (!p.owner_id) p.owner_id = userId;
+
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
             if (p.owner_id && p.owner_id !== userId) {
@@ -157,6 +160,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             setSubscriptionHydrated(true);
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
+            setSubscription(prev => ({ ...prev, ownerId: userId })); // Fallback para não travar splash screen
             setSubscriptionHydrated(true);
         }
     }, [settingsRef]);

@@ -1,6 +1,6 @@
 
 // Service Worker IdentificaPix - Versão 10
-const CACHE_NAME = 'identificapix-v10';
+const CACHE_NAME = 'identificapix-v11';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

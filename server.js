@@ -19,7 +19,6 @@ import { GoogleGenAI } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { createServer as createViteServer } from 'vite';
 
 // Importação das rotas
 import gmailRoutes from './backend/routes/gmail.js';
@@ -83,6 +82,7 @@ async function startServer() {
     // Vite middleware for development
     if (process.env.NODE_ENV !== 'production') {
         console.log("[Server] Modo Desenvolvimento: Ativando Vite Middleware...");
+        const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: 'spa',
