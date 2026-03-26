@@ -124,8 +124,9 @@ export const useSmartAnalysisController = () => {
             let spreadsheet = report.data?.spreadsheet;
 
             if (!results && !spreadsheet) {
-                const { data } = await supabase.from('saved_reports').select('data').eq('id', report.id).single();
-                const parsedData = typeof data?.data === 'string' ? JSON.parse(data.data) : data?.data;
+                const { data } = await (supabase.from('saved_reports') as any).select('data').eq('id', report.id).single();
+                const rawData = data as any;
+                const parsedData = typeof rawData?.data === 'string' ? JSON.parse(rawData.data) : rawData?.data;
                 results = parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             }
