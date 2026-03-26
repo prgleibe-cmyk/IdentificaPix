@@ -19,16 +19,12 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { session, subscription } = useAuth();
-    const userSuffix = user ? `-${user.id}` : null;
+    const { subscription } = useAuth();
+    const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
-    const [reportsHydrated, setReportsHydrated] = useState(false);
-    const lastFetchedOwnerId = useRef<string | null>(null);
-    const [searchFilters, setSearchFilters, searchFiltersHydrated] = usePersistentState<SearchFilters>(userSuffix ? `identificapix-search-filters${userSuffix}` : null, DEFAULT_SEARCH_FILTERS);
+    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
-
-    const isHydrated = searchFiltersHydrated && reportsHydrated && (user ? lastFetchedOwnerId.current === (subscription.ownerId || user.id) : true);
 
     // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
@@ -40,58 +36,19 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) {
             setSavedReports([]);
-            setReportsHydrated(true);
-            lastFetchedOwnerId.current = null;
-            return;
-        }
-
-        const ownerId = subscription.ownerId || user.id;
-        
-        // 🛡️ Aguarda a hidratação da assinatura para ter o ownerId correto
-        if (!subscription.ownerId || subscription.ownerId === '') {
-            setReportsHydrated(false);
-            return;
-        }
-
-        // Se já buscamos para este ownerId, não resetamos a hidratação
-        if (lastFetchedOwnerId.current === ownerId) {
-            setReportsHydrated(true);
             return;
         }
 
         const fetchReports = async () => {
-            setReportsHydrated(false);
+            const ownerId = subscription.ownerId || user.id;
             try {
-                let data: any[] | null = null;
+                const { data, error } = await supabase
+                    .from('saved_reports')
+                    .select('*')
+                    .eq('user_id', ownerId)
+                    .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
 
-                if (subscription.role === 'owner') {
-                    const { data: supabaseData, error } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
-
-                    if (error) throw error;
-                    data = supabaseData;
-                } else {
-                    // Para membros, usamos a API do backend que ignora RLS (via Service Role)
-                    const token = session?.access_token;
-                    if (!token) {
-                        setReportsHydrated(true);
-                        return;
-                    }
-
-                    const response = await fetch(`/api/reference/reports/${ownerId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-                    if (response.ok) {
-                        data = await response.json();
-                    } else {
-                        throw new Error(`Erro API: ${response.status}`);
-                    }
-                }
+                if (error) throw error;
 
                 if (data) {
                     let hydrated: SavedReport[] = data.map((r: any) => ({
@@ -106,31 +63,21 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     // Se for membro, filtra relatórios que contenham resultados da sua congregação
                     if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
                         hydrated = hydrated.filter(report => {
-                            const results = report.data?.results || [];
-                            const hasSpreadsheet = !!report.data?.spreadsheet;
-
-                            // Se não tem resultados de conciliação, mas tem planilha, permitimos ver
-                            if (results.length === 0) return hasSpreadsheet;
-
-                            // Se tem resultados, deve conter PELO MENOS UM da sua congregação (mais flexível que 'every')
-                            return results.some(res => 
-                                subscription.congregationIds.includes(res.church?.id || res._churchId)
-                            );
+                            if (!report.data || !report.data.results || report.data.results.length === 0) return false;
+                            // Deve conter APENAS resultados das suas congregações
+                            return report.data.results.every(res => subscription.congregationIds.includes(res.church?.id || res._churchId));
                         });
                     }
 
                     setSavedReports(hydrated);
-                    lastFetchedOwnerId.current = ownerId;
                 }
             } catch (err) {
                 console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
-            } finally {
-                setReportsHydrated(true);
             }
         };
 
         fetchReports();
-    }, [user?.id, subscription.ownerId, subscription.role, subscription.congregationIds?.join(','), session?.access_token]);
+    }, [user]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
@@ -260,7 +207,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             showToast('Relatório criado!', 'success');
             return newReportId;
         }
-    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length, subscription.ownerId]);
+    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
@@ -283,7 +230,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
         
         return results;
-    }, [savedReports, subscription.role, subscription.congregationIds]);
+    }, [savedReports, subscription.role, subscription.congregationId]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,
@@ -293,13 +240,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
-        allHistoricalResults,
-        isHydrated
+        allHistoricalResults
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports,
-        isHydrated
+        deleteOldReports
     ]);
 };

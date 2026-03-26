@@ -7,8 +7,8 @@ import './index.css';
 // Registro do Service Worker com versionamento para forçar atualização de ícones no PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Adicionado v=10 para garantir que o Chrome/Windows detecte a nova versão do Service Worker e atualize ícones
-    navigator.serviceWorker.register('/sw.js?v=10').catch(err => {
+    // Adicionado v=9 para garantir que o Chrome/Windows detecte a nova versão do Service Worker e atualize ícones
+    navigator.serviceWorker.register('/sw.js?v=9').catch(err => {
       console.log('Service Worker registration failed: ', err);
     });
   });

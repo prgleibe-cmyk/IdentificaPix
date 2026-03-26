@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
 import { usePersistentState } from './usePersistentState';
@@ -10,72 +10,43 @@ import { modelService } from '../services/modelService';
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { session, subscription, systemSettings } = useAuth();
-    const userSuffix = user ? `-${user.id}` : null;
+    const { subscription, systemSettings } = useAuth();
+    const userSuffix = user ? `-${user.id}` : '-guest';
 
-    const [banks, setBanks, banksHydrated] = usePersistentState<Bank[]>(userSuffix ? `identificapix-banks${userSuffix}` : null, []);
-    const [churches, setChurches, churchesHydrated] = usePersistentState<Church[]>(userSuffix ? `identificapix-churches${userSuffix}` : null, []);
+    const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
+    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
     const [fileModels, setFileModels] = useState<FileModel[]>([]);
-    const [similarityLevel, setSimilarityLevel, similarityLevelHydrated] = usePersistentState<number>(userSuffix ? `identificapix-similarity${userSuffix}` : null, 55);
-    const [dayTolerance, setDayTolerance, dayToleranceHydrated] = usePersistentState<number>(userSuffix ? `identificapix-daytolerance${userSuffix}` : null, 2);
+    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
+    const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     
     const customIgnoreKeywords = useMemo(() => systemSettings?.ignoredKeywords || [], [systemSettings?.ignoredKeywords]);
-    const [contributionKeywords, setContributionKeywords, contributionKeywordsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-contrib-keywords${userSuffix}` : null, DEFAULT_CONTRIBUTION_KEYWORDS);
-    const [paymentMethods, setPaymentMethods, paymentMethodsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-payment-methods${userSuffix}` : null, DEFAULT_PAYMENT_METHODS);
-    const [syncHydrated, setSyncHydrated] = useState(false);
-    const lastFetchedOwnerId = useRef<string | null>(null);
-
-    const isHydrated = banksHydrated && churchesHydrated && similarityLevelHydrated && dayToleranceHydrated && contributionKeywordsHydrated && paymentMethodsHydrated && syncHydrated && (user ? lastFetchedOwnerId.current === (subscription.ownerId || user.id) : true);
+    const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
+    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
     useEffect(() => {
-        if (!user) {
-            setSyncHydrated(true);
-            lastFetchedOwnerId.current = null;
-            return;
-        }
-
-        const ownerId = subscription.ownerId || user.id;
-        
-        // 🛡️ Aguarda a hidratação da assinatura para ter o ownerId correto
-        if (!subscription.ownerId || subscription.ownerId === '') {
-            setSyncHydrated(false);
-            return;
-        }
-
-        // Se já buscamos para este ownerId, não resetamos a hidratação
-        if (lastFetchedOwnerId.current === ownerId) {
-            setSyncHydrated(true);
-            return;
-        }
-
-        setSyncHydrated(false);
-        setBanks([]);
-        setChurches([]);
-
+        if (!user) return;
         const syncData = async () => {
+            const ownerId = subscription.ownerId || user.id;
+            
             // Se for o dono, pode usar o Supabase diretamente (RLS permite)
             // Se for membro/admin, usamos a API backend que tem privilégios de Service Role
-            try {
-                if (subscription.role === 'owner') {
-                    const [banksRes, churchesRes] = await Promise.all([
-                        supabase.from('banks').select('*').eq('user_id', ownerId),
-                        supabase.from('churches').select('*').eq('user_id', ownerId)
-                    ]);
-                    
-                    if (banksRes.data) setBanks(banksRes.data);
-                    if (churchesRes.data) setChurches(churchesRes.data);
-                    lastFetchedOwnerId.current = ownerId;
-                } else {
-                    // Para usuários secundários, usamos a API backend para contornar limitações de RLS
+            if (subscription.role === 'owner') {
+                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                const { data: b } = await bankQuery;
+                if (b) setBanks(b);
+                
+                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                const { data: c } = await query;
+                if (c) setChurches(c);
+            } else {
+                // Para usuários secundários, usamos a API backend para contornar limitações de RLS
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
-                    if (!token) {
-                        setSyncHydrated(true);
-                        return;
-                    }
 
                     const response = await fetch(`/api/reference/data/${ownerId}`, {
                         headers: {
@@ -85,29 +56,28 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     if (response.ok) {
                         const data = await response.json();
                         
-                        // Aplicar filtros de permissão no frontend
+                        // Aplicar filtros de permissão no frontend para garantir
                         let filteredBanks = data.banks || [];
                         let filteredChurches = data.churches || [];
                         
-                        const allowedBankIds = subscription.bankIds || [];
-                        const allowedChurchIds = subscription.congregationIds || [];
-                        
-                        filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
-                        filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+                        if (subscription.role !== 'owner') {
+                            const allowedBankIds = subscription.bankIds || [];
+                            const allowedChurchIds = subscription.congregationIds || [];
+                            
+                            filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                            filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+                        }
                         
                         setBanks(filteredBanks);
                         setChurches(filteredChurches);
-                        lastFetchedOwnerId.current = ownerId;
                     }
+                } catch (error) {
+                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                 }
-            } catch (error) {
-                console.error("[useReferenceData] Erro ao buscar dados via API:", error);
-            } finally {
-                setSyncHydrated(true);
             }
         };
         syncData();
-    }, [user?.id, subscription.ownerId, subscription.role, subscription.bankIds?.join(','), subscription.congregationIds?.join(','), session?.access_token]);
+    }, [user, subscription, setBanks, setChurches]);
 
     useEffect(() => {
         if (!user) return;
@@ -174,7 +144,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error("Erro ao persistir aprendizado:", err);
         }
-    }, [user, subscription.ownerId]);
+    }, [user]);
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
@@ -272,15 +242,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
-        setBanks, setChurches, setLearnedAssociations,
-        isHydrated
+        setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
         customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod,
-        isHydrated
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
     ]);
 };

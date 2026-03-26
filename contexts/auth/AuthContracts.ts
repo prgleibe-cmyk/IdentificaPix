@@ -26,7 +26,6 @@ export interface AuthContextType {
   updateLimits: (slots: number) => Promise<void>;
   systemSettings: SystemSettings;
   updateSystemSettings: (settings: Partial<SystemSettings>) => Promise<void>;
-  isHydrated: boolean;
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
