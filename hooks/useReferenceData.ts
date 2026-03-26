@@ -22,29 +22,39 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const customIgnoreKeywords = useMemo(() => systemSettings?.ignoredKeywords || [], [systemSettings?.ignoredKeywords]);
     const [contributionKeywords, setContributionKeywords, contributionKeywordsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-contrib-keywords${userSuffix}` : null, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods, paymentMethodsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-payment-methods${userSuffix}` : null, DEFAULT_PAYMENT_METHODS);
+    const [syncHydrated, setSyncHydrated] = useState(false);
 
-    const isHydrated = banksHydrated && churchesHydrated && similarityLevelHydrated && dayToleranceHydrated && contributionKeywordsHydrated && paymentMethodsHydrated;
+    const isHydrated = banksHydrated && churchesHydrated && similarityLevelHydrated && dayToleranceHydrated && contributionKeywordsHydrated && paymentMethodsHydrated && syncHydrated;
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setSyncHydrated(true);
+            return;
+        }
+
+        setSyncHydrated(false);
+        setBanks([]);
+        setChurches([]);
+
         const syncData = async () => {
             const ownerId = subscription.ownerId || user.id;
             
             // Se for o dono, pode usar o Supabase diretamente (RLS permite)
             // Se for membro/admin, usamos a API backend que tem privilégios de Service Role
-            if (subscription.role === 'owner') {
-                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
-                const { data: b } = await bankQuery;
-                if (b) setBanks(b);
-                
-                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
-                const { data: c } = await query;
-                if (c) setChurches(c);
-            } else {
+                if (subscription.role === 'owner') {
+                    let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                    const { data: b } = await bankQuery;
+                    if (b) setBanks(b);
+                    
+                    let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                    const { data: c } = await query;
+                    if (c) setChurches(c);
+                    setSyncHydrated(true);
+                } else {
                 // Para usuários secundários, usamos a API backend para contornar limitações de RLS
                 try {
                     const { data: { session } } = await supabase.auth.getSession();
@@ -62,19 +72,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         let filteredBanks = data.banks || [];
                         let filteredChurches = data.churches || [];
                         
-                        if (subscription.role !== 'owner') {
-                            const allowedBankIds = subscription.bankIds || [];
-                            const allowedChurchIds = subscription.congregationIds || [];
-                            
-                            filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
-                            filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
-                        }
+                        const allowedBankIds = subscription.bankIds || [];
+                        const allowedChurchIds = subscription.congregationIds || [];
+                        
+                        filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                        filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
                         
                         setBanks(filteredBanks);
                         setChurches(filteredChurches);
                     }
                 } catch (error) {
                     console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                } finally {
+                    setSyncHydrated(true);
                 }
             }
         };

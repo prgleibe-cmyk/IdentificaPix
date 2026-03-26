@@ -61,7 +61,14 @@ export const useReconciliation = ({
     
     const [launchedResults, setLaunchedResults, launchedResultsHydrated] = usePersistentState<MatchResult[]>(userSuffix ? `identificapix-launched${userSuffix}` : null, [], true);
 
-    const isHydrated = activeReportIdHydrated && matchResultsHydrated && hasActiveSessionHydrated && launchedResultsHydrated;
+    const { persistTransactions, clearRemoteList, hydrate, isHydrated: vivaHydrated } = useLiveListSync({
+        user,
+        setBankStatementFile,
+        setSelectedBankIds,
+        showToast
+    });
+
+    const isHydrated = activeReportIdHydrated && matchResultsHydrated && hasActiveSessionHydrated && launchedResultsHydrated && vivaHydrated;
 
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
@@ -185,13 +192,6 @@ export const useReconciliation = ({
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
     }, [user?.id, matchResults, setMatchResults, triggerSync]);
-
-    const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
-        user,
-        setBankStatementFile,
-        setSelectedBankIds,
-        showToast
-    });
 
     const findMatchResult = useCallback((txId: string) => {
         return matchResults.find(r => r.transaction.id === txId);

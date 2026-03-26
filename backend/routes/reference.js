@@ -82,5 +82,41 @@ export default () => {
         }
     });
 
+    router.get('/reports/:ownerId', async (req, res) => {
+        const { ownerId } = req.params;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração: Service Role não encontrada." });
+        }
+
+        try {
+            // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('owner_id, role')
+                .eq('id', req.user.id)
+                .single();
+
+            if (profileError) return res.status(500).json({ error: 'Erro ao validar permissões.' });
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+            if (effectiveOwnerId !== ownerId) return res.status(403).json({ error: "Acesso negado." });
+
+            const { data: reports, error: reportsError } = await supabase
+                .from('saved_reports')
+                .select('*')
+                .eq('user_id', ownerId)
+                .order('created_at', { ascending: false });
+
+            if (reportsError) throw reportsError;
+
+            res.json(reports || []);
+        } catch (error) {
+            console.error("[Reports API] Erro:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return router;
 };

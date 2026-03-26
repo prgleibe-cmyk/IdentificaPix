@@ -12,6 +12,7 @@ export const useLiveListSync = ({
 }: any) => {
     const { showToast } = useUI();
     const isHydrating = useRef(false);
+    const [vivaHydrated, setVivaHydrated] = useState(false);
     const lastUserId = useRef<string | null>(null);
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export const useLiveListSync = ({
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile([]);
                 if (forceClearUI) setSelectedBankIds([]);
+                setVivaHydrated(true);
                 isHydrating.current = false;
                 return;
             }
@@ -83,9 +85,11 @@ export const useLiveListSync = ({
                 });
             }
             
+            setVivaHydrated(true);
         } catch (err: any) {
             console.error("[Lista Viva] Erro na sincronização da UI:", err);
             setSyncError("Falha ao sincronizar dados.");
+            setVivaHydrated(true);
         } finally {
             isHydrating.current = false;
         }
@@ -117,6 +121,16 @@ export const useLiveListSync = ({
             supabase.removeChannel(channel);
         };
     }, [user?.id, hydrate]);
+
+    useEffect(() => {
+        if (!user) {
+            setVivaHydrated(true);
+            setBankStatementFile([]);
+        } else {
+            setVivaHydrated(false);
+            setBankStatementFile([]);
+        }
+    }, [user, setBankStatementFile]);
 
     useEffect(() => {
         if (user?.id && user.id !== lastUserId.current) {
@@ -152,5 +166,5 @@ export const useLiveListSync = ({
         }
     }, [user, hydrate]);
 
-    return { persistTransactions, clearRemoteList, hydrate, syncError };
+    return { persistTransactions, clearRemoteList, hydrate, syncError, isHydrated: vivaHydrated };
 };

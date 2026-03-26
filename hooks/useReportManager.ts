@@ -22,11 +22,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const { subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : null;
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    const [reportsHydrated, setReportsHydrated] = useState(false);
     const [searchFilters, setSearchFilters, searchFiltersHydrated] = usePersistentState<SearchFilters>(userSuffix ? `identificapix-search-filters${userSuffix}` : null, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    const isHydrated = searchFiltersHydrated;
+    const isHydrated = searchFiltersHydrated && reportsHydrated;
 
     // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
@@ -38,19 +39,41 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) {
             setSavedReports([]);
+            setReportsHydrated(true);
             return;
         }
+
+        setReportsHydrated(false);
+        setSavedReports([]);
 
         const fetchReports = async () => {
             const ownerId = subscription.ownerId || user.id;
             try {
-                const { data, error } = await supabase
-                    .from('saved_reports')
-                    .select('*')
-                    .eq('user_id', ownerId)
-                    .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
+                let data: any[] | null = null;
 
-                if (error) throw error;
+                if (subscription.role === 'owner') {
+                    const { data: supabaseData, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
+
+                    if (error) throw error;
+                    data = supabaseData;
+                } else {
+                    // Para membros, usamos a API do backend que ignora RLS (via Service Role)
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const response = await fetch(`/api/reference/reports/${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${session?.access_token}`
+                        }
+                    });
+                    if (response.ok) {
+                        data = await response.json();
+                    } else {
+                        throw new Error(`Erro API: ${response.status}`);
+                    }
+                }
 
                 if (data) {
                     let hydrated: SavedReport[] = data.map((r: any) => ({
@@ -82,6 +105,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 }
             } catch (err) {
                 console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
+            } finally {
+                setReportsHydrated(true);
             }
         };
 
