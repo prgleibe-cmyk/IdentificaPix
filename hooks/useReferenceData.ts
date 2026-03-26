@@ -144,7 +144,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error("Erro ao persistir aprendizado:", err);
         }
-    }, [user, subscription.ownerId]);
+    }, [user]);
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
