@@ -17,16 +17,16 @@ import { PLACEHOLDER_CHURCH } from '../services/processingService';
 export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, session, subscription } = useAuth();
+    const { user, subscription } = useAuth();
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
     const effectiveUser = useMemo(() => {
-        if (!user || !subscription.ownerId) return null;
-        return { ...user, id: subscription.ownerId };
-    }, [user?.id, subscription.ownerId]); // Use primitive IDs to avoid re-renders if objects change reference but not ID
+        if (!user) return null;
+        return { ...user, id: subscription.ownerId || user.id };
+    }, [user, subscription.ownerId]);
 
     const modalController = useModalController();
     const referenceData = useReferenceData(effectiveUser, showToast);
@@ -38,7 +38,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const reconciliation = useReconciliation({
         user: effectiveUser,
-        session,
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
@@ -53,8 +52,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsLoading,
         setActiveView
     });
-
-    const { setActiveReportId, setHasActiveSession, setMatchResults, activeReportId, matchResults } = reconciliation;
 
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
@@ -85,8 +82,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if ((results && results.length > 0) || spreadsheet) {
-                setActiveReportId(reportId);
-                setHasActiveSession(true);
+                reconciliation.setActiveReportId(reportId);
+                reconciliation.setHasActiveSession(true);
 
                 // Se tiver resultados de conciliação, carrega na lista viva e vai para Relatórios
                 if (results && results.length > 0) {
@@ -100,7 +97,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         hydrated = hydrated.filter((r: any) => subscription.congregationIds.includes(r.church?.id || r._churchId));
                     }
 
-                    setMatchResults(hydrated);
+                    reconciliation.setMatchResults(hydrated);
                     setActiveView('reports');
                 } 
                 // Se for apenas planilha ou ranking sem resultados brutos, vai para o Gerador
@@ -118,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } finally {
             setIsLoading(false);
         }
-    }, [reportManager.savedReports, referenceData.churches, setActiveReportId, setHasActiveSession, setMatchResults, subscription.role, subscription.congregationIds, setActiveView, setIsLoading, showToast]);
+    }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 
     /**
      * 🔐 PERSISTÊNCIA MESTRE (Auto-Save Direto)
@@ -215,30 +212,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return report?.data?.spreadsheet;
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
-    const isHydrated = useAuth().isHydrated && referenceData.isHydrated && reportManager.isHydrated && reconciliation.isHydrated;
-
-    useEffect(() => { 
-        if (user === null) {
-            setInitialDataLoaded(true); 
-        } else if (user && subscription.ownerId && isHydrated) {
-            setInitialDataLoaded(true); 
-        }
-    }, [user, subscription.ownerId, isHydrated]);
-
-    // 🔄 AUTO-LOAD ACTIVE REPORT
-    // Se o usuário já tinha um relatório ativo mas os resultados não estão no cache local (ex: novo login),
-    // tenta carregar os dados do banco automaticamente assim que a hidratação inicial termina.
-    useEffect(() => {
-        if (initialDataLoaded && activeReportId && matchResults.length === 0) {
-            // Pequeno delay para garantir que o reportManager.savedReports está estável
-            const timer = setTimeout(() => {
-                if (matchResults.length === 0 && activeReportId) {
-                    viewSavedReport(activeReportId);
-                }
-            }, 800);
-            return () => clearTimeout(timer);
-        }
-    }, [initialDataLoaded, activeReportId, matchResults.length, viewSavedReport]);
+    useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
 
     const value = useMemo(() => ({
         ...referenceData, 

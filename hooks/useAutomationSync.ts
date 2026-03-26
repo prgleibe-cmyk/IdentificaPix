@@ -43,8 +43,8 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
             if (type === "SAVE_TRAINING" && user) {
                 setIsLoading(true);
                 try {
-                    const { data, error } = await (supabase
-                        .from('automation_macros') as any)
+                    const { data, error } = await supabase
+                        .from('automation_macros')
                         .insert({
                             user_id: user.id,
                             name: `Macro ${payload.bankName || 'Treino'} - ${new Date().toLocaleTimeString()}`,

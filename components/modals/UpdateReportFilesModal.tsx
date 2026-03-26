@@ -19,7 +19,7 @@ import {
     EllipsisVerticalIcon 
 } from '../Icons';
 import { FileUploader, FileUploaderHandle } from '../FileUploader';
-import { GmailSyncModal } from './GmailSyncModal';
+import { GmailModal } from '../../features/gmail/GmailModal';
 import { processFileContent } from '../../services/processingService';
 import { LaunchService } from '../../services/LaunchService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -202,7 +202,7 @@ export const UpdateReportFilesModal: React.FC = () => {
                     </div>
                 </div>
             </div>
-            {isGmailModalOpen && <GmailSyncModal onClose={() => setIsGmailModalOpen(false)} />}
+            {isGmailModalOpen && <GmailModal onClose={() => setIsGmailModalOpen(false)} onSuccess={() => {}} />}
         </>
     );
 };

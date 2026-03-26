@@ -84,9 +84,9 @@ export const useAdminUsers = () => {
             if (formData.subscription_ends_at) updates.subscription_ends_at = new Date(formData.subscription_ends_at).toISOString();
 
             const { error } = await (supabase
-                .from('profiles') as any)
+                .from('profiles')
                 .update(updates)
-                .eq('id', editingUser.id);
+                .eq('id', editingUser.id) as any);
 
             if (error) throw error;
 
@@ -111,9 +111,9 @@ export const useAdminUsers = () => {
         setIsDeleting(userToDelete.id);
         try {
             const { error } = await (supabase
-                .from('profiles') as any)
+                .from('profiles')
                 .delete()
-                .eq('id', userToDelete.id);
+                .eq('id', userToDelete.id) as any);
 
             if (error) throw error;
 

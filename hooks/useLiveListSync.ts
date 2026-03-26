@@ -7,14 +7,11 @@ import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
-    session,
-    subscription,
     setBankStatementFile,
     setSelectedBankIds
 }: any) => {
     const { showToast } = useUI();
     const isHydrating = useRef(false);
-    const [vivaHydrated, setVivaHydrated] = useState(false);
     const lastUserId = useRef<string | null>(null);
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
@@ -30,41 +27,11 @@ export const useLiveListSync = ({
         setSyncError(null);
         
         try {
-            const ownerId = subscription?.ownerId || user.id;
-            const isMember = subscription?.role === 'member';
-            
-            let dbTransactions: any[] = [];
-            
-            if (!isMember) {
-                dbTransactions = await consolidationService.getPendingTransactions(user.id);
-            } else {
-                // Para membros, usamos a API do backend que ignora RLS (via Service Role)
-                const token = session?.access_token;
-                if (!token) {
-                    setVivaHydrated(true);
-                    isHydrating.current = false;
-                    return;
-                }
-
-                const response = await fetch(`/api/reference/pending/${ownerId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    dbTransactions = await response.json();
-                } else {
-                    console.error("[Lista Viva] Erro API Backend:", response.status);
-                    // Fallback para Supabase se a API falhar (provavelmente retornará vazio por RLS)
-                    dbTransactions = await consolidationService.getPendingTransactions(user.id);
-                }
-            }
+            const dbTransactions = await consolidationService.getPendingTransactions(user.id);
             
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile([]);
                 if (forceClearUI) setSelectedBankIds([]);
-                setVivaHydrated(true);
                 isHydrating.current = false;
                 return;
             }
@@ -116,15 +83,13 @@ export const useLiveListSync = ({
                 });
             }
             
-            setVivaHydrated(true);
         } catch (err: any) {
             console.error("[Lista Viva] Erro na sincronização da UI:", err);
             setSyncError("Falha ao sincronizar dados.");
-            setVivaHydrated(true);
         } finally {
             isHydrating.current = false;
         }
-    }, [user?.id, isCleaning, setBankStatementFile, setSelectedBankIds]);
+    }, [user, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
@@ -154,21 +119,11 @@ export const useLiveListSync = ({
     }, [user?.id, hydrate]);
 
     useEffect(() => {
-        if (!user) {
-            setVivaHydrated(true);
-            setBankStatementFile([]);
-        } else {
-            setVivaHydrated(false);
-            setBankStatementFile([]);
-        }
-    }, [user, setBankStatementFile]);
-
-    useEffect(() => {
         if (user?.id && user.id !== lastUserId.current) {
             lastUserId.current = user.id;
             hydrate(true);
         }
-    }, [user?.id, hydrate]);
+    }, [user, hydrate]);
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
@@ -197,5 +152,5 @@ export const useLiveListSync = ({
         }
     }, [user, hydrate]);
 
-    return { persistTransactions, clearRemoteList, hydrate, syncError, isHydrated: vivaHydrated };
+    return { persistTransactions, clearRemoteList, hydrate, syncError };
 };

@@ -16,8 +16,8 @@ export const modelService = {
         try {
             // Ajuste de Escopo Global: Removemos a restrição única de user_id
             // para incluir todos os modelos ativos no sistema (DNA Compartilhado).
-            const { data, error } = await (supabase
-                .from('file_models') as any)
+            const { data, error } = await supabase
+                .from('file_models')
                 .select('*')
                 .or(`is_active.eq.true,user_id.eq.${userId}`);
             
@@ -64,13 +64,13 @@ export const modelService = {
             if (!session) throw new Error("Sessão expirada.");
 
             if (model.lineage_id) {
-                await (supabase.from('file_models') as any)
+                await supabase.from('file_models')
                     .update({ is_active: false })
                     .eq('lineage_id', model.lineage_id);
             }
 
-            const { data, error } = await (supabase
-                .from('file_models') as any)
+            const { data, error } = await supabase
+                .from('file_models')
                 .insert([{
                     name: model.name,
                     user_id: session.user.id,
@@ -97,8 +97,8 @@ export const modelService = {
 
     updateModel: async (id: string, updates: Partial<FileModel>): Promise<FileModel | null> => {
         try {
-            const { data, error } = await (supabase
-                .from('file_models') as any)
+            const { data, error } = await supabase
+                .from('file_models')
                 .update({
                     name: updates.name,
                     status: updates.status,
@@ -122,7 +122,7 @@ export const modelService = {
     },
 
     deleteModel: async (id: string) => {
-        const { error } = await (supabase.from('file_models') as any).delete().eq('id', id);
+        const { error } = await supabase.from('file_models').delete().eq('id', id);
         if (!error) {
             await del(PERSISTENT_STORAGE_KEY);
             return true;
@@ -131,13 +131,13 @@ export const modelService = {
     },
 
     getAllModelsAdmin: async (): Promise<FileModel[]> => {
-        const { data, error } = await (supabase.from('file_models') as any).select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('file_models').select('*').order('created_at', { ascending: false });
         if (error) return [];
         return data as any[];
     },
 
     updateModelName: async (id: string, name: string) => {
-        const { error } = await (supabase.from('file_models') as any).update({ name }).eq('id', id);
+        const { error } = await supabase.from('file_models').update({ name }).eq('id', id);
         if (!error) {
             await del(PERSISTENT_STORAGE_KEY);
             return true;

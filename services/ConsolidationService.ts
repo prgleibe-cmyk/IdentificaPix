@@ -57,8 +57,8 @@ export const consolidationService = {
 
                 const chunk = sanitizedPayload.slice(i, i + CHUNK_SIZE);
 
-                const { data, error } = await (supabase
-                    .from('consolidated_transactions') as any)
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
                     .insert(chunk)
                     .select('*');
 
@@ -76,8 +76,8 @@ export const consolidationService = {
 
                         const recoveryChunk = chunk.map(({ is_confirmed, ...rest }: any) => rest);
 
-                        const { data: recData, error: recError } = await (supabase
-                            .from('consolidated_transactions') as any)
+                        const { data: recData, error: recError } = await supabase
+                            .from('consolidated_transactions')
                             .insert(recoveryChunk)
                             .select('*');
 
@@ -109,8 +109,8 @@ export const consolidationService = {
 
         try {
 
-            const { error } = await (supabase
-                .from('consolidated_transactions') as any)
+            const { error } = await supabase
+                .from('consolidated_transactions')
                 .update({ status })
                 .eq('id', id);
 
@@ -135,8 +135,8 @@ export const consolidationService = {
 
         if (!ids || ids.length === 0) return true;
 
-        const { data, error } = await (supabase
-            .from('consolidated_transactions') as any)
+        const { data, error } = await supabase
+            .from('consolidated_transactions')
             .update({
                 is_confirmed,
                 status: is_confirmed ? 'resolved' : 'pending'
@@ -171,8 +171,8 @@ export const consolidationService = {
 
             while (hasMore) {
 
-                const { data, error } = await (supabase
-                    .from('consolidated_transactions') as any)
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
                     .select('row_hash')
                     .eq('user_id', userId)
                     .range(from, from + step - 1);
@@ -207,8 +207,8 @@ export const consolidationService = {
 
             if (!userId) return false;
 
-            let query = (supabase
-                .from('consolidated_transactions') as any)
+            let query = supabase
+                .from('consolidated_transactions')
                 .delete()
                 .eq('user_id', userId)
                 .eq('status', 'pending')
@@ -258,8 +258,8 @@ export const consolidationService = {
 
             while (hasMore) {
 
-                const { data, error } = await (supabase
-                    .from('consolidated_transactions') as any)
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
                     .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
@@ -297,8 +297,8 @@ export const consolidationService = {
 
         try {
 
-            const { error } = await (supabase
-                .from('consolidated_transactions') as any)
+            const { error } = await supabase
+                .from('consolidated_transactions')
                 .delete()
                 .eq('id', id);
 
@@ -328,8 +328,8 @@ export const consolidationService = {
             for (let i = 0; i < ids.length; i += chunkSize) {
                 const chunk = ids.slice(i, i + chunkSize);
                 
-                const { data, error } = await (supabase
-                    .from('consolidated_transactions') as any)
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
                     .select('id')
                     .eq('user_id', userId)
                     .eq('is_confirmed', true)
@@ -373,8 +373,8 @@ export const consolidationService = {
 
             // 1. Busca exaustiva de todos os registros para comparação
             while (hasMore) {
-                const { data, error } = await (supabase
-                    .from('consolidated_transactions') as any)
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
                     .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
                     .eq('user_id', userId)
                     .range(from, from + step - 1);
@@ -420,8 +420,8 @@ export const consolidationService = {
                 const chunkSize = 100;
                 for (let i = 0; i < duplicateIds.length; i += chunkSize) {
                     const chunk = duplicateIds.slice(i, i + chunkSize);
-                    await (supabase
-                        .from('consolidated_transactions') as any)
+                    await supabase
+                        .from('consolidated_transactions')
                         .delete()
                         .in('id', chunk);
                 }

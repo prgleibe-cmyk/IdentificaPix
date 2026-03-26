@@ -13,8 +13,8 @@ export const AdminConfigService = {
         }
 
         try {
-            const { data, error } = await (supabase
-                .from('admin_config') as any)
+            const { data, error } = await supabase
+                .from('admin_config')
                 .select('value')
                 .eq('key', key)
                 .order('updated_at', { ascending: false })
@@ -29,7 +29,7 @@ export const AdminConfigService = {
                 return null;
             }
 
-            const value = (data as any)?.[0]?.value as T;
+            const value = data[0].value as T;
             this.cache.set(key, value);
             return value;
         } catch (e) {
@@ -43,8 +43,8 @@ export const AdminConfigService = {
 
         try {
             // O onConflict: 'key' agora funciona pois o SQL V12 adicionou a constraint UNIQUE
-            const { error } = await (supabase
-                .from('admin_config') as any)
+            const { error } = await supabase
+                .from('admin_config')
                 .upsert(
                     { 
                         key, 
@@ -69,14 +69,14 @@ export const AdminConfigService = {
 
     async getAll(): Promise<Record<string, any>> {
         try {
-            const { data, error } = await (supabase
-                .from('admin_config') as any)
+            const { data, error } = await supabase
+                .from('admin_config')
                 .select('key, value');
 
             if (error) throw error;
 
             const config: Record<string, any> = {};
-            (data as any[])?.forEach(row => {
+            data?.forEach(row => {
                 config[row.key] = row.value;
                 this.cache.set(row.key, row.value);
             });
