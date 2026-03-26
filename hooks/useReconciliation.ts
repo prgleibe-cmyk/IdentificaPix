@@ -26,6 +26,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useReconciliation = ({
     user,
+    session,
     subscription,
     churches,
     banks,
@@ -63,6 +64,8 @@ export const useReconciliation = ({
 
     const { persistTransactions, clearRemoteList, hydrate, isHydrated: vivaHydrated } = useLiveListSync({
         user,
+        session,
+        subscription,
         setBankStatementFile,
         setSelectedBankIds,
         showToast

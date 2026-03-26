@@ -16,7 +16,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
 
   const { systemSettings, updateSystemSettings, settingsRef, isHydrated: settingsHydrated } = useSystemSettings();
-  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId } = useSubscriptionState(settingsRef);
+  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId, subscriptionHydrated } = useSubscriptionState(settingsRef);
 
   const refreshSubscription = useCallback(async () => {
     if (user) await calculateSubscription(user.id, true);
@@ -83,8 +83,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     session, user, loading, signOut, subscription, refreshSubscription,
     ...authActions,
     systemSettings, updateSystemSettings,
-    isHydrated: settingsHydrated
-  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings, settingsHydrated]);
+    isHydrated: settingsHydrated && subscriptionHydrated
+  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings, settingsHydrated, subscriptionHydrated]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

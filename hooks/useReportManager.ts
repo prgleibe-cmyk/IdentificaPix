@@ -19,15 +19,16 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription } = useAuth();
+    const { session, subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : null;
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [reportsHydrated, setReportsHydrated] = useState(false);
+    const lastFetchedOwnerId = useRef<string | null>(null);
     const [searchFilters, setSearchFilters, searchFiltersHydrated] = usePersistentState<SearchFilters>(userSuffix ? `identificapix-search-filters${userSuffix}` : null, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    const isHydrated = searchFiltersHydrated && reportsHydrated;
+    const isHydrated = searchFiltersHydrated && reportsHydrated && (user ? lastFetchedOwnerId.current === (subscription.ownerId || user.id) : true);
 
     // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
@@ -40,14 +41,26 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (!user) {
             setSavedReports([]);
             setReportsHydrated(true);
+            lastFetchedOwnerId.current = null;
             return;
         }
 
-        setReportsHydrated(false);
-        setSavedReports([]);
+        const ownerId = subscription.ownerId || user.id;
+        
+        // 🛡️ Aguarda a hidratação da assinatura para ter o ownerId correto
+        if (!subscription.ownerId || subscription.ownerId === '') {
+            setReportsHydrated(false);
+            return;
+        }
+
+        // Se já buscamos para este ownerId, não resetamos a hidratação
+        if (lastFetchedOwnerId.current === ownerId) {
+            setReportsHydrated(true);
+            return;
+        }
 
         const fetchReports = async () => {
-            const ownerId = subscription.ownerId || user.id;
+            setReportsHydrated(false);
             try {
                 let data: any[] | null = null;
 
@@ -62,10 +75,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     data = supabaseData;
                 } else {
                     // Para membros, usamos a API do backend que ignora RLS (via Service Role)
-                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+                    if (!token) {
+                        setReportsHydrated(true);
+                        return;
+                    }
+
                     const response = await fetch(`/api/reference/reports/${ownerId}`, {
                         headers: {
-                            'Authorization': `Bearer ${session?.access_token}`
+                            'Authorization': `Bearer ${token}`
                         }
                     });
                     if (response.ok) {
@@ -102,6 +120,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }
 
                     setSavedReports(hydrated);
+                    lastFetchedOwnerId.current = ownerId;
                 }
             } catch (err) {
                 console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
@@ -111,7 +130,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         };
 
         fetchReports();
-    }, [user?.id, subscription.ownerId, subscription.role, subscription.congregationIds?.join(',')]);
+    }, [user?.id, subscription.ownerId, subscription.role, subscription.congregationIds?.join(','), session?.access_token]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);

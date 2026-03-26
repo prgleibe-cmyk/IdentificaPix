@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
 import { usePersistentState } from './usePersistentState';
@@ -10,7 +10,7 @@ import { modelService } from '../services/modelService';
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription, systemSettings } = useAuth();
+    const { session, subscription, systemSettings } = useAuth();
     const userSuffix = user ? `-${user.id}` : null;
 
     const [banks, setBanks, banksHydrated] = usePersistentState<Bank[]>(userSuffix ? `identificapix-banks${userSuffix}` : null, []);
@@ -23,8 +23,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [contributionKeywords, setContributionKeywords, contributionKeywordsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-contrib-keywords${userSuffix}` : null, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods, paymentMethodsHydrated] = usePersistentState<string[]>(userSuffix ? `identificapix-payment-methods${userSuffix}` : null, DEFAULT_PAYMENT_METHODS);
     const [syncHydrated, setSyncHydrated] = useState(false);
+    const lastFetchedOwnerId = useRef<string | null>(null);
 
-    const isHydrated = banksHydrated && churchesHydrated && similarityLevelHydrated && dayToleranceHydrated && contributionKeywordsHydrated && paymentMethodsHydrated && syncHydrated;
+    const isHydrated = banksHydrated && churchesHydrated && similarityLevelHydrated && dayToleranceHydrated && contributionKeywordsHydrated && paymentMethodsHydrated && syncHydrated && (user ? lastFetchedOwnerId.current === (subscription.ownerId || user.id) : true);
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
@@ -32,6 +33,21 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     useEffect(() => {
         if (!user) {
+            setSyncHydrated(true);
+            lastFetchedOwnerId.current = null;
+            return;
+        }
+
+        const ownerId = subscription.ownerId || user.id;
+        
+        // 🛡️ Aguarda a hidratação da assinatura para ter o ownerId correto
+        if (!subscription.ownerId || subscription.ownerId === '') {
+            setSyncHydrated(false);
+            return;
+        }
+
+        // Se já buscamos para este ownerId, não resetamos a hidratação
+        if (lastFetchedOwnerId.current === ownerId) {
             setSyncHydrated(true);
             return;
         }
@@ -41,24 +57,25 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         setChurches([]);
 
         const syncData = async () => {
-            const ownerId = subscription.ownerId || user.id;
-            
             // Se for o dono, pode usar o Supabase diretamente (RLS permite)
             // Se for membro/admin, usamos a API backend que tem privilégios de Service Role
+            try {
                 if (subscription.role === 'owner') {
-                    let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
-                    const { data: b } = await bankQuery;
-                    if (b) setBanks(b);
+                    const [banksRes, churchesRes] = await Promise.all([
+                        supabase.from('banks').select('*').eq('user_id', ownerId),
+                        supabase.from('churches').select('*').eq('user_id', ownerId)
+                    ]);
                     
-                    let query = supabase.from('churches').select('*').eq('user_id', ownerId);
-                    const { data: c } = await query;
-                    if (c) setChurches(c);
-                    setSyncHydrated(true);
+                    if (banksRes.data) setBanks(banksRes.data);
+                    if (churchesRes.data) setChurches(churchesRes.data);
+                    lastFetchedOwnerId.current = ownerId;
                 } else {
-                // Para usuários secundários, usamos a API backend para contornar limitações de RLS
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
+                    // Para usuários secundários, usamos a API backend para contornar limitações de RLS
                     const token = session?.access_token;
+                    if (!token) {
+                        setSyncHydrated(true);
+                        return;
+                    }
 
                     const response = await fetch(`/api/reference/data/${ownerId}`, {
                         headers: {
@@ -68,7 +85,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     if (response.ok) {
                         const data = await response.json();
                         
-                        // Aplicar filtros de permissão no frontend para garantir
+                        // Aplicar filtros de permissão no frontend
                         let filteredBanks = data.banks || [];
                         let filteredChurches = data.churches || [];
                         
@@ -80,16 +97,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         
                         setBanks(filteredBanks);
                         setChurches(filteredChurches);
+                        lastFetchedOwnerId.current = ownerId;
                     }
-                } catch (error) {
-                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
-                } finally {
-                    setSyncHydrated(true);
                 }
+            } catch (error) {
+                console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+            } finally {
+                setSyncHydrated(true);
             }
         };
         syncData();
-    }, [user, subscription, setBanks, setChurches]);
+    }, [user?.id, subscription.ownerId, subscription.role, subscription.bankIds?.join(','), subscription.congregationIds?.join(','), session?.access_token]);
 
     useEffect(() => {
         if (!user) return;

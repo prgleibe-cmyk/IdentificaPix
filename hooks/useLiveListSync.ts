@@ -7,6 +7,8 @@ import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
+    session,
+    subscription,
     setBankStatementFile,
     setSelectedBankIds
 }: any) => {
@@ -28,7 +30,36 @@ export const useLiveListSync = ({
         setSyncError(null);
         
         try {
-            const dbTransactions = await consolidationService.getPendingTransactions(user.id);
+            const ownerId = subscription?.ownerId || user.id;
+            const isMember = subscription?.role === 'member';
+            
+            let dbTransactions: any[] = [];
+            
+            if (!isMember) {
+                dbTransactions = await consolidationService.getPendingTransactions(user.id);
+            } else {
+                // Para membros, usamos a API do backend que ignora RLS (via Service Role)
+                const token = session?.access_token;
+                if (!token) {
+                    setVivaHydrated(true);
+                    isHydrating.current = false;
+                    return;
+                }
+
+                const response = await fetch(`/api/reference/pending/${ownerId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    dbTransactions = await response.json();
+                } else {
+                    console.error("[Lista Viva] Erro API Backend:", response.status);
+                    // Fallback para Supabase se a API falhar (provavelmente retornará vazio por RLS)
+                    dbTransactions = await consolidationService.getPendingTransactions(user.id);
+                }
+            }
             
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile([]);

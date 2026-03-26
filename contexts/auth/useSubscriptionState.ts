@@ -19,12 +19,38 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         role: 'owner',
         ownerId: ''
     });
+    const [subscriptionHydrated, setSubscriptionHydrated] = useState(false);
 
     const lastProcessedUserId = useRef<string | null>(null);
 
     const calculateSubscription = useCallback(async (userId: string | null, force: boolean = false) => {
-        if (!userId) return;
-        if (!force && lastProcessedUserId.current === userId) return;
+        if (!userId) {
+            setSubscription({
+                plan: 'trial',
+                daysRemaining: 10,
+                totalDays: 10,
+                isExpired: false,
+                isBlocked: false,
+                isLifetime: false,
+                aiLimit: 100, 
+                aiUsage: 0,
+                maxChurches: 2, 
+                maxBanks: 2,
+                role: 'owner',
+                ownerId: ''
+            });
+            setSubscriptionHydrated(true);
+            return;
+        }
+        
+        if (!force && lastProcessedUserId.current === userId) {
+            setSubscriptionHydrated(true);
+            return;
+        }
+
+        // Reset state before fetching new data
+        setSubscriptionHydrated(false);
+        setSubscription(prev => ({ ...prev, ownerId: '' }));
         
         lastProcessedUserId.current = userId;
         const settings = settingsRef.current;
@@ -128,10 +154,12 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 bankIds: bankIds,
                 permissions: permissions
             });
+            setSubscriptionHydrated(true);
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
+            setSubscriptionHydrated(true);
         }
     }, [settingsRef]);
 
-    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId };
+    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId, subscriptionHydrated };
 };
