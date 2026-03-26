@@ -9,9 +9,10 @@ interface EditUserModalProps {
     isSaving: boolean;
     onClose: () => void;
     onSubmit: (e: React.FormEvent) => void;
+    potentialOwners: any[];
 }
 
-export const EditUserModal: React.FC<EditUserModalProps> = ({ user, formData, setFormData, isSaving, onClose, onSubmit }) => {
+export const EditUserModal: React.FC<EditUserModalProps> = ({ user, formData, setFormData, isSaving, onClose, onSubmit, potentialOwners }) => {
     const { t } = useTranslation();
     const inputClass = "w-full bg-slate-100/50 dark:bg-black/20 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all placeholder:text-slate-400";
     const labelClass = "block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1";
@@ -32,6 +33,42 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, formData, se
                     </div>
                     
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-50/30 dark:bg-[#0B1120]/30 space-y-6 min-h-0">
+                        <div className="bg-white/60 dark:bg-white/5 p-5 rounded-3xl border border-slate-100/50 dark:border-white/5">
+                            <h4 className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2"><CheckBadgeIcon className="w-3.5 h-3.5" /> Tipo de Usuário & Hierarquia</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className={labelClass}>Papel (Role)</label>
+                                    <select 
+                                        value={formData.role} 
+                                        onChange={(e) => setFormData({...formData, role: e.target.value})} 
+                                        className={inputClass}
+                                    >
+                                        <option value="owner">Titular (Owner)</option>
+                                        <option value="member">Membro (Member)</option>
+                                        <option value="admin">Administrador Global</option>
+                                    </select>
+                                </div>
+                                {formData.role === 'member' && (
+                                    <div>
+                                        <label className={labelClass}>Vincular ao Titular (Owner)</label>
+                                        <select 
+                                            value={formData.owner_id} 
+                                            onChange={(e) => setFormData({...formData, owner_id: e.target.value})} 
+                                            className={inputClass}
+                                            required
+                                        >
+                                            <option value="">Selecione um titular...</option>
+                                            {potentialOwners.filter(o => o.id !== user.id).map(owner => (
+                                                <option key={owner.id} value={owner.id}>
+                                                    {owner.name || owner.email} ({owner.email})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         <div className="bg-white/60 dark:bg-white/5 p-5 rounded-3xl border border-slate-100/50 dark:border-white/5">
                             <h4 className="text-[10px] font-black text-brand-blue dark:text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2"><CheckBadgeIcon className="w-3.5 h-3.5" /> Plano & Vigência</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

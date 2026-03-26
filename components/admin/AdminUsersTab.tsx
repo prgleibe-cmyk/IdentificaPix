@@ -60,6 +60,7 @@ export const AdminUsersTab: React.FC = () => {
                     isSaving={isSaving}
                     onClose={() => setEditingUser(null)}
                     onSubmit={handleSaveUser}
+                    potentialOwners={usersList.filter(u => u.role === 'owner' || !u.role)}
                 />
             )}
 

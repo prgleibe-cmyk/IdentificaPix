@@ -18,7 +18,9 @@ export const useAdminUsers = () => {
         custom_price: '',
         is_blocked: false,
         trial_ends_at: '',
-        subscription_ends_at: ''
+        subscription_ends_at: '',
+        role: 'owner',
+        owner_id: ''
     });
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -58,7 +60,9 @@ export const useAdminUsers = () => {
             custom_price: user.custom_price || '',
             is_blocked: user.is_blocked || false,
             trial_ends_at: formatDate(user.trial_ends_at),
-            subscription_ends_at: formatDate(user.subscription_ends_at)
+            subscription_ends_at: formatDate(user.subscription_ends_at),
+            role: user.role || 'owner',
+            owner_id: user.owner_id || ''
         });
     }, []);
 
@@ -77,16 +81,18 @@ export const useAdminUsers = () => {
                 max_banks: parseInt(String(formData.max_churches)),
                 custom_price: formData.custom_price ? parseFloat(String(formData.custom_price)) : null,
                 is_blocked: formData.is_blocked,
-                is_lifetime: formData.subscription_status === 'lifetime'
+                is_lifetime: formData.subscription_status === 'lifetime',
+                role: formData.role,
+                owner_id: formData.role === 'member' ? (formData.owner_id || null) : null
             };
 
             if (formData.trial_ends_at) updates.trial_ends_at = new Date(formData.trial_ends_at).toISOString();
             if (formData.subscription_ends_at) updates.subscription_ends_at = new Date(formData.subscription_ends_at).toISOString();
 
             const { error } = await (supabase
-                .from('profiles')
+                .from('profiles') as any)
                 .update(updates)
-                .eq('id', editingUser.id) as any);
+                .eq('id', editingUser.id);
 
             if (error) throw error;
 
