@@ -76,7 +76,7 @@ const AppContent: React.FC = () => {
     }
 
     return (
-        <SessionProvider>
+        <SessionProvider key={session.user.id}>
             <MainLayout />
         </SessionProvider>
     );

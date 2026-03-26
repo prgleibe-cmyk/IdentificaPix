@@ -27,7 +27,7 @@ import {
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
-    const { activeView, setActiveView } = useUI();
+    const { activeView, setActiveView, showToast } = useUI();
     const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings } = useAuth();
     const { openPaymentModal } = useContext(AppContext);
@@ -49,15 +49,37 @@ export const Sidebar: React.FC = () => {
             e.preventDefault();
             setDeferredPrompt(e);
         };
+
+        const installedHandler = () => {
+            setDeferredPrompt(null);
+            showToast("App instalado com sucesso!", "success");
+        };
+
         window.addEventListener('beforeinstallprompt', handler);
-        return () => window.removeEventListener('beforeinstallprompt', handler);
-    }, []);
+        window.addEventListener('appinstalled', installedHandler);
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handler);
+            window.removeEventListener('appinstalled', installedHandler);
+        };
+    }, [showToast]);
 
     const handleInstallApp = async () => {
-        if (!deferredPrompt) return;
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') setDeferredPrompt(null);
+        if (!deferredPrompt) {
+            showToast("O App já está instalado ou não é compatível.", "error");
+            return;
+        }
+        
+        try {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setDeferredPrompt(null);
+            }
+        } catch (err) {
+            console.error("Erro na instalação:", err);
+            showToast("Erro ao tentar instalar o App.", "error");
+        }
     };
 
     const navItems = useMemo(() => {

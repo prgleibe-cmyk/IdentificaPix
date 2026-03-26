@@ -1,6 +1,7 @@
 
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { clear } from 'idb-keyval';
 import { AuthContextType } from './auth/AuthContracts';
 import { useSystemSettings } from './auth/useSystemSettings';
 import { useSubscriptionState } from './auth/useSubscriptionState';
@@ -14,8 +15,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const isSigningOut = useRef(false);
 
-  const { systemSettings, updateSystemSettings, settingsRef } = useSystemSettings();
-  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId } = useSubscriptionState(settingsRef);
+  const { systemSettings, updateSystemSettings, settingsRef, isHydrated: settingsHydrated } = useSystemSettings();
+  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId, subscriptionHydrated } = useSubscriptionState(settingsRef);
 
   const refreshSubscription = useCallback(async () => {
     if (user) await calculateSubscription(user.id, true);
@@ -32,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(null);
         setUser(null);
         await (supabase.auth as any).signOut();
+        await clear(); // Limpa IndexedDB (idb-keyval)
         Object.keys(localStorage).forEach(key => {
             if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
                 localStorage.removeItem(key);
@@ -80,8 +82,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = useMemo(() => ({
     session, user, loading, signOut, subscription, refreshSubscription,
     ...authActions,
-    systemSettings, updateSystemSettings
-  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
+    systemSettings, updateSystemSettings,
+    isHydrated: settingsHydrated && subscriptionHydrated
+  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings, settingsHydrated, subscriptionHydrated]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

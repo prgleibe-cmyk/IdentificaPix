@@ -26,6 +26,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useReconciliation = ({
     user,
+    session,
     subscription,
     churches,
     banks,
@@ -41,12 +42,12 @@ export const useReconciliation = ({
     setActiveView
 }: any) => {
 
-    const userSuffix = user ? `-${user.id}` : '-guest';
+    const userSuffix = user ? `-${user.id}` : null;
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
-    const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
+    const [activeReportId, setActiveReportId, activeReportIdHydrated] = usePersistentState<string | null>(userSuffix ? `identificapix-active-report-id${userSuffix}` : null, null);
+    const [matchResults, setMatchResults, matchResultsHydrated] = usePersistentState<MatchResult[]>(userSuffix ? `identificapix-match-results${userSuffix}` : null, [], true);
+    const [hasActiveSession, setHasActiveSession, hasActiveSessionHydrated] = usePersistentState<boolean>(userSuffix ? `identificapix-has-session${userSuffix}` : null, false);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
@@ -59,7 +60,18 @@ export const useReconciliation = ({
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     const [triggerSync, setTriggerSync] = useState(0);
     
-    const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
+    const [launchedResults, setLaunchedResults, launchedResultsHydrated] = usePersistentState<MatchResult[]>(userSuffix ? `identificapix-launched${userSuffix}` : null, [], true);
+
+    const { persistTransactions, clearRemoteList, hydrate, isHydrated: vivaHydrated } = useLiveListSync({
+        user,
+        session,
+        subscription,
+        setBankStatementFile,
+        setSelectedBankIds,
+        showToast
+    });
+
+    const isHydrated = activeReportIdHydrated && matchResultsHydrated && hasActiveSessionHydrated && launchedResultsHydrated && vivaHydrated;
 
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
@@ -73,7 +85,7 @@ export const useReconciliation = ({
             }
         }
         return results;
-    }, [matchResults, subscription]);
+    }, [matchResults, subscription.role, subscription.congregationIds?.join(','), subscription.bankIds?.join(',')]);
 
     const filteredLaunchedResults = useMemo(() => {
         let results = launchedResults;
@@ -86,7 +98,7 @@ export const useReconciliation = ({
             }
         }
         return results;
-    }, [launchedResults, subscription]);
+    }, [launchedResults, subscription.role, subscription.congregationIds?.join(','), subscription.bankIds?.join(',')]);
 
     const processingFilesRef = useRef<Set<string>>(new Set());
     const lastValidatedHash = useRef<string>('');
@@ -182,14 +194,7 @@ export const useReconciliation = ({
 
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
-    }, [user, matchResults, setMatchResults, triggerSync]);
-
-    const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
-        user,
-        setBankStatementFile,
-        setSelectedBankIds,
-        showToast
-    });
+    }, [user?.id, matchResults, setMatchResults, triggerSync]);
 
     const findMatchResult = useCallback((txId: string) => {
         return matchResults.find(r => r.transaction.id === txId);
@@ -418,6 +423,7 @@ export const useReconciliation = ({
         removeTransaction: (id: string) => {
             setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
         },
+        isHydrated,
         hydrate,
         setMatchResults,
         setReportPreviewData
