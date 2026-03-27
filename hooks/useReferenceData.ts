@@ -1,11 +1,42 @@
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
+
+// Cache global para evitar chamadas duplicadas entre diferentes hooks na mesma sessão
+let sharedDataPromise: Promise<any> | null = null;
+let lastFetchedOwnerIdGlobal: string | null = null;
+
+/**
+ * Função utilitária para buscar dados de referência com cache de promessa.
+ * Garante que múltiplas chamadas simultâneas resultem em apenas uma requisição de rede.
+ */
+export const getSharedReferenceData = async (ownerId: string) => {
+    if (lastFetchedOwnerIdGlobal !== ownerId) {
+        sharedDataPromise = null;
+        lastFetchedOwnerIdGlobal = ownerId;
+    }
+
+    if (!sharedDataPromise) {
+        sharedDataPromise = (async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            const response = await fetch(`/api/reference/data/${ownerId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) throw new Error("Falha ao buscar dados de referência");
+            return response.json();
+        })();
+    }
+    return sharedDataPromise;
+};
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
@@ -26,36 +57,46 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
+    const [isReady, setIsReady] = useState(false);
+
+    const lastFetchedOwnerIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         let ignore = false;
-        if (!user) return;
-        const syncData = async () => {
-            const ownerId = subscription.ownerId || user.id;
-            
-            // Se for o dono, pode usar o Supabase diretamente (RLS permite)
-            // Se for membro/admin, usamos a API backend que tem privilégios de Service Role
-            if (subscription.role === 'owner') {
-                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
-                const { data: b } = await bankQuery;
-                if (b && !ignore) setBanks(b);
-                
-                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
-                const { data: c } = await query;
-                if (c && !ignore) setChurches(c);
-            } else {
-                // Para usuários secundários, usamos a API backend para contornar limitações de RLS
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
+        if (!user) {
+            lastFetchedOwnerIdRef.current = null;
+            setIsReady(false);
+            // Reset cache global ao deslogar para garantir novos dados no próximo login
+            sharedDataPromise = null;
+            lastFetchedOwnerIdGlobal = null;
+            return;
+        }
 
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
+        const ownerId = subscription.ownerId || user.id;
+        
+        // Evita chamadas duplicadas se já buscamos dados para este ownerId nesta sessão
+        if (lastFetchedOwnerIdRef.current === ownerId) {
+            setIsReady(true);
+            return;
+        }
+        lastFetchedOwnerIdRef.current = ownerId;
+
+        const syncData = async () => {
+            try {
+                // Se for o dono, pode usar o Supabase diretamente (RLS permite)
+                // Se for membro/admin, usamos a API backend que tem privilégios de Service Role
+                if (subscription.role === 'owner') {
+                    let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                    const { data: b } = await bankQuery;
+                    if (b && !ignore) setBanks(b);
+                    
+                    let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                    const { data: c } = await query;
+                    if (c && !ignore) setChurches(c);
+                } else {
+                    // Para usuários secundários, usamos a API backend para contornar limitações de RLS
+                    try {
+                        const data = await getSharedReferenceData(ownerId);
                         if (ignore) return;
                         
                         // Aplicar filtros de permissão no frontend para garantir
@@ -76,12 +117,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                             setBanks(filteredBanks);
                             setChurches(filteredChurches);
                         }
-                    }
-                } catch (error) {
-                    if (!ignore) {
-                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                    } catch (error) {
+                        if (!ignore) {
+                            console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                        }
                     }
                 }
+            } finally {
+                if (!ignore) setIsReady(true);
             }
         };
         syncData();
@@ -253,13 +296,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
-        setBanks, setChurches, setLearnedAssociations
+        setBanks, setChurches, setLearnedAssociations, isReady
     }), [
         banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
         customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod, isReady
     ]);
 };

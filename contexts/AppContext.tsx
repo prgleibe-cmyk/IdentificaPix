@@ -22,6 +22,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
+    const hasHydratedRef = useRef(false);
 
     const effectiveUser = useMemo(() => {
         if (!user) return null;
@@ -253,15 +254,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * carrega automaticamente o relatório para manter a continuidade entre dispositivos.
      */
     useEffect(() => {
-        if (!initialDataLoaded || !user || !subscription.activeReportId) return;
+        if (!initialDataLoaded || !user || !subscription.activeReportId || !referenceData.isReady || !reportManager.isReady || hasHydratedRef.current) return;
         
         // Se não houver relatório ativo local OU se o relatório ativo local for diferente do da nuvem
         // (Isso garante que se o usuário mudar de relatório em outro dispositivo, este também mude)
         if (!reconciliation.activeReportId || (reconciliation.activeReportId !== subscription.activeReportId && reconciliation.matchResults.length === 0)) {
             console.log("[CloudHydration] Carregando relatório ativo da nuvem:", subscription.activeReportId);
+            hasHydratedRef.current = true;
             viewSavedReport(subscription.activeReportId);
         }
-    }, [initialDataLoaded, user, subscription.activeReportId, reconciliation.activeReportId, reconciliation.matchResults.length, viewSavedReport]);
+    }, [initialDataLoaded, user, subscription.activeReportId, reconciliation.activeReportId, reconciliation.matchResults.length, viewSavedReport, referenceData.isReady, reportManager.isReady]);
 
     const value = useMemo(() => ({
         ...referenceData, 
