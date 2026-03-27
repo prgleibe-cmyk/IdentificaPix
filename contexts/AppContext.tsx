@@ -114,6 +114,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if ((results && results.length > 0) || spreadsheet) {
+                console.log(`[viewSavedReport] Sucesso: ${results?.length || 0} resultados, spreadsheet: ${!!spreadsheet}`);
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
@@ -254,14 +255,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * carrega automaticamente o relatório para manter a continuidade entre dispositivos.
      */
     useEffect(() => {
-        if (!initialDataLoaded || !user || !subscription.activeReportId || !referenceData.isReady || !reportManager.isReady || hasHydratedRef.current) return;
+        // Só prossegue se tudo estiver carregado e pronto
+        if (!initialDataLoaded || !user || !subscription.activeReportId) {
+            return;
+        }
+        
+        if (!referenceData.isReady || !reportManager.isReady) {
+            return;
+        }
+        
+        // Se já hidratamos nesta sessão, não fazemos nada
+        if (hasHydratedRef.current) return;
         
         // Se não houver relatório ativo local OU se o relatório ativo local for diferente do da nuvem
         // (Isso garante que se o usuário mudar de relatório em outro dispositivo, este também mude)
-        if (!reconciliation.activeReportId || (reconciliation.activeReportId !== subscription.activeReportId && reconciliation.matchResults.length === 0)) {
-            console.log("[CloudHydration] Carregando relatório ativo da nuvem:", subscription.activeReportId);
+        const needsHydration = !reconciliation.activeReportId || 
+                             (reconciliation.activeReportId !== subscription.activeReportId && reconciliation.matchResults.length === 0);
+
+        if (needsHydration) {
+            console.log("[CloudHydration] 🚀 Iniciando hidratação automática do relatório:", subscription.activeReportId);
             hasHydratedRef.current = true;
-            viewSavedReport(subscription.activeReportId);
+            viewSavedReport(subscription.activeReportId).catch(err => {
+                console.error("[CloudHydration] ❌ Erro na hidratação automática:", err);
+                // Se falhou, permitimos tentar de novo se o estado mudar (opcional)
+                // hasHydratedRef.current = false; 
+            });
+        } else if (reconciliation.activeReportId === subscription.activeReportId) {
+            // Se já estamos com o relatório correto, apenas marcamos como hidratado para não tentar de novo
+            console.log("[CloudHydration] ✅ Relatório já presente localmente, marcando como hidratado.");
+            hasHydratedRef.current = true;
         }
     }, [initialDataLoaded, user, subscription.activeReportId, reconciliation.activeReportId, reconciliation.matchResults.length, viewSavedReport, referenceData.isReady, reportManager.isReady]);
 

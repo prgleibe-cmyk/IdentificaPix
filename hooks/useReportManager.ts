@@ -48,34 +48,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const ownerId = subscription.ownerId || user.id;
         
-        // Evita chamadas duplicadas se já buscamos dados para este ownerId nesta sessão
-        if (lastFetchedOwnerIdRef.current === ownerId) {
-            setIsReady(true);
-            return;
-        }
-        lastFetchedOwnerIdRef.current = ownerId;
+        // Se já estamos prontos e o ownerId não mudou, não fazemos nada
+        if (lastFetchedOwnerIdRef.current === ownerId && isReady) return;
 
         const fetchReports = async () => {
             try {
-                let data: any[] | null = null;
-
-                // Se for o dono, pode usar o Supabase diretamente (RLS permite)
-                if (subscription.role === 'owner') {
-                    const { data: d, error } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
-                    
-                    if (error) throw error;
-                    if (ignore) return;
-                    data = d;
-                } else {
-                    // Para usuários secundários, usamos a API de referência compartilhada
-                    const resData = await getSharedReferenceData(ownerId);
-                    if (ignore) return;
-                    data = resData.reports || [];
-                }
+                // Usamos a API de referência compartilhada que agora busca tudo (bancos, igrejas, relatórios)
+                const resData = await getSharedReferenceData(ownerId, subscription.role);
+                if (ignore) return;
+                const data = resData.reports || [];
 
                 if (data && !ignore) {
                     let hydrated: SavedReport[] = data.map((r: any) => ({
@@ -97,6 +78,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }
 
                     setSavedReports(hydrated);
+                    lastFetchedOwnerIdRef.current = ownerId;
+                    if (!ignore) console.log(`[useReportManager] Pronto! Relatórios: ${hydrated.length}`);
                 }
             } catch (err) {
                 if (!ignore) {
@@ -109,7 +92,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
+    }, [user, subscription, isReady]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
