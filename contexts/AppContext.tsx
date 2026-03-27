@@ -59,31 +59,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * Carrega os dados de um relatório salvo e redireciona para a tela correta.
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
-        const report = reportManager.savedReports.find(r => r.id === reportId);
-        if (!report) return;
-
+        // Tenta encontrar na lista local primeiro
+        const localReport = reportManager.savedReports.find(r => r.id === reportId);
+        
         setIsLoading(true);
         try {
-            let results = report.data?.results;
-            let spreadsheet = report.data?.spreadsheet;
-            
+            let results = localReport?.data?.results;
+            let spreadsheet = localReport?.data?.spreadsheet;
+            let reportName = localReport?.name;
+
+            // Se não temos os dados (ou o relatório nem está na lista local ainda)
             if (!results && !spreadsheet) {
                 const { data: { user: currentUser } } = await supabase.auth.getUser();
                 const ownerId = subscription.ownerId || currentUser?.id;
                 
                 if (subscription.role === 'owner') {
-                    const { data, error } = await supabase
+                    const { data: reportData, error } = await supabase
                         .from('saved_reports')
-                        .select('data')
+                        .select('data, name')
                         .eq('id', reportId)
                         .single() as { data: any | null, error: any };
                     
                     if (error) throw error;
-                    if (!data) throw new Error('Report not found');
-                    const rawData = data.data;
+                    if (!reportData) throw new Error('Report not found');
+                    
+                    const rawData = reportData.data;
                     const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                     results = parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;
+                    reportName = reportData.name;
                 } else {
                     // Para usuários secundários, usamos a API backend
                     const { data: { session } } = await supabase.auth.getSession();
@@ -96,10 +100,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     });
                     if (response.ok) {
                         const resData = await response.json();
+                        // O backend retorna { data: { results, spreadsheet }, name: "..." }
                         const rawData = resData.data;
                         const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                         results = parsedData?.results;
                         spreadsheet = parsedData?.spreadsheet;
+                        reportName = resData.name;
                     } else {
                         throw new Error("Falha ao buscar detalhes do relatório via API.");
                     }
@@ -130,7 +136,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setActiveView('smart_analysis');
                 }
 
-                showToast(`Relatório "${report.name}" carregado.`, "success");
+                showToast(`Relatório "${reportName || 'Carregado'}" carregado.`, "success");
             } else {
                 showToast("Este relatório está vazio.", "error");
             }

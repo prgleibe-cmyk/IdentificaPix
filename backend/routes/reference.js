@@ -122,7 +122,7 @@ export default () => {
 
             const { data, error } = await supabase
                 .from('saved_reports')
-                .select('data')
+                .select('data, name')
                 .eq('id', reportId)
                 .eq('user_id', ownerId)
                 .single();
