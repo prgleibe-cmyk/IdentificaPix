@@ -196,7 +196,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         if (subscription.role !== 'owner') {
             const allowedIds = subscription.bankIds || [];
-            list = list.filter((b: any) => allowedIds.includes(b.id));
+            if (allowedIds.length > 0) {
+                list = list.filter((b: any) => allowedIds.includes(b.id));
+            }
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));

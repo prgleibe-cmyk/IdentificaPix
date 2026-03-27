@@ -34,6 +34,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * Garante que ao recarregar a página, a lista de relatórios (e planilhas vinculadas) seja recuperada.
      */
     useEffect(() => {
+        let ignore = false;
         if (!user) {
             setSavedReports([]);
             return;
@@ -53,6 +54,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
                     
                     if (error) throw error;
+                    if (ignore) return;
                     data = d;
                 } else {
                     // Para usuários secundários, usamos a API backend para contornar limitações de RLS
@@ -66,13 +68,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     });
                     if (response.ok) {
                         const resData = await response.json();
+                        if (ignore) return;
                         data = resData.reports || [];
                     } else {
                         throw new Error("Falha ao buscar relatórios via API.");
                     }
                 }
 
-                if (data) {
+                if (data && !ignore) {
                     let hydrated: SavedReport[] = data.map((r: any) => ({
                         id: r.id,
                         name: r.name,
@@ -94,11 +97,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     setSavedReports(hydrated);
                 }
             } catch (err) {
-                console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
+                if (!ignore) {
+                    console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
+                }
             }
         };
 
         fetchReports();
+        return () => { ignore = true; };
     }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);

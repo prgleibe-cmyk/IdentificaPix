@@ -28,6 +28,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
     useEffect(() => {
+        let ignore = false;
         if (!user) return;
         const syncData = async () => {
             const ownerId = subscription.ownerId || user.id;
@@ -37,11 +38,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             if (subscription.role === 'owner') {
                 let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
                 const { data: b } = await bankQuery;
-                if (b) setBanks(b);
+                if (b && !ignore) setBanks(b);
                 
                 let query = supabase.from('churches').select('*').eq('user_id', ownerId);
                 const { data: c } = await query;
-                if (c) setChurches(c);
+                if (c && !ignore) setChurches(c);
             } else {
                 // Para usuários secundários, usamos a API backend para contornar limitações de RLS
                 try {
@@ -55,36 +56,45 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     });
                     if (response.ok) {
                         const data = await response.json();
+                        if (ignore) return;
                         
                         // Aplicar filtros de permissão no frontend para garantir
                         let filteredBanks = data.banks || [];
                         let filteredChurches = data.churches || [];
                         
-                        if (subscription.role !== 'owner') {
-                            const allowedBankIds = subscription.bankIds || [];
-                            const allowedChurchIds = subscription.congregationIds || [];
-                            
+                        const allowedBankIds = subscription.bankIds || [];
+                        const allowedChurchIds = subscription.congregationIds || [];
+                        
+                        if (allowedBankIds.length > 0) {
                             filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                        }
+                        if (allowedChurchIds.length > 0) {
                             filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
                         }
                         
-                        setBanks(filteredBanks);
-                        setChurches(filteredChurches);
+                        if (!ignore) {
+                            setBanks(filteredBanks);
+                            setChurches(filteredChurches);
+                        }
                     }
                 } catch (error) {
-                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                    if (!ignore) {
+                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                    }
                 }
             }
         };
         syncData();
+        return () => { ignore = true; };
     }, [user, subscription, setBanks, setChurches]);
 
     useEffect(() => {
+        let ignore = false;
         if (!user) return;
         const fetchAssociations = async () => {
             const ownerId = subscription.ownerId || user.id;
             const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
-            if (data) {
+            if (data && !ignore) {
                 setLearnedAssociations(data.map((d: any) => ({
                     id: d.id, 
                     normalizedDescription: d.normalized_description,
@@ -96,6 +106,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             }
         };
         fetchAssociations();
+        return () => { ignore = true; };
     }, [user]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
