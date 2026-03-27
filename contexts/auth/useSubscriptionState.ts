@@ -146,12 +146,17 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 congregationId: congregationIds[0] || undefined,
                 congregationIds: congregationIds,
                 bankIds: bankIds,
-                permissions: permissions
+                permissions: permissions,
+                activeReportId: p.active_report_id || null
             });
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
         }
     }, [settingsRef]);
 
-    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId };
+    const updateActiveReportId = useCallback((id: string | null) => {
+        setSubscription(prev => ({ ...prev, activeReportId: id }));
+    }, []);
+
+    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId, updateActiveReportId };
 };

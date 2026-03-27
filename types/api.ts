@@ -37,4 +37,5 @@ export interface SubscriptionStatus {
   congregationIds?: string[];
   bankIds?: string[];
   permissions?: any;
+  activeReportId?: string | null;
 }

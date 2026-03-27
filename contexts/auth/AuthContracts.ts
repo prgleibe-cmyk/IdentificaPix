@@ -26,6 +26,7 @@ export interface AuthContextType {
   updateLimits: (slots: number) => Promise<void>;
   systemSettings: SystemSettings;
   updateSystemSettings: (settings: Partial<SystemSettings>) => Promise<void>;
+  updateActiveReportId: (id: string | null) => void;
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {

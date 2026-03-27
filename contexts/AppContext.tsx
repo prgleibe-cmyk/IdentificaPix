@@ -17,7 +17,7 @@ import { PLACEHOLDER_CHURCH } from '../services/processingService';
 export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, subscription } = useAuth();
+    const { user, subscription, updateActiveReportId } = useAuth();
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -50,7 +50,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         learnedAssociations: referenceData.learnedAssociations,
         showToast,
         setIsLoading,
-        setActiveView
+        setActiveView,
+        updateActiveReportId
     });
 
     /**
@@ -239,6 +240,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
     useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
+
+    /**
+     * ☁️ CLOUD-FIRST HYDRATION
+     * Se o usuário não tem uma sessão ativa local, mas tem uma no banco de dados,
+     * carrega automaticamente o relatório para manter a continuidade entre dispositivos.
+     */
+    useEffect(() => {
+        if (!initialDataLoaded || !user || !subscription.activeReportId) return;
+        
+        // Se não houver relatório ativo local OU se o relatório ativo local for diferente do da nuvem
+        // (Isso garante que se o usuário mudar de relatório em outro dispositivo, este também mude)
+        if (!reconciliation.activeReportId || (reconciliation.activeReportId !== subscription.activeReportId && reconciliation.matchResults.length === 0)) {
+            console.log("[CloudHydration] Carregando relatório ativo da nuvem:", subscription.activeReportId);
+            viewSavedReport(subscription.activeReportId);
+        }
+    }, [initialDataLoaded, user, subscription.activeReportId, reconciliation.activeReportId, reconciliation.matchResults.length, viewSavedReport]);
 
     const value = useMemo(() => ({
         ...referenceData, 

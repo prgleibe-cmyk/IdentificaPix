@@ -15,7 +15,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
 
   const { systemSettings, updateSystemSettings, settingsRef } = useSystemSettings();
-  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId } = useSubscriptionState(settingsRef);
+  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId, updateActiveReportId } = useSubscriptionState(settingsRef);
 
   const refreshSubscription = useCallback(async () => {
     if (user) await calculateSubscription(user.id, true);
@@ -80,8 +80,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = useMemo(() => ({
     session, user, loading, signOut, subscription, refreshSubscription,
     ...authActions,
-    systemSettings, updateSystemSettings
-  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
+    systemSettings, updateSystemSettings, updateActiveReportId
+  }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings, updateActiveReportId]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

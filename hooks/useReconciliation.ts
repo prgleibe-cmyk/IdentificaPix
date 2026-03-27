@@ -38,13 +38,33 @@ export const useReconciliation = ({
     learnedAssociations,
     showToast,
     setIsLoading,
-    setActiveView
+    setActiveView,
+    updateActiveReportId
 }: any) => {
 
     const userSuffix = user ? `-${user.id}` : '-guest';
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
+    
+    // ☁️ SYNC ACTIVE SESSION TO CLOUD
+    useEffect(() => {
+        if (!user?.id) return;
+        
+        const syncActiveReport = async () => {
+            try {
+                // Sincroniza o ID ativo (pode ser null se o sistema foi resetado)
+                await (supabase.from('profiles') as any).update({ active_report_id: activeReportId }).eq('id', user.id);
+                // Atualiza o estado global de assinatura para refletir a mudança imediatamente
+                if (updateActiveReportId) updateActiveReportId(activeReportId);
+            } catch (e) {
+                console.error("[CloudSync] Erro ao sincronizar activeReportId:", e);
+            }
+        };
+        
+        syncActiveReport();
+    }, [user?.id, activeReportId]);
+
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
