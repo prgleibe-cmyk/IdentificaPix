@@ -54,7 +54,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     /**
-     * 🔴 AJUSTE CIRÚRGICO - SINCRONIZA RELATÓRIO ABERTO EM TEMPO REAL
+     * 🔴 AJUSTE ORIGINAL (mantido)
      */
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
@@ -85,6 +85,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscription.role,
         subscription.congregationIds
     ]);
+
+    /**
+     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
+     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
+     */
+    useEffect(() => {
+        if (!reconciliation.activeReportId) return;
+
+        const report = reportManager.savedReports.find(
+            r => r.id === reconciliation.activeReportId
+        );
+
+        if (!report || !report.data?.results) return;
+
+        reconciliation.setMatchResults([...report.data.results]);
+    }, [reportManager.savedReports]);
 
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
