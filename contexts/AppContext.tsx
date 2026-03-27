@@ -17,12 +17,11 @@ import { PLACEHOLDER_CHURCH } from '../services/processingService';
 export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, subscription, updateActiveReportId } = useAuth();
+    const { user, subscription } = useAuth();
     const { showToast, setIsLoading, setActiveView } = useUI();
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-    const hasHydratedRef = useRef(false);
 
     const effectiveUser = useMemo(() => {
         if (!user) return null;
@@ -51,8 +50,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         learnedAssociations: referenceData.learnedAssociations,
         showToast,
         setIsLoading,
-        setActiveView,
-        updateActiveReportId
+        setActiveView
     });
 
     /**
@@ -60,35 +58,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * Carrega os dados de um relatório salvo e redireciona para a tela correta.
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
-        // Tenta encontrar na lista local primeiro
-        const localReport = reportManager.savedReports.find(r => r.id === reportId);
-        
+        const report = reportManager.savedReports.find(r => r.id === reportId);
+        if (!report) return;
+
         setIsLoading(true);
         try {
-            let results = localReport?.data?.results;
-            let spreadsheet = localReport?.data?.spreadsheet;
-            let reportName = localReport?.name;
-
-            // Se não temos os dados (ou o relatório nem está na lista local ainda)
+            let results = report.data?.results;
+            let spreadsheet = report.data?.spreadsheet;
+            
             if (!results && !spreadsheet) {
                 const { data: { user: currentUser } } = await supabase.auth.getUser();
                 const ownerId = subscription.ownerId || currentUser?.id;
                 
                 if (subscription.role === 'owner') {
-                    const { data: reportData, error } = await supabase
+                    const { data, error } = await supabase
                         .from('saved_reports')
-                        .select('data, name')
+                        .select('data')
                         .eq('id', reportId)
                         .single() as { data: any | null, error: any };
                     
                     if (error) throw error;
-                    if (!reportData) throw new Error('Report not found');
-                    
-                    const rawData = reportData.data;
+                    if (!data) throw new Error('Report not found');
+                    const rawData = data.data;
                     const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                     results = parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;
-                    reportName = reportData.name;
                 } else {
                     // Para usuários secundários, usamos a API backend
                     const { data: { session } } = await supabase.auth.getSession();
@@ -101,12 +95,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     });
                     if (response.ok) {
                         const resData = await response.json();
-                        // O backend retorna { data: { results, spreadsheet }, name: "..." }
                         const rawData = resData.data;
                         const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                         results = parsedData?.results;
                         spreadsheet = parsedData?.spreadsheet;
-                        reportName = resData.name;
                     } else {
                         throw new Error("Falha ao buscar detalhes do relatório via API.");
                     }
@@ -114,7 +106,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if ((results && results.length > 0) || spreadsheet) {
-                console.log(`[viewSavedReport] Sucesso: ${results?.length || 0} resultados, spreadsheet: ${!!spreadsheet}`);
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
@@ -138,7 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setActiveView('smart_analysis');
                 }
 
-                showToast(`Relatório "${reportName || 'Carregado'}" carregado.`, "success");
+                showToast(`Relatório "${report.name}" carregado.`, "success");
             } else {
                 showToast("Este relatório está vazio.", "error");
             }
@@ -248,44 +239,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
     useEffect(() => { if (user !== undefined) setInitialDataLoaded(true); }, [user]);
-
-    /**
-     * ☁️ CLOUD-FIRST HYDRATION
-     * Se o usuário não tem uma sessão ativa local, mas tem uma no banco de dados,
-     * carrega automaticamente o relatório para manter a continuidade entre dispositivos.
-     */
-    useEffect(() => {
-        // Só prossegue se tudo estiver carregado e pronto
-        if (!initialDataLoaded || !user || !subscription.activeReportId) {
-            return;
-        }
-        
-        if (!referenceData.isReady || !reportManager.isReady) {
-            return;
-        }
-        
-        // Se já hidratamos nesta sessão, não fazemos nada
-        if (hasHydratedRef.current) return;
-        
-        // Se não houver relatório ativo local OU se o relatório ativo local for diferente do da nuvem
-        // (Isso garante que se o usuário mudar de relatório em outro dispositivo, este também mude)
-        const needsHydration = !reconciliation.activeReportId || 
-                             (reconciliation.activeReportId !== subscription.activeReportId && reconciliation.matchResults.length === 0);
-
-        if (needsHydration) {
-            console.log("[CloudHydration] 🚀 Iniciando hidratação automática do relatório:", subscription.activeReportId);
-            hasHydratedRef.current = true;
-            viewSavedReport(subscription.activeReportId).catch(err => {
-                console.error("[CloudHydration] ❌ Erro na hidratação automática:", err);
-                // Se falhou, permitimos tentar de novo se o estado mudar (opcional)
-                // hasHydratedRef.current = false; 
-            });
-        } else if (reconciliation.activeReportId === subscription.activeReportId) {
-            // Se já estamos com o relatório correto, apenas marcamos como hidratado para não tentar de novo
-            console.log("[CloudHydration] ✅ Relatório já presente localmente, marcando como hidratado.");
-            hasHydratedRef.current = true;
-        }
-    }, [initialDataLoaded, user, subscription.activeReportId, reconciliation.activeReportId, reconciliation.matchResults.length, viewSavedReport, referenceData.isReady, reportManager.isReady]);
 
     const value = useMemo(() => ({
         ...referenceData, 

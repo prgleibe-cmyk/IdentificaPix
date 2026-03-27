@@ -38,48 +38,15 @@ export const useReconciliation = ({
     learnedAssociations,
     showToast,
     setIsLoading,
-    setActiveView,
-    updateActiveReportId
+    setActiveView
 }: any) => {
 
     const userSuffix = user ? `-${user.id}` : '-guest';
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
-    
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
-
-    // ☁️ SYNC ACTIVE SESSION TO CLOUD
-    useEffect(() => {
-        if (!user?.id) return;
-        
-        const syncActiveReport = async () => {
-            // Só sincroniza se houver uma mudança real em relação ao que já está na nuvem
-            if (activeReportId === subscription?.activeReportId) return;
-
-            // Se o local for null e a nuvem tiver algo, pode ser o estado inicial de "limpeza" do navegador.
-            // Nesse caso, não queremos sobrescrever a nuvem IMEDIATAMENTE.
-            // Queremos dar chance para a reidratação do AppContext carregar o valor da nuvem.
-            if (activeReportId === null && subscription?.activeReportId) {
-                // Se o matchResults estiver vazio, é muito provável que seja o estado inicial pós-limpeza
-                if (matchResults.length === 0 && !hasActiveSession) {
-                    return;
-                }
-            }
-
-            try {
-                // Sincroniza o ID ativo (pode ser null se o sistema foi resetado)
-                await (supabase.from('profiles') as any).update({ active_report_id: activeReportId }).eq('id', user.id);
-                // Atualiza o estado global de assinatura para refletir a mudança imediatamente
-                if (updateActiveReportId) updateActiveReportId(activeReportId);
-            } catch (e) {
-                console.error("[CloudSync] Erro ao sincronizar activeReportId:", e);
-            }
-        };
-        
-        syncActiveReport();
-    }, [user?.id, activeReportId, subscription?.activeReportId, matchResults.length, hasActiveSession]);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);

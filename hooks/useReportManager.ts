@@ -2,7 +2,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
-import { getSharedReferenceData } from './useReferenceData';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 
@@ -26,9 +25,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
-    const [isReady, setIsReady] = useState(false);
-
-    const lastFetchedOwnerIdRef = useRef<string | null>(null);
 
     // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
@@ -41,22 +37,43 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         let ignore = false;
         if (!user) {
             setSavedReports([]);
-            lastFetchedOwnerIdRef.current = null;
-            setIsReady(false);
             return;
         }
 
-        const ownerId = subscription.ownerId || user.id;
-        
-        // Se já estamos prontos e o ownerId não mudou, não fazemos nada
-        if (lastFetchedOwnerIdRef.current === ownerId && isReady) return;
-
         const fetchReports = async () => {
+            const ownerId = subscription.ownerId || user.id;
             try {
-                // Usamos a API de referência compartilhada que agora busca tudo (bancos, igrejas, relatórios)
-                const resData = await getSharedReferenceData(ownerId, subscription.role);
-                if (ignore) return;
-                const data = resData.reports || [];
+                let data: any[] | null = null;
+
+                // Se for o dono, pode usar o Supabase diretamente (RLS permite)
+                if (subscription.role === 'owner') {
+                    const { data: d, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
+                    
+                    if (error) throw error;
+                    if (ignore) return;
+                    data = d;
+                } else {
+                    // Para usuários secundários, usamos a API backend para contornar limitações de RLS
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.ok) {
+                        const resData = await response.json();
+                        if (ignore) return;
+                        data = resData.reports || [];
+                    } else {
+                        throw new Error("Falha ao buscar relatórios via API.");
+                    }
+                }
 
                 if (data && !ignore) {
                     let hydrated: SavedReport[] = data.map((r: any) => ({
@@ -78,21 +95,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }
 
                     setSavedReports(hydrated);
-                    lastFetchedOwnerIdRef.current = ownerId;
-                    if (!ignore) console.log(`[useReportManager] Pronto! Relatórios: ${hydrated.length}`);
                 }
             } catch (err) {
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
                 }
-            } finally {
-                if (!ignore) setIsReady(true);
             }
         };
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user, subscription, isReady]);
+    }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
@@ -255,12 +268,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
-        allHistoricalResults,
-        isReady
+        allHistoricalResults
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports, isReady
+        deleteOldReports
     ]);
 };

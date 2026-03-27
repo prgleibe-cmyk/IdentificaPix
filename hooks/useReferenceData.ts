@@ -6,46 +6,6 @@ import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/util
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
 
-// Cache global para evitar chamadas duplicadas entre diferentes hooks na mesma sessão
-let sharedDataPromise: Promise<any> | null = null;
-let lastFetchedOwnerIdGlobal: string | null = null;
-
-export const getSharedReferenceData = async (ownerId: string, role: string) => {
-    if (lastFetchedOwnerIdGlobal !== ownerId) {
-        sharedDataPromise = null;
-        lastFetchedOwnerIdGlobal = ownerId;
-    }
-
-    if (!sharedDataPromise) {
-        sharedDataPromise = (async () => {
-            if (role === 'owner') {
-                const [banksRes, churchesRes, reportsRes] = await Promise.all([
-                    supabase.from('banks').select('*').eq('user_id', ownerId),
-                    supabase.from('churches').select('*').eq('user_id', ownerId),
-                    supabase.from('saved_reports').select('*').eq('user_id', ownerId).order('created_at', { ascending: false })
-                ]);
-                return {
-                    banks: banksRes.data || [],
-                    churches: churchesRes.data || [],
-                    reports: reportsRes.data || []
-                };
-            } else {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
-
-                const response = await fetch(`/api/reference/data/${ownerId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (!response.ok) throw new Error("Falha ao buscar dados de referência");
-                return response.json();
-            }
-        })();
-    }
-    return sharedDataPromise;
-};
-
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
@@ -65,74 +25,92 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
-    const [isReady, setIsReady] = useState(false);
 
-    const lastFetchedOwnerIdRef = useRef<string | null>(null);
+    // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
+    const lastOwnerIdRef = useRef<string | null>(null);
 
-    // ✅ CORREÇÃO AQUI
     useEffect(() => {
         let ignore = false;
 
         if (!user?.id) {
-            lastFetchedOwnerIdRef.current = null;
-            setIsReady(false);
-            sharedDataPromise = null;
-            lastFetchedOwnerIdGlobal = null;
+            lastOwnerIdRef.current = null;
             return;
         }
 
         const ownerId = subscription.ownerId || user.id;
 
-        // 🔥 impede duplicação mas permite primeira execução correta
-        if (lastFetchedOwnerIdRef.current === ownerId) return;
+        // ✅ evita múltiplas execuções desnecessárias
+        if (lastOwnerIdRef.current === ownerId) return;
 
         const syncData = async () => {
-            try {
-                const data = await getSharedReferenceData(ownerId, subscription.role);
-                if (ignore) return;
 
-                let filteredBanks = data.banks || [];
-                let filteredChurches = data.churches || [];
+            if (subscription.role === 'owner') {
+                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                const { data: b } = await bankQuery;
+                if (b && !ignore) setBanks(b);
+                
+                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                const { data: c } = await query;
+                if (c && !ignore) setChurches(c);
 
-                const allowedBankIds = subscription.bankIds || [];
-                const allowedChurchIds = subscription.congregationIds || [];
+            } else {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
 
-                if (subscription.role !== 'owner') {
-                    if (allowedBankIds.length > 0) {
-                        filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (ignore) return;
+                        
+                        let filteredBanks = data.banks || [];
+                        let filteredChurches = data.churches || [];
+                        
+                        const allowedBankIds = subscription.bankIds || [];
+                        const allowedChurchIds = subscription.congregationIds || [];
+                        
+                        if (allowedBankIds.length > 0) {
+                            filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                        }
+                        if (allowedChurchIds.length > 0) {
+                            filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+                        }
+                        
+                        if (!ignore) {
+                            setBanks(filteredBanks);
+                            setChurches(filteredChurches);
+                        }
                     }
-                    if (allowedChurchIds.length > 0) {
-                        filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+
+                } catch (error) {
+                    if (!ignore) {
+                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                     }
                 }
-
-                setBanks(filteredBanks);
-                setChurches(filteredChurches);
-
-                lastFetchedOwnerIdRef.current = ownerId;
-
-                console.log(`[useReferenceData] Pronto! Bancos: ${filteredBanks.length}, Igrejas: ${filteredChurches.length}`);
-            } catch (error) {
-                console.error("[useReferenceData] Erro ao buscar dados:", error);
-            } finally {
-                if (!ignore) setIsReady(true);
             }
+
+            // ✅ marca como executado
+            lastOwnerIdRef.current = ownerId;
         };
 
         syncData();
 
         return () => { ignore = true; };
 
-    }, [user?.id, subscription.ownerId]);
+    // ✅ dependências corrigidas (cirúrgico)
+    }, [user?.id, subscription.ownerId, subscription.role]);
 
     useEffect(() => {
         let ignore = false;
         if (!user) return;
-
         const fetchAssociations = async () => {
             const ownerId = subscription.ownerId || user.id;
             const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
-
             if (data && !ignore) {
                 setLearnedAssociations(data.map((d: any) => ({
                     id: d.id, 
@@ -144,10 +122,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 })));
             }
         };
-
         fetchAssociations();
         return () => { ignore = true; };
-
     }, [user]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
@@ -159,7 +135,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
         
         const ownerId = subscription.ownerId || user.id;
-
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 
@@ -197,25 +172,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error("Erro ao persistir aprendizado:", err);
         }
-
     }, [user]);
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
         const ownerId = subscription.ownerId || user.id;
-
         try {
             const models = await modelService.getUserModels(ownerId);
             setFileModels(models);
-        } catch (e) { 
-            console.error(e); 
-        }
-
+        } catch (e) { console.error(e); }
     }, [user, subscription.ownerId]);
 
-    useEffect(() => { 
-        fetchModels(); 
-    }, [fetchModels]);
+    useEffect(() => { fetchModels(); }, [fetchModels]);
 
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
@@ -229,24 +197,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
         if(!user) return false;
-
         const ownerId = subscription.ownerId || user.id;
-
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-
         const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: ownerId }]).select();
-
         if (data) {
             setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
             return true;
         }
-
         return false;
-
     }, [user, banks, subscription.maxBanks, subscription.ownerId, setBanks, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
@@ -261,38 +223,60 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
         if(!user) return false;
-
         const ownerId = subscription.ownerId || user.id;
-
         if (churches.length >= (subscription.maxChurches || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-
         const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: ownerId }]).select();
-
         if (data) {
             setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');
             return true;
         }
-
         return false;
-
     }, [user, churches, subscription.maxChurches, subscription.ownerId, setChurches, showToast]);
+
+    const addContributionKeyword = useCallback((keyword: string) => {
+        const upper = keyword.trim().toUpperCase();
+        if (!contributionKeywords.includes(upper)) {
+            setContributionKeywords(prev => [...prev, upper]);
+            showToast(`Palavra "${upper}" adicionada.`, 'success');
+        }
+    }, [contributionKeywords, setContributionKeywords, showToast]);
+
+    const removeContributionKeyword = useCallback((keyword: string) => {
+        setContributionKeywords(prev => prev.filter(k => k !== keyword));
+        showToast("Palavra removida.", "success");
+    }, [setContributionKeywords, showToast]);
+
+    const addPaymentMethod = useCallback((method: string) => {
+        const upper = method.trim().toUpperCase();
+        if (!paymentMethods.includes(upper)) {
+            setPaymentMethods(prev => [...prev, upper]);
+            showToast(`Forma "${upper}" adicionada.`, 'success');
+        }
+    }, [paymentMethods, setPaymentMethods, showToast]);
+
+    const removePaymentMethod = useCallback((method: string) => {
+        setPaymentMethods(prev => prev.filter(m => m !== method));
+        showToast("Forma removida.", "success");
+    }, [setPaymentMethods, showToast]);
 
     return useMemo(() => ({
         banks, churches, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
-        customIgnoreKeywords, contributionKeywords, paymentMethods,
+        customIgnoreKeywords, contributionKeywords, addContributionKeyword, removeContributionKeyword,
+        paymentMethods, addPaymentMethod, removePaymentMethod,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
-        setBanks, setChurches, setLearnedAssociations, isReady
+        setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
         customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
-        openEditChurch, closeEditChurch, updateChurch, addChurch, isReady
+        openEditChurch, closeEditChurch, updateChurch, addChurch,
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
     ]);
 };
