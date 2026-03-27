@@ -459,5 +459,67 @@ export default () => {
         }
     });
 
+    // Rota segura para buscar dados de assinatura e perfil (incluindo herança de owner)
+    router.get('/subscription/:userId', async (req, res) => {
+        const { userId } = req.params;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase || !supabase.client) {
+            return res.status(500).json({ error: "Erro de configuração" });
+        }
+
+        // Validação IDOR básica: O usuário só pode buscar sua própria assinatura
+        if (req.user.id !== userId) {
+            return res.status(403).json({ error: "Acesso negado: Você só pode buscar sua própria assinatura." });
+        }
+
+        try {
+            console.log("[Users API] Buscando dados de assinatura para:", userId);
+            
+            // 1. Buscar perfil do usuário
+            const { data: profile, error: profileError } = await supabase.client
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (profileError) {
+                console.error("[Users API] Erro ao buscar perfil:", profileError);
+                throw profileError;
+            }
+
+            let subscriptionData = { ...profile };
+
+            // 2. Se for member, buscar dados do owner para herdar plano e limites
+            if (profile.role === 'member' && profile.owner_id) {
+                console.log("[Users API] Usuário é membro, buscando dados do owner:", profile.owner_id);
+                const { data: ownerProfile, error: ownerError } = await supabase.client
+                    .from('profiles')
+                    .select('subscription_status, subscription_ends_at, plan_type, max_churches, max_banks, limit_ai, usage_ai')
+                    .eq('id', profile.owner_id)
+                    .single();
+
+                if (!ownerError && ownerProfile) {
+                    // Herdar campos do owner
+                    subscriptionData.subscription_status = ownerProfile.subscription_status;
+                    subscriptionData.subscription_ends_at = ownerProfile.subscription_ends_at;
+                    subscriptionData.plan_type = ownerProfile.plan_type;
+                    subscriptionData.max_churches = ownerProfile.max_churches;
+                    subscriptionData.max_banks = ownerProfile.max_banks;
+                    subscriptionData.limit_ai = ownerProfile.limit_ai;
+                    subscriptionData.usage_ai = ownerProfile.usage_ai;
+                    console.log("[Users API] Dados do owner herdados com sucesso.");
+                } else if (ownerError) {
+                    console.warn("[Users API] Erro ao buscar dados do owner:", ownerError.message);
+                }
+            }
+
+            res.json(subscriptionData);
+        } catch (error) {
+            console.error("[Users API] Erro ao buscar assinatura:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return router;
 };

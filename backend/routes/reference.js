@@ -135,5 +135,112 @@ export default () => {
         }
     });
 
+    // Rota para salvar relatório (permite que membros salvem na conta do owner)
+    router.post('/report/save', async (req, res) => {
+        const { name, data, record_count, ownerId } = req.body;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração." });
+        }
+
+        if (!name || !data || !ownerId) {
+            return res.status(400).json({ error: "Dados incompletos para salvar relatório." });
+        }
+
+        try {
+            // Validação IDOR: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            if (profileError) {
+                console.error(`[Reference API] Erro ao buscar perfil para salvar relatório:`, profileError.message);
+                return res.status(500).json({ error: 'Erro ao validar permissões.' });
+            }
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            if (effectiveOwnerId !== ownerId) {
+                console.warn(`[Reference API] Tentativa de salvamento não autorizada: Usuário ${req.user.id} tentou salvar para owner ${ownerId}, mas seu owner_id é ${effectiveOwnerId}`);
+                return res.status(403).json({ error: "Acesso negado." });
+            }
+
+            console.log(`[Reference API] Salvando relatório "${name}" para owner ${ownerId} (requisitado por ${req.user.id})`);
+
+            const { data: savedReport, error: saveError } = await supabase
+                .from('saved_reports')
+                .insert({
+                    name,
+                    data,
+                    record_count: record_count || 0,
+                    user_id: ownerId, // Sempre salva com o ID do owner
+                    created_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (saveError) {
+                console.error(`[Reference API] Erro ao inserir relatório:`, saveError.message);
+                throw saveError;
+            }
+
+            res.json(savedReport);
+        } catch (error) {
+            console.error("[Reference API] Erro ao salvar relatório:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Rota para atualizar relatório (permite que membros atualizem na conta do owner)
+    router.post('/report/update/:reportId', async (req, res) => {
+        const { reportId } = req.params;
+        const { name, data, record_count, ownerId } = req.body;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração." });
+        }
+
+        try {
+            // Validação IDOR
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            if (effectiveOwnerId !== ownerId) {
+                return res.status(403).json({ error: "Acesso negado." });
+            }
+
+            console.log(`[Reference API] Atualizando relatório ${reportId} para owner ${ownerId}`);
+
+            const updateData = {};
+            if (name) updateData.name = name;
+            if (data) updateData.data = data;
+            if (record_count !== undefined) updateData.record_count = record_count;
+
+            const { data: updatedReport, error: updateError } = await supabase
+                .from('saved_reports')
+                .update(updateData)
+                .eq('id', reportId)
+                .eq('user_id', ownerId)
+                .select()
+                .single();
+
+            if (updateError) throw updateError;
+
+            res.json(updatedReport);
+        } catch (error) {
+            console.error("[Reference API] Erro ao atualizar relatório:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return router;
 };
