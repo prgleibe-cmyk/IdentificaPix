@@ -67,18 +67,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             let spreadsheet = report.data?.spreadsheet;
             
             if (!results && !spreadsheet) {
-                const { data, error } = await supabase
-                    .from('saved_reports')
-                    .select('data')
-                    .eq('id', reportId)
-                    .single() as { data: any | null, error: any };
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                const ownerId = subscription.ownerId || currentUser?.id;
                 
-                if (error) throw error;
-                if (!data) throw new Error('Report not found');
-                const rawData = data.data;
-                const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                results = parsedData?.results;
-                spreadsheet = parsedData?.spreadsheet;
+                if (subscription.role === 'owner') {
+                    const { data, error } = await supabase
+                        .from('saved_reports')
+                        .select('data')
+                        .eq('id', reportId)
+                        .single() as { data: any | null, error: any };
+                    
+                    if (error) throw error;
+                    if (!data) throw new Error('Report not found');
+                    const rawData = data.data;
+                    const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                    results = parsedData?.results;
+                    spreadsheet = parsedData?.spreadsheet;
+                } else {
+                    // Para usuários secundários, usamos a API backend
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.ok) {
+                        const resData = await response.json();
+                        const rawData = resData.data;
+                        const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                        results = parsedData?.results;
+                        spreadsheet = parsedData?.spreadsheet;
+                    } else {
+                        throw new Error("Falha ao buscar detalhes do relatório via API.");
+                    }
+                }
             }
 
             if ((results && results.length > 0) || spreadsheet) {

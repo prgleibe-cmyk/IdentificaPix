@@ -73,11 +73,64 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
-            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos e ${churches?.length || 0} igrejas.`);
+            // Buscar relatórios salvos
+            const { data: reports, error: reportsError } = await supabase
+                .from('saved_reports')
+                .select('*')
+                .eq('user_id', ownerId)
+                .order('created_at', { ascending: false });
 
-            res.json({ banks: banks || [], churches: churches || [] });
+            if (reportsError) {
+                console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
+            }
+
+            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
+
+            res.json({ 
+                banks: banks || [], 
+                churches: churches || [],
+                reports: reports || []
+            });
         } catch (error) {
             console.error("[Reference API] Erro:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.get('/report/:reportId', async (req, res) => {
+        const { reportId } = req.params;
+        const { ownerId } = req.query;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração." });
+        }
+
+        try {
+            // Validação IDOR
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            if (effectiveOwnerId !== ownerId) {
+                return res.status(403).json({ error: "Acesso negado." });
+            }
+
+            const { data, error } = await supabase
+                .from('saved_reports')
+                .select('data')
+                .eq('id', reportId)
+                .eq('user_id', ownerId)
+                .single();
+
+            if (error) throw error;
+            res.json(data);
+        } catch (error) {
+            console.error("[Reference API] Erro ao buscar relatório:", error);
             res.status(500).json({ error: error.message });
         }
     });

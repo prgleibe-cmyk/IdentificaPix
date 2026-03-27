@@ -42,13 +42,35 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const fetchReports = async () => {
             const ownerId = subscription.ownerId || user.id;
             try {
-                const { data, error } = await supabase
-                    .from('saved_reports')
-                    .select('*')
-                    .eq('user_id', ownerId)
-                    .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
+                let data: any[] | null = null;
 
-                if (error) throw error;
+                // Se for o dono, pode usar o Supabase diretamente (RLS permite)
+                if (subscription.role === 'owner') {
+                    const { data: d, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
+                    
+                    if (error) throw error;
+                    data = d;
+                } else {
+                    // Para usuários secundários, usamos a API backend para contornar limitações de RLS
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    if (response.ok) {
+                        const resData = await response.json();
+                        data = resData.reports || [];
+                    } else {
+                        throw new Error("Falha ao buscar relatórios via API.");
+                    }
+                }
 
                 if (data) {
                     let hydrated: SavedReport[] = data.map((r: any) => ({
@@ -64,8 +86,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
                         hydrated = hydrated.filter(report => {
                             if (!report.data || !report.data.results || report.data.results.length === 0) return false;
-                            // Deve conter APENAS resultados das suas congregações
-                            return report.data.results.every(res => subscription.congregationIds.includes(res.church?.id || res._churchId));
+                            // Deve conter pelo menos um resultado das suas congregações
+                            return report.data.results.some(res => subscription.congregationIds.includes(res.church?.id || res._churchId));
                         });
                     }
 
@@ -77,7 +99,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         };
 
         fetchReports();
-    }, [user]);
+    }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
