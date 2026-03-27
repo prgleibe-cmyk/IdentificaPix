@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabaseClient';
@@ -26,12 +25,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    // Ref para evitar loops de salvamento repetidos com o mesmo dado
     const lastSavedPayloadRef = useRef<string>('');
 
     /**
-     * 📥 CARGA INICIAL (REIDRATAÇÃO DO BACKEND)
-     * Garante que ao recarregar a página, a lista de relatórios (e planilhas vinculadas) seja recuperada.
+     * 📥 CARGA INICIAL
      */
     useEffect(() => {
         let ignore = false;
@@ -45,27 +42,24 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             try {
                 let data: any[] | null = null;
 
-                // Se for o dono, pode usar o Supabase diretamente (RLS permite)
                 if (subscription.role === 'owner') {
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
-                    
+                        .order('created_at', { ascending: false });
+
                     if (error) throw error;
                     if (ignore) return;
                     data = d;
                 } else {
-                    // Para usuários secundários, usamos a API backend para contornar limitações de RLS
                     const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
 
                     const response = await fetch(`/api/reference/data/${ownerId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
+                        headers: { 'Authorization': `Bearer ${token}` }
                     });
+
                     if (response.ok) {
                         const resData = await response.json();
                         if (ignore) return;
@@ -85,12 +79,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
                     }));
 
-                    // Se for membro, filtra relatórios que contenham resultados da sua congregação
-                    if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         hydrated = hydrated.filter(report => {
-                            if (!report.data || !report.data.results || report.data.results.length === 0) return false;
-                            // Deve conter pelo menos um resultado das suas congregações
-                            return report.data.results.some(res => subscription.congregationIds.includes(res.church?.id || res._churchId));
+                            if (!report.data?.results?.length) return false;
+                            return report.data.results.some(res =>
+                                subscription.congregationIds.includes(res.church?.id || res._churchId)
+                            );
                         });
                     }
 
@@ -107,6 +101,56 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
     }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
+    /**
+     * 🔴 TEMPO REAL (AJUSTE CIRÚRGICO)
+     */
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel('reports-realtime')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'saved_reports' },
+                (payload: any) => {
+                    const newRecord = payload.new;
+                    const oldRecord = payload.old;
+
+                    setSavedReports(prev => {
+                        // DELETE
+                        if (payload.eventType === 'DELETE') {
+                            return prev.filter(r => r.id !== oldRecord.id);
+                        }
+
+                        // INSERT ou UPDATE
+                        const parsed: SavedReport = {
+                            id: newRecord.id,
+                            name: newRecord.name,
+                            createdAt: newRecord.created_at,
+                            recordCount: newRecord.record_count,
+                            user_id: newRecord.user_id,
+                            data: typeof newRecord.data === 'string'
+                                ? JSON.parse(newRecord.data)
+                                : newRecord.data
+                        };
+
+                        const exists = prev.find(r => r.id === parsed.id);
+
+                        if (exists) {
+                            return prev.map(r => r.id === parsed.id ? parsed : r);
+                        } else {
+                            return [parsed, ...prev];
+                        }
+                    });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user]);
+
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
@@ -119,26 +163,18 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         else showToast('Relatório renomeado.', 'success');
     }, [user, showToast]);
 
-    /**
-     * 🔐 PERSISTÊNCIA MESTRE (UPSERT COM MERGE)
-     * Salva as alterações de uma planilha ou conciliação sem apagar os dados existentes do outro tipo.
-     */
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user || !reportId) return;
         
-        // Busca o estado atual local para merge (evita perda de dados em atualizações parciais)
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-        // Bloqueio de salvamento vazio: só impede se AMBOS forem inexistentes
         if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
-        // Dedup: Evita salvar exatamente o mesmo dado que já foi enviado
         const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
-        // Lógica de Merge: Preserva o que já existe se o novo for omitido
         const mergedData = {
             ...currentData,
             results: (results && results.length > 0) ? results : currentData.results,
@@ -147,14 +183,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
 
-        // Atualiza estado local de forma otimista
         setSavedReports(prev => prev.map(r => r.id === reportId ? {
             ...r,
             recordCount,
             data: mergedData
         } : r));
 
-        // Persistência Cloud
         const { error } = await (supabase
             .from('saved_reports') as any)
             .update({ 
@@ -182,10 +216,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    /**
-     * CRIA NOVO REGISTRO
-     * Retorna o ID gerado para que o controlador possa marcar como "Relatório Ativo".
-     */
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
         const ownerId = subscription.ownerId || user.id;
@@ -252,13 +282,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             .filter(r => r.data && r.data.results)
             .flatMap(report => report.data!.results);
             
-        // Filtro de Segurança para Membros: Apenas associações da sua igreja
-        if (subscription.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+            results = results.filter(r =>
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
+            );
         }
         
         return results;
-    }, [savedReports, subscription.role, subscription.congregationId]);
+    }, [savedReports, subscription.role, subscription.congregationIds]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,
