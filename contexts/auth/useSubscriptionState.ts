@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { SubscriptionStatus } from '../../types';
 import { SystemSettings } from './AuthContracts';

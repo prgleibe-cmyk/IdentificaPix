@@ -36,4 +36,5 @@ export interface SubscriptionStatus {
   congregationId?: string;
   congregationIds?: string[];
   bankIds?: string[];
+  permissions?: any;
 }
