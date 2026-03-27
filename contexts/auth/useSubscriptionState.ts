@@ -5,22 +5,42 @@ import { SystemSettings } from './AuthContracts';
 
 // Fix: Added React to imports and typed settingsRef as React.MutableRefObject
 export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemSettings>) => {
-    const [subscription, setSubscription] = useState<SubscriptionStatus>({
-        plan: 'trial',
-        daysRemaining: 10,
-        totalDays: 10,
-        isExpired: false,
-        isBlocked: false,
-        isLifetime: false,
-        aiLimit: 100, 
-        aiUsage: 0,
-        maxChurches: 2, 
-        maxBanks: 2,
-        role: 'owner',
-        ownerId: ''
+    const [subscription, setSubscription] = useState<SubscriptionStatus>(() => {
+        // Tenta carregar do cache local para evitar "flash" de carregamento
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem('identificapix-subscription-cache');
+            if (cached) {
+                try {
+                    return JSON.parse(cached);
+                } catch (e) {
+                    console.error("Erro ao carregar cache de assinatura:", e);
+                }
+            }
+        }
+        return {
+            plan: 'trial',
+            daysRemaining: 10,
+            totalDays: 10,
+            isExpired: false,
+            isBlocked: false,
+            isLifetime: false,
+            aiLimit: 100, 
+            aiUsage: 0,
+            maxChurches: 2, 
+            maxBanks: 2,
+            role: 'owner',
+            ownerId: ''
+        };
     });
 
     const lastProcessedUserId = useRef<string | null>(null);
+
+    // Persiste a assinatura no cache sempre que mudar
+    useEffect(() => {
+        if (subscription && subscription.ownerId) {
+            localStorage.setItem('identificapix-subscription-cache', JSON.stringify(subscription));
+        }
+    }, [subscription]);
 
     const calculateSubscription = useCallback(async (userId: string | null, force: boolean = false) => {
         if (!userId) return;
