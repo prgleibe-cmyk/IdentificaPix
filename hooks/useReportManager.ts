@@ -80,12 +80,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         createdAt: r.created_at,
                         recordCount: r.record_count,
                         user_id: r.user_id,
-                        data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
+                        data: r.data ? (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) : undefined
                     }));
 
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         hydrated = hydrated.filter(report => {
-                            if (!report.data?.results?.length) return false;
+                            // Se não temos os dados (modo otimizado), mantemos na lista para permitir a abertura
+                            if (!report.data) return true;
+                            if (!report.data.results?.length) return false;
                             return report.data.results.some(res =>
                                 subscription.congregationIds.includes(res.church?.id || res._churchId)
                             );
