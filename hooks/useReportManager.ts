@@ -24,6 +24,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
+    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
     const lastSavedPayloadRef = useRef<string>('');
 
@@ -98,6 +99,8 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
                 }
+            } finally {
+                if (!ignore) setInitialDataLoaded(true);
             }
         };
 
@@ -356,9 +359,11 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
         allHistoricalResults,
-        userSavedReports
+        userSavedReports,
+        initialDataLoaded
     }), [
         savedReports, userSavedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
+        initialDataLoaded,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports

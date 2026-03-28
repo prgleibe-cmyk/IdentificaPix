@@ -31,6 +31,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const modalController = useModalController();
     const referenceData = useReferenceData(effectiveUser, showToast);
     const reportManager = useReportManager(effectiveUser, showToast);
+    const lastSyncedReportId = useRef<string | null>(null);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
@@ -54,18 +55,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     /**
+     * 👁️ VISUALIZADOR DE RELATÓRIOS
+     */
+    const viewSavedReport = useCallback(async (reportId: string) => {
+        const report = reportManager.savedReports.find(r => r.id === reportId);
+        if (!report) return;
+
+        setIsLoading(true);
+        try {
+            let results = report.data?.results;
+            let spreadsheet = report.data?.spreadsheet;
+
+            if (!results && !spreadsheet) {
+                const fullData = await reportManager.fetchFullReportData(reportId);
+                results = fullData?.results;
+                spreadsheet = fullData?.spreadsheet;
+            }
+
+            // Se temos os dados (results ou spreadsheet), abrimos o relatório
+            if (results || spreadsheet) {
+                reconciliation.setActiveReportId(reportId);
+                reconciliation.setHasActiveSession(true);
+                lastSyncedReportId.current = reportId; // Marca como sincronizado
+                
+                if (results) {
+                    let hydrated = results.map((r: any) => ({
+                        ...r,
+                        church:
+                            referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                            r.church ||
+                            PLACEHOLDER_CHURCH
+                    }));
+
+                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+                        hydrated = hydrated.filter((r: any) =>
+                            subscription.congregationIds.includes(r.church?.id || r._churchId)
+                        );
+                    }
+
+                    reconciliation.setMatchResults(hydrated);
+                    setActiveView('reports');
+                } else if (spreadsheet) {
+                    setActiveView('reports');
+                }
+            } else {
+                showToast("Relatório sem dados disponíveis.", "error");
+            }
+        } catch (error) {
+            console.error("Erro ao abrir relatório:", error);
+            showToast("Erro ao carregar dados do relatório.", "error");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [reportManager, reconciliation, referenceData.churches, subscription, setActiveView, showToast, setIsLoading]);
+
+    /**
+     * 👁️ VISUALIZADOR DE RELATÓRIOS (MOVIMENTADO PARA CIMA)
+     */
+
+    /**
      * 👁️ AUTO-SELEÇÃO DE RELATÓRIO (ETAPA 2)
      * Seleciona o relatório mais recente se nenhum estiver ativo para preencher a aba automaticamente
      */
     useEffect(() => {
+        if (!initialDataLoaded) return;
         if (!reconciliation.activeReportId && reportManager.savedReports.length > 0) {
             const latestReport = reportManager.savedReports[0];
-            if (latestReport.data?.results) {
-                reconciliation.setActiveReportId(latestReport.id);
-                reconciliation.setHasActiveSession(true);
-            }
+            // Se temos o relatório, tentamos visualizar (isso lidará com o fetch se necessário)
+            viewSavedReport(latestReport.id);
         }
-    }, [reconciliation.activeReportId, reportManager.savedReports, reconciliation]);
+    }, [reconciliation.activeReportId, reportManager.savedReports, initialDataLoaded, viewSavedReport]);
 
     /**
      * 🔴 AJUSTE ORIGINAL (mantido)
@@ -101,11 +160,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ]);
 
     /**
-     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
+     * 🔴 AJUSTE CIRÚRGICO (MELHORADO)
      * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
      */
     useEffect(() => {
-        if (!reconciliation.activeReportId) return;
+        if (!reconciliation.activeReportId) {
+            lastSyncedReportId.current = null;
+            return;
+        }
 
         const report = reportManager.savedReports.find(
             r => r.id === reconciliation.activeReportId
@@ -113,64 +175,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (!report || !report.data?.results) return;
 
-        reconciliation.setMatchResults([...report.data.results]);
-    }, [reportManager.savedReports]);
-
-    /**
-     * 👁️ VISUALIZADOR DE RELATÓRIOS
-     */
-    const viewSavedReport = useCallback(async (reportId: string) => {
-        const report = reportManager.savedReports.find(r => r.id === reportId);
-        if (!report) return;
-
-        setIsLoading(true);
-        try {
-            let results = report.data?.results;
-            let spreadsheet = report.data?.spreadsheet;
-
-            if (!results && !spreadsheet) {
-                const fullData = await reportManager.fetchFullReportData(reportId);
-                results = fullData?.results;
-                spreadsheet = fullData?.spreadsheet;
-            }
-
-            if ((results && results.length > 0) || spreadsheet) {
-                reconciliation.setActiveReportId(reportId);
+        // Só atualiza se o ID do relatório mudou ou se os resultados mudaram
+        if (lastSyncedReportId.current !== reconciliation.activeReportId) {
+            reconciliation.setMatchResults([...report.data.results]);
+            lastSyncedReportId.current = reconciliation.activeReportId;
+            
+            // Garante que a sessão está ativa se temos um relatório ativo
+            if (!reconciliation.hasActiveSession) {
                 reconciliation.setHasActiveSession(true);
-
-                if (results && results.length > 0) {
-                    let hydrated = results.map((r: any) => ({
-                        ...r,
-                        church:
-                            referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
-                            r.church ||
-                            PLACEHOLDER_CHURCH
-                    }));
-
-                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-                        hydrated = hydrated.filter((r: any) =>
-                            subscription.congregationIds.includes(r.church?.id || r._churchId)
-                        );
-                    }
-
-                    reconciliation.setMatchResults(hydrated);
-                    setActiveView('reports');
-                } else if (spreadsheet) {
-                    setActiveView('smart_analysis');
-                }
-
-                showToast(`Relatório "${report.name}" carregado.`, "success");
-            } else {
-                showToast("Este relatório está vazio.", "error");
             }
-
-        } catch (error: any) {
-            console.error("[AppContext] Erro ao abrir relatório:", error);
-            showToast("Erro ao carregar os dados do relatório.", "error");
-        } finally {
-            setIsLoading(false);
         }
-    }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
+    }, [reportManager.savedReports, reconciliation.activeReportId, reconciliation.hasActiveSession]);
 
     /**
      * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
