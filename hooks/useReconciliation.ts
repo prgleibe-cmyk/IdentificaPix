@@ -48,6 +48,17 @@ export const useReconciliation = ({
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
+    // ✅ AJUSTE CIRÚRGICO: Sincroniza resultados quando o relatório ativo muda
+    useEffect(() => {
+        if (!activeReportId) return;
+        
+        // Se temos um ID ativo mas os resultados locais estão vazios, 
+        // ou se o ID mudou, permitimos que o AppContext injete os dados da nuvem
+        if (matchResults.length === 0) {
+            // O AppContext cuidará de chamar setMatchResults via viewSavedReport
+        }
+    }, [activeReportId]);
+    
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);

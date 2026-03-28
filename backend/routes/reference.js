@@ -73,11 +73,11 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos (Otimizado: Não traz o campo 'data' que é pesado)
+            // Buscar relatórios salvos (Otimizado: Individual para cada usuário)
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
                 .select('id, name, created_at, record_count, user_id')
-                .eq('user_id', ownerId)
+                .eq('user_id', req.user.id)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {
@@ -124,7 +124,7 @@ export default () => {
                 .from('saved_reports')
                 .select('data, name')
                 .eq('id', reportId)
-                .eq('user_id', ownerId)
+                .eq('user_id', req.user.id)
                 .single();
 
             if (error) throw error;

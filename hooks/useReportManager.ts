@@ -38,10 +38,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const ownerId = subscription.ownerId;
-
-            // ✅ TRAVA DE SEGURANÇA: Só busca relatórios se o ownerId estiver resolvido
-            if (!ownerId) return;
+            // ✅ AJUSTE CIRÚRGICO: Sempre usa o ID do próprio usuário logado para relatórios individuais
+            const reportUserId = user?.id;
+            if (!reportUserId) return;
 
             try {
                 let data: any[] | null = null;
@@ -50,7 +49,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
-                        .eq('user_id', ownerId)
+                        .eq('user_id', reportUserId)
                         .order('created_at', { ascending: false });
 
                     if (error) throw error;
@@ -299,7 +298,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const fetchFullReportData = useCallback(async (reportId: string) => {
         if (!user) return null;
-        const ownerId = subscription.ownerId || user.id;
         
         try {
             let rawData: any;
@@ -309,7 +307,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     .from('saved_reports')
                     .select('data')
                     .eq('id', reportId)
-                    .eq('user_id', ownerId)
+                    .eq('user_id', user.id)
                     .single();
 
                 if (error) throw error;
