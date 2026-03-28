@@ -42,29 +42,31 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             try {
                 let data: any[] | null = null;
 
-                // 🛡️ SEGURANÇA: Sempre usar a API para buscar dados (resolve problemas de RLS/Visibilidade)
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                if (subscription.role === 'owner') {
+                    const { data: d, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false });
 
-                if (!token) {
-                    console.warn("[ReportManager] Token não encontrado para busca de relatórios.");
-                    return;
-                }
-
-                console.log(`[ReportManager] Buscando relatórios via API segura para owner: ${ownerId}`);
-                const response = await fetch(`/api/reference/data/${ownerId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const resData = await response.json();
+                    if (error) throw error;
                     if (ignore) return;
-                    data = resData.reports || [];
-                    console.log(`[ReportManager] ${data?.length || 0} relatórios recebidos da nuvem.`);
+                    data = d;
                 } else {
-                    const errorText = await response.text();
-                    console.error(`[ReportManager] Erro na API de relatórios: ${response.status} - ${errorText}`);
-                    throw new Error("Falha ao buscar relatórios via API.");
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const resData = await response.json();
+                        if (ignore) return;
+                        data = resData.reports || [];
+                    } else {
+                        throw new Error("Falha ao buscar relatórios via API.");
+                    }
                 }
 
                 if (data && !ignore) {
@@ -105,11 +107,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) return;
 
+        const ownerId = subscription.ownerId || user.id;
         const channel = supabase
-            .channel('reports-realtime')
+            .channel(`reports-realtime-${ownerId}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'saved_reports' },
+                { event: '*', schema: 'public', table: 'saved_reports', filter: `user_id=eq.${ownerId}` },
                 (payload: any) => {
                     const newRecord = payload.new;
                     const oldRecord = payload.old;
@@ -154,38 +157,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!user || !subscription.ownerId) return;
-        
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch(`/api/reference/report/update/${reportId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    name: newName,
-                    ownerId: subscription.ownerId
-                })
-            });
-
-            if (!response.ok) throw new Error("Erro ao renomear relatório");
-
-            setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
-            showToast('Relatório renomeado.', 'success');
-        } catch (error) {
-            console.error("[ReportManager] Erro ao renomear:", error);
-            showToast('Erro ao renomear relatório.', 'error');
-        }
-    }, [user, subscription.ownerId, showToast]);
+        if(!user) return;
+        setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
+        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId);
+        if (error) showToast('Erro ao renomear relatório.', 'error');
+        else showToast('Relatório renomeado.', 'success');
+    }, [user, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user || !reportId || !subscription.ownerId) return;
+        if (!user || !reportId) return;
         
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
@@ -204,39 +184,27 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
 
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+        setSavedReports(prev => prev.map(r => r.id === reportId ? {
+            ...r,
+            recordCount,
+            data: mergedData
+        } : r));
 
-            if (!token) throw new Error("Token não encontrado");
+        const { error } = await (supabase
+            .from('saved_reports') as any)
+            .update({ 
+                data: mergedData as any,
+                record_count: recordCount 
+            })
+            .eq('id', reportId);
 
-            const response = await fetch(`/api/reference/report/update/${reportId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    data: mergedData,
-                    record_count: recordCount,
-                    ownerId: subscription.ownerId
-                })
-            });
-
-            if (!response.ok) throw new Error("Erro ao sobrescrever relatório");
-
-            setSavedReports(prev => prev.map(r => r.id === reportId ? {
-                ...r,
-                recordCount,
-                data: mergedData
-            } : r));
-
-            showToast("Alterações salvas no servidor.", "success");
-        } catch (error) {
+        if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
             showToast("Falha ao salvar alterações no servidor.", "error");
+        } else {
+            showToast("Alterações salvas no servidor.", "success");
         }
-    }, [user, subscription.ownerId, showToast, savedReports]);
+    }, [user, showToast, savedReports]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
@@ -264,86 +232,50 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             ? savingReportState.spreadsheetData.rows.length 
             : savingReportState.results.length;
 
-        const reportData = {
-            results: savingReportState.results || [],
-            sourceFiles: [],
-            bankStatementFile: null,
-            spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
+        const newReportId = `rep-${Date.now()}`;
+        const newReport: SavedReport = {
+            id: newReportId,
+            name: name,
+            createdAt: new Date().toISOString(),
+            recordCount: recordCount,
+            user_id: ownerId,
+            data: {
+                results: savingReportState.results || [],
+                sourceFiles: [],
+                bankStatementFile: null,
+                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
+            }
         };
 
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+        setSavedReports(prev => [newReport, ...prev]);
+        closeSaveReportModal();
+        
+        const { error } = await (supabase.from('saved_reports') as any).insert({
+            id: newReport.id,
+            name: newReport.name,
+            record_count: newReport.recordCount,
+            user_id: newReport.user_id,
+            data: newReport.data as any
+        });
 
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/report/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    name,
-                    data: reportData,
-                    record_count: recordCount,
-                    ownerId: ownerId
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `Erro ao salvar relatório: ${response.statusText}`);
-            }
-
-            const savedReport = await response.json();
-            
-            // Hidratar para o estado local
-            const hydrated: SavedReport = {
-                id: savedReport.id,
-                name: savedReport.name,
-                createdAt: savedReport.created_at,
-                recordCount: savedReport.record_count,
-                user_id: savedReport.user_id,
-                data: typeof savedReport.data === 'string' ? JSON.parse(savedReport.data) : savedReport.data
-            };
-
-            setSavedReports(prev => [hydrated, ...prev]);
-            closeSaveReportModal();
-            showToast('Relatório criado!', 'success');
-            return savedReport.id;
-        } catch (error) {
-            console.error('[ReportManager] Erro ao salvar relatório:', error);
+        if (error) {
+            setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
             showToast('Erro ao salvar relatório.', 'error');
             return null;
+        } else {
+            showToast('Relatório criado!', 'success');
+            return newReportId;
         }
-    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length, subscription.ownerId]);
+    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
         const ownerId = subscription.ownerId || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error("Token não encontrado");
-
-            // Deletar um por um usando a rota segura existente
-            for (const report of reportsToDelete) {
-                await fetch(`/api/reference/delete/report/${report.id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-            }
-
-            setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-            showToast(`${reportsToDelete.length} itens removidos.`, "success");
-        } catch (error) {
-            console.error("[ReportManager] Erro ao deletar relatórios antigos:", error);
-            showToast("Erro ao limpar relatórios antigos.", "error");
-        }
+        setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
+        showToast(`${reportsToDelete.length} itens removidos.`, "success");
     }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {

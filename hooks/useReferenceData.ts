@@ -43,32 +43,34 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         if (lastOwnerIdRef.current === ownerId) return;
 
         const syncData = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
 
-                if (!token) {
-                    console.warn("[useReferenceData] Token não encontrado para busca de dados.");
-                    return;
-                }
+            if (subscription.role === 'owner') {
+                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                const { data: b } = await bankQuery;
+                if (b && !ignore) setBanks(b);
+                
+                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                const { data: c } = await query;
+                if (c && !ignore) setChurches(c);
 
-                console.log(`[useReferenceData] Buscando dados de referência via API segura para owner: ${ownerId}`);
-                const response = await fetch(`/api/reference/data/${ownerId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+            } else {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
 
-                if (response.ok) {
-                    const data = await response.json();
-                    if (ignore) return;
-                    
-                    let filteredBanks = data.banks || [];
-                    let filteredChurches = data.churches || [];
-                    let associations = data.associations || [];
-                    
-                    // Aplicar filtros de permissão para membros
-                    if (subscription.role === 'member') {
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (ignore) return;
+                        
+                        let filteredBanks = data.banks || [];
+                        let filteredChurches = data.churches || [];
+                        
                         const allowedBankIds = subscription.bankIds || [];
                         const allowedChurchIds = subscription.congregationIds || [];
                         
@@ -78,34 +80,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         if (allowedChurchIds.length > 0) {
                             filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
                         }
-                    }
-                    
-                    if (!ignore) {
-                        setBanks(filteredBanks);
-                        setChurches(filteredChurches);
                         
-                        // Atualizar aprendizados (learned_associations)
-                        if (associations) {
-                            setLearnedAssociations(associations.map((d: any) => ({
-                                id: d.id, 
-                                normalizedDescription: d.normalized_description,
-                                contributorNormalizedName: d.contributor_normalized_name,
-                                churchId: d.church_id, 
-                                bankId: 'global',
-                                user_id: d.user_id
-                            })));
+                        if (!ignore) {
+                            setBanks(filteredBanks);
+                            setChurches(filteredChurches);
                         }
-                        
-                        console.log(`[useReferenceData] Sucesso: ${filteredBanks.length} bancos, ${filteredChurches.length} igrejas e ${associations?.length || 0} aprendizados.`);
                     }
-                } else {
-                    const errorText = await response.text();
-                    console.error(`[useReferenceData] Erro na API: ${response.status} - ${errorText}`);
-                }
 
-            } catch (error) {
-                if (!ignore) {
-                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                } catch (error) {
+                    if (!ignore) {
+                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                    }
                 }
             }
 
@@ -115,10 +100,84 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         syncData();
 
-        return () => { ignore = true; };
+        // ✅ REALTIME SUBSCRIPTIONS
+        const channelOwnerId = subscription.ownerId || user.id;
+        const banksChannel = supabase
+            .channel(`banks-realtime-${channelOwnerId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${channelOwnerId}` }, (payload) => {
+                if (payload.eventType === 'INSERT') setBanks(prev => [...prev, payload.new as Bank]);
+                if (payload.eventType === 'UPDATE') setBanks(prev => prev.map(b => b.id === payload.new.id ? payload.new as Bank : b));
+                if (payload.eventType === 'DELETE') setBanks(prev => prev.filter(b => b.id === payload.old.id));
+            })
+            .subscribe();
+
+        const churchesChannel = supabase
+            .channel(`churches-realtime-${channelOwnerId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${channelOwnerId}` }, (payload) => {
+                if (payload.eventType === 'INSERT') setChurches(prev => [...prev, payload.new as Church]);
+                if (payload.eventType === 'UPDATE') setChurches(prev => prev.map(c => c.id === payload.new.id ? payload.new as Church : c));
+                if (payload.eventType === 'DELETE') setChurches(prev => prev.filter(c => c.id === payload.old.id));
+            })
+            .subscribe();
+
+        return () => { 
+            ignore = true; 
+            supabase.removeChannel(banksChannel);
+            supabase.removeChannel(churchesChannel);
+        };
 
     // ✅ dependências corrigidas (cirúrgico)
     }, [user?.id, subscription.ownerId, subscription.role]);
+
+    useEffect(() => {
+        let ignore = false;
+        if (!user) return;
+        const fetchAssociations = async () => {
+            const assocOwnerId = subscription.ownerId || user.id;
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', assocOwnerId) as { data: any[] | null };
+            if (data && !ignore) {
+                setLearnedAssociations(data.map((d: any) => ({
+                    id: d.id, 
+                    normalizedDescription: d.normalized_description,
+                    contributorNormalizedName: d.contributor_normalized_name,
+                    churchId: d.church_id, 
+                    bankId: 'global',
+                    user_id: d.user_id
+                })));
+            }
+        };
+        fetchAssociations();
+
+        const assocOwnerId = subscription.ownerId || user.id;
+        const associationsChannel = supabase
+            .channel(`associations-realtime-${assocOwnerId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${assocOwnerId}` }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    const d = payload.new;
+                    const la: LearnedAssociation = {
+                        id: d.id,
+                        normalizedDescription: d.normalized_description,
+                        contributorNormalizedName: d.contributor_normalized_name,
+                        churchId: d.church_id,
+                        bankId: 'global',
+                        user_id: d.user_id
+                    };
+                    setLearnedAssociations(prev => {
+                        const filtered = prev.filter(item => item.id !== la.id && item.normalizedDescription !== la.normalizedDescription);
+                        return [la, ...filtered];
+                    });
+                }
+                if (payload.eventType === 'DELETE') {
+                    setLearnedAssociations(prev => prev.filter(item => item.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        return () => { 
+            ignore = true; 
+            supabase.removeChannel(associationsChannel);
+        };
+    }, [user, subscription.ownerId]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;
@@ -143,35 +202,30 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         });
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data: existing } = await supabase
+                .from('learned_associations')
+                .select('id')
+                .eq('normalized_description', normalizedDesc)
+                .eq('user_id', ownerId)
+                .maybeSingle() as { data: any | null };
 
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/association/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    normalized_description: normalizedDesc,
-                    contributor_normalized_name: contributorName,
-                    church_id: matchResult.church.id,
-                    ownerId: ownerId
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Erro ao salvar aprendizado");
+            if (existing) {
+                await (supabase.from('learned_associations') as any).update({ 
+                    contributor_normalized_name: contributorName, 
+                    church_id: matchResult.church.id
+                }).eq('id', existing.id);
+            } else {
+                await (supabase.from('learned_associations') as any).insert({ 
+                    user_id: ownerId, 
+                    normalized_description: normalizedDesc, 
+                    contributor_normalized_name: contributorName, 
+                    church_id: matchResult.church.id
+                });
             }
-
-            console.log(`[ReferenceData] Aprendizado salvo com sucesso via API.`);
         } catch (err) {
-            console.error("Erro ao persistir aprendizado via API:", err);
+            console.error("Erro ao persistir aprendizado:", err);
         }
-    }, [user, subscription.ownerId]);
+    }, [user]);
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
@@ -188,118 +242,52 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const closeEditBank = useCallback(() => setEditingBank(null), []);
 
     const updateBank = useCallback(async (bankId: string, name: string) => {
-        if (!user || !subscription.ownerId) return;
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/bank/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ id: bankId, name, ownerId: subscription.ownerId })
-            });
-
-            if (!response.ok) throw new Error("Erro ao atualizar banco");
-
-            setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
-            closeEditBank();
-            showToast('Banco atualizado.', 'success');
-        } catch (error) {
-            console.error("Erro ao atualizar banco via API:", error);
-            showToast('Erro ao atualizar banco.', 'error');
-        }
-    }, [closeEditBank, setBanks, showToast, user, subscription.ownerId]);
+        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
+        closeEditBank();
+        await (supabase.from('banks') as any).update({ name }).eq('id', bankId);
+        showToast('Banco atualizado.', 'success');
+    }, [closeEditBank, setBanks, showToast]);
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
-        if(!user || !subscription.ownerId) return false;
-        const ownerId = subscription.ownerId;
+        if(!user) return false;
+        const ownerId = subscription.ownerId || user.id;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/bank/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ name, ownerId })
-            });
-
-            if (!response.ok) throw new Error("Erro ao adicionar banco");
-
-            const data = await response.json();
-            setBanks(prev => [...prev, data]);
+        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: ownerId }]).select();
+        if (data) {
+            setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
             return true;
-        } catch (error) {
-            console.error("Erro ao adicionar banco via API:", error);
-            showToast('Erro ao adicionar banco.', 'error');
-            return false;
         }
+        return false;
     }, [user, banks, subscription.maxBanks, subscription.ownerId, setBanks, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
 
     const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
-        if (!user || !subscription.ownerId) return;
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/church/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ id: churchId, formData, ownerId: subscription.ownerId })
-            });
-
-            if (!response.ok) throw new Error("Erro ao atualizar igreja");
-
-            setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
-            closeEditChurch();
-            showToast('Igreja atualizada.', 'success');
-        } catch (error) {
-            console.error("Erro ao atualizar igreja via API:", error);
-            showToast('Erro ao atualizar igreja.', 'error');
-        }
-    }, [closeEditChurch, setChurches, showToast, user, subscription.ownerId]);
+        setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
+        closeEditChurch();
+        await (supabase.from('churches') as any).update(formData).eq('id', churchId);
+        showToast('Igreja atualizada.', 'success');
+    }, [closeEditChurch, setChurches, showToast]);
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
-        if(!user || !subscription.ownerId) return false;
-        const ownerId = subscription.ownerId;
+        if(!user) return false;
+        const ownerId = subscription.ownerId || user.id;
         if (churches.length >= (subscription.maxChurches || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/church/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ formData, ownerId })
-            });
-
-            if (!response.ok) throw new Error("Erro ao adicionar igreja");
-
-            const data = await response.json();
-            setChurches(prev => [...prev, data]);
+        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: ownerId }]).select();
+        if (data) {
+            setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');
             return true;
-        } catch (error) {
-            console.error("Erro ao adicionar igreja via API:", error);
-            showToast('Erro ao adicionar igreja.', 'error');
-            return false;
         }
+        return false;
     }, [user, churches, subscription.maxChurches, subscription.ownerId, setChurches, showToast]);
 
     const addContributionKeyword = useCallback((keyword: string) => {

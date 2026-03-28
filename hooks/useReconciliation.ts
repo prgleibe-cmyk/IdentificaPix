@@ -93,26 +93,75 @@ export const useReconciliation = ({
     const isValidating = useRef<boolean>(false);
 
     /**
-     * 📡 REALTIME SYNC (Escuta mudanças de confirmação)
+     * 📡 REALTIME SYNC (Escuta mudanças de identificação e confirmação)
      */
     useEffect(() => {
         if (!user?.id) return;
         
+        const ownerId = subscription.ownerId || user.id;
+
         const channel = supabase
-            .channel(`reconciliation-status-sync-${user.id}`)
+            .channel(`reconciliation-sync-${ownerId}`)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${user.id}`
+                    filter: `user_id=eq.${ownerId}`
                 },
                 (payload) => {
-                    if (payload.new && payload.new.is_confirmed === true) {
-                        // Força a re-validação do cache local
-                        lastValidatedHash.current = '';
-                        setTriggerSync(prev => prev + 1);
+                    if (payload.eventType === 'UPDATE') {
+                        const updatedTx = payload.new;
+                        
+                        setMatchResults(prev => {
+                            const idx = prev.findIndex(r => r.transaction.id === updatedTx.id);
+                            if (idx === -1) return prev;
+
+                            const original = prev[idx];
+                            
+                            // Se mudou o status ou identificação
+                            const statusChanged = original.status !== updatedTx.status;
+                            const identificationChanged = 
+                                original.transaction.contributor_id !== updatedTx.contributor_id ||
+                                original.transaction.church_id !== updatedTx.church_id;
+                            const confirmationChanged = original.isConfirmed !== updatedTx.is_confirmed;
+
+                            if (!statusChanged && !identificationChanged && !confirmationChanged) return prev;
+
+                            const updatedResult = { ...original };
+                            updatedResult.status = updatedTx.status as ReconciliationStatus;
+                            updatedResult.isConfirmed = updatedTx.is_confirmed;
+                            updatedResult.transaction = { 
+                                ...original.transaction, 
+                                ...updatedTx,
+                                isConfirmed: updatedTx.is_confirmed 
+                            };
+
+                            // Re-hidratar igreja se necessário
+                            if (updatedTx.church_id) {
+                                const church = churches.find((c: any) => c.id === updatedTx.church_id);
+                                if (church) updatedResult.church = church;
+                            }
+
+                            // Nota: Contributor é mais difícil de hidratar aqui sem buscar no banco,
+                            // mas se o contributor_id estiver presente, podemos tentar manter o que já temos
+                            // ou marcar como identificado.
+                            
+                            const next = [...prev];
+                            next[idx] = updatedResult;
+                            return next;
+                        });
+
+                        if (updatedTx.is_confirmed === true) {
+                            lastValidatedHash.current = '';
+                            setTriggerSync(prev => prev + 1);
+                        }
+                    } else if (payload.eventType === 'DELETE') {
+                        setMatchResults(prev => prev.filter(r => r.transaction.id !== payload.old.id));
+                    } else if (payload.eventType === 'INSERT') {
+                        // Se for um novo registro pendente, talvez devêssemos adicionar?
+                        // Por enquanto, vamos focar em atualizações de identificação.
                     }
                 }
             )
@@ -121,7 +170,7 @@ export const useReconciliation = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id]);
+    }, [user?.id, subscription.ownerId, churches]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
@@ -183,6 +232,30 @@ export const useReconciliation = ({
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
     }, [user, matchResults, setMatchResults, triggerSync]);
+
+    /**
+     * 🧬 AUTO-MATCH (Sincronização Automática)
+     * Quando os arquivos bancários são carregados (via Hydrate em outro dispositivo),
+     * executa o matching automaticamente se os resultados estiverem vazios.
+     */
+    useEffect(() => {
+        if (activeBankFiles.length > 0 && matchResults.length === 0 && !isValidating.current) {
+            const allTransactions = activeBankFiles.flatMap(f => f.processedTransactions || []);
+            if (allTransactions.length > 0) {
+                const results = matchTransactions(
+                    allTransactions,
+                    contributorFiles,
+                    { similarityThreshold: similarityLevel, dayTolerance: dayTolerance },
+                    learnedAssociations,
+                    churches,
+                    customIgnoreKeywords,
+                    []
+                );
+                setMatchResults(results);
+                setHasActiveSession(true);
+            }
+        }
+    }, [activeBankFiles, contributorFiles, learnedAssociations, churches, similarityLevel, dayTolerance, customIgnoreKeywords]);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,

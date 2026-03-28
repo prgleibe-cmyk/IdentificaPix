@@ -13,24 +13,27 @@ export const AdminConfigService = {
         }
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data, error } = await supabase
+                .from('admin_config')
+                .select('value')
+                .eq('key', key)
+                .order('updated_at', { ascending: false })
+                .limit(1);
 
-            if (!token) return null;
-
-            const response = await fetch(`/api/reference/config/${key}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (!response.ok) throw new Error("Erro ao buscar config via API");
-
-            const value = await response.json();
-            if (value !== null) {
-                this.cache.set(key, value);
+            if (error) {
+                console.warn(`[AdminConfig] Erro na consulta de '${key}':`, error);
+                return null;
             }
-            return value as T;
+
+            if (!data || data.length === 0) {
+                return null;
+            }
+
+            const value = data[0].value as T;
+            this.cache.set(key, value);
+            return value;
         } catch (e) {
-            console.warn(`[AdminConfig] Exceção ao ler chave '${key}' via API`, e);
+            console.warn(`[AdminConfig] Exceção ao ler chave '${key}'`, e);
             return null;
         }
     },
@@ -39,50 +42,47 @@ export const AdminConfigService = {
         this.cache.set(key, value);
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            // O onConflict: 'key' agora funciona pois o SQL V12 adicionou a constraint UNIQUE
+            const { error } = await supabase
+                .from('admin_config')
+                .upsert(
+                    { 
+                        key, 
+                        value: value as any, 
+                        updated_at: new Date().toISOString() 
+                    }, 
+                    { onConflict: 'key' }
+                );
 
-            if (!token) throw new Error("Token não encontrado");
-
-            const response = await fetch('/api/reference/config/save', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({ key, value })
-            });
-
-            if (!response.ok) throw new Error("Erro ao salvar config via API");
+            if (error) {
+                console.error("[AdminConfig] Erro no UPSERT:", error);
+                throw error;
+            }
             
-            Logger.info(`[AdminConfig] Configuração '${key}' persistida via API.`);
+            Logger.info(`[AdminConfig] Configuração '${key}' persistida.`);
 
         } catch (e) {
-            Logger.error(`[AdminConfig] Falha de persistência via API para '${key}'`, e);
+            Logger.error(`[AdminConfig] Falha de persistência para '${key}'`, e);
             throw e; 
         }
     },
 
     async getAll(): Promise<Record<string, any>> {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const { data, error } = await supabase
+                .from('admin_config')
+                .select('key, value');
 
-            if (!token) return {};
+            if (error) throw error;
 
-            const response = await fetch('/api/reference/config/list/all', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (!response.ok) throw new Error("Erro ao listar configs via API");
-
-            const config = await response.json();
-            Object.entries(config).forEach(([key, value]) => {
-                this.cache.set(key, value);
+            const config: Record<string, any> = {};
+            data?.forEach(row => {
+                config[row.key] = row.value;
+                this.cache.set(row.key, row.value);
             });
             return config;
         } catch (e) {
-            console.warn("[AdminConfig] Falha ao carregar lote via API.", e);
+            console.warn("[AdminConfig] Falha ao carregar lote.", e);
             return {};
         }
     }

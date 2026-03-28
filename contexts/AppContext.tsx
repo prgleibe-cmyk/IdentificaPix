@@ -54,19 +54,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     /**
-     * 🔴 AJUSTE CIRÚRGICO
-     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ATIVO
+     * 🔴 AJUSTE ORIGINAL (mantido)
      */
-    const activeReportData = useMemo(() => {
-        const report = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
-        return report?.data?.results;
-    }, [reconciliation.activeReportId, reportManager.savedReports]);
-
     useEffect(() => {
-        if (activeReportData) {
-            reconciliation.setMatchResults([...activeReportData]);
+        const activeId = reconciliation.activeReportId;
+        if (!activeId) return;
+
+        const report = reportManager.savedReports.find(r => r.id === activeId);
+        if (!report || !report.data?.results) return;
+
+        let hydrated = report.data.results.map((r: any) => ({
+            ...r,
+            church:
+                referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                r.church ||
+                PLACEHOLDER_CHURCH
+        }));
+
+        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+            hydrated = hydrated.filter((r: any) =>
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
+            );
         }
-    }, [activeReportData]);
+
+        reconciliation.setMatchResults(hydrated);
+    }, [
+        reportManager.savedReports,
+        reconciliation.activeReportId,
+        referenceData.churches,
+        subscription.role,
+        subscription.congregationIds
+    ]);
+
+    /**
+     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
+     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
+     */
+    useEffect(() => {
+        if (!reconciliation.activeReportId) return;
+
+        const report = reportManager.savedReports.find(
+            r => r.id === reconciliation.activeReportId
+        );
+
+        if (!report || !report.data?.results) return;
+
+        reconciliation.setMatchResults([...report.data.results]);
+    }, [reportManager.savedReports]);
 
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS

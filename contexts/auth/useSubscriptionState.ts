@@ -30,53 +30,32 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         const settings = settingsRef.current;
 
         try {
-            // Usar a nova API segura para buscar dados de assinatura (resolve problemas de RLS)
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            
-            if (!token) {
-                console.warn('[Subscription] Token não encontrado, abortando cálculo.');
-                return;
-            }
+            const fetchPromise = supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
-            const response = await fetch(`/api/users/subscription/${userId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Erro na API de assinatura: ${response.statusText}`);
-            }
-
-            const p = await response.json();
+            const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;
             const now = new Date();
+            let p = (profileData as any) || {};
             
-            // Se o perfil não existir (pode acontecer se o trigger falhou), tentar criar um básico via API
-            if (!p || !p.id) {
-                console.warn('[Subscription] Perfil não encontrado no banco. Tentando criar perfil inicial via API...');
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    const createResponse = await fetch('/api/users/profile/create', {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}` 
-                        },
-                        body: JSON.stringify({ userId: user.id, email: user.email })
-                    });
-
-                    if (createResponse.ok) {
-                        console.log('[Subscription] Perfil inicial criado com sucesso via API.');
-                        // Recalcular após criar
-                        setTimeout(() => calculateSubscription(userId, true), 1000);
-                        return;
-                    } else {
-                        console.error('[Subscription] Erro ao criar perfil via API:', await createResponse.text());
-                    }
+            // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
+            // If the user has an owner_id different from their own ID, they are a secondary user.
+            if (p.owner_id && p.owner_id !== userId) {
+                const { data: ownerData } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle() as any;
+                if (ownerData) {
+                    // Inherit subscription fields from the Principal user
+                    p.subscription_status = ownerData.subscription_status;
+                    p.subscription_ends_at = ownerData.subscription_ends_at;
+                    p.trial_ends_at = ownerData.trial_ends_at;
+                    p.is_lifetime = ownerData.is_lifetime;
+                    p.is_blocked = ownerData.is_blocked;
+                    p.limit_ai = ownerData.limit_ai;
+                    p.max_churches = ownerData.max_churches;
+                    p.max_banks = ownerData.max_banks;
+                    // Note: usage_ai remains individual to track each user's consumption, 
+                    // but they share the Principal's limit_ai.
                 }
             }
-
+            
             const isBlocked = p.is_blocked === true;
             const isLifetime = p.is_lifetime === true || p.subscription_status === 'lifetime';
             let status = p.subscription_status || 'trial';
@@ -99,7 +78,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const congregationRaw = p.congregation;
             let permissions = p.permissions || {};
             
-            // Garantir que permissions seja um objeto
+            // Garantir que permissions seja um objeto (Supabase pode retornar como string se não for JSONB)
             if (typeof permissions === 'string') {
                 try {
                     permissions = JSON.parse(permissions);
@@ -112,9 +91,11 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             let congregationIds: string[] = [];
             let bankIds: string[] = [];
             
+            // Tenta ler do JSON de permissões primeiro (novo padrão)
             if (permissions && Array.isArray(permissions.congregationIds)) {
                 congregationIds = permissions.congregationIds;
             } 
+            // Fallback para a coluna congregation (pode ser UUID único ou array)
             else if (Array.isArray(congregationRaw)) {
                 congregationIds = congregationRaw;
             } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
@@ -147,7 +128,6 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
                 bankIds: bankIds,
                 permissions: permissions
             });
-            console.log(`[Subscription] Sucesso para ${userId}. Role: ${p.role}, Owner: ${p.owner_id || userId}`);
         } catch (e) {
             console.error("Erro assinatura (resgatando padrão):", e);
         }

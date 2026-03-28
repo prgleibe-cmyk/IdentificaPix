@@ -4,7 +4,7 @@ import { AutomationMacrosTable, ConsolidatedTransactionsTable, FileModelsTable, 
 
 export type { Json };
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       admin_config: AdminConfigTable;

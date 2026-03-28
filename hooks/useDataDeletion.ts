@@ -29,46 +29,22 @@ export const useDataDeletion = ({
         try {
             switch (type) {
                 case 'bank': {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-                    if (!token) throw new Error("Token não encontrado");
-
-                    const response = await fetch(`/api/reference/delete/bank/${id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (!response.ok) throw new Error("Erro ao deletar banco via API");
+                    const { error } = await supabase.from('banks').delete().eq('id', id);
+                    if (error) throw error;
                     referenceData.setBanks((prev: any[]) => prev.filter(b => b.id !== id));
                     showToast("Banco excluído.", "success");
                     break;
                 }
                 case 'church': {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-                    if (!token) throw new Error("Token não encontrado");
-
-                    const response = await fetch(`/api/reference/delete/church/${id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (!response.ok) throw new Error("Erro ao deletar igreja via API");
+                    const { error } = await supabase.from('churches').delete().eq('id', id);
+                    if (error) throw error;
                     referenceData.setChurches((prev: any[]) => prev.filter(c => c.id !== id));
                     showToast("Igreja excluída.", "success");
                     break;
                 }
                 case 'report-saved': {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-                    if (!token) throw new Error("Token não encontrado");
-
-                    const response = await fetch(`/api/reference/delete/report/${id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (!response.ok) throw new Error("Erro ao deletar relatório via API");
+                    const { error } = await supabase.from('saved_reports').delete().eq('id', id);
+                    if (error) throw error;
                     reportManager.setSavedReports((prev: any[]) => prev.filter(r => r.id !== id));
                     showToast("Relatório excluído.", "success");
                     break;
@@ -111,16 +87,8 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'learned-associations': {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-                    if (!token) throw new Error("Token não encontrado");
-
-                    const response = await fetch(`/api/reference/delete/association/${user.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (!response.ok) throw new Error("Erro ao limpar associações via API");
+                    const { error } = await supabase.from('learned_associations').delete().eq('user_id', user.id);
+                    if (error) throw error;
                     referenceData.setLearnedAssociations([]);
                     showToast("Associações aprendidas removidas.", "success");
                     break;
