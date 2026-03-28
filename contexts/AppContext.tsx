@@ -54,11 +54,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
+    const isAppReady = useMemo(() => {
+        return user !== undefined && referenceData.initialDataLoaded && reportManager.initialDataLoaded;
+    }, [user, referenceData.initialDataLoaded, reportManager.initialDataLoaded]);
+
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
+        console.log(`[AppContext] viewSavedReport: ID=${reportId}, Encontrado=${!!report}`);
         if (!report) return;
 
         setIsLoading(true);
@@ -66,10 +71,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             let results = report.data?.results;
             let spreadsheet = report.data?.spreadsheet;
 
+            console.log(`[AppContext] Dados do relatório: results=${!!results}, spreadsheet=${!!spreadsheet}`);
+
             if (!results && !spreadsheet) {
+                console.log(`[AppContext] Buscando dados completos para o relatório ${reportId}...`);
                 const fullData = await reportManager.fetchFullReportData(reportId);
                 results = fullData?.results;
                 spreadsheet = fullData?.spreadsheet;
+                console.log(`[AppContext] Dados completos recebidos: results=${!!results}, spreadsheet=${!!spreadsheet}`);
             }
 
             // Se temos os dados (results ou spreadsheet), abrimos o relatório
@@ -88,21 +97,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     }));
 
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+                        const originalCount = hydrated.length;
                         hydrated = hydrated.filter((r: any) =>
                             subscription.congregationIds.includes(r.church?.id || r._churchId)
                         );
+                        console.log(`[AppContext] Filtro de membro aplicado: ${originalCount} -> ${hydrated.length} itens`);
                     }
 
+                    console.log(`[AppContext] Definindo matchResults com ${hydrated.length} itens`);
                     reconciliation.setMatchResults(hydrated);
                     setActiveView('reports');
                 } else if (spreadsheet) {
+                    console.log(`[AppContext] Abrindo relatório via spreadsheet`);
                     setActiveView('reports');
                 }
             } else {
+                console.warn(`[AppContext] Relatório ${reportId} não possui dados.`);
                 showToast("Relatório sem dados disponíveis.", "error");
             }
         } catch (error) {
-            console.error("Erro ao abrir relatório:", error);
+            console.error("[AppContext] Erro ao abrir relatório:", error);
             showToast("Erro ao carregar dados do relatório.", "error");
         } finally {
             setIsLoading(false);
@@ -110,104 +124,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reportManager, reconciliation, referenceData.churches, subscription, setActiveView, showToast, setIsLoading]);
 
     /**
-     * 👁️ VISUALIZADOR DE RELATÓRIOS (MOVIMENTADO PARA CIMA)
-     */
-
-    /**
      * 👁️ AUTO-SELEÇÃO DE RELATÓRIO (ETAPA 2)
      * Seleciona o relatório mais recente se nenhum estiver ativo para preencher a aba automaticamente
      */
-    useEffect(() => {
-        if (!initialDataLoaded) return;
-        if (!reconciliation.activeReportId && reportManager.savedReports.length > 0) {
-            const latestReport = reportManager.savedReports[0];
-            // Se temos o relatório, tentamos visualizar (isso lidará com o fetch se necessário)
-            viewSavedReport(latestReport.id);
-        }
-    }, [reconciliation.activeReportId, reportManager.savedReports, initialDataLoaded, viewSavedReport]);
-
-    /**
-     * 🔴 AJUSTE ORIGINAL (mantido)
-     */
-    useEffect(() => {
-        const activeId = reconciliation.activeReportId;
-        if (!activeId) return;
-
-        const report = reportManager.savedReports.find(r => r.id === activeId);
-        if (!report || !report.data?.results) return;
-
-        let hydrated = report.data.results.map((r: any) => ({
-            ...r,
-            church:
-                referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
-                r.church ||
-                PLACEHOLDER_CHURCH
-        }));
-
-        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-            hydrated = hydrated.filter((r: any) =>
-                subscription.congregationIds.includes(r.church?.id || r._churchId)
-            );
-        }
-
-        reconciliation.setMatchResults(hydrated);
-    }, [
-        reportManager.savedReports,
-        reconciliation.activeReportId,
-        referenceData.churches,
-        subscription.role,
-        subscription.congregationIds
-    ]);
-
-    /**
-     * 🔴 AJUSTE CIRÚRGICO (MELHORADO)
-     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
-     */
-    useEffect(() => {
-        if (!reconciliation.activeReportId) {
-            lastSyncedReportId.current = null;
-            return;
-        }
-
-        const report = reportManager.savedReports.find(
-            r => r.id === reconciliation.activeReportId
-        );
-
-        if (!report || !report.data?.results) return;
-
-        // Só atualiza se o ID do relatório mudou ou se os resultados mudaram
-        if (lastSyncedReportId.current !== reconciliation.activeReportId) {
-            reconciliation.setMatchResults([...report.data.results]);
-            lastSyncedReportId.current = reconciliation.activeReportId;
-            
-            // Garante que a sessão está ativa se temos um relatório ativo
-            if (!reconciliation.hasActiveSession) {
-                reconciliation.setHasActiveSession(true);
-            }
-        }
-    }, [reportManager.savedReports, reconciliation.activeReportId, reconciliation.hasActiveSession]);
-
-    /**
-     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
-     * AUTO-RESTAURAÇÃO: Abre o último relatório se não houver sessão ativa
-     */
     const autoRestoredRef = useRef(false);
     useEffect(() => {
-        if (!initialDataLoaded || !user || autoRestoredRef.current) return;
+        if (!isAppReady || !user || autoRestoredRef.current) return;
 
-        // Se já existe um ID ativo na memória local, apenas marca como resolvido
+        // Se já existe um ID ativo na memória local, tentamos garantir que os dados estão carregados
         if (reconciliation.activeReportId) {
+            console.log(`[AppContext] Sessão ativa detectada: ${reconciliation.activeReportId}. Garantindo carga de dados...`);
             autoRestoredRef.current = true;
+            viewSavedReport(reconciliation.activeReportId);
             return;
         }
 
         // Se não tem ID ativo mas temos relatórios na nuvem, abre o mais recente
         if (reportManager.savedReports.length > 0) {
+            console.log(`[AppContext] Auto-restaurando último relatório: ${reportManager.savedReports[0].id}`);
             autoRestoredRef.current = true;
             const latestReport = reportManager.savedReports[0];
             viewSavedReport(latestReport.id);
         }
-    }, [initialDataLoaded, user, reportManager.savedReports, reconciliation.activeReportId, viewSavedReport]);
+    }, [isAppReady, user, reportManager.savedReports, reconciliation.activeReportId, viewSavedReport]);
 
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
         const reportId = reconciliation.activeReportId;
@@ -279,8 +218,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
     useEffect(() => {
-        if (user !== undefined) setInitialDataLoaded(true);
-    }, [user]);
+        if (user !== undefined && referenceData.initialDataLoaded && reportManager.initialDataLoaded) {
+            setInitialDataLoaded(true);
+        }
+    }, [user, referenceData.initialDataLoaded, reportManager.initialDataLoaded]);
 
     const value = useMemo(() => ({
         ...referenceData,

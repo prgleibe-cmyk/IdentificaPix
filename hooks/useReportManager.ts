@@ -81,7 +81,10 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
                         });
                     }
 
-                    setSavedReports(hydrated);
+                    if (!ignore) {
+                        console.log(`[useReportManager] Recebidos ${hydrated.length} relatórios da API.`);
+                        setSavedReports(hydrated);
+                    }
                 }
             } catch (err) {
                 if (!ignore) {
