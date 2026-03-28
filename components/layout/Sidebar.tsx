@@ -60,11 +60,17 @@ export const Sidebar: React.FC = () => {
         if (outcome === 'accepted') setDeferredPrompt(null);
     };
 
+    const isSecondaryUser = subscription.ownerId && subscription.ownerId !== user?.id;
+
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [
             { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-5 h-5"/> },
-            { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> },
         ];
+
+        // Lançar Dados (upload) apenas para o proprietário (Owner)
+        if (!isSecondaryUser) {
+            items.push({ view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> });
+        }
 
         // Cadastro apenas para o proprietário (Owner)
         if (subscription.role === 'owner') {
@@ -75,12 +81,16 @@ export const Sidebar: React.FC = () => {
             { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
-            { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-5 h-5"/> },
         );
+
+        // Configurações apenas para o proprietário (Owner)
+        if (!isSecondaryUser) {
+            items.push({ view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-5 h-5"/> });
+        }
 
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <ShieldCheckIcon className="w-5 h-5"/>, special: true });
         return items;
-    }, [isAdmin, subscription.role]);
+    }, [isAdmin, subscription.role, isSecondaryUser]);
 
     const getStatusStyle = () => {
         if (subscription.isExpired) return 'border-red-500/30 text-red-400 bg-red-500/10';
@@ -90,8 +100,6 @@ export const Sidebar: React.FC = () => {
     };
 
     const StatusIcon = subscription.isExpired ? ExclamationTriangleIcon : (subscription.plan === 'lifetime' ? CheckBadgeIcon : SparklesIcon);
-
-    const isSecondaryUser = subscription.ownerId && subscription.ownerId !== user?.id;
 
     const handleLogout = async (e: React.MouseEvent) => {
         e.preventDefault();

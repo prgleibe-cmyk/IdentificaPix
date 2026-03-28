@@ -30,14 +30,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const modalController = useModalController();
     const referenceData = useReferenceData(effectiveUser, showToast);
-    const reportManager = useReportManager(user, showToast);
+    const reportManager = useReportManager(effectiveUser, showToast);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user: effectiveUser,
+        user: user,
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
@@ -52,6 +52,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsLoading,
         setActiveView
     });
+
+    /**
+     * 👁️ AUTO-SELEÇÃO DE RELATÓRIO (ETAPA 2)
+     * Seleciona o relatório mais recente se nenhum estiver ativo para preencher a aba automaticamente
+     */
+    useEffect(() => {
+        if (!reconciliation.activeReportId && reportManager.savedReports.length > 0) {
+            const latestReport = reportManager.savedReports[0];
+            if (latestReport.data?.results) {
+                reconciliation.setActiveReportId(latestReport.id);
+                reconciliation.setHasActiveSession(true);
+            }
+        }
+    }, [reconciliation.activeReportId, reportManager.savedReports, reconciliation]);
 
     /**
      * 🔴 AJUSTE ORIGINAL (mantido)
