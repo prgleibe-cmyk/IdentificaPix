@@ -103,28 +103,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reportManager.savedReports]);
 
     /**
-     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
-     * AUTO-RESTAURAÇÃO: Abre o último relatório se não houver sessão ativa
-     */
-    const autoRestoredRef = useRef(false);
-    useEffect(() => {
-        if (!initialDataLoaded || !user || autoRestoredRef.current) return;
-
-        // Se já existe um ID ativo na memória local, apenas marca como resolvido
-        if (reconciliation.activeReportId) {
-            autoRestoredRef.current = true;
-            return;
-        }
-
-        // Se não tem ID ativo mas temos relatórios na nuvem, abre o mais recente
-        if (reportManager.savedReports.length > 0) {
-            autoRestoredRef.current = true;
-            const latestReport = reportManager.savedReports[0];
-            viewSavedReport(latestReport.id);
-        }
-    }, [initialDataLoaded, user, reportManager.savedReports, reconciliation.activeReportId, viewSavedReport]);
-
-    /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
@@ -213,6 +191,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setIsLoading(false);
         }
     }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
+
+    /**
+     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
+     * AUTO-RESTAURAÇÃO: Abre o último relatório se não houver sessão ativa
+     */
+    const autoRestoredRef = useRef(false);
+    useEffect(() => {
+        if (!initialDataLoaded || !user || autoRestoredRef.current) return;
+
+        // Se já existe um ID ativo na memória local, apenas marca como resolvido
+        if (reconciliation.activeReportId) {
+            autoRestoredRef.current = true;
+            return;
+        }
+
+        // Se não tem ID ativo mas temos relatórios na nuvem, abre o mais recente
+        if (reportManager.savedReports.length > 0) {
+            autoRestoredRef.current = true;
+            const latestReport = reportManager.savedReports[0];
+            viewSavedReport(latestReport.id);
+        }
+    }, [initialDataLoaded, user, reportManager.savedReports, reconciliation.activeReportId, viewSavedReport]);
 
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
         const reportId = reconciliation.activeReportId;
