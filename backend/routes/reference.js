@@ -68,11 +68,11 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar igrejas:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos (Usa o ID da organização para alimentar a Aba Relatórios com dados históricos)
+            // Buscar relatórios salvos (Individual para cada usuário para alimentar a Aba Relatórios automaticamente)
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
                 .select('id, name, created_at, record_count, user_id, data')
-                .eq('user_id', effectiveOwnerId)
+                .eq('user_id', req.user.id)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {
