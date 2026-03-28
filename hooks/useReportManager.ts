@@ -302,15 +302,31 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const ownerId = subscription.ownerId || user.id;
         
         try {
-            const { data, error } = await supabase
-                .from('saved_reports')
-                .select('data')
-                .eq('id', reportId)
-                .eq('user_id', ownerId)
-                .single();
+            let rawData: any;
 
-            if (error) throw error;
-            const rawData = data.data;
+            if (subscription.role === 'owner') {
+                const { data, error } = await supabase
+                    .from('saved_reports')
+                    .select('data')
+                    .eq('id', reportId)
+                    .eq('user_id', ownerId)
+                    .single();
+
+                if (error) throw error;
+                rawData = data.data;
+            } else {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
+                const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error("Falha ao buscar via API");
+                const resData = await response.json();
+                rawData = resData.data;
+            }
+
             const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
             
             setSavedReports(prev => prev.map(r => 
@@ -322,7 +338,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             console.error("[ReportManager] Erro ao buscar dados completos:", err);
             return null;
         }
-    }, [user, subscription.ownerId]);
+    }, [user, subscription.ownerId, subscription.role]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,
