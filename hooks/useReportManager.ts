@@ -297,8 +297,36 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return results;
     }, [savedReports, subscription.role, subscription.congregationIds]);
 
+    const fetchFullReportData = useCallback(async (reportId: string) => {
+        if (!user) return null;
+        const ownerId = subscription.ownerId || user.id;
+        
+        try {
+            const { data, error } = await supabase
+                .from('saved_reports')
+                .select('data')
+                .eq('id', reportId)
+                .eq('user_id', ownerId)
+                .single();
+
+            if (error) throw error;
+            const rawData = data.data;
+            const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+            
+            setSavedReports(prev => prev.map(r => 
+                r.id === reportId ? { ...r, data: parsedData } : r
+            ));
+            
+            return parsedData;
+        } catch (err) {
+            console.error("[ReportManager] Erro ao buscar dados completos:", err);
+            return null;
+        }
+    }, [user, subscription.ownerId]);
+
     return useMemo(() => ({
         savedReports, setSavedReports,
+        fetchFullReportData,
         maxSavedReports: MAX_REPORTS_PER_USER,
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
