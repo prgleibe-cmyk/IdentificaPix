@@ -37,7 +37,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             return;
         }
 
-        const ownerId = subscription.ownerId || user.id;
+        const ownerId = subscription.ownerId;
+
+        // ✅ TRAVA DE SEGURANÇA: Só prossegue se o ownerId estiver resolvido
+        // Isso evita o erro de "Acesso Negado" enquanto o perfil ainda está carregando
+        if (!ownerId) return;
 
         // ✅ evita múltiplas execuções desnecessárias
         if (lastOwnerIdRef.current === ownerId) return;
@@ -100,31 +104,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         syncData();
 
-        // ✅ REALTIME SUBSCRIPTIONS
-        const channelOwnerId = subscription.ownerId || user.id;
-        const banksChannel = supabase
-            .channel(`banks-realtime-${channelOwnerId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${channelOwnerId}` }, (payload) => {
-                if (payload.eventType === 'INSERT') setBanks(prev => [...prev, payload.new as Bank]);
-                if (payload.eventType === 'UPDATE') setBanks(prev => prev.map(b => b.id === payload.new.id ? payload.new as Bank : b));
-                if (payload.eventType === 'DELETE') setBanks(prev => prev.filter(b => b.id === payload.old.id));
-            })
-            .subscribe();
-
-        const churchesChannel = supabase
-            .channel(`churches-realtime-${channelOwnerId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${channelOwnerId}` }, (payload) => {
-                if (payload.eventType === 'INSERT') setChurches(prev => [...prev, payload.new as Church]);
-                if (payload.eventType === 'UPDATE') setChurches(prev => prev.map(c => c.id === payload.new.id ? payload.new as Church : c));
-                if (payload.eventType === 'DELETE') setChurches(prev => prev.filter(c => c.id === payload.old.id));
-            })
-            .subscribe();
-
-        return () => { 
-            ignore = true; 
-            supabase.removeChannel(banksChannel);
-            supabase.removeChannel(churchesChannel);
-        };
+        return () => { ignore = true; };
 
     // ✅ dependências corrigidas (cirúrgico)
     }, [user?.id, subscription.ownerId, subscription.role]);
@@ -133,8 +113,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         let ignore = false;
         if (!user) return;
         const fetchAssociations = async () => {
-            const assocOwnerId = subscription.ownerId || user.id;
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', assocOwnerId) as { data: any[] | null };
+            const ownerId = subscription.ownerId || user.id;
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
             if (data && !ignore) {
                 setLearnedAssociations(data.map((d: any) => ({
                     id: d.id, 
@@ -147,37 +127,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             }
         };
         fetchAssociations();
-
-        const assocOwnerId = subscription.ownerId || user.id;
-        const associationsChannel = supabase
-            .channel(`associations-realtime-${assocOwnerId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${assocOwnerId}` }, (payload) => {
-                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                    const d = payload.new;
-                    const la: LearnedAssociation = {
-                        id: d.id,
-                        normalizedDescription: d.normalized_description,
-                        contributorNormalizedName: d.contributor_normalized_name,
-                        churchId: d.church_id,
-                        bankId: 'global',
-                        user_id: d.user_id
-                    };
-                    setLearnedAssociations(prev => {
-                        const filtered = prev.filter(item => item.id !== la.id && item.normalizedDescription !== la.normalizedDescription);
-                        return [la, ...filtered];
-                    });
-                }
-                if (payload.eventType === 'DELETE') {
-                    setLearnedAssociations(prev => prev.filter(item => item.id !== payload.old.id));
-                }
-            })
-            .subscribe();
-
-        return () => { 
-            ignore = true; 
-            supabase.removeChannel(associationsChannel);
-        };
-    }, [user, subscription.ownerId]);
+        return () => { ignore = true; };
+    }, [user]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;

@@ -107,12 +107,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) return;
 
-        const ownerId = subscription.ownerId || user.id;
         const channel = supabase
-            .channel(`reports-realtime-${ownerId}`)
+            .channel('reports-realtime')
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'saved_reports', filter: `user_id=eq.${ownerId}` },
+                { event: '*', schema: 'public', table: 'saved_reports' },
                 (payload: any) => {
                     const newRecord = payload.new;
                     const oldRecord = payload.old;

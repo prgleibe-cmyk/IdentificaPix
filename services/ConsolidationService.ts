@@ -42,9 +42,7 @@ export const consolidationService = {
                         bank_id: t.bank_id || null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
-                        is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false,
-                        contributor_id: t.contributor_id || null,
-                        church_id: t.church_id || null
+                        is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false
                     };
 
                 })
@@ -107,18 +105,13 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', identification?: { contributor_id?: string | null, church_id?: string | null }) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved') => {
 
         try {
-            const updateData: any = { status };
-            if (identification) {
-                if (identification.contributor_id !== undefined) updateData.contributor_id = identification.contributor_id;
-                if (identification.church_id !== undefined) updateData.church_id = identification.church_id;
-            }
 
             const { error } = await supabase
                 .from('consolidated_transactions')
-                .update(updateData)
+                .update({ status })
                 .eq('id', id);
 
             if (error) throw error;
@@ -267,7 +260,7 @@ export const consolidationService = {
 
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
-                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed, contributor_id, church_id')
+                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)

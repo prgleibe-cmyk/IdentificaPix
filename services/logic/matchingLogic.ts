@@ -73,31 +73,6 @@ export const matchTransactions = (
             return;
         }
 
-        // 🎯 NOVO: Se a transação já veio do banco com identificação (contributor_id e church_id)
-        if (tx.contributor_id && tx.church_id) {
-            const church = churches.find(c => c.id === tx.church_id);
-            // Tenta encontrar o contribuidor na lista carregada
-            const contributor = allContributorsFlat.find(c => c.id === tx.contributor_id || c._internalId === tx.contributor_id);
-            
-            if (church) {
-                const identifiedResult: MatchResult = {
-                    transaction: tx,
-                    contributor: contributor || { name: 'Identificado (Nuvem)', id: tx.contributor_id, amount: tx.amount },
-                    status: ReconciliationStatus.IDENTIFIED,
-                    church: church,
-                    similarity: 100,
-                    matchMethod: MatchMethod.MANUAL,
-                    contributionType: tx.contributionType,
-                    paymentMethod: tx.paymentMethod
-                };
-                finalResults.push(identifiedResult);
-                if (contributor?._internalId) {
-                    usedContributors.add(contributor._internalId);
-                }
-                return;
-            }
-        }
-
         // 🎯 AJUSTE SOLICITADO: Normalização estrita da descrição bancária
         const txDescStrict = strictNormalize(tx.description);
         

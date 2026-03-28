@@ -43,8 +43,6 @@ export interface Transaction {
   contributionType?: string;
   paymentMethod?: string;
   bank_id?: string;
-  contributor_id?: string;
-  church_id?: string;
   // Fix: Added isConfirmed to Transaction interface to resolve property missing errors
   isConfirmed?: boolean;
 }

@@ -47,10 +47,7 @@ export const useReconciliationActions = ({
     currentResults[idx] = updatedResult;
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(txId, 'identified', {
-        contributor_id: contributor.id || null,
-        church_id: church.id
-      });
+      await consolidationService.updateTransactionStatus(txId, 'identified');
     }
 
     reconciliation.setMatchResults(currentResults);
@@ -102,10 +99,7 @@ export const useReconciliationActions = ({
       referenceData.learnAssociation(updated);
 
       if (!id.includes('ghost') && !id.includes('sim')) {
-        await consolidationService.updateTransactionStatus(id, 'identified', {
-          contributor_id: contributor.id || null,
-          church_id: church.id
-        });
+        await consolidationService.updateTransactionStatus(id, 'identified');
       }
 
       affectedCount++;
