@@ -23,29 +23,7 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
     const lastProcessedUserId = useRef<string | null>(null);
 
     const calculateSubscription = useCallback(async (userId: string | null, force: boolean = false) => {
-        if (!userId) {
-            lastProcessedUserId.current = null;
-            return;
-        }
-        
-        // Se mudou o usuário, resetamos o estado para o padrão antes de buscar
-        if (lastProcessedUserId.current !== userId) {
-            setSubscription({
-                plan: 'trial',
-                daysRemaining: 10,
-                totalDays: 10,
-                isExpired: false,
-                isBlocked: false,
-                isLifetime: false,
-                aiLimit: 100, 
-                aiUsage: 0,
-                maxChurches: 2, 
-                maxBanks: 2,
-                role: 'owner',
-                ownerId: ''
-            });
-        }
-
+        if (!userId) return;
         if (!force && lastProcessedUserId.current === userId) return;
         
         lastProcessedUserId.current = userId;

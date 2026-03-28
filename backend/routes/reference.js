@@ -46,50 +46,45 @@ export default () => {
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
-            console.log(`[Reference API] Buscando dados para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
+            if (effectiveOwnerId !== ownerId) {
+                console.warn(`[Reference API] Acesso negado: Usuário ${req.user.id} tentou acessar dados do owner ${ownerId}, mas seu owner_id é ${effectiveOwnerId}`);
+                return res.status(403).json({ error: "Acesso negado." });
+            }
+
+            console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id}, role: ${profile?.role})`);
 
             // Buscar bancos
             const { data: banks, error: banksError } = await supabase
                 .from('banks')
                 .select('*')
-                .eq('user_id', effectiveOwnerId);
-
+                .eq('user_id', ownerId);
+            
             if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos:`, banksError.message);
+                console.error(`[Reference API] Erro ao buscar bancos para owner ${ownerId}:`, banksError.message);
             }
 
             // Buscar igrejas
             const { data: churches, error: churchesError } = await supabase
                 .from('churches')
                 .select('*')
-                .eq('user_id', effectiveOwnerId);
+                .eq('user_id', ownerId);
 
             if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas:`, churchesError.message);
+                console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos (Organização completa para alimentar a Aba Relatórios)
-            // 1. Obter todos os IDs de usuários da organização (Dono + Membros)
-            const { data: orgProfiles } = await supabase
-                .from('profiles')
-                .select('id')
-                .or(`id.eq.${effectiveOwnerId},owner_id.eq.${effectiveOwnerId}`);
-            
-            const orgUserIds = orgProfiles?.map(p => p.id) || [effectiveOwnerId];
-            console.log(`[Reference API] Organização de ${effectiveOwnerId} possui ${orgUserIds.length} usuários: ${orgUserIds.join(', ')}`);
-
-            // 2. Buscar relatórios salvos de toda a organização
+            // Buscar relatórios salvos
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
-                .select('id, name, created_at, record_count, user_id, data')
-                .in('user_id', orgUserIds)
+                .select('*')
+                .eq('user_id', ownerId)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {
-                console.error(`[Reference API] Erro ao buscar relatórios para organização de ${effectiveOwnerId}:`, reportsError.message);
+                console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
             }
 
-            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios para a organização.`);
+            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
 
             res.json({ 
                 banks: banks || [], 
@@ -125,19 +120,11 @@ export default () => {
                 return res.status(403).json({ error: "Acesso negado." });
             }
 
-            // 1. Obter todos os IDs de usuários da organização
-            const { data: orgProfiles } = await supabase
-                .from('profiles')
-                .select('id')
-                .or(`id.eq.${effectiveOwnerId},owner_id.eq.${effectiveOwnerId}`);
-            
-            const orgUserIds = orgProfiles?.map(p => p.id) || [effectiveOwnerId];
-
             const { data, error } = await supabase
                 .from('saved_reports')
                 .select('data, name')
                 .eq('id', reportId)
-                .in('user_id', orgUserIds)
+                .eq('user_id', ownerId)
                 .single();
 
             if (error) throw error;
