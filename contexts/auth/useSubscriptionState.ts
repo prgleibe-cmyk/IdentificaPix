@@ -52,6 +52,31 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
             const p = await response.json();
             const now = new Date();
             
+            // Se o perfil não existir (pode acontecer se o trigger falhou), tentar criar um básico via API
+            if (!p || !p.id) {
+                console.warn('[Subscription] Perfil não encontrado no banco. Tentando criar perfil inicial via API...');
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const createResponse = await fetch('/api/users/profile/create', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}` 
+                        },
+                        body: JSON.stringify({ userId: user.id, email: user.email })
+                    });
+
+                    if (createResponse.ok) {
+                        console.log('[Subscription] Perfil inicial criado com sucesso via API.');
+                        // Recalcular após criar
+                        setTimeout(() => calculateSubscription(userId, true), 1000);
+                        return;
+                    } else {
+                        console.error('[Subscription] Erro ao criar perfil via API:', await createResponse.text());
+                    }
+                }
+            }
+
             const isBlocked = p.is_blocked === true;
             const isLifetime = p.is_lifetime === true || p.subscription_status === 'lifetime';
             let status = p.subscription_status || 'trial';

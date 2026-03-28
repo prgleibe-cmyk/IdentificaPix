@@ -521,5 +521,131 @@ export default () => {
         }
     });
 
+    // Rota para adicionar dias de assinatura
+    router.post('/subscription/add-days', async (req, res) => {
+        const { days, userId } = req.body;
+        const supabase = getSupabaseAdmin();
+        if (!supabase) return res.status(500).json({ error: "Erro de configuração." });
+
+        try {
+            // Apenas o próprio usuário ou admin pode adicionar dias (neste contexto simplificado)
+            if (req.user.id !== userId) return res.status(403).json({ error: "Não autorizado." });
+
+            const { data: p, error: fetchError } = await supabase.from('profiles').select('subscription_ends_at').eq('id', userId).single();
+            if (fetchError) throw fetchError;
+
+            const current = p?.subscription_ends_at ? new Date(p.subscription_ends_at) : new Date();
+            const next = new Date(current.getTime() + days * 86400000);
+
+            const { data, error: updateError } = await supabase.from('profiles').update({ 
+                subscription_status: 'active', 
+                subscription_ends_at: next.toISOString() 
+            }).eq('id', userId).select().single();
+
+            if (updateError) throw updateError;
+            res.json(data);
+        } catch (error) {
+            console.error("[Users API] Erro ao adicionar dias:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Rota para atualizar limites
+    router.post('/subscription/update-limits', async (req, res) => {
+        const { slots, userId } = req.body;
+        const supabase = getSupabaseAdmin();
+        if (!supabase) return res.status(500).json({ error: "Erro de configuração." });
+
+        try {
+            if (req.user.id !== userId) return res.status(403).json({ error: "Não autorizado." });
+
+            const UNLIMITED_AI = 999999;
+            const { data, error } = await supabase.from('profiles').update({ 
+                limit_ai: UNLIMITED_AI, 
+                max_churches: slots, 
+                max_banks: slots 
+            }).eq('id', userId).select().single();
+
+            if (error) throw error;
+            res.json(data);
+        } catch (error) {
+            console.error("[Users API] Erro ao atualizar limites:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Rota para registrar pagamento
+    router.post('/payment/register', async (req, res) => {
+        const { amount, notes, userId } = req.body;
+        const supabase = getSupabaseAdmin();
+        if (!supabase) return res.status(500).json({ error: "Erro de configuração." });
+
+        try {
+            if (req.user.id !== userId) return res.status(403).json({ error: "Não autorizado." });
+
+            const { data: payment, error: payError } = await supabase.from('payments').insert({ 
+                user_id: userId, 
+                amount, 
+                status: 'approved', 
+                notes 
+            }).select().single();
+
+            if (payError) throw payError;
+            res.json(payment);
+        } catch (error) {
+            console.error("[Users API] Erro ao registrar pagamento:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Rota para incrementar uso de IA
+    router.post('/subscription/increment-ai', async (req, res) => {
+        const supabase = getSupabaseAdmin();
+        if (!supabase) return res.status(500).json({ error: "Erro de configuração." });
+
+        try {
+            const userId = req.user.id;
+            const { data: p, error: fetchError } = await supabase.from('profiles').select('usage_ai').eq('id', userId).single();
+            if (fetchError) throw fetchError;
+
+            const { data, error: updateError } = await supabase.from('profiles').update({ 
+                usage_ai: (p?.usage_ai || 0) + 1 
+            }).eq('id', userId).select().single();
+
+            if (updateError) throw updateError;
+            res.json(data);
+        } catch (error) {
+            console.error("[Users API] Erro ao incrementar IA:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Rota para criar perfil básico se não existir
+    router.post('/profile/create', async (req, res) => {
+        const { userId, email } = req.body;
+        const supabase = getSupabaseAdmin();
+        if (!supabase) return res.status(500).json({ error: "Erro de configuração." });
+
+        try {
+            if (req.user.id !== userId) return res.status(403).json({ error: "Não autorizado." });
+
+            const { data, error } = await supabase.from('profiles').insert({
+                id: userId,
+                email: email,
+                subscription_status: 'trial',
+                max_churches: 1,
+                max_banks: 1,
+                limit_ai: 50,
+                usage_ai: 0
+            }).select().single();
+
+            if (error) throw error;
+            res.json(data);
+        } catch (error) {
+            console.error("[Users API] Erro ao criar perfil:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     return router;
 };

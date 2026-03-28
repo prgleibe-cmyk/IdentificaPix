@@ -42,31 +42,29 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             try {
                 let data: any[] | null = null;
 
-                if (subscription.role === 'owner') {
-                    const { data: d, error } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false });
+                // 🛡️ SEGURANÇA: Sempre usar a API para buscar dados (resolve problemas de RLS/Visibilidade)
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
 
-                    if (error) throw error;
+                if (!token) {
+                    console.warn("[ReportManager] Token não encontrado para busca de relatórios.");
+                    return;
+                }
+
+                console.log(`[ReportManager] Buscando relatórios via API segura para owner: ${ownerId}`);
+                const response = await fetch(`/api/reference/data/${ownerId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const resData = await response.json();
                     if (ignore) return;
-                    data = d;
+                    data = resData.reports || [];
+                    console.log(`[ReportManager] ${data?.length || 0} relatórios recebidos da nuvem.`);
                 } else {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (response.ok) {
-                        const resData = await response.json();
-                        if (ignore) return;
-                        data = resData.reports || [];
-                    } else {
-                        throw new Error("Falha ao buscar relatórios via API.");
-                    }
+                    const errorText = await response.text();
+                    console.error(`[ReportManager] Erro na API de relatórios: ${response.status} - ${errorText}`);
+                    throw new Error("Falha ao buscar relatórios via API.");
                 }
 
                 if (data && !ignore) {
@@ -326,9 +324,26 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const ownerId = subscription.ownerId || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
-        setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
-        showToast(`${reportsToDelete.length} itens removidos.`, "success");
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) throw new Error("Token não encontrado");
+
+            // Deletar um por um usando a rota segura existente
+            for (const report of reportsToDelete) {
+                await fetch(`/api/reference/delete/report/${report.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            }
+
+            setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
+            showToast(`${reportsToDelete.length} itens removidos.`, "success");
+        } catch (error) {
+            console.error("[ReportManager] Erro ao deletar relatórios antigos:", error);
+            showToast("Erro ao limpar relatórios antigos.", "error");
+        }
     }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {

@@ -11,40 +11,88 @@ export const useAuthActions = (
 ) => {
     const addSubscriptionDays = useCallback(async (days: number) => {
         if (!user) return;
-        const { data: p } = await supabase.from('profiles').select('subscription_ends_at').eq('id', user.id).single();
-        const current = (p as any)?.subscription_ends_at ? new Date((p as any).subscription_ends_at) : new Date();
-        const next = new Date(current.getTime() + days * 86400000);
-        await supabase.from('profiles').update({ subscription_status: 'active', subscription_ends_at: next.toISOString() }).eq('id', user.id);
-        refreshSubscription();
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return;
+
+            const response = await fetch('/api/users/subscription/add-days', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ days, userId: user.id })
+            });
+
+            if (!response.ok) throw new Error("Erro ao adicionar dias via API");
+            refreshSubscription();
+        } catch (e) {
+            console.error("[AuthActions] Falha ao adicionar dias via API", e);
+        }
     }, [user, refreshSubscription]);
 
     const updateLimits = useCallback(async (slots: number) => {
         if (!user) return;
-        
-        // Ao realizar qualquer upgrade de slots, definimos o limite de IA para um valor 
-        // virtualmente infinito (999.999 tokens/usos) para não barrar o usuário.
-        const UNLIMITED_AI = 999999;
-        
-        await supabase.from('profiles').update({ 
-            limit_ai: UNLIMITED_AI, 
-            max_churches: slots, 
-            max_banks: slots 
-        }).eq('id', user.id);
-        
-        refreshSubscription();
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return;
+
+            const response = await fetch('/api/users/subscription/update-limits', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ slots, userId: user.id })
+            });
+
+            if (!response.ok) throw new Error("Erro ao atualizar limites via API");
+            refreshSubscription();
+        } catch (e) {
+            console.error("[AuthActions] Falha ao atualizar limites via API", e);
+        }
     }, [user, refreshSubscription]);
 
     const incrementAiUsage = useCallback(async () => {
         if (!user) return;
         setSubscription(s => ({ ...s, aiUsage: (s.aiUsage || 0) + 1 }));
-        const { data: p } = await supabase.from('profiles').select('usage_ai').eq('id', user.id).single();
-        await supabase.from('profiles').update({ usage_ai: ((p as any)?.usage_ai || 0) + 1 }).eq('id', user.id);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return;
+
+            await fetch('/api/users/subscription/increment-ai', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (e) {
+            console.error("[AuthActions] Falha ao incrementar IA via API", e);
+        }
     }, [user, setSubscription]);
 
     const registerPayment = useCallback(async (amount: number, method: string, notes?: string) => {
         if (!user) return;
-        await supabase.from('payments').insert({ user_id: user.id, amount, status: 'approved', notes: notes || `Via ${method}` });
-        await addSubscriptionDays(30);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return;
+
+            const response = await fetch('/api/users/payment/register', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ amount, notes: notes || `Via ${method}`, userId: user.id })
+            });
+
+            if (!response.ok) throw new Error("Erro ao registrar pagamento via API");
+            await addSubscriptionDays(30);
+        } catch (e) {
+            console.error("[AuthActions] Falha ao registrar pagamento via API", e);
+        }
     }, [user, addSubscriptionDays]);
 
     return { addSubscriptionDays, updateLimits, incrementAiUsage, registerPayment };
