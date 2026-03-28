@@ -38,8 +38,8 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         }
 
         const fetchReports = async () => {
-            const ownerId = subscription.ownerId;
-            if (!ownerId || !effectiveUser) return;
+            const ownerId = effectiveUser.id;
+            if (!ownerId) return;
 
             try {
                 let data: any[] | null = null;

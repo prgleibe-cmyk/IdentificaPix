@@ -119,7 +119,7 @@ export default () => {
                 .from('saved_reports')
                 .select('data, name')
                 .eq('id', reportId)
-                .eq('user_id', req.user.id)
+                .eq('user_id', effectiveOwnerId)
                 .single();
 
             if (error) throw error;
