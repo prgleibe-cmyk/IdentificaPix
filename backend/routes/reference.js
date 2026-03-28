@@ -46,38 +46,33 @@ export default () => {
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
-            if (effectiveOwnerId !== ownerId) {
-                console.warn(`[Reference API] Acesso negado: Usuário ${req.user.id} tentou acessar dados do owner ${ownerId}, mas seu owner_id é ${effectiveOwnerId}`);
-                return res.status(403).json({ error: "Acesso negado." });
-            }
-
-            console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id}, role: ${profile?.role})`);
+            console.log(`[Reference API] Buscando dados para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
 
             // Buscar bancos
             const { data: banks, error: banksError } = await supabase
                 .from('banks')
                 .select('*')
-                .eq('user_id', ownerId);
-            
+                .eq('user_id', effectiveOwnerId);
+
             if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos para owner ${ownerId}:`, banksError.message);
+                console.error(`[Reference API] Erro ao buscar bancos:`, banksError.message);
             }
 
             // Buscar igrejas
             const { data: churches, error: churchesError } = await supabase
                 .from('churches')
                 .select('*')
-                .eq('user_id', ownerId);
+                .eq('user_id', effectiveOwnerId);
 
             if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
+                console.error(`[Reference API] Erro ao buscar igrejas:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos (Otimizado: Individual para cada usuário)
+            // Buscar relatórios salvos (Restaurado para a organização para alimentar a Aba Relatórios)
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
                 .select('id, name, created_at, record_count, user_id')
-                .eq('user_id', req.user.id)
+                .eq('user_id', effectiveOwnerId)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {

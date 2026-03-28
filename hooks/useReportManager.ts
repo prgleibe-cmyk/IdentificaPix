@@ -38,9 +38,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            // ✅ AJUSTE CIRÚRGICO: Sempre usa o ID do próprio usuário logado para relatórios individuais
-            const reportUserId = user?.id;
-            if (!reportUserId) return;
+            const ownerId = subscription.ownerId;
+            if (!ownerId || !user) return;
 
             try {
                 let data: any[] | null = null;
@@ -49,7 +48,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
-                        .eq('user_id', reportUserId)
+                        .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
 
                     if (error) throw error;
@@ -223,7 +222,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
-        const ownerId = subscription.ownerId || user.id;
+        const reportUserId = user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -242,7 +241,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
-            user_id: ownerId,
+            user_id: reportUserId,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -296,6 +295,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return results;
     }, [savedReports, subscription.role, subscription.congregationIds]);
 
+    /**
+     * ✅ AJUSTE CIRÚRGICO: Filtra os relatórios para mostrar apenas os do próprio usuário na lista de salvos
+     */
+    const userSavedReports = useMemo(() => {
+        if (!user) return [];
+        return savedReports.filter(r => r.user_id === user.id);
+    }, [savedReports, user]);
+
     const fetchFullReportData = useCallback(async (reportId: string) => {
         if (!user) return null;
         
@@ -311,10 +318,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     .single();
 
                 if (error) throw error;
-                rawData = data.data;
+                rawData = data?.data;
             } else {
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
+                const ownerId = subscription.ownerId;
 
                 const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -347,9 +355,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
-        allHistoricalResults
+        allHistoricalResults,
+        userSavedReports
     }), [
-        savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
+        savedReports, userSavedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports
