@@ -69,17 +69,27 @@ export default () => {
             }
 
             // Buscar relatórios salvos (Organização completa para alimentar a Aba Relatórios)
+            // 1. Obter todos os IDs de usuários da organização (Dono + Membros)
+            const { data: orgProfiles } = await supabase
+                .from('profiles')
+                .select('id')
+                .or(`id.eq.${effectiveOwnerId},owner_id.eq.${effectiveOwnerId}`);
+            
+            const orgUserIds = orgProfiles?.map(p => p.id) || [effectiveOwnerId];
+            console.log(`[Reference API] Organização de ${effectiveOwnerId} possui ${orgUserIds.length} usuários: ${orgUserIds.join(', ')}`);
+
+            // 2. Buscar relatórios salvos de toda a organização
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
                 .select('id, name, created_at, record_count, user_id, data')
-                .eq('user_id', effectiveOwnerId)
+                .in('user_id', orgUserIds)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {
-                console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
+                console.error(`[Reference API] Erro ao buscar relatórios para organização de ${effectiveOwnerId}:`, reportsError.message);
             }
 
-            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
+            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios para a organização.`);
 
             res.json({ 
                 banks: banks || [], 
@@ -115,11 +125,19 @@ export default () => {
                 return res.status(403).json({ error: "Acesso negado." });
             }
 
+            // 1. Obter todos os IDs de usuários da organização
+            const { data: orgProfiles } = await supabase
+                .from('profiles')
+                .select('id')
+                .or(`id.eq.${effectiveOwnerId},owner_id.eq.${effectiveOwnerId}`);
+            
+            const orgUserIds = orgProfiles?.map(p => p.id) || [effectiveOwnerId];
+
             const { data, error } = await supabase
                 .from('saved_reports')
                 .select('data, name')
                 .eq('id', reportId)
-                .eq('user_id', effectiveOwnerId)
+                .in('user_id', orgUserIds)
                 .single();
 
             if (error) throw error;

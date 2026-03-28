@@ -45,31 +45,19 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
             try {
                 let data: any[] | null = null;
 
-                if (subscription.role === 'owner') {
-                    const { data: d, error } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false });
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
 
-                    if (error) throw error;
+                const response = await fetch(`/api/reference/data/${ownerId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const resData = await response.json();
                     if (ignore) return;
-                    data = d;
+                    data = resData.reports || [];
                 } else {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (response.ok) {
-                        const resData = await response.json();
-                        if (ignore) return;
-                        data = resData.reports || [];
-                    } else {
-                        throw new Error("Falha ao buscar relatórios via API.");
-                    }
+                    throw new Error("Falha ao buscar relatórios via API.");
                 }
 
                 if (data && !ignore) {
