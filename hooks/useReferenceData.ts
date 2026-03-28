@@ -9,7 +9,7 @@ import { modelService } from '../services/modelService';
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription, systemSettings } = useAuth();
+    const { subscription, systemSettings, session } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
@@ -35,14 +35,20 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         if (!user?.id) {
             lastOwnerIdRef.current = null;
+            setInitialDataLoaded(true);
             return;
         }
 
         const ownerId = subscription.ownerId;
 
-        // ✅ TRAVA DE SEGURANÇA: Só prossegue se o ownerId estiver resolvido
-        // Isso evita o erro de "Acesso Negado" enquanto o perfil ainda está carregando
-        if (!ownerId) return;
+        if (!ownerId) {
+            // Se o user existe mas o ownerId ainda não resolveu, esperamos um pouco
+            // mas não bloqueamos o initialDataLoaded se demorar demais
+            const timer = setTimeout(() => {
+                if (!ignore) setInitialDataLoaded(true);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
 
         // ✅ evita múltiplas execuções desnecessárias
         if (lastOwnerIdRef.current === ownerId) return;
@@ -60,8 +66,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
                 } else {
                     try {
-                        const { data: { session } } = await supabase.auth.getSession();
                         const token = session?.access_token;
+
+                        if (!token) {
+                            console.warn("[useReferenceData] Token não encontrado no AuthContext.");
+                            return;
+                        }
 
                         const response = await fetch(`/api/reference/data/${ownerId}`, {
                             headers: {

@@ -18,7 +18,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (effectiveUser: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription, user: realUser } = useAuth();
+    const { subscription, user: realUser, session } = useAuth();
     const userSuffix = effectiveUser ? `-${effectiveUser.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
@@ -35,6 +35,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         let ignore = false;
         if (!effectiveUser) {
             setSavedReports([]);
+            setInitialDataLoaded(true);
             return;
         }
 
@@ -44,9 +45,13 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
 
             try {
                 let data: any[] | null = null;
-
-                const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
+
+                if (!token) {
+                    console.warn("[ReportManager] Token não encontrado no AuthContext.");
+                    // Se não tem token, não tentamos buscar via API ainda
+                    return;
+                }
 
                 const response = await fetch(`/api/reference/data/${ownerId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -314,9 +319,12 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
                 if (error || !data) throw error || new Error("Relatório não encontrado");
                 rawData = data.data;
             } else {
-                const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
                 const ownerId = subscription.ownerId;
+
+                if (!token) {
+                    throw new Error("Sessão expirada. Por favor, faça login novamente.");
+                }
 
                 const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
