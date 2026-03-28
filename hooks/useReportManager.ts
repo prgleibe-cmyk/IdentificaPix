@@ -38,7 +38,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const ownerId = subscription.ownerId || user.id;
+            const ownerId = subscription.ownerId;
+
+            // ✅ TRAVA DE SEGURANÇA: Só busca relatórios se o ownerId estiver resolvido
+            if (!ownerId) return;
+
             try {
                 let data: any[] | null = null;
 
