@@ -43,7 +43,7 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
             if (type === "SAVE_TRAINING" && user) {
                 setIsLoading(true);
                 try {
-                    const { data, error } = await supabase
+                    const { data, error } = await (supabase as any)
                         .from('automation_macros')
                         .insert({
                             user_id: user.id,

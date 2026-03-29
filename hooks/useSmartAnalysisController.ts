@@ -124,9 +124,9 @@ export const useSmartAnalysisController = () => {
             let spreadsheet = report.data?.spreadsheet;
 
             if (!results && !spreadsheet) {
-                const { data, error } = await supabase.from('saved_reports').select('data').eq('id', report.id).single();
+                const { data, error } = await (supabase as any).from('saved_reports').select('data').eq('id', report.id).single();
                 if (error || !data) throw error || new Error("Relatório não encontrado");
-                const parsedData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+                const parsedData = typeof (data as any).data === 'string' ? JSON.parse((data as any).data) : (data as any).data;
                 results = parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             }

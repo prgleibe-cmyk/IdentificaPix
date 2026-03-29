@@ -17,7 +17,7 @@ export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, subscription } = useAuth();
-    const { showToast, setIsLoading, setActiveView } = useUI();
+    const { showToast, setIsLoading, setActiveView, isLoading } = useUI();
 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -88,13 +88,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 lastSyncedReportId.current = reportId; // Marca como sincronizado
                 
                 if (results) {
-                    let hydrated = results.map((r: any) => ({
-                        ...r,
-                        church:
-                            referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
-                            r.church ||
-                            PLACEHOLDER_CHURCH
-                    }));
+                    let hydrated = results.map((r: any) => {
+                        const churchMatch = referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId));
+                        if (!churchMatch) {
+                            console.log(`[AppContext] No church match for: id=${r.church?.id}, _id=${r._churchId}. Available:`, referenceData.churches.map(c => c.id));
+                        }
+                        return {
+                            ...r,
+                            church: churchMatch || r.church || PLACEHOLDER_CHURCH
+                        };
+                    });
 
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         const originalCount = hydrated.length;
@@ -154,7 +157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!reconciliation.hasActiveSession && 
             reconciliation.matchResults.length === 0 && 
             reconciliation.activeBankFiles.length > 0 &&
-            !reconciliation.isLoading) {
+            !isLoading) {
             
             console.log("[AppContext] Detectados dados na Lista Viva sem sessão ativa. Iniciando conciliação automática...");
             autoRestoredRef.current = true; // Marca como processado para evitar loops
@@ -178,7 +181,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reconciliation.hasActiveSession,
         reconciliation.matchResults.length,
         reconciliation.activeBankFiles.length,
-        reconciliation.isLoading,
+        isLoading,
         viewSavedReport
     ]);
 
@@ -279,6 +282,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (tx) reconciliation.setManualIdentificationTx(tx);
         },
         runAiAutoIdentification,
+        handleGmailSyncSuccess: reconciliation.importGmailTransactions,
         findMatchResult: reconciliation.findMatchResult,
         loadingAiId: reconciliation.loadingAiId,
         viewSavedReport

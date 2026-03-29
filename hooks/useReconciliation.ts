@@ -210,7 +210,11 @@ export const useReconciliation = ({
         // Filtro de segurança para membros no preview
         let filteredResults = results;
         if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+            filteredResults = results.filter(r => {
+                const match = subscription.congregationIds.includes(r.church?.id || r._churchId);
+                return match;
+            });
+            console.log(`[useReconciliation] Member Filter: results=${results.length}, filtered=${filteredResults.length}, ids=${subscription.congregationIds.join(',')}`);
         }
 
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
@@ -375,6 +379,7 @@ export const useReconciliation = ({
         removeBankStatementFile,
         removeContributorFile: (churchId: string) => setContributorFiles(prev => prev.filter(f => f.churchId !== churchId)),
         toggleBankSelection: (id: string) => setSelectedBankIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
+        setSelectedBankIds,
         handleCompare: async () => {
             setIsLoading(true);
             

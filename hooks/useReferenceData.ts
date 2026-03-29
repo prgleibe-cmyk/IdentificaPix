@@ -42,12 +42,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const ownerId = subscription.ownerId;
 
         if (!ownerId) {
-            // Se o user existe mas o ownerId ainda não resolveu, esperamos um pouco
-            // mas não bloqueamos o initialDataLoaded se demorar demais
-            const timer = setTimeout(() => {
-                if (!ignore) setInitialDataLoaded(true);
-            }, 3000);
-            return () => clearTimeout(timer);
+            // Se o user existe mas o ownerId ainda não resolveu, apenas aguardamos
+            return;
         }
 
         // ✅ evita múltiplas execuções desnecessárias
@@ -56,11 +52,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const syncData = async () => {
             try {
                 if (subscription.role === 'owner') {
-                    let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                    let bankQuery = (supabase as any).from('banks').select('*').eq('user_id', ownerId);
                     const { data: b } = await bankQuery;
                     if (b && !ignore) setBanks(b);
                     
-                    let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                    let query = (supabase as any).from('churches').select('*').eq('user_id', ownerId);
                     const { data: c } = await query;
                     if (c && !ignore) setChurches(c);
 
@@ -130,7 +126,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         if (!user) return;
         const fetchAssociations = async () => {
             const ownerId = subscription.ownerId || user.id;
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
+            const { data } = await (supabase as any).from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
             if (data && !ignore) {
                 setLearnedAssociations(data.map((d: any) => ({
                     id: d.id, 
@@ -169,7 +165,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         });
 
         try {
-            const { data: existing } = await supabase
+            const { data: existing } = await (supabase as any)
                 .from('learned_associations')
                 .select('id')
                 .eq('normalized_description', normalizedDesc)

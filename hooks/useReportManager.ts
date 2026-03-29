@@ -276,7 +276,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
+        await (supabase.from('saved_reports') as any).delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
     }, [effectiveUser, subscription.ownerId, savedReports, showToast]);
 
@@ -295,7 +295,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
     }, [savedReports, subscription.role, subscription.congregationIds]);
 
     /**
-     * ✅ AJUSTE: Retorna todos os relatórios da organização que foram carregados
+     * ✅ AJUSTE CIRÚRGICO: Mostra todos os relatórios recebidos da organização
      */
     const userSavedReports = useMemo(() => {
         return savedReports;
