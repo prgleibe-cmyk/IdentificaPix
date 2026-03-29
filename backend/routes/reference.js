@@ -5,7 +5,9 @@ import { createClient } from '@supabase/supabase-js';
 const router = express.Router();
 
 export default () => {
-    const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
+    const supabaseUrl = process.env.SUPABASE_URL || 
+                        process.env.VITE_SUPABASE_URL || 
+                        'https://uflheoknbopcgmzyjbft.supabase.co';
     
     const getSupabaseAdmin = () => {
         const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
@@ -13,21 +15,33 @@ export default () => {
                                process.env.SERVICE_ROLE_KEY ||
                                process.env.SUPABASE_SERVICE_KEY;
                                
-        if (!serviceRoleKey) return null;
+        if (!serviceRoleKey) {
+            console.error("[Reference API] Service Role Key não encontrada no ambiente.");
+            return null;
+        }
 
-        return createClient(supabaseUrl, serviceRoleKey, {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        });
+        try {
+            console.log(`[Reference API] Inicializando cliente Supabase para URL: ${supabaseUrl}`);
+            return createClient(supabaseUrl, serviceRoleKey, {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            });
+        } catch (e) {
+            console.error("[Reference API] Erro ao criar cliente Supabase:", e.message);
+            return null;
+        }
     };
 
     router.get('/data/:ownerId', async (req, res) => {
         const { ownerId } = req.params;
+        console.log(`[Reference API] Request recebido para ownerId: ${ownerId} por usuário: ${req.user?.id}`);
+        
         const supabase = getSupabaseAdmin();
 
         if (!supabase) {
+            console.error("[Reference API] Falha ao inicializar Supabase Admin.");
             return res.status(500).json({ error: "Erro de configuração: Service Role não encontrada." });
         }
 
@@ -37,31 +51,42 @@ export default () => {
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
             // Tenta buscar em user_profiles primeiro, depois em profiles como fallback
             let profile = null;
-            let { data: upProfile, error: upError } = await supabase
-                .from('user_profiles')
-                .select('owner_id, role')
-                .eq('id', req.user.id)
-                .maybeSingle();
-
-            if (upError) {
-                console.error(`[Reference API] Erro ao buscar em user_profiles para ${req.user.id}:`, upError.message);
-            }
-
-            if (upProfile) {
-                profile = upProfile;
-            } else {
-                console.log(`[Reference API] Perfil não encontrado em user_profiles para ${req.user.id}, tentando fallback em profiles...`);
-                // Fallback para profiles
-                const { data: pProfile, error: pError } = await supabase
-                    .from('profiles')
+            try {
+                console.log(`[Reference API] Buscando perfil do usuário ${req.user.id} em user_profiles...`);
+                let { data: upProfile, error: upError } = await supabase
+                    .from('user_profiles')
                     .select('owner_id, role')
                     .eq('id', req.user.id)
                     .maybeSingle();
-                
-                if (pError) {
-                    console.error(`[Reference API] Erro ao buscar em profiles para ${req.user.id}:`, pError.message);
+
+                if (upError) {
+                    console.error(`[Reference API] Erro ao buscar em user_profiles para ${req.user.id}:`, upError.message);
                 }
-                profile = pProfile;
+
+                if (upProfile) {
+                    console.log(`[Reference API] Perfil encontrado em user_profiles.`);
+                    profile = upProfile;
+                } else {
+                    console.log(`[Reference API] Perfil não encontrado em user_profiles para ${req.user.id}, tentando fallback em profiles...`);
+                    // Fallback para profiles
+                    const { data: pProfile, error: pError } = await supabase
+                        .from('profiles')
+                        .select('owner_id, role')
+                        .eq('id', req.user.id)
+                        .maybeSingle();
+                    
+                    if (pError) {
+                        console.error(`[Reference API] Erro ao buscar em profiles para ${req.user.id}:`, pError.message);
+                    }
+                    if (pProfile) {
+                        console.log(`[Reference API] Perfil encontrado em profiles.`);
+                        profile = pProfile;
+                    } else {
+                        console.log(`[Reference API] Perfil não encontrado em nenhuma tabela.`);
+                    }
+                }
+            } catch (profileCatch) {
+                console.error(`[Reference API] Exceção ao buscar perfil:`, profileCatch);
             }
 
             // Se ainda não encontrou, assume que é o dono (owner)
@@ -71,23 +96,39 @@ export default () => {
             console.log(`[Reference API] Contexto: effectiveOwnerId=${effectiveOwnerId}, requesterId=${req.user.id}, role=${userRole}`);
 
             // Buscar bancos
-            const { data: banks, error: banksError } = await supabase
-                .from('banks')
-                .select('*')
-                .eq('user_id', effectiveOwnerId);
+            let banks = [];
+            try {
+                console.log(`[Reference API] Buscando bancos para ${effectiveOwnerId}...`);
+                const { data: bData, error: banksError } = await supabase
+                    .from('banks')
+                    .select('*')
+                    .eq('user_id', effectiveOwnerId);
 
-            if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos:`, banksError.message);
+                if (banksError) {
+                    console.error(`[Reference API] Erro ao buscar bancos:`, banksError.message);
+                } else {
+                    banks = bData || [];
+                }
+            } catch (bCatch) {
+                console.error(`[Reference API] Exceção ao buscar bancos:`, bCatch);
             }
 
             // Buscar igrejas
-            const { data: churches, error: churchesError } = await supabase
-                .from('churches')
-                .select('*')
-                .eq('user_id', effectiveOwnerId);
+            let churches = [];
+            try {
+                console.log(`[Reference API] Buscando igrejas para ${effectiveOwnerId}...`);
+                const { data: cData, error: churchesError } = await supabase
+                    .from('churches')
+                    .select('*')
+                    .eq('user_id', effectiveOwnerId);
 
-            if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas:`, churchesError.message);
+                if (churchesError) {
+                    console.error(`[Reference API] Erro ao buscar igrejas:`, churchesError.message);
+                } else {
+                    churches = cData || [];
+                }
+            } catch (cCatch) {
+                console.error(`[Reference API] Exceção ao buscar igrejas:`, cCatch);
             }
 
             // Buscar relatórios salvos (Organização completa para alimentar a Aba Relatórios)
@@ -112,35 +153,48 @@ export default () => {
             }
             
             const finalUserIds = Array.from(orgUserIds).filter(id => id && typeof id === 'string');
-            console.log(`[Reference API] Organização possui ${finalUserIds.length} IDs válidos.`);
+            console.log(`[Reference API] Organização possui ${finalUserIds.length} IDs válidos: ${finalUserIds.join(', ')}`);
 
             // 2. Buscar relatórios salvos de toda a organização
             // OTIMIZAÇÃO: Não buscamos a coluna 'data' aqui pois ela é muito grande e causa 500/Timeout
             // O frontend buscará os dados completos individualmente ao abrir o relatório
-            console.log(`[Reference API] Buscando lista de relatórios para ${finalUserIds.length} usuários...`);
-            const { data: reports, error: reportsError } = await supabase
-                .from('saved_reports')
-                .select('id, name, created_at, record_count, user_id')
-                .in('user_id', finalUserIds)
-                .order('created_at', { ascending: false });
+            let reports = [];
+            if (finalUserIds.length > 0) {
+                try {
+                    console.log(`[Reference API] Buscando lista de relatórios para ${finalUserIds.length} usuários...`);
+                    const { data: rData, error: reportsError } = await supabase
+                        .from('saved_reports')
+                        .select('id, name, created_at, record_count, user_id')
+                        .in('user_id', finalUserIds)
+                        .order('created_at', { ascending: false });
 
-            if (reportsError) {
-                console.error(`[Reference API] Erro Supabase ao buscar relatórios:`, JSON.stringify(reportsError, null, 2));
-                throw reportsError;
+                    if (reportsError) {
+                        console.error(`[Reference API] Erro Supabase ao buscar relatórios:`, reportsError.message);
+                        // Não lançamos erro aqui para não quebrar a resposta inteira se apenas relatórios falharem
+                    } else {
+                        reports = rData || [];
+                    }
+                } catch (rCatch) {
+                    console.error(`[Reference API] Exceção ao buscar relatórios:`, rCatch);
+                }
             }
 
-            console.log(`[Reference API] Sucesso! Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
+            console.log(`[Reference API] Sucesso! Retornando ${banks.length} bancos, ${churches.length} igrejas e ${reports.length} relatórios.`);
 
             res.json({ 
-                banks: banks || [], 
-                churches: churches || [],
+                banks, 
+                churches,
                 reports: reports || []
             });
         } catch (error) {
-            console.error("[Reference API] Erro Fatal:", error);
+            console.error("[Reference API] Erro Fatal no try-catch externo:", error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : 'No stack trace available';
+            
             res.status(500).json({ 
-                error: error.message || "Erro interno no servidor ao processar dados de referência.",
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                error: errorMessage || "Erro interno no servidor ao processar dados de referência.",
+                details: errorMessage,
+                stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
             });
         }
     });
