@@ -23,63 +23,24 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
     const lastProcessedUserId = useRef<string | null>(null);
 
     const calculateSubscription = useCallback(async (userId: string | null, force: boolean = false) => {
-        if (!userId) {
-            lastProcessedUserId.current = null;
-            return;
-        }
-        
-        // Se mudou o usuário, resetamos o estado para o padrão antes de buscar
-        if (lastProcessedUserId.current !== userId) {
-            setSubscription({
-                plan: 'trial',
-                daysRemaining: 10,
-                totalDays: 10,
-                isExpired: false,
-                isBlocked: false,
-                isLifetime: false,
-                aiLimit: 100, 
-                aiUsage: 0,
-                maxChurches: 2, 
-                maxBanks: 2,
-                role: 'owner',
-                ownerId: ''
-            });
-        }
-
+        if (!userId) return;
         if (!force && lastProcessedUserId.current === userId) return;
         
         lastProcessedUserId.current = userId;
         const settings = settingsRef.current;
 
         try {
-            // Tenta buscar em user_profiles primeiro, depois em profiles como fallback
-            let profileData = null;
-            const { data: upData } = await supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle();
-            
-            if (upData) {
-                profileData = upData;
-            } else {
-                const { data: pData } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-                profileData = pData;
-            }
+            const fetchPromise = supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
+            const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;
             const now = new Date();
             let p = (profileData as any) || {};
             
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
             if (p.owner_id && p.owner_id !== userId) {
-                // Tenta buscar o dono em user_profiles, depois em profiles
-                let ownerData = null;
-                const { data: upOwner } = await supabase.from('user_profiles').select('*').eq('id', p.owner_id).maybeSingle();
-                
-                if (upOwner) {
-                    ownerData = upOwner;
-                } else {
-                    const { data: pOwner } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle();
-                    ownerData = pOwner;
-                }
-
+                const { data: ownerData } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle() as any;
                 if (ownerData) {
                     // Inherit subscription fields from the Principal user
                     p.subscription_status = ownerData.subscription_status;

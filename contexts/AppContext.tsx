@@ -17,7 +17,7 @@ export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, subscription } = useAuth();
-    const { showToast, setIsLoading, setActiveView, isLoading } = useUI();
+    const { showToast, setIsLoading, setActiveView } = useUI();
 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -31,14 +31,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const modalController = useModalController();
     const referenceData = useReferenceData(effectiveUser, showToast);
     const reportManager = useReportManager(effectiveUser, showToast);
-    const lastSyncedReportId = useRef<string | null>(null);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user: user,
+        user: effectiveUser,
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
@@ -54,16 +53,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
-    const isAppReady = useMemo(() => {
-        return user !== undefined && referenceData.initialDataLoaded && reportManager.initialDataLoaded;
-    }, [user, referenceData.initialDataLoaded, reportManager.initialDataLoaded]);
+    /**
+     * 🔴 AJUSTE ORIGINAL (mantido)
+     */
+    useEffect(() => {
+        const activeId = reconciliation.activeReportId;
+        if (!activeId) return;
+
+        const report = reportManager.savedReports.find(r => r.id === activeId);
+        if (!report || !report.data?.results) return;
+
+        let hydrated = report.data.results.map((r: any) => ({
+            ...r,
+            church:
+                referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                r.church ||
+                PLACEHOLDER_CHURCH
+        }));
+
+        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+            hydrated = hydrated.filter((r: any) =>
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
+            );
+        }
+
+        reconciliation.setMatchResults(hydrated);
+    }, [
+        reportManager.savedReports,
+        reconciliation.activeReportId,
+        referenceData.churches,
+        subscription.role,
+        subscription.congregationIds
+    ]);
+
+    /**
+     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
+     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
+     */
+    useEffect(() => {
+        if (!reconciliation.activeReportId) return;
+
+        const report = reportManager.savedReports.find(
+            r => r.id === reconciliation.activeReportId
+        );
+
+        if (!report || !report.data?.results) return;
+
+        reconciliation.setMatchResults([...report.data.results]);
+    }, [reportManager.savedReports]);
 
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
-        console.log(`[AppContext] viewSavedReport: ID=${reportId}, Encontrado=${!!report}`);
         if (!report) return;
 
         setIsLoading(true);
@@ -71,134 +114,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             let results = report.data?.results;
             let spreadsheet = report.data?.spreadsheet;
 
-            console.log(`[AppContext] Dados do relatório: results=${!!results}, spreadsheet=${!!spreadsheet}`);
-
             if (!results && !spreadsheet) {
-                console.log(`[AppContext] Buscando dados completos para o relatório ${reportId}...`);
-                const fullData = await reportManager.fetchFullReportData(reportId);
-                console.log(`[AppContext] Chaves do fullData:`, Object.keys(fullData || {}));
-                results = fullData?.results;
-                spreadsheet = fullData?.spreadsheet;
-                console.log(`[AppContext] Dados completos recebidos: results=${Array.isArray(results) ? results.length : !!results}, spreadsheet=${!!spreadsheet}`);
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                const ownerId = subscription.ownerId || currentUser?.id;
+
+                if (subscription.role === 'owner') {
+                    const { data, error } = await supabase
+                        .from('saved_reports')
+                        .select('data')
+                        .eq('id', reportId)
+                        .single();
+
+                    if (error) throw error;
+                    if (!data) throw new Error('Report not found');
+
+                    const rawData = data.data;
+                    const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+
+                    results = parsedData?.results;
+                    spreadsheet = parsedData?.spreadsheet;
+                } else {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const resData = await response.json();
+                        const rawData = resData.data;
+                        const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+
+                        results = parsedData?.results;
+                        spreadsheet = parsedData?.spreadsheet;
+                    } else {
+                        throw new Error("Falha ao buscar detalhes do relatório via API.");
+                    }
+                }
             }
 
-            // Se temos os dados (results ou spreadsheet), abrimos o relatório
             if ((results && results.length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
-                lastSyncedReportId.current = reportId; // Marca como sincronizado
-                
-                if (results && results.length > 0) {
-                    console.log(`[AppContext] Hidratando ${results.length} resultados...`);
-                    let hydrated = results.map((r: any, idx: number) => {
-                        const churchId = r.church?.id || r._churchId;
-                        const churchMatch = referenceData.churches.find((c: any) => c.id === churchId);
-                        
-                        if (idx === 0) {
-                            console.log(`[AppContext] Amostra do primeiro item:`, { 
-                                churchId, 
-                                foundMatch: !!churchMatch,
-                                churchName: churchMatch?.name || r.church?.name 
-                            });
-                        }
 
-                        return {
-                            ...r,
-                            church: churchMatch || r.church || PLACEHOLDER_CHURCH
-                        };
-                    });
-                    
-                    // Filtro de segurança para membros (Etapa 2)
+                if (results && results.length > 0) {
+                    let hydrated = results.map((r: any) => ({
+                        ...r,
+                        church:
+                            referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                            r.church ||
+                            PLACEHOLDER_CHURCH
+                    }));
+
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-                        const originalCount = hydrated.length;
-                        hydrated = hydrated.filter((r: any) => {
-                            const churchId = r.church?.id || r._churchId;
-                            if (!churchId) {
-                                console.warn(`[AppContext] Item sem churchId ignorado no filtro de membro.`);
-                                return false;
-                            }
-                            return subscription.congregationIds.includes(churchId);
-                        });
-                        console.log(`[AppContext] Filtro de membro aplicado: ${originalCount} -> ${hydrated.length} itens. Permitidos:`, subscription.congregationIds);
+                        hydrated = hydrated.filter((r: any) =>
+                            subscription.congregationIds.includes(r.church?.id || r._churchId)
+                        );
                     }
 
-                    console.log(`[AppContext] Definindo matchResults com ${hydrated.length} itens`);
                     reconciliation.setMatchResults(hydrated);
                     setActiveView('reports');
                 } else if (spreadsheet) {
-                    console.log(`[AppContext] Abrindo relatório via spreadsheet (results empty ou missing)`);
-                    setActiveView('reports');
+                    setActiveView('smart_analysis');
                 }
+
+                showToast(`Relatório "${report.name}" carregado.`, "success");
             } else {
-                console.warn(`[AppContext] Relatório ${reportId} não possui dados válidos (results=${results?.length}, spreadsheet=${!!spreadsheet})`);
-                showToast("Relatório sem dados disponíveis.", "error");
+                showToast("Este relatório está vazio.", "error");
             }
-        } catch (error) {
+
+        } catch (error: any) {
             console.error("[AppContext] Erro ao abrir relatório:", error);
-            showToast("Erro ao carregar dados do relatório.", "error");
+            showToast("Erro ao carregar os dados do relatório.", "error");
         } finally {
             setIsLoading(false);
         }
-    }, [reportManager, reconciliation, referenceData.churches, subscription, setActiveView, showToast, setIsLoading]);
-
-    /**
-     * 👁️ AUTO-SELEÇÃO DE RELATÓRIO (ETAPA 2)
-     * Seleciona o relatório mais recente se nenhum estiver ativo para preencher a aba automaticamente
-     */
-    // ✅ AUTO-RESTAURAÇÃO E AUTO-CONCILIAÇÃO
-    const lastAutoRestoredId = useRef<string | null>(null);
-    useEffect(() => {
-        if (!isAppReady || !user) return;
-
-        const reportId = reconciliation.activeReportId;
-        if (reportId && lastAutoRestoredId.current !== reportId) {
-            console.log(`[AppContext] Sessão ativa detectada: ${reportId}. Garantindo carga de dados...`);
-            lastAutoRestoredId.current = reportId;
-            viewSavedReport(reportId);
-        }
-    }, [isAppReady, user, reconciliation.activeReportId, viewSavedReport]);
-
-        // 2. Tenta restaurar o último relatório salvo se não houver sessão ativa
-        if (reportManager.savedReports.length > 0) {
-            console.log(`[AppContext] Auto-restaurando último relatório: ${reportManager.savedReports[0].id}`);
-            autoRestoredRef.current = true;
-            const latestReport = reportManager.savedReports[0];
-            viewSavedReport(latestReport.id);
-            return;
-        }
-
-        // 3. Se não houver relatórios salvos mas houver dados na Lista Viva, inicia conciliação automática
-        // Isso resolve o problema de "tela limpa" quando há dados mas o usuário ainda não rodou a conciliação
-        if (!reconciliation.hasActiveSession && 
-            reconciliation.matchResults.length === 0 && 
-            reconciliation.activeBankFiles.length > 0 &&
-            !isLoading) {
-            
-            console.log("[AppContext] Detectados dados na Lista Viva sem sessão ativa. Iniciando conciliação automática...");
-            autoRestoredRef.current = true; // Marca como processado para evitar loops
-            
-            // Seleciona todos os bancos por padrão se nenhum estiver selecionado
-            if (reconciliation.selectedBankIds.length === 0) {
-                const allBankIds = reconciliation.activeBankFiles.map(f => String(f.bankId));
-                reconciliation.setSelectedBankIds(allBankIds);
-            }
-            
-            // Pequeno delay para garantir que os estados de seleção de banco foram aplicados
-            setTimeout(() => {
-                reconciliation.handleCompare();
-            }, 100);
-        }
-    }, [
-        isAppReady, 
-        user, 
-        reportManager.savedReports, 
-        reconciliation.activeReportId, 
-        reconciliation.hasActiveSession,
-        reconciliation.matchResults.length,
-        reconciliation.activeBankFiles.length,
-        isLoading,
-        viewSavedReport
-    ]);
+    }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
         const reportId = reconciliation.activeReportId;
@@ -270,10 +262,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reconciliation.activeReportId, reportManager.savedReports]);
 
     useEffect(() => {
-        if (user !== undefined && referenceData.initialDataLoaded && reportManager.initialDataLoaded) {
-            setInitialDataLoaded(true);
-        }
-    }, [user, referenceData.initialDataLoaded, reportManager.initialDataLoaded]);
+        if (user !== undefined) setInitialDataLoaded(true);
+    }, [user]);
 
     const value = useMemo(() => ({
         ...referenceData,
@@ -297,7 +287,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (tx) reconciliation.setManualIdentificationTx(tx);
         },
         runAiAutoIdentification,
-        handleGmailSyncSuccess: reconciliation.importGmailTransactions,
         findMatchResult: reconciliation.findMatchResult,
         loadingAiId: reconciliation.loadingAiId,
         viewSavedReport

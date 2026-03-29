@@ -17,14 +17,13 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 
 const MAX_REPORTS_PER_USER = 60;
 
-export const useReportManager = (effectiveUser: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription, user: realUser, session } = useAuth();
-    const userSuffix = effectiveUser ? `-${effectiveUser.id}` : '-guest';
+export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
+    const { subscription } = useAuth();
+    const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
-    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
     const lastSavedPayloadRef = useRef<string>('');
 
@@ -33,36 +32,41 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
      */
     useEffect(() => {
         let ignore = false;
-        if (!effectiveUser) {
+        if (!user) {
             setSavedReports([]);
-            setInitialDataLoaded(true);
             return;
         }
 
         const fetchReports = async () => {
-            const ownerId = effectiveUser.id;
-            if (!ownerId) return;
-
+            const ownerId = subscription.ownerId || user.id;
             try {
                 let data: any[] | null = null;
-                const token = session?.access_token;
 
-                if (!token) {
-                    console.warn("[ReportManager] Token não encontrado no AuthContext.");
-                    // Se não tem token, não tentamos buscar via API ainda
-                    return;
-                }
+                if (subscription.role === 'owner') {
+                    const { data: d, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false });
 
-                const response = await fetch(`/api/reference/data/${ownerId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const resData = await response.json();
+                    if (error) throw error;
                     if (ignore) return;
-                    data = resData.reports || [];
+                    data = d;
                 } else {
-                    throw new Error("Falha ao buscar relatórios via API.");
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const resData = await response.json();
+                        if (ignore) return;
+                        data = resData.reports || [];
+                    } else {
+                        throw new Error("Falha ao buscar relatórios via API.");
+                    }
                 }
 
                 if (data && !ignore) {
@@ -72,43 +76,36 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
                         createdAt: r.created_at,
                         recordCount: r.record_count,
                         user_id: r.user_id,
-                        data: r.data ? (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) : undefined
+                        data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
                     }));
 
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         hydrated = hydrated.filter(report => {
-                            // Se não temos os dados (modo otimizado), mantemos na lista para permitir a abertura
-                            if (!report.data) return true;
-                            if (!report.data.results?.length) return false;
+                            if (!report.data?.results?.length) return false;
                             return report.data.results.some(res =>
                                 subscription.congregationIds.includes(res.church?.id || res._churchId)
                             );
                         });
                     }
 
-                    if (!ignore) {
-                        console.log(`[useReportManager] Recebidos ${hydrated.length} relatórios da API.`);
-                        setSavedReports(hydrated);
-                    }
+                    setSavedReports(hydrated);
                 }
             } catch (err) {
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
                 }
-            } finally {
-                if (!ignore) setInitialDataLoaded(true);
             }
         };
 
         fetchReports();
         return () => { ignore = true; };
-    }, [effectiveUser, subscription.ownerId, subscription.role, subscription.congregationIds]);
+    }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
     /**
      * 🔴 TEMPO REAL (AJUSTE CIRÚRGICO)
      */
     useEffect(() => {
-        if (!effectiveUser) return;
+        if (!user) return;
 
         const channel = supabase
             .channel('reports-realtime')
@@ -152,22 +149,22 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUser]);
+    }, [user]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!effectiveUser) return;
+        if(!user) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
-    }, [effectiveUser, showToast]);
+    }, [user, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!effectiveUser || !reportId) return;
+        if (!user || !reportId) return;
         
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
@@ -206,7 +203,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         } else {
             showToast("Alterações salvas no servidor.", "success");
         }
-    }, [effectiveUser, showToast, savedReports]);
+    }, [user, showToast, savedReports]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
@@ -220,8 +217,8 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
-        if (!savingReportState || !effectiveUser) return null;
-        const reportUserId = realUser?.id || effectiveUser.id;
+        if (!savingReportState || !user) return null;
+        const ownerId = subscription.ownerId || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -240,7 +237,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
-            user_id: reportUserId,
+            user_id: ownerId,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -268,17 +265,17 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
             showToast('Relatório criado!', 'success');
             return newReportId;
         }
-    }, [savingReportState, effectiveUser, realUser, showToast, closeSaveReportModal, savedReports.length]);
+    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
-        if (!effectiveUser) return;
-        const ownerId = subscription.ownerId || effectiveUser.id;
+        if (!user) return;
+        const ownerId = subscription.ownerId || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await (supabase.from('saved_reports') as any).delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [effectiveUser, subscription.ownerId, savedReports, showToast]);
+    }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         let results = savedReports
@@ -294,75 +291,17 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
         return results;
     }, [savedReports, subscription.role, subscription.congregationIds]);
 
-    /**
-     * ✅ AJUSTE CIRÚRGICO: Filtra visualmente apenas os relatórios do usuário logado (Etapa 3)
-     * Mas mantém savedReports completo para o "Cérebro" (Etapa 2)
-     */
-    const userSavedReports = useMemo(() => {
-        if (!realUser?.id) return savedReports;
-        return savedReports.filter(r => r.user_id === realUser.id);
-    }, [savedReports, realUser?.id]);
-
-    /**
-     * Busca os dados completos de um relatório (incluindo o JSON pesado)
-     * ✅ Sempre usa a API do backend para garantir bypass de RLS e consistência
-     */
-    const fetchFullReportData = useCallback(async (reportId: string) => {
-        if (!reportId) return null;
-
-        try {
-            console.log(`[ReportManager] Buscando dados completos via API para o relatório: ${reportId}`);
-            const response = await fetch(`/api/reference/report/${reportId}`, {
-                headers: { 'Authorization': `Bearer ${session?.access_token}` }
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.details || "Erro ao buscar dados do relatório");
-            }
-
-            const report = await response.json();
-            console.log(`[ReportManager] Resposta bruta do relatório ${reportId}:`, {
-                hasData: !!report.data,
-                dataType: typeof report.data,
-                keys: Object.keys(report.data || {})
-            });
-
-            const rawData = report.data;
-            if (!rawData) {
-                console.warn("[ReportManager] Relatório retornado sem dados.");
-                return null;
-            }
-
-            const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-            console.log(`[ReportManager] Dados parseados: results=${parsedData.results?.length}, spreadsheet=${!!parsedData.spreadsheet}`);
-            
-            // Atualiza o cache local
-            setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, data: parsedData } : r));
-            
-            return parsedData;
-        } catch (error: any) {
-            console.error("[ReportManager] Erro ao buscar dados completos:", error);
-            showToast("Erro ao carregar dados do relatório.", "error");
-            return null;
-        }
-    }, [session, showToast, setSavedReports]);
-
     return useMemo(() => ({
         savedReports, setSavedReports,
-        fetchFullReportData,
         maxSavedReports: MAX_REPORTS_PER_USER,
         searchFilters, setSearchFilters,
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports,
-        allHistoricalResults,
-        userSavedReports,
-        initialDataLoaded
+        allHistoricalResults
     }), [
-        savedReports, userSavedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
-        initialDataLoaded,
+        savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
         deleteOldReports

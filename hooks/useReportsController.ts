@@ -125,39 +125,20 @@ export const useReportsController = () => {
 
     const counts = useMemo(() => {
         const incomeGroups = reportPreviewData?.income || {};
-        const expensesGroups = reportPreviewData?.expenses || {};
         
-        let general = 0;
-        let churchesCount = 0;
-        let pending = 0;
-        let expenses = 0;
-
         if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            // Para membros, contamos apenas o que eles têm acesso
-            subscription.congregationIds.forEach(id => {
-                if (id === 'unidentified') {
-                    pending = incomeGroups[id]?.length || 0;
-                } else {
-                    general += incomeGroups[id]?.length || 0;
-                    if (incomeGroups[id]) churchesCount++;
-                }
-            });
-            
-            // Saídas para membros (se houver lógica de filtragem de saídas por igreja no futuro)
-            expenses = expensesGroups['all_expenses_group']?.length || 0;
-            
             return { 
-                general, 
+                general: 0, 
                 churches: subscription.congregationIds.length, 
-                pending, 
-                expenses 
+                pending: 0, 
+                expenses: 0 
             };
         }
 
-        general = Object.values(incomeGroups).flat().length;
-        churchesCount = churchList.length;
-        pending = incomeGroups['unidentified']?.length || 0;
-        expenses = expensesGroups['all_expenses_group']?.length || 0;
+        const general = Object.values(incomeGroups).flat().length;
+        const churchesCount = churchList.length;
+        const pending = incomeGroups['unidentified']?.length || 0;
+        const expenses = reportPreviewData?.expenses?.['all_expenses_group']?.length || 0;
         return { general, churches: churchesCount, pending, expenses };
     }, [churchList, reportPreviewData, subscription]);
 
@@ -168,15 +149,10 @@ export const useReportsController = () => {
         try {
             // 1. Seleção da base por categoria com trava de segurança para membros
             if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-                const targetId = (selectedReportId && subscription.congregationIds.includes(selectedReportId)) 
-                    ? selectedReportId 
-                    : subscription.congregationIds[0];
-                
-                data = reportPreviewData.income?.[targetId] || [];
-                
-                console.log(`[useReportsController] Member View: targetId=${targetId}, dataCount=${data.length}`);
-                if (data.length === 0) {
-                    console.log("[useReportsController] Available income keys:", Object.keys(reportPreviewData.income || {}));
+                if (selectedReportId && subscription.congregationIds.includes(selectedReportId)) {
+                    data = reportPreviewData.income?.[selectedReportId] || [];
+                } else {
+                    data = reportPreviewData.income?.[subscription.congregationIds[0]] || [];
                 }
             } else if (activeCategory === 'general') {
                 const incomeGroups = reportPreviewData.income || {};

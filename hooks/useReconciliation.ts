@@ -48,17 +48,6 @@ export const useReconciliation = ({
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
-    // ✅ AJUSTE CIRÚRGICO: Sincroniza resultados quando o relatório ativo muda
-    useEffect(() => {
-        if (!activeReportId) return;
-        
-        // Se temos um ID ativo mas os resultados locais estão vazios, 
-        // ou se o ID mudou, permitimos que o AppContext injete os dados da nuvem
-        if (matchResults.length === 0) {
-            // O AppContext cuidará de chamar setMatchResults via viewSavedReport
-        }
-    }, [activeReportId]);
-    
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
@@ -210,11 +199,7 @@ export const useReconciliation = ({
         // Filtro de segurança para membros no preview
         let filteredResults = results;
         if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r => {
-                const match = subscription.congregationIds.includes(r.church?.id || r._churchId);
-                return match;
-            });
-            console.log(`[useReconciliation] Member Filter: results=${results.length}, filtered=${filteredResults.length}, ids=${subscription.congregationIds.join(',')}`);
+            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
 
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
@@ -237,16 +222,14 @@ export const useReconciliation = ({
             income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }
         });
-    }, [subscription]);
+    }, []);
 
-    // Sincroniza o Preview sempre que os resultados persistentes mudarem ou a sessão mudar
+    // Sincroniza o Preview sempre que os resultados persistentes mudarem
     useEffect(() => {
-        if (hasActiveSession) {
+        if (matchResults && matchResults.length > 0) {
             regenerateReportPreview(matchResults);
-        } else {
-            setReportPreviewData(null);
         }
-    }, [matchResults, hasActiveSession, regenerateReportPreview]);
+    }, [matchResults, regenerateReportPreview]);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {
         const processKey = `${bankId}-${fileName}`;
@@ -361,7 +344,7 @@ export const useReconciliation = ({
     }, [setLaunchedResults, showToast]);
 
     return {
-        activeBankFiles, contributorFiles, matchResults: filteredMatchResults,
+        activeBankFiles, contributorFiles, matchResults: filteredMatchResults, reportPreviewData,
         activeReportId, setActiveReportId, hasActiveSession, setHasActiveSession,
         comparisonType, setComparisonType, selectedBankIds,
         manualIdentificationTx, setManualIdentificationTx,
@@ -379,7 +362,6 @@ export const useReconciliation = ({
         removeBankStatementFile,
         removeContributorFile: (churchId: string) => setContributorFiles(prev => prev.filter(f => f.churchId !== churchId)),
         toggleBankSelection: (id: string) => setSelectedBankIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
-        setSelectedBankIds,
         handleCompare: async () => {
             setIsLoading(true);
             
@@ -438,7 +420,6 @@ export const useReconciliation = ({
         },
         hydrate,
         setMatchResults,
-        reportPreviewData,
         setReportPreviewData
     };
 };

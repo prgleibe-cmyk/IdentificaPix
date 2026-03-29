@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 const router = express.Router();
 
 export default (ai) => {
-    const supabaseUrl = process.env.SUPABASE_URL || 'https://uflheoknbopcgmzyjbft.supabase.co';
+    const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
     const hardcodedAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
     
     const getSupabaseAdmin = () => {
@@ -27,31 +27,11 @@ export default (ai) => {
         const { text } = req.body;
         const supabaseAdmin = getSupabaseAdmin();
 
-        // Validação IDOR: Garantir que o usuário autenticado é o dono dos dados ou pertence à mesma organização
-        if (req.user) {
-            let profile = null;
-            const { data: upProfile } = await supabaseAdmin
-                .from('user_profiles')
-                .select('owner_id')
-                .eq('id', req.user.id)
-                .maybeSingle();
-            
-            if (upProfile) {
-                profile = upProfile;
-            } else {
-                const { data: pProfile } = await supabaseAdmin
-                    .from('profiles')
-                    .select('owner_id')
-                    .eq('id', req.user.id)
-                    .maybeSingle();
-                profile = pProfile;
-            }
-
-            const effectiveOwnerId = profile?.owner_id || req.user.id;
-
-            if (req.user.id !== userId && effectiveOwnerId !== userId) {
-                return res.status(403).json({ error: "Acesso negado: Você não pode processar notificações para outro usuário." });
-            }
+        // Validação IDOR: Garantir que o usuário autenticado é o dono dos dados
+        // Se req.user existir (rota autenticada), validamos o ID.
+        // Se não existir, permitimos (webhook externo sem token).
+        if (req.user && req.user.id !== userId) {
+            return res.status(403).json({ error: "Acesso negado: Você não pode processar notificações para outro usuário." });
         }
 
         if (!ai) return res.status(500).json({ error: "IA não configurada no servidor." });
