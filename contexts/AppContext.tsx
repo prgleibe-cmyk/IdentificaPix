@@ -160,12 +160,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
 
-            if ((results && results.length > 0) || spreadsheet) {
+            if (((results || []).length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
-                if (results && results.length > 0) {
-                    let hydrated = results.map((r: any) => ({
+                if ((results || []).length > 0) {
+                    let hydrated = (results || []).map((r: any) => ({
                         ...r,
                         church:
                             referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -173,9 +173,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                             PLACEHOLDER_CHURCH
                     }));
 
-                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-                        hydrated = hydrated.filter((r: any) =>
-                            subscription.congregationIds.includes(r.church?.id || r._churchId)
+                    if (subscription.role === 'member' && (subscription.congregationIds || []).length > 0) {
+                        hydrated = (hydrated || []).filter((r: any) =>
+                            (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
                         );
                     }
 

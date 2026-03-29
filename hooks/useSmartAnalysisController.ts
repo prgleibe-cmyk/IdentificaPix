@@ -76,7 +76,7 @@ export const useSmartAnalysisController = () => {
             setIsDirty(current !== lastSavedData.current);
         } else {
             // Se for planilha nova, consideramos dirty se houver conteúdo
-            setIsDirty(manualRows.length > 0 || reportTitle !== 'Relatório Financeiro');
+            setIsDirty((manualRows || []).length > 0 || reportTitle !== 'Relatório Financeiro');
         }
     }, [manualRows, columns, reportTitle, reportLogo, signatures, getSnapshot, activeReportId]);
 
@@ -90,7 +90,7 @@ export const useSmartAnalysisController = () => {
                 setManualRows(rows);
                 setReportTitle(title);
                 setActiveTemplate('ranking');
-                if (rows.length === 0) showToast("Relatório vazio ou sem dados para ranking.", "error");
+                if ((rows || []).length === 0) showToast("Relatório vazio ou sem dados para ranking.", "error");
             } catch (error) {
                 showToast("Erro ao processar dados para o ranking.", "error");
             } finally { setIsRankingLoading(false); }
@@ -98,7 +98,7 @@ export const useSmartAnalysisController = () => {
     }, [churches, showToast]);
 
     const handleRankingClick = () => {
-        if (matchResults.length > 0) {
+        if ((matchResults || []).length > 0) {
             generateRankingFromData(matchResults, activeReportId ? '' : 'Sessão Atual');
         } else {
             setShowReportSelector(true);
@@ -126,7 +126,7 @@ export const useSmartAnalysisController = () => {
             if (!results && !spreadsheet) {
                 const { data } = await supabase.from('saved_reports').select('data').eq('id', report.id).single();
                 
-                const rawData = data?.data;
+                const rawData = data ? (data as any).data : null;
                 let parsedData;
                 try {
                     parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
@@ -142,19 +142,19 @@ export const useSmartAnalysisController = () => {
                 spreadsheet = parsedData?.spreadsheet;
             }
 
-            if (results?.length > 0 || spreadsheet) {
+            if ((results || []).length > 0 || spreadsheet) {
                 setActiveReportId(report.id);
                 setHasActiveSession(true);
 
-                if (results?.length > 0) {
-                    const hydrated = results.map((r: any) => ({ 
+                if ((results || []).length > 0) {
+                    const hydrated = (results || []).map((r: any) => ({ 
                         ...r, 
-                        church: churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH 
+                        church: (churches || []).find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH 
                     }));
                     setMatchResults(hydrated);
                     setReportPreviewData({
-                        income: groupResultsByChurch(hydrated.filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
-                        expenses: { 'all_expenses_group': hydrated.filter((r: any) => r.transaction.amount < 0) }
+                        income: groupResultsByChurch((hydrated || []).filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                        expenses: { 'all_expenses_group': (hydrated || []).filter((r: any) => r.transaction.amount < 0) }
                     });
                     
                     if (!spreadsheet) {

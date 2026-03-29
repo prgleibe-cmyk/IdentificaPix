@@ -92,11 +92,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         };
                     });
 
-                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-                        hydrated = hydrated.filter(report => {
-                            if (!report.data?.results?.length) return false;
-                            return report.data.results.some(res =>
-                                subscription.congregationIds.includes(res.church?.id || res._churchId)
+                    if (subscription.role === 'member' && (subscription.congregationIds || []).length > 0) {
+                        hydrated = (hydrated || []).filter(report => {
+                            if (!(report.data?.results || []).length) return false;
+                            return (report.data.results || []).some(res =>
+                                (subscription.congregationIds || []).includes(res.church?.id || res._churchId)
                             );
                         });
                     }
@@ -132,7 +132,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     setSavedReports(prev => {
                         // DELETE
                         if (payload.eventType === 'DELETE') {
-                            return prev.filter(r => r.id !== oldRecord.id);
+                            return (prev || []).filter(r => r.id !== oldRecord.id);
                         }
 
                         // INSERT ou UPDATE
@@ -191,9 +191,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-        if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
+        if ((!results || (results || []).length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
-        const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
+        const currentPayload = JSON.stringify({ r: (results || []).length, s: !!spreadsheetData });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
