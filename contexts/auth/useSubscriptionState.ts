@@ -52,17 +52,34 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         const settings = settingsRef.current;
 
         try {
-            const fetchPromise = supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
+            // Tenta buscar em user_profiles primeiro, depois em profiles como fallback
+            let profileData = null;
+            const { data: upData } = await supabase.from('user_profiles').select('*').eq('id', userId).maybeSingle();
+            
+            if (upData) {
+                profileData = upData;
+            } else {
+                const { data: pData } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+                profileData = pData;
+            }
 
-            const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;
             const now = new Date();
             let p = (profileData as any) || {};
             
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
             if (p.owner_id && p.owner_id !== userId) {
-                const { data: ownerData } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle() as any;
+                // Tenta buscar o dono em user_profiles, depois em profiles
+                let ownerData = null;
+                const { data: upOwner } = await supabase.from('user_profiles').select('*').eq('id', p.owner_id).maybeSingle();
+                
+                if (upOwner) {
+                    ownerData = upOwner;
+                } else {
+                    const { data: pOwner } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle();
+                    ownerData = pOwner;
+                }
+
                 if (ownerData) {
                     // Inherit subscription fields from the Principal user
                     p.subscription_status = ownerData.subscription_status;

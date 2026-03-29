@@ -32,21 +32,43 @@ export default () => {
         }
 
         try {
+            console.log(`[Reference API] Iniciando busca de dados para ownerId: ${ownerId}`);
+            
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
-            const { data: profile, error: profileError } = await supabase
+            // Tenta buscar em user_profiles primeiro, depois em profiles como fallback
+            let profile = null;
+            let { data: upProfile, error: upError } = await supabase
                 .from('user_profiles')
                 .select('owner_id, role')
                 .eq('id', req.user.id)
-                .single();
+                .maybeSingle();
 
-            if (profileError) {
-                console.error(`[Reference API] Erro ao buscar perfil do usuário ${req.user.id} em user_profiles:`, profileError.message);
-                return res.status(500).json({ error: 'Erro ao validar permissões.' });
+            if (upError) {
+                console.error(`[Reference API] Erro ao buscar em user_profiles para ${req.user.id}:`, upError.message);
             }
 
-            const effectiveOwnerId = profile?.owner_id || req.user.id;
+            if (upProfile) {
+                profile = upProfile;
+            } else {
+                console.log(`[Reference API] Perfil não encontrado em user_profiles para ${req.user.id}, tentando fallback em profiles...`);
+                // Fallback para profiles
+                const { data: pProfile, error: pError } = await supabase
+                    .from('profiles')
+                    .select('owner_id, role')
+                    .eq('id', req.user.id)
+                    .maybeSingle();
+                
+                if (pError) {
+                    console.error(`[Reference API] Erro ao buscar em profiles para ${req.user.id}:`, pError.message);
+                }
+                profile = pProfile;
+            }
 
-            console.log(`[Reference API] Buscando dados para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
+            // Se ainda não encontrou, assume que é o dono (owner)
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+            const userRole = profile?.role || 'owner';
+
+            console.log(`[Reference API] Contexto: effectiveOwnerId=${effectiveOwnerId}, requesterId=${req.user.id}, role=${userRole}`);
 
             // Buscar bancos
             const { data: banks, error: banksError } = await supabase
@@ -70,28 +92,44 @@ export default () => {
 
             // Buscar relatórios salvos (Organização completa para alimentar a Aba Relatórios)
             // 1. Obter todos os IDs de usuários da organização (Dono + Membros)
-            const { data: orgProfiles } = await supabase
-                .from('user_profiles')
-                .select('id')
-                .or(`id.eq.${effectiveOwnerId},owner_id.eq.${effectiveOwnerId}`);
+            console.log(`[Reference API] Buscando membros da organização para effectiveOwnerId: ${effectiveOwnerId}`);
             
-            const orgUserIds = orgProfiles?.map(p => p.id) || [effectiveOwnerId];
-            if (!orgUserIds.includes(effectiveOwnerId)) orgUserIds.push(effectiveOwnerId);
+            const orgUserIds = new Set([effectiveOwnerId]);
             
-            console.log(`[Reference API] Organização de ${effectiveOwnerId} possui ${orgUserIds.length} usuários: ${orgUserIds.join(', ')}`);
+            try {
+                const [upRes, pRes] = await Promise.all([
+                    supabase.from('user_profiles').select('id').eq('owner_id', effectiveOwnerId),
+                    supabase.from('profiles').select('id').eq('owner_id', effectiveOwnerId)
+                ]);
+                
+                if (upRes.error) console.error(`[Reference API] Erro ao buscar membros em user_profiles:`, upRes.error.message);
+                if (pRes.error) console.error(`[Reference API] Erro ao buscar membros em profiles:`, pRes.error.message);
+
+                upRes.data?.forEach(p => { if (p.id) orgUserIds.add(p.id); });
+                pRes.data?.forEach(p => { if (p.id) orgUserIds.add(p.id); });
+            } catch (memberError) {
+                console.error(`[Reference API] Erro ao processar membros da organização:`, memberError);
+            }
+            
+            const finalUserIds = Array.from(orgUserIds).filter(id => id && typeof id === 'string');
+            console.log(`[Reference API] Organização possui ${finalUserIds.length} IDs válidos.`);
 
             // 2. Buscar relatórios salvos de toda a organização
+            // OTIMIZAÇÃO: Não buscamos a coluna 'data' aqui pois ela é muito grande e causa 500/Timeout
+            // O frontend buscará os dados completos individualmente ao abrir o relatório
+            console.log(`[Reference API] Buscando lista de relatórios para ${finalUserIds.length} usuários...`);
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
-                .select('id, name, created_at, record_count, user_id, data')
-                .in('user_id', orgUserIds)
+                .select('id, name, created_at, record_count, user_id')
+                .in('user_id', finalUserIds)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {
-                console.error(`[Reference API] Erro ao buscar relatórios para organização de ${effectiveOwnerId}:`, reportsError.message);
+                console.error(`[Reference API] Erro Supabase ao buscar relatórios:`, JSON.stringify(reportsError, null, 2));
+                throw reportsError;
             }
 
-            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios para a organização.`);
+            console.log(`[Reference API] Sucesso! Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
 
             res.json({ 
                 banks: banks || [], 
@@ -99,8 +137,11 @@ export default () => {
                 reports: reports || []
             });
         } catch (error) {
-            console.error("[Reference API] Erro:", error);
-            res.status(500).json({ error: error.message });
+            console.error("[Reference API] Erro Fatal:", error);
+            res.status(500).json({ 
+                error: error.message || "Erro interno no servidor ao processar dados de referência.",
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
         }
     });
 
@@ -115,11 +156,23 @@ export default () => {
 
         try {
             // Validação IDOR
-            const { data: profile } = await supabase
+            let profile = null;
+            const { data: upProfile } = await supabase
                 .from('user_profiles')
                 .select('owner_id')
                 .eq('id', req.user.id)
-                .single();
+                .maybeSingle();
+            
+            if (upProfile) {
+                profile = upProfile;
+            } else {
+                const { data: pProfile } = await supabase
+                    .from('profiles')
+                    .select('owner_id')
+                    .eq('id', req.user.id)
+                    .maybeSingle();
+                profile = pProfile;
+            }
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
@@ -128,19 +181,25 @@ export default () => {
             }
 
             // 1. Obter todos os IDs de usuários da organização
-            const { data: orgProfiles } = await supabase
-                .from('user_profiles')
-                .select('id')
-                .or(`id.eq.${effectiveOwnerId},owner_id.eq.${effectiveOwnerId}`);
+            const orgUserIds = new Set([effectiveOwnerId]);
+            try {
+                const [upRes, pRes] = await Promise.all([
+                    supabase.from('user_profiles').select('id').eq('owner_id', effectiveOwnerId),
+                    supabase.from('profiles').select('id').eq('owner_id', effectiveOwnerId)
+                ]);
+                upRes.data?.forEach(p => { if (p.id) orgUserIds.add(p.id); });
+                pRes.data?.forEach(p => { if (p.id) orgUserIds.add(p.id); });
+            } catch (e) {
+                console.error("[Reference API] Erro ao buscar membros para relatório individual:", e);
+            }
             
-            const orgUserIds = orgProfiles?.map(p => p.id) || [effectiveOwnerId];
-            if (!orgUserIds.includes(effectiveOwnerId)) orgUserIds.push(effectiveOwnerId);
+            const finalUserIds = Array.from(orgUserIds).filter(id => id && typeof id === 'string');
 
             const { data, error } = await supabase
                 .from('saved_reports')
                 .select('data, name')
                 .eq('id', reportId)
-                .in('user_id', orgUserIds)
+                .in('user_id', finalUserIds)
                 .single();
 
             if (error) throw error;

@@ -94,18 +94,26 @@ export default () => {
         }
 
         // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado ou um admin do mesmo dono
-        const { data: requesterProfile, error: requesterError } = await supabase.client
+        let requesterProfile = null;
+        const { data: upProfile } = await supabase.client
             .from('user_profiles')
             .select('owner_id, role')
             .eq('id', req.user.id)
-            .single();
-
-        if (requesterError) {
-            console.error("[Users API] Erro ao buscar perfil do solicitante:", requesterError);
-            return res.status(500).json({ error: "Erro ao validar permissões." });
+            .maybeSingle();
+        
+        if (upProfile) {
+            requesterProfile = upProfile;
+        } else {
+            const { data: pProfile } = await supabase.client
+                .from('profiles')
+                .select('owner_id, role')
+                .eq('id', req.user.id)
+                .maybeSingle();
+            requesterProfile = pProfile;
         }
 
-        const requesterEffectiveOwnerId = requesterProfile.owner_id || req.user.id;
+        const requesterEffectiveOwnerId = requesterProfile?.owner_id || req.user.id;
+        const userRole = requesterProfile?.role || 'owner';
 
         if (req.user.id !== ownerId && requesterEffectiveOwnerId !== ownerId) {
             console.error("[Users API] Tentativa de criação não autorizada. Autenticado:", req.user.id, "Solicitado:", ownerId);
@@ -236,15 +244,25 @@ export default () => {
             
             // Validação IDOR: O usuário só pode listar usuários se for o owner ou se for um subordinado do mesmo owner
             // Primeiro buscamos o perfil do usuário logado para verificar seu owner_id
-            const { data: currentUserProfile, error: authProfileError } = await supabase.client
+            let currentUserProfile = null;
+            const { data: upProfile } = await supabase.client
                 .from('user_profiles')
                 .select('owner_id, role')
                 .eq('id', req.user.id)
-                .single();
+                .maybeSingle();
+            
+            if (upProfile) {
+                currentUserProfile = upProfile;
+            } else {
+                const { data: pProfile } = await supabase.client
+                    .from('profiles')
+                    .select('owner_id, role')
+                    .eq('id', req.user.id)
+                    .maybeSingle();
+                currentUserProfile = pProfile;
+            }
 
-            if (authProfileError) throw authProfileError;
-
-            const userEffectiveOwnerId = currentUserProfile.owner_id || req.user.id;
+            const userEffectiveOwnerId = currentUserProfile?.owner_id || req.user.id;
             
             // Se o usuário logado não for o owner solicitado E o owner do usuário logado também não for o owner solicitado
             if (req.user.id !== ownerId && userEffectiveOwnerId !== ownerId) {
@@ -298,18 +316,25 @@ export default () => {
         }
 
         // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado ou um admin do mesmo dono
-        const { data: requesterProfile, error: requesterError } = await supabase.client
+        let requesterProfile = null;
+        const { data: upProfile } = await supabase.client
             .from('user_profiles')
             .select('owner_id, role')
             .eq('id', req.user.id)
-            .single();
-
-        if (requesterError) {
-            console.error("[Users API] Erro ao buscar perfil do solicitante:", requesterError);
-            return res.status(500).json({ error: "Erro ao validar permissões." });
+            .maybeSingle();
+        
+        if (upProfile) {
+            requesterProfile = upProfile;
+        } else {
+            const { data: pProfile } = await supabase.client
+                .from('profiles')
+                .select('owner_id, role')
+                .eq('id', req.user.id)
+                .maybeSingle();
+            requesterProfile = pProfile;
         }
 
-        const requesterEffectiveOwnerId = requesterProfile.owner_id || req.user.id;
+        const requesterEffectiveOwnerId = requesterProfile?.owner_id || req.user.id;
 
         if (req.user.id !== ownerId && requesterEffectiveOwnerId !== ownerId) {
             return res.status(403).json({ error: "Acesso negado: Você não tem permissão para excluir usuários desta conta." });
@@ -367,18 +392,25 @@ export default () => {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
             
             // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado ou um admin do mesmo dono
-            const { data: requesterProfile, error: requesterError } = await supabase.client
+            let requesterProfile = null;
+            const { data: upProfile } = await supabase.client
                 .from('user_profiles')
                 .select('owner_id, role')
                 .eq('id', req.user.id)
-                .single();
-
-            if (requesterError) {
-                console.error("[Users API] Erro ao buscar perfil do solicitante:", requesterError);
-                return res.status(500).json({ error: "Erro ao validar permissões." });
+                .maybeSingle();
+            
+            if (upProfile) {
+                requesterProfile = upProfile;
+            } else {
+                const { data: pProfile } = await supabase.client
+                    .from('profiles')
+                    .select('owner_id, role')
+                    .eq('id', req.user.id)
+                    .maybeSingle();
+                requesterProfile = pProfile;
             }
 
-            const requesterEffectiveOwnerId = requesterProfile.owner_id || req.user.id;
+            const requesterEffectiveOwnerId = requesterProfile?.owner_id || req.user.id;
 
             if (req.user.id !== ownerId && requesterEffectiveOwnerId !== ownerId) {
                 return res.status(403).json({ error: "Acesso negado: Você não tem permissão para editar usuários desta conta." });

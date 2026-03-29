@@ -309,14 +309,27 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
             let rawData: any;
 
             if (subscription.role === 'owner') {
+                // Para owners, tentamos buscar o relatório garantindo que ele pertença a alguém da organização
+                // Primeiro buscamos a lista de membros para validação (ou confiamos no filtro do backend se usássemos a API)
+                // Para manter simples e seguro, vamos usar a mesma lógica do backend: buscar todos os IDs da org
+                const ownerId = effectiveUser.id;
+                const [upRes, pRes] = await Promise.all([
+                    supabase.from('user_profiles').select('id').eq('owner_id', ownerId),
+                    supabase.from('profiles').select('id').eq('owner_id', ownerId)
+                ]);
+                
+                const orgUserIds = [ownerId];
+                upRes.data?.forEach(p => orgUserIds.push(p.id));
+                pRes.data?.forEach(p => orgUserIds.push(p.id));
+
                 const { data, error } = await supabase
                     .from('saved_reports')
                     .select('data')
                     .eq('id', reportId)
-                    .eq('user_id', effectiveUser.id)
+                    .in('user_id', orgUserIds)
                     .single();
 
-                if (error || !data) throw error || new Error("Relatório não encontrado");
+                if (error || !data) throw error || new Error("Relatório não encontrado ou fora da organização");
                 rawData = data.data;
             } else {
                 const token = session?.access_token;
