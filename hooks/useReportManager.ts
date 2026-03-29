@@ -120,6 +120,38 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (!user) return;
 
+        const fetchInitialData = async () => {
+            const { data, error } = await supabase
+                .from('saved_reports')
+                .select('*');
+
+            if (data) {
+                const parsed = (data || []).map((r: any) => {
+                    let parsedData;
+                    try {
+                        parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                    } catch (e) {
+                        parsedData = { results: [], spreadsheet: null };
+                    }
+                    return {
+                        id: r.id,
+                        name: r.name,
+                        createdAt: r.created_at,
+                        recordCount: r.record_count,
+                        user_id: r.user_id,
+                        data: parsedData
+                    };
+                });
+                setSavedReports(parsed as any);
+            }
+
+            if (error) {
+                console.error('Erro ao carregar dados iniciais:', error);
+            }
+        };
+
+        fetchInitialData();
+
         const channel = supabase
             .channel('reports-realtime')
             .on(
