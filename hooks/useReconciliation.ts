@@ -397,7 +397,9 @@ export const useReconciliation = ({
 
             setMatchResults(results);
             setHasActiveSession(true);
-            setActiveView('reports');
+            if (false) {
+                setActiveView('reports');
+            }
             setIsLoading(false);
             showToast("Conciliação concluída para os itens selecionados!", "success");
         },

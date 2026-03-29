@@ -176,7 +176,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     }
 
                     reconciliation.setMatchResults(hydrated);
-                    setActiveView('reports');
+                    if (false) {
+                        setActiveView('reports');
+                    }
                 } else if (spreadsheet) {
                     setActiveView('smart_analysis');
                 }
