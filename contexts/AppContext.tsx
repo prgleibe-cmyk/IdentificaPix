@@ -82,12 +82,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             // Se temos os dados (results ou spreadsheet), abrimos o relatório
-            if (results || spreadsheet) {
+            if ((results && results.length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
                 lastSyncedReportId.current = reportId; // Marca como sincronizado
                 
-                if (results) {
+                if (results && results.length > 0) {
                     let hydrated = results.map((r: any) => {
                         const churchMatch = referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId));
                         if (!churchMatch) {
@@ -101,9 +101,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         const originalCount = hydrated.length;
-                        hydrated = hydrated.filter((r: any) =>
-                            subscription.congregationIds.includes(r.church?.id || r._churchId)
-                        );
+                        hydrated = hydrated.filter((r: any) => {
+                            const churchId = r.church?.id || r._churchId;
+                            // Se não tiver ID de igreja, permitimos ver se o membro tem acesso a "unidentified" 
+                            // ou se a política da empresa permitir (por agora, mantemos restrito mas logamos)
+                            if (!churchId) return false;
+                            return subscription.congregationIds.includes(churchId);
+                        });
                         console.log(`[AppContext] Filtro de membro aplicado: ${originalCount} -> ${hydrated.length} itens`);
                     }
 

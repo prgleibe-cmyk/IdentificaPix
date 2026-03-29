@@ -295,11 +295,13 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
     }, [savedReports, subscription.role, subscription.congregationIds]);
 
     /**
-     * ✅ AJUSTE CIRÚRGICO: Mostra todos os relatórios recebidos da organização
+     * ✅ AJUSTE CIRÚRGICO: Filtra visualmente apenas os relatórios do usuário logado (Etapa 3)
+     * Mas mantém savedReports completo para o "Cérebro" (Etapa 2)
      */
     const userSavedReports = useMemo(() => {
-        return savedReports;
-    }, [savedReports]);
+        if (!realUser?.id) return savedReports;
+        return savedReports.filter(r => r.user_id === realUser.id);
+    }, [savedReports, realUser?.id]);
 
     /**
      * Busca os dados completos de um relatório (incluindo o JSON pesado)

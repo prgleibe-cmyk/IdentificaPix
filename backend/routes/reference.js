@@ -247,12 +247,14 @@ export default () => {
 
             const { data, error } = await supabase
                 .from('saved_reports')
-                .select('data, name')
+                .select('data, name, user_id')
                 .eq('id', reportId)
                 .in('user_id', finalUserIds)
                 .single();
 
             if (error) throw error;
+            
+            console.log(`[Reference API] Relatório ${reportId} encontrado. UserID: ${data.user_id}, Name: ${data.name}`);
             res.json(data);
         } catch (error) {
             console.error("[Reference API] Erro ao buscar relatório:", error);
