@@ -60,7 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
     });
 
-    (supabase.auth as any).getSession().then(({ data: { session: s } }: any) => {
+    (supabase.auth as any).getSession().then(({ data: { session: s }, error }: any) => {
+        if (error) {
+            console.error("[AuthContext] Erro ao recuperar sessão:", error);
+            if (error.message?.includes('Refresh Token Not Found')) {
+                signOut();
+            }
+        }
         if (mounted && !isSigningOut.current) {
             if (s) {
                 setSession(s);

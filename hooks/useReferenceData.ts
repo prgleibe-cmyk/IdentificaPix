@@ -9,7 +9,7 @@ import { modelService } from '../services/modelService';
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription, systemSettings } = useAuth();
+    const { subscription, systemSettings, session } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
@@ -25,6 +25,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
+    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
     // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
     const lastOwnerIdRef = useRef<string | null>(null);
@@ -34,68 +35,87 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         if (!user?.id) {
             lastOwnerIdRef.current = null;
+            setInitialDataLoaded(true);
             return;
         }
 
-        const ownerId = subscription.ownerId || user.id;
+        const ownerId = subscription.ownerId;
+
+        if (!ownerId) {
+            // Se o user existe mas o ownerId ainda não resolveu, esperamos um pouco
+            // mas não bloqueamos o initialDataLoaded se demorar demais
+            const timer = setTimeout(() => {
+                if (!ignore) setInitialDataLoaded(true);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
 
         // ✅ evita múltiplas execuções desnecessárias
         if (lastOwnerIdRef.current === ownerId) return;
 
         const syncData = async () => {
+            try {
+                if (subscription.role === 'owner') {
+                    let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
+                    const { data: b } = await bankQuery;
+                    if (b && !ignore) setBanks(b);
+                    
+                    let query = supabase.from('churches').select('*').eq('user_id', ownerId);
+                    const { data: c } = await query;
+                    if (c && !ignore) setChurches(c);
 
-            if (subscription.role === 'owner') {
-                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
-                const { data: b } = await bankQuery;
-                if (b && !ignore) setBanks(b);
-                
-                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
-                const { data: c } = await query;
-                if (c && !ignore) setChurches(c);
+                } else {
+                    try {
+                        const token = session?.access_token;
 
-            } else {
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
+                        if (!token) {
+                            console.warn("[useReferenceData] Token não encontrado no AuthContext.");
+                            return;
                         }
-                    });
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (ignore) return;
-                        
-                        let filteredBanks = data.banks || [];
-                        let filteredChurches = data.churches || [];
-                        
-                        const allowedBankIds = subscription.bankIds || [];
-                        const allowedChurchIds = subscription.congregationIds || [];
-                        
-                        if (allowedBankIds.length > 0) {
-                            filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                        const response = await fetch(`/api/reference/data/${ownerId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (ignore) return;
+                            
+                            let filteredBanks = data.banks || [];
+                            let filteredChurches = data.churches || [];
+                            
+                            const allowedBankIds = subscription.bankIds || [];
+                            const allowedChurchIds = subscription.congregationIds || [];
+                            
+                            if (allowedBankIds.length > 0) {
+                                filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
+                            }
+                            if (allowedChurchIds.length > 0) {
+                                filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
+                            }
+                            
+                            if (!ignore) {
+                                setBanks(filteredBanks);
+                                setChurches(filteredChurches);
+                            }
                         }
-                        if (allowedChurchIds.length > 0) {
-                            filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
-                        }
-                        
+
+                    } catch (error) {
                         if (!ignore) {
-                            setBanks(filteredBanks);
-                            setChurches(filteredChurches);
+                            console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                         }
-                    }
-
-                } catch (error) {
-                    if (!ignore) {
-                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                     }
                 }
+            } catch (err) {
+                console.error("[ReferenceData] Erro ao sincronizar dados:", err);
+            } finally {
+                if (!ignore) {
+                    setInitialDataLoaded(true);
+                    lastOwnerIdRef.current = ownerId;
+                }
             }
-
-            // ✅ marca como executado
-            lastOwnerIdRef.current = ownerId;
         };
 
         syncData();
@@ -270,13 +290,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
-        setBanks, setChurches, setLearnedAssociations
+        setBanks, setChurches, setLearnedAssociations, initialDataLoaded
     }), [
         banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
         customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod,
+        initialDataLoaded
     ]);
 };

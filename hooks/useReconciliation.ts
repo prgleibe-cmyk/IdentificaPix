@@ -48,6 +48,17 @@ export const useReconciliation = ({
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
+    // ✅ AJUSTE CIRÚRGICO: Sincroniza resultados quando o relatório ativo muda
+    useEffect(() => {
+        if (!activeReportId) return;
+        
+        // Se temos um ID ativo mas os resultados locais estão vazios, 
+        // ou se o ID mudou, permitimos que o AppContext injete os dados da nuvem
+        if (matchResults.length === 0) {
+            // O AppContext cuidará de chamar setMatchResults via viewSavedReport
+        }
+    }, [activeReportId]);
+    
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
@@ -222,14 +233,16 @@ export const useReconciliation = ({
             income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }
         });
-    }, []);
+    }, [subscription]);
 
-    // Sincroniza o Preview sempre que os resultados persistentes mudarem
+    // Sincroniza o Preview sempre que os resultados persistentes mudarem ou a sessão mudar
     useEffect(() => {
-        if (matchResults && matchResults.length > 0) {
+        if (hasActiveSession) {
             regenerateReportPreview(matchResults);
+        } else {
+            setReportPreviewData(null);
         }
-    }, [matchResults, regenerateReportPreview]);
+    }, [matchResults, hasActiveSession, regenerateReportPreview]);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {
         const processKey = `${bankId}-${fileName}`;
@@ -344,7 +357,7 @@ export const useReconciliation = ({
     }, [setLaunchedResults, showToast]);
 
     return {
-        activeBankFiles, contributorFiles, matchResults: filteredMatchResults, reportPreviewData,
+        activeBankFiles, contributorFiles, matchResults: filteredMatchResults,
         activeReportId, setActiveReportId, hasActiveSession, setHasActiveSession,
         comparisonType, setComparisonType, selectedBankIds,
         manualIdentificationTx, setManualIdentificationTx,
@@ -420,6 +433,7 @@ export const useReconciliation = ({
         },
         hydrate,
         setMatchResults,
+        reportPreviewData,
         setReportPreviewData
     };
 };

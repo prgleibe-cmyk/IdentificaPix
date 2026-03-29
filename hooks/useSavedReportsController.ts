@@ -9,6 +9,7 @@ export type SortDirection = 'asc' | 'desc';
 export const useSavedReportsController = () => {
     const { 
         savedReports, 
+        userSavedReports,
         viewSavedReport, 
         openDeleteConfirmation, 
         updateSavedReportName, 
@@ -27,7 +28,7 @@ export const useSavedReportsController = () => {
 
     // Filtro e Ordenação
     const processedReports = useMemo(() => {
-        let result = [...savedReports];
+        let result = [...userSavedReports];
 
         if (searchQuery) {
             const lowerQ = searchQuery.toLowerCase();
@@ -56,7 +57,7 @@ export const useSavedReportsController = () => {
         });
 
         return result;
-    }, [savedReports, searchQuery, sortConfig]);
+    }, [userSavedReports, searchQuery, sortConfig]);
 
     // Handlers
     const handleSort = useCallback((key: SortKey) => {
@@ -85,7 +86,7 @@ export const useSavedReportsController = () => {
     }, [editName, updateSavedReportName]);
 
     // Cálculo de Armazenamento
-    const usagePercent = Math.min(100, (savedReports.length / maxSavedReports) * 100);
+    const usagePercent = Math.min(100, (userSavedReports.length / maxSavedReports) * 100);
     let storageColor = "bg-emerald-500";
     if (usagePercent > 80) storageColor = "bg-red-500";
     else if (usagePercent > 50) storageColor = "bg-amber-500";
@@ -102,6 +103,7 @@ export const useSavedReportsController = () => {
 
     return {
         savedReports,
+        userSavedReports,
         processedReports,
         searchQuery,
         setSearchQuery,
