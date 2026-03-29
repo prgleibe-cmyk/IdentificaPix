@@ -76,9 +76,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (!results && !spreadsheet) {
                 console.log(`[AppContext] Buscando dados completos para o relatório ${reportId}...`);
                 const fullData = await reportManager.fetchFullReportData(reportId);
+                console.log(`[AppContext] Chaves do fullData:`, Object.keys(fullData || {}));
                 results = fullData?.results;
                 spreadsheet = fullData?.spreadsheet;
-                console.log(`[AppContext] Dados completos recebidos: results=${!!results}, spreadsheet=${!!spreadsheet}`);
+                console.log(`[AppContext] Dados completos recebidos: results=${Array.isArray(results) ? results.length : !!results}, spreadsheet=${!!spreadsheet}`);
             }
 
             // Se temos os dados (results ou spreadsheet), abrimos o relatório
@@ -88,38 +89,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 lastSyncedReportId.current = reportId; // Marca como sincronizado
                 
                 if (results && results.length > 0) {
-                    let hydrated = results.map((r: any) => {
-                        const churchMatch = referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId));
-                        if (!churchMatch) {
-                            console.log(`[AppContext] No church match for: id=${r.church?.id}, _id=${r._churchId}. Available:`, referenceData.churches.map(c => c.id));
+                    console.log(`[AppContext] Hidratando ${results.length} resultados...`);
+                    let hydrated = results.map((r: any, idx: number) => {
+                        const churchId = r.church?.id || r._churchId;
+                        const churchMatch = referenceData.churches.find((c: any) => c.id === churchId);
+                        
+                        if (idx === 0) {
+                            console.log(`[AppContext] Amostra do primeiro item:`, { 
+                                churchId, 
+                                foundMatch: !!churchMatch,
+                                churchName: churchMatch?.name || r.church?.name 
+                            });
                         }
+
                         return {
                             ...r,
                             church: churchMatch || r.church || PLACEHOLDER_CHURCH
                         };
                     });
-
+                    
+                    // Filtro de segurança para membros (Etapa 2)
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         const originalCount = hydrated.length;
                         hydrated = hydrated.filter((r: any) => {
                             const churchId = r.church?.id || r._churchId;
-                            // Se não tiver ID de igreja, permitimos ver se o membro tem acesso a "unidentified" 
-                            // ou se a política da empresa permitir (por agora, mantemos restrito mas logamos)
-                            if (!churchId) return false;
+                            if (!churchId) {
+                                console.warn(`[AppContext] Item sem churchId ignorado no filtro de membro.`);
+                                return false;
+                            }
                             return subscription.congregationIds.includes(churchId);
                         });
-                        console.log(`[AppContext] Filtro de membro aplicado: ${originalCount} -> ${hydrated.length} itens`);
+                        console.log(`[AppContext] Filtro de membro aplicado: ${originalCount} -> ${hydrated.length} itens. Permitidos:`, subscription.congregationIds);
                     }
 
                     console.log(`[AppContext] Definindo matchResults com ${hydrated.length} itens`);
                     reconciliation.setMatchResults(hydrated);
                     setActiveView('reports');
                 } else if (spreadsheet) {
-                    console.log(`[AppContext] Abrindo relatório via spreadsheet`);
+                    console.log(`[AppContext] Abrindo relatório via spreadsheet (results empty ou missing)`);
                     setActiveView('reports');
                 }
             } else {
-                console.warn(`[AppContext] Relatório ${reportId} não possui dados.`);
+                console.warn(`[AppContext] Relatório ${reportId} não possui dados válidos (results=${results?.length}, spreadsheet=${!!spreadsheet})`);
                 showToast("Relatório sem dados disponíveis.", "error");
             }
         } catch (error) {
@@ -134,18 +145,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * 👁️ AUTO-SELEÇÃO DE RELATÓRIO (ETAPA 2)
      * Seleciona o relatório mais recente se nenhum estiver ativo para preencher a aba automaticamente
      */
-    const autoRestoredRef = useRef(false);
     // ✅ AUTO-RESTAURAÇÃO E AUTO-CONCILIAÇÃO
+    const lastAutoRestoredId = useRef<string | null>(null);
     useEffect(() => {
-        if (!isAppReady || !user || autoRestoredRef.current) return;
+        if (!isAppReady || !user) return;
 
-        // 1. Se já existe um ID ativo na memória local, tentamos garantir que os dados estão carregados
-        if (reconciliation.activeReportId) {
-            console.log(`[AppContext] Sessão ativa detectada: ${reconciliation.activeReportId}. Garantindo carga de dados...`);
-            autoRestoredRef.current = true;
-            viewSavedReport(reconciliation.activeReportId);
-            return;
+        const reportId = reconciliation.activeReportId;
+        if (reportId && lastAutoRestoredId.current !== reportId) {
+            console.log(`[AppContext] Sessão ativa detectada: ${reportId}. Garantindo carga de dados...`);
+            lastAutoRestoredId.current = reportId;
+            viewSavedReport(reportId);
         }
+    }, [isAppReady, user, reconciliation.activeReportId, viewSavedReport]);
 
         // 2. Tenta restaurar o último relatório salvo se não houver sessão ativa
         if (reportManager.savedReports.length > 0) {

@@ -254,7 +254,9 @@ export default () => {
 
             if (error) throw error;
             
-            console.log(`[Reference API] Relatório ${reportId} encontrado. UserID: ${data.user_id}, Name: ${data.name}`);
+            const dataSize = typeof data.data === 'string' ? data.data.length : JSON.stringify(data.data).length;
+            console.log(`[Reference API] Relatório ${reportId} encontrado. UserID: ${data.user_id}, Name: ${data.name}, DataSize: ${dataSize} chars`);
+            
             res.json(data);
         } catch (error) {
             console.error("[Reference API] Erro ao buscar relatório:", error);

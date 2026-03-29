@@ -322,14 +322,20 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
             }
 
             const report = await response.json();
+            console.log(`[ReportManager] Resposta bruta do relatório ${reportId}:`, {
+                hasData: !!report.data,
+                dataType: typeof report.data,
+                keys: Object.keys(report.data || {})
+            });
+
             const rawData = report.data;
-            
             if (!rawData) {
                 console.warn("[ReportManager] Relatório retornado sem dados.");
                 return null;
             }
 
             const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+            console.log(`[ReportManager] Dados parseados: results=${parsedData.results?.length}, spreadsheet=${!!parsedData.spreadsheet}`);
             
             // Atualiza o cache local
             setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, data: parsedData } : r));
@@ -340,7 +346,7 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
             showToast("Erro ao carregar dados do relatório.", "error");
             return null;
         }
-    }, [session, showToast]);
+    }, [session, showToast, setSavedReports]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,
