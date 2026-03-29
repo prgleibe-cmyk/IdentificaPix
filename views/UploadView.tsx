@@ -1,5 +1,5 @@
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon } from '../components/Icons';
@@ -18,17 +18,6 @@ export const UploadView: React.FC = () => {
     const { systemSettings } = useAuth();
     const { setActiveView } = useUI();
     const { t } = useTranslation();
-    const autoProcessed = React.useRef(false);
-
-    React.useEffect(() => {
-        if (autoProcessed.current) return;
-        const hasSelection = selectedBankIds.length > 0;
-        const canProcess = hasSelection || !!activeReportId;
-        if (canProcess) {
-            handleCompare();
-            autoProcessed.current = true;
-        }
-    }, [selectedBankIds.length, activeReportId, handleCompare]);
 
     const hasSelection = selectedBankIds.length > 0;
     const canProcess = hasSelection || !!activeReportId;
