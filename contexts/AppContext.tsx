@@ -118,7 +118,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (!data) throw new Error('Report not found');
 
                 const rawData = data.data;
-                const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                let parsedData;
+                try {
+                    parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                } catch (error) {
+                    console.error("JSON corrompido detectado:", error);
+                    parsedData = {
+                        results: [],
+                        spreadsheet: null
+                    };
+                }
 
                 results = parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
@@ -133,7 +142,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (response.ok) {
                     const resData = await response.json();
                     const rawData = resData.data;
-                    const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                    let parsedData;
+                    try {
+                        parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                    } catch (error) {
+                        console.error("JSON corrompido detectado:", error);
+                        parsedData = {
+                            results: [],
+                            spreadsheet: null
+                        };
+                    }
 
                     results = parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;

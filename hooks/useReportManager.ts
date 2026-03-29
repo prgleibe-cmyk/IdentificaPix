@@ -70,14 +70,27 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 }
 
                 if (data && !ignore) {
-                    let hydrated: SavedReport[] = data.map((r: any) => ({
-                        id: r.id,
-                        name: r.name,
-                        createdAt: r.created_at,
-                        recordCount: r.record_count,
-                        user_id: r.user_id,
-                        data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
-                    }));
+                    let hydrated: SavedReport[] = data.map((r: any) => {
+                        let parsedData;
+                        try {
+                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                        } catch (error) {
+                            console.error("JSON corrompido detectado:", error);
+                            parsedData = {
+                                results: [],
+                                spreadsheet: null
+                            };
+                        }
+
+                        return {
+                            id: r.id,
+                            name: r.name,
+                            createdAt: r.created_at,
+                            recordCount: r.record_count,
+                            user_id: r.user_id,
+                            data: parsedData
+                        };
+                    });
 
                     if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         hydrated = hydrated.filter(report => {
@@ -123,15 +136,24 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         }
 
                         // INSERT ou UPDATE
+                        let parsedData;
+                        try {
+                            parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
+                        } catch (error) {
+                            console.error("JSON corrompido detectado:", error);
+                            parsedData = {
+                                results: [],
+                                spreadsheet: null
+                            };
+                        }
+
                         const parsed: SavedReport = {
                             id: newRecord.id,
                             name: newRecord.name,
                             createdAt: newRecord.created_at,
                             recordCount: newRecord.record_count,
                             user_id: newRecord.user_id,
-                            data: typeof newRecord.data === 'string'
-                                ? JSON.parse(newRecord.data)
-                                : newRecord.data
+                            data: parsedData
                         };
 
                         const exists = prev.find(r => r.id === parsed.id);

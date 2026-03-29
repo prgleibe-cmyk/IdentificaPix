@@ -125,7 +125,19 @@ export const useSmartAnalysisController = () => {
 
             if (!results && !spreadsheet) {
                 const { data } = await supabase.from('saved_reports').select('data').eq('id', report.id).single();
-                const parsedData = typeof data?.data === 'string' ? JSON.parse(data.data) : data?.data;
+                
+                const rawData = data?.data;
+                let parsedData;
+                try {
+                    parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                } catch (error) {
+                    console.error("JSON corrompido detectado:", error);
+                    parsedData = {
+                        results: [],
+                        spreadsheet: null
+                    };
+                }
+                
                 results = parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             }
