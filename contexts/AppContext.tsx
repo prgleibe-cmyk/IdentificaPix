@@ -108,8 +108,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const ownerId = subscription.ownerId || currentUser?.id;
 
             if (subscription.role === 'owner') {
-                const { data, error } = await supabase
-                    .from('saved_reports')
+                const { data, error } = await (supabase.from('saved_reports') as any)
                     .select('data')
                     .eq('id', reportId)
                     .single();

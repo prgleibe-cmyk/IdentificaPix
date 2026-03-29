@@ -87,7 +87,8 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'learned-associations': {
-                    const { error } = await supabase.from('learned_associations').delete().eq('user_id', user.id);
+                    const effectiveUserId = user.parent_id || user.id;
+                    const { error } = await supabase.from('learned_associations').delete().eq('user_id', effectiveUserId);
                     if (error) throw error;
                     referenceData.setLearnedAssociations([]);
                     showToast("Associações aprendidas removidas.", "success");

@@ -96,17 +96,18 @@ export const useReconciliation = ({
      * 📡 REALTIME SYNC (Escuta mudanças de confirmação)
      */
     useEffect(() => {
-        if (!user?.id) return;
+        if (!user) return;
+        const effectiveUserId = user.parent_id || user.id;
         
         const channel = supabase
-            .channel(`reconciliation-status-sync-${user.id}`)
+            .channel(`reconciliation-status-sync-${effectiveUserId}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${user.id}`
+                    filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
                     if (payload.new && payload.new.is_confirmed === true) {
@@ -121,7 +122,7 @@ export const useReconciliation = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id]);
+    }, [user?.id, user?.parent_id]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
@@ -148,7 +149,8 @@ export const useReconciliation = ({
             }
 
             try {
-                const confirmedIds = await consolidationService.checkConfirmedTransactions(user.id, realIds);
+                const effectiveUserId = user.parent_id || user.id;
+                const confirmedIds = await consolidationService.checkConfirmedTransactions(effectiveUserId, realIds);
                 
                 if (confirmedIds.length > 0) {
                     setMatchResults(prev => {

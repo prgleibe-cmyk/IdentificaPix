@@ -38,7 +38,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const ownerId = subscription.ownerId || user.id;
+            const effectiveUserId = user.parent_id || user.id;
             try {
                 let data: any[] | null = null;
 
@@ -46,7 +46,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
-                        .eq('user_id', ownerId)
+                        .eq('user_id', effectiveUserId)
                         .order('created_at', { ascending: false });
 
                     if (error) throw error;
@@ -56,7 +56,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
 
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                    const response = await fetch(`/api/reference/data/${effectiveUserId}`, {
                         method: 'GET',
                         cache: 'no-store',
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -274,7 +274,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
-        const ownerId = subscription.ownerId || user.id;
+        const effectiveUserId = user.parent_id || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -293,7 +293,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
-            user_id: ownerId,
+            user_id: effectiveUserId,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -325,13 +325,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
-        const ownerId = subscription.ownerId || user.id;
+        const effectiveUserId = user.parent_id || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [user, subscription.ownerId, savedReports, showToast]);
+    }, [user, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         let results = savedReports
