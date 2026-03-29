@@ -53,6 +53,8 @@ export const UsersManagementPage: React.FC = () => {
 
             // Usando a API do backend para listar usuários, ignorando RLS do frontend
             const response = await fetch(`/api/users/list/${effectiveOwnerId}`, {
+                method: 'GET',
+                cache: 'no-store',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -225,6 +227,7 @@ export const UsersManagementPage: React.FC = () => {
 
             const response = await fetch(`/api/users/delete/${userId}?ownerId=${effectiveOwnerId}`, {
                 method: 'DELETE',
+                cache: 'no-store',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

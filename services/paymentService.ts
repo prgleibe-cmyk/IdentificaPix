@@ -38,6 +38,7 @@ export const paymentService = {
 
             const response = await fetch('/api/payment/create', {
                 method: 'POST',
+                cache: 'no-store',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -105,6 +106,8 @@ export const paymentService = {
             const token = session?.access_token;
 
             const response = await fetch(`/api/payment/status/${paymentId}`, {
+                method: 'GET',
+                cache: 'no-store',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

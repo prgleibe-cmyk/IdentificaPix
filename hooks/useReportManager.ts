@@ -57,6 +57,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const token = session?.access_token;
 
                     const response = await fetch(`/api/reference/data/${ownerId}`, {
+                        method: 'GET',
+                        cache: 'no-store',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 

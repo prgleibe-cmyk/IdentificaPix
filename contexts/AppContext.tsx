@@ -136,6 +136,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const token = session?.access_token;
 
                 const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                    method: 'GET',
+                    cache: 'no-store',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
