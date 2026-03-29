@@ -123,9 +123,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (!user) return;
 
         const fetchInitialData = async () => {
+            const effectiveUserId = user.parent_id || user.id;
             const { data, error } = await supabase
                 .from('saved_reports')
-                .select('*');
+                .select('*')
+                .eq('user_id', effectiveUserId);
 
             if (data) {
                 const parsed = (data || []).map((r: any) => {
@@ -213,8 +215,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user) return;
+        const effectiveUserId = user.parent_id || user.id;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
-        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId);
+        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
     }, [user, showToast]);
@@ -222,6 +225,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user || !reportId) return;
         
+        const effectiveUserId = user.parent_id || user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
@@ -251,7 +255,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 data: mergedData as any,
                 record_count: recordCount 
             })
-            .eq('id', reportId);
+            .eq('id', reportId)
+            .eq('user_id', effectiveUserId);
 
         if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);

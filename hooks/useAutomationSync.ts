@@ -12,13 +12,12 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
 
     const fetchMacros = useCallback(async (silent = false) => {
         if (!user) return;
-        const effectiveUserId = user.parent_id || user.id;
-        if (!silent) console.log("[AutomationSync] Buscando macros no banco para o usuário:", effectiveUserId);
+        if (!silent) console.log("[AutomationSync] Buscando macros no banco para o usuário:", user.id);
         
         const { data, error } = await supabase
             .from('automation_macros')
             .select('*')
-            .eq('user_id', effectiveUserId)
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
         
         if (error) {
@@ -44,10 +43,9 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
             if (type === "SAVE_TRAINING" && user) {
                 setIsLoading(true);
                 try {
-                    const effectiveUserId = user.parent_id || user.id;
                     const { data, error } = await (supabase.from('automation_macros') as any)
                         .insert({
-                            user_id: effectiveUserId,
+                            user_id: user.id,
                             name: `Macro ${payload.bankName || 'Treino'} - ${new Date().toLocaleTimeString()}`,
                             steps: payload.steps,
                             target_url: payload.targetUrl || null

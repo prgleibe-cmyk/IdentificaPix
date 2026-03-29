@@ -23,21 +23,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
-    const effectiveUser = useMemo(() => {
-        if (!user) return null;
-        return { ...user, id: subscription.ownerId || user.id };
-    }, [user, subscription.ownerId]);
-
     const modalController = useModalController();
-    const referenceData = useReferenceData(effectiveUser, showToast);
-    const reportManager = useReportManager(effectiveUser, showToast);
+    const referenceData = useReferenceData(user, showToast);
+    const reportManager = useReportManager(user, showToast);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user: effectiveUser,
+        user: user,
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
@@ -229,7 +224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const { confirmDeletion } = useDataDeletion({
-        user: effectiveUser,
+        user: user,
         modalController,
         referenceData,
         reportManager,

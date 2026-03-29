@@ -37,19 +37,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             return;
         }
 
-        const effectiveUserId = user.parent_id || user.id;
-
         // ✅ evita múltiplas execuções desnecessárias
-        if (lastOwnerIdRef.current === effectiveUserId) return;
+        if (lastOwnerIdRef.current === user.id) return;
 
         const syncData = async () => {
 
             if (subscription.role === 'owner') {
-                let bankQuery = supabase.from('banks').select('*').eq('user_id', effectiveUserId);
+                let bankQuery = supabase.from('banks').select('*').eq('user_id', user.id);
                 const { data: b } = await bankQuery;
                 if (b && !ignore) setBanks(b);
                 
-                let query = supabase.from('churches').select('*').eq('user_id', effectiveUserId);
+                let query = supabase.from('churches').select('*').eq('user_id', user.id);
                 const { data: c } = await query;
                 if (c && !ignore) setChurches(c);
 
@@ -58,7 +56,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
 
-                    const response = await fetch(`/api/reference/data/${effectiveUserId}`, {
+                    const response = await fetch(`/api/reference/data/${user.id}`, {
                         method: 'GET',
                         cache: 'no-store',
                         headers: {
@@ -97,7 +95,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             }
 
             // ✅ marca como executado
-            lastOwnerIdRef.current = effectiveUserId;
+            lastOwnerIdRef.current = user.id;
         };
 
         syncData();
@@ -105,14 +103,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
 
     // ✅ dependências corrigidas (cirúrgico)
-    }, [user?.id, user?.parent_id, subscription.role]);
+    }, [user?.id, subscription.role]);
 
     useEffect(() => {
         let ignore = false;
         if (!user) return;
         const fetchAssociations = async () => {
-            const effectiveUserId = user.parent_id || user.id;
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', effectiveUserId) as { data: any[] | null };
+            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id) as { data: any[] | null };
             if (data && !ignore) {
                 setLearnedAssociations(data.map((d: any) => ({
                     id: d.id, 
@@ -136,13 +133,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
         
-        const effectiveUserId = user.parent_id || user.id;
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 
             churchId: matchResult.church.id, 
             bankId: 'global',
-            user_id: effectiveUserId 
+            user_id: user.id 
         };
 
         setLearnedAssociations(prev => {
@@ -155,7 +151,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 .from('learned_associations')
                 .select('id')
                 .eq('normalized_description', normalizedDesc)
-                .eq('user_id', effectiveUserId)
+                .eq('user_id', user.id)
                 .maybeSingle() as { data: any | null };
 
             if (existing) {
@@ -165,7 +161,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 }).eq('id', existing.id);
             } else {
                 await (supabase.from('learned_associations') as any).insert({ 
-                    user_id: effectiveUserId, 
+                    user_id: user.id, 
                     normalized_description: normalizedDesc, 
                     contributor_normalized_name: contributorName, 
                     church_id: matchResult.church.id
@@ -178,9 +174,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
-        const effectiveUserId = user.parent_id || user.id;
         try {
-            const models = await modelService.getUserModels(effectiveUserId);
+            const models = await modelService.getUserModels(user.id);
             setFileModels(models);
         } catch (e) { console.error(e); }
     }, [user]);
@@ -199,12 +194,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
         if(!user) return false;
-        const effectiveUserId = user.parent_id || user.id;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: effectiveUserId }]).select();
+        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: user.id }]).select();
         if (data) {
             setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
@@ -225,12 +219,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
         if(!user) return false;
-        const effectiveUserId = user.parent_id || user.id;
         if (churches.length >= (subscription.maxChurches || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: effectiveUserId }]).select();
+        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: user.id }]).select();
         if (data) {
             setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');
