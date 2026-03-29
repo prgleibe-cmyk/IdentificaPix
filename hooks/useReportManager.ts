@@ -28,11 +28,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const lastSavedPayloadRef = useRef<string>('');
 
     /**
-     * 📥 CARGA INICIAL (mantida como estava, apenas corrigido owner)
+     * 📥 CARGA INICIAL
      */
     useEffect(() => {
         let ignore = false;
-
         if (!user) {
             setSavedReports([]);
             return;
@@ -40,14 +39,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const fetchReports = async () => {
             const effectiveUserId = user.parent_id || user.id;
-
             try {
                 let data: any[] | null = null;
 
-                // ✅ CORREÇÃO: detectar owner corretamente
-                const isOwner = !user.parent_id;
-
-                if (isOwner) {
+                if (subscription.role === 'owner') {
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
@@ -79,7 +74,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 if (data && !ignore) {
                     let hydrated: SavedReport[] = data.map((r: any) => {
                         let parsedData;
-
                         try {
                             parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
                         } catch (error) {
@@ -101,9 +95,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     });
 
                     if (subscription.role === 'member' && (subscription.congregationIds || []).length > 0) {
-                        hydrated = hydrated.filter(report => {
+                        hydrated = (hydrated || []).filter(report => {
                             if (!(report.data?.results || []).length) return false;
-                            return report.data.results.some(res =>
+                            return (report.data.results || []).some(res =>
                                 (subscription.congregationIds || []).includes(res.church?.id || res._churchId)
                             );
                         });
@@ -123,7 +117,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
     /**
-     * 🔴 TEMPO REAL (mantido exatamente como estava)
+     * 🔴 TEMPO REAL (AJUSTE CIRÚRGICO)
      */
     useEffect(() => {
         if (!user) return;
@@ -172,10 +166,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const oldRecord = payload.old;
 
                     setSavedReports(prev => {
+                        // DELETE
                         if (payload.eventType === 'DELETE') {
                             return (prev || []).filter(r => r.id !== oldRecord.id);
                         }
 
+                        // INSERT ou UPDATE
                         let parsedData;
                         try {
                             parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
