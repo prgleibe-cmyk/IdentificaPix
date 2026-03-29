@@ -230,10 +230,6 @@ export default () => {
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
-            if (effectiveOwnerId !== ownerId) {
-                return res.status(403).json({ error: "Acesso negado." });
-            }
-
             // 1. Obter todos os IDs de usuários da organização
             const orgUserIds = new Set([effectiveOwnerId]);
             try {

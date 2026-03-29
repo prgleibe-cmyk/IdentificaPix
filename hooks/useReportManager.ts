@@ -295,71 +295,50 @@ export const useReportManager = (effectiveUser: any | null, showToast: (msg: str
     }, [savedReports, subscription.role, subscription.congregationIds]);
 
     /**
-     * ✅ AJUSTE CIRÚRGICO: Filtra os relatórios para mostrar apenas os do próprio usuário na lista de salvos
+     * ✅ AJUSTE: Retorna todos os relatórios da organização que foram carregados
      */
     const userSavedReports = useMemo(() => {
-        if (!realUser) return [];
-        return savedReports.filter(r => r.user_id === realUser.id);
-    }, [savedReports, realUser]);
+        return savedReports;
+    }, [savedReports]);
 
+    /**
+     * Busca os dados completos de um relatório (incluindo o JSON pesado)
+     * ✅ Sempre usa a API do backend para garantir bypass de RLS e consistência
+     */
     const fetchFullReportData = useCallback(async (reportId: string) => {
-        if (!effectiveUser) return null;
-        
+        if (!reportId) return null;
+
         try {
-            let rawData: any;
+            console.log(`[ReportManager] Buscando dados completos via API para o relatório: ${reportId}`);
+            const response = await fetch(`/api/reference/report/${reportId}`, {
+                headers: { 'Authorization': `Bearer ${session?.access_token}` }
+            });
 
-            if (subscription.role === 'owner') {
-                // Para owners, tentamos buscar o relatório garantindo que ele pertença a alguém da organização
-                // Primeiro buscamos a lista de membros para validação (ou confiamos no filtro do backend se usássemos a API)
-                // Para manter simples e seguro, vamos usar a mesma lógica do backend: buscar todos os IDs da org
-                const ownerId = effectiveUser.id;
-                const [upRes, pRes] = await Promise.all([
-                    supabase.from('user_profiles').select('id').eq('owner_id', ownerId),
-                    supabase.from('profiles').select('id').eq('owner_id', ownerId)
-                ]);
-                
-                const orgUserIds = [ownerId];
-                upRes.data?.forEach(p => orgUserIds.push(p.id));
-                pRes.data?.forEach(p => orgUserIds.push(p.id));
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.details || "Erro ao buscar dados do relatório");
+            }
 
-                const { data, error } = await supabase
-                    .from('saved_reports')
-                    .select('data')
-                    .eq('id', reportId)
-                    .in('user_id', orgUserIds)
-                    .single();
-
-                if (error || !data) throw error || new Error("Relatório não encontrado ou fora da organização");
-                rawData = data.data;
-            } else {
-                const token = session?.access_token;
-                const ownerId = subscription.ownerId;
-
-                if (!token) {
-                    throw new Error("Sessão expirada. Por favor, faça login novamente.");
-                }
-
-                const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (!response.ok) throw new Error("Falha ao buscar via API");
-                const resData = await response.json();
-                rawData = resData.data;
+            const report = await response.json();
+            const rawData = report.data;
+            
+            if (!rawData) {
+                console.warn("[ReportManager] Relatório retornado sem dados.");
+                return null;
             }
 
             const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
             
-            setSavedReports(prev => prev.map(r => 
-                r.id === reportId ? { ...r, data: parsedData } : r
-            ));
+            // Atualiza o cache local
+            setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, data: parsedData } : r));
             
             return parsedData;
-        } catch (err) {
-            console.error("[ReportManager] Erro ao buscar dados completos:", err);
+        } catch (error: any) {
+            console.error("[ReportManager] Erro ao buscar dados completos:", error);
+            showToast("Erro ao carregar dados do relatório.", "error");
             return null;
         }
-    }, [effectiveUser, subscription.ownerId, subscription.role]);
+    }, [session, showToast]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,

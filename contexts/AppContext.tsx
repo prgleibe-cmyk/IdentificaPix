@@ -128,10 +128,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * Seleciona o relatório mais recente se nenhum estiver ativo para preencher a aba automaticamente
      */
     const autoRestoredRef = useRef(false);
+    // ✅ AUTO-RESTAURAÇÃO E AUTO-CONCILIAÇÃO
     useEffect(() => {
         if (!isAppReady || !user || autoRestoredRef.current) return;
 
-        // Se já existe um ID ativo na memória local, tentamos garantir que os dados estão carregados
+        // 1. Se já existe um ID ativo na memória local, tentamos garantir que os dados estão carregados
         if (reconciliation.activeReportId) {
             console.log(`[AppContext] Sessão ativa detectada: ${reconciliation.activeReportId}. Garantindo carga de dados...`);
             autoRestoredRef.current = true;
@@ -139,14 +140,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        // Se não tem ID ativo mas temos relatórios na nuvem, abre o mais recente
+        // 2. Tenta restaurar o último relatório salvo se não houver sessão ativa
         if (reportManager.savedReports.length > 0) {
             console.log(`[AppContext] Auto-restaurando último relatório: ${reportManager.savedReports[0].id}`);
             autoRestoredRef.current = true;
             const latestReport = reportManager.savedReports[0];
             viewSavedReport(latestReport.id);
+            return;
         }
-    }, [isAppReady, user, reportManager.savedReports, reconciliation.activeReportId, viewSavedReport]);
+
+        // 3. Se não houver relatórios salvos mas houver dados na Lista Viva, inicia conciliação automática
+        // Isso resolve o problema de "tela limpa" quando há dados mas o usuário ainda não rodou a conciliação
+        if (!reconciliation.hasActiveSession && 
+            reconciliation.matchResults.length === 0 && 
+            reconciliation.activeBankFiles.length > 0 &&
+            !reconciliation.isLoading) {
+            
+            console.log("[AppContext] Detectados dados na Lista Viva sem sessão ativa. Iniciando conciliação automática...");
+            autoRestoredRef.current = true; // Marca como processado para evitar loops
+            
+            // Seleciona todos os bancos por padrão se nenhum estiver selecionado
+            if (reconciliation.selectedBankIds.length === 0) {
+                const allBankIds = reconciliation.activeBankFiles.map(f => String(f.bankId));
+                reconciliation.setSelectedBankIds(allBankIds);
+            }
+            
+            // Pequeno delay para garantir que os estados de seleção de banco foram aplicados
+            setTimeout(() => {
+                reconciliation.handleCompare();
+            }, 100);
+        }
+    }, [
+        isAppReady, 
+        user, 
+        reportManager.savedReports, 
+        reconciliation.activeReportId, 
+        reconciliation.hasActiveSession,
+        reconciliation.matchResults.length,
+        reconciliation.activeBankFiles.length,
+        reconciliation.isLoading,
+        viewSavedReport
+    ]);
 
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
         const reportId = reconciliation.activeReportId;
