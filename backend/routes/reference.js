@@ -73,54 +73,67 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos (Membros veem do Owner se tiverem permissão)
-            let reportsQuery = supabase
-                .from('saved_reports')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (profile?.role === 'owner') {
-                reportsQuery = reportsQuery.eq('user_id', ownerId);
-            } else {
-                // Para membros: 
-                // 1. Ver seus próprios relatórios salvos
-                // 2. VER a Sessão Ativa do Owner (compartilhada)
-                // Usamos aspas duplas no nome para evitar problemas com os colchetes [ ]
-                const sessionName = '"[SESSÃO_ATIVA]"';
-                reportsQuery = reportsQuery.or(`user_id.eq.${req.user.id},and(user_id.eq.${ownerId},name.eq.${sessionName})`);
-                
-                // Tenta extrair IDs de igrejas permitidas do perfil
-                let allowedChurchIds = [];
-                try {
-                    const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
-                    if (Array.isArray(perms.congregationIds)) {
-                        allowedChurchIds = perms.congregationIds;
-                    } else if (profile?.congregation) {
-                        const cong = profile.congregation;
-                        allowedChurchIds = Array.isArray(cong) ? cong : (typeof cong === 'string' ? cong.split(',').map(s => s.trim()) : [cong]);
+            // --- BUSCA DE RELATÓRIOS (Lógica Robusta e Segura) ---
+            let reports = [];
+            
+            try {
+                if (profile?.role === 'owner') {
+                    // Owner vê tudo o que ele criou
+                    const { data: ownerReports } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false });
+                    reports = ownerReports || [];
+                } else {
+                    // Membro: Busca seus próprios relatórios individuais
+                    const { data: memberReports } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', req.user.id)
+                        .order('created_at', { ascending: false });
+                    
+                    // Membro: Busca a Sessão Ativa compartilhada do Owner
+                    const { data: sharedSession } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .eq('name', '[SESSÃO_ATIVA]')
+                        .limit(1);
+                    
+                    // Une os resultados
+                    reports = [...(memberReports || [])];
+                    if (sharedSession && sharedSession.length > 0) {
+                        reports.push(sharedSession[0]);
                     }
-                } catch (e) {
-                    console.error("[Reference API] Erro ao processar permissões:", e);
-                }
 
-                if (allowedChurchIds.length > 0) {
-                    // Filtra por igreja mas SEMPRE permite a sessão ativa
-                    reportsQuery = reportsQuery.or(`church_id.in.(${allowedChurchIds.join(',')}),name.eq.${sessionName}`);
+                    // Filtro de Segurança por Igreja (apenas para relatórios que não são a sessão ativa)
+                    let allowedChurchIds = [];
+                    try {
+                        const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
+                        if (Array.isArray(perms.congregationIds)) {
+                            allowedChurchIds = perms.congregationIds;
+                        }
+                    } catch (e) {}
+
+                    if (allowedChurchIds.length > 0) {
+                        reports = reports.filter(r => 
+                            r.name === '[SESSÃO_ATIVA]' || 
+                            !r.church_id || 
+                            allowedChurchIds.includes(r.church_id)
+                        );
+                    }
                 }
+            } catch (reportsErr) {
+                console.error("[Reference API] Erro crítico ao buscar relatórios:", reportsErr);
             }
 
-            const { data: reports, error: reportsError } = await reportsQuery;
-
-            if (reportsError) {
-                console.error(`[Reference API] Erro ao buscar relatórios para usuário ${req.user.id}:`, reportsError.message);
-            }
-
-            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
+            console.log(`[Reference API] Finalizado: ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports.length} relatórios.`);
 
             res.json({ 
                 banks: banks || [], 
                 churches: churches || [],
-                reports: reports || []
+                reports: reports
             });
         } catch (error) {
             console.error("[Reference API] Erro:", error);
