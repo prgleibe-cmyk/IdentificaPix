@@ -49,6 +49,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
+    /**
+     * 🔥 CORREÇÃO: Inicializa automaticamente um relatório ativo
+     */
+    useEffect(() => {
+        if (reconciliation.activeReportId) return;
+        if (!reportManager.savedReports || reportManager.savedReports.length === 0) return;
+
+        const firstValidReport = reportManager.savedReports.find(r => {
+            const data = r.data;
+            if (!data) return false;
+
+            try {
+                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                return (parsed?.results?.length > 0) || parsed?.spreadsheet;
+            } catch {
+                return false;
+            }
+        });
+
+        if (firstValidReport) {
+            reconciliation.setActiveReportId(firstValidReport.id);
+            reconciliation.setHasActiveSession(true);
+        }
+    }, [
+        reportManager.savedReports,
+        reconciliation.activeReportId
+    ]);
+
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) return;
