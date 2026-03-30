@@ -38,7 +38,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const effectiveUserId = user.parent_id || user.id;
+            const effectiveUserId = user.owner_id || user.main_account_id || user.id;
             try {
                 let data: any[] | null = null;
 
@@ -71,40 +71,32 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }
                 }
 
-                if (data && !ignore) {
-                    let hydrated: SavedReport[] = data.map((r: any) => {
-                        let parsedData;
-                        try {
-                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-                        } catch (error) {
-                            console.error("JSON corrompido detectado:", error);
-                            parsedData = {
-                                results: [],
-                                spreadsheet: null
+                    if (data && !ignore) {
+                        let hydrated: SavedReport[] = data.map((r: any) => {
+                            let parsedData;
+                            try {
+                                parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                            } catch (error) {
+                                console.error("JSON corrompido detectado:", error);
+                                parsedData = {
+                                    results: [],
+                                    spreadsheet: null
+                                };
+                            }
+
+                            return {
+                                id: r.id,
+                                name: r.name,
+                                createdAt: r.created_at,
+                                recordCount: r.record_count,
+                                user_id: r.user_id,
+                                church_id: r.church_id,
+                                data: parsedData
                             };
-                        }
-
-                        return {
-                            id: r.id,
-                            name: r.name,
-                            createdAt: r.created_at,
-                            recordCount: r.record_count,
-                            user_id: r.user_id,
-                            data: parsedData
-                        };
-                    });
-
-                    if (subscription.role === 'member' && (subscription.congregationIds || []).length > 0) {
-                        hydrated = (hydrated || []).filter(report => {
-                            if (!(report.data?.results || []).length) return false;
-                            return (report.data.results || []).some(res =>
-                                (subscription.congregationIds || []).includes(res.church?.id || res._churchId)
-                            );
                         });
-                    }
 
-                    setSavedReports(hydrated);
-                }
+                        setSavedReports(hydrated);
+                    }
             } catch (err) {
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
@@ -123,7 +115,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (!user) return;
 
         const fetchInitialData = async () => {
-            const effectiveUserId = user.parent_id || user.id;
+            const effectiveUserId = user.owner_id || user.main_account_id || user.id;
             const { data, error } = await supabase
                 .from('saved_reports')
                 .select('*')
@@ -143,6 +135,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         createdAt: r.created_at,
                         recordCount: r.record_count,
                         user_id: r.user_id,
+                        church_id: r.church_id,
                         data: parsedData
                     };
                 });
@@ -189,6 +182,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                             createdAt: newRecord.created_at,
                             recordCount: newRecord.record_count,
                             user_id: newRecord.user_id,
+                            church_id: newRecord.church_id,
                             data: parsedData
                         };
 
@@ -215,7 +209,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user) return;
-        const effectiveUserId = user.parent_id || user.id;
+        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
@@ -225,7 +219,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user || !reportId) return;
         
-        const effectiveUserId = user.parent_id || user.id;
+        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
@@ -279,7 +273,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
-        const effectiveUserId = user.parent_id || user.id;
+        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -293,12 +287,20 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             : savingReportState.results.length;
 
         const newReportId = `rep-${Date.now()}`;
+        const results = savingReportState.results || [];
+        const firstChurchId = results[0]?.church?.id || results[0]?._churchId;
+        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId) === firstChurchId);
+        
+        // Se for membro, usa a congregação dele. Se for owner, usa o ID da igreja se todos os resultados forem dela.
+        const churchId = user.role === 'member' ? user.congregation_id : (allSameChurch ? firstChurchId : null);
+
         const newReport: SavedReport = {
             id: newReportId,
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
             user_id: effectiveUserId,
+            church_id: churchId,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -315,6 +317,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: newReport.name,
             record_count: newReport.recordCount,
             user_id: newReport.user_id,
+            church_id: newReport.church_id,
             data: newReport.data as any
         });
 
@@ -330,7 +333,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
-        const effectiveUserId = user.parent_id || user.id;
+        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
@@ -339,18 +342,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [user, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
-        let results = savedReports
+        return savedReports
             .filter(r => r.data && r.data.results)
             .flatMap(report => report.data!.results);
-            
-        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-            results = results.filter(r =>
-                subscription.congregationIds.includes(r.church?.id || r._churchId)
-            );
-        }
-        
-        return results;
-    }, [savedReports, subscription.role, subscription.congregationIds]);
+    }, [savedReports]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,

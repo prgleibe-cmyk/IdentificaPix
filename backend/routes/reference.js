@@ -35,7 +35,7 @@ export default () => {
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .select('owner_id, role')
+                .select('owner_id, role, congregation')
                 .eq('id', req.user.id)
                 .single();
 
@@ -74,11 +74,19 @@ export default () => {
             }
 
             // Buscar relatórios salvos
-            const { data: reports, error: reportsError } = await supabase
+            let reportsQuery = supabase
                 .from('saved_reports')
                 .select('*')
                 .eq('user_id', ownerId)
                 .order('created_at', { ascending: false });
+
+            // Se for membro, filtra apenas os relatórios da sua congregação
+            if (profile?.role === 'member' && profile?.congregation) {
+                console.log(`[Reference API] Filtrando relatórios para a congregação: ${profile.congregation}`);
+                reportsQuery = reportsQuery.eq('church_id', profile.congregation);
+            }
+
+            const { data: reports, error: reportsError } = await reportsQuery;
 
             if (reportsError) {
                 console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
