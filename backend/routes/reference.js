@@ -43,7 +43,6 @@ export default () => {
                 console.log(`[Reference API] [3] Amostra IDs:`, sampleData.map(s => s.user_id));
             }
 
-            console.log(`[Reference API] [4] Buscando perfil...`);
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('owner_id, role, congregation, permissions')
@@ -55,12 +54,9 @@ export default () => {
                 return res.status(500).json({ error: 'Erro ao validar permissões.' });
             }
 
-            console.log(`[Reference API] [5] Perfil carregado: role=${profile?.role}, owner_id=${profile?.owner_id}`);
-
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
             if (effectiveOwnerId !== ownerId) {
-                console.warn(`[Reference API] [!] Acesso negado: owner_id ${effectiveOwnerId} != ${ownerId}`);
                 return res.status(403).json({ error: "Acesso negado." });
             }
 
@@ -78,20 +74,25 @@ export default () => {
             
             try {
                 const isActualOwner = req.user.id === ownerId;
-                console.log(`[Reference API] [6] isActualOwner: ${isActualOwner}`);
 
                 if (isActualOwner) {
-                    console.log(`[Reference API] [7a] Buscando como Owner...`);
                     const { data: ownerReports } = await supabase
                         .from('saved_reports')
-                        .select('id, user_id, church_id, name, created_at, record_count, data') // ✅ CORREÇÃO AQUI
+                        .select('id, user_id, church_id, name, created_at, record_count, data')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
 
-                    reports = ownerReports || [];
+                    reports = (ownerReports || []).map(r => {
+                        let parsedData = r.data;
+                        try {
+                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                        } catch {
+                            parsedData = null;
+                        }
+                        return { ...r, data: parsedData };
+                    });
+
                 } else {
-                    console.log(`[Reference API] [7b] Buscando como Membro...`);
-                    
                     let allowedChurchIds = [];
                     try {
                         const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
@@ -100,11 +101,11 @@ export default () => {
                         } else if (profile?.congregation) {
                             allowedChurchIds = [String(profile.congregation)];
                         }
-                    } catch (e) {}
+                    } catch {}
 
                     let query = supabase
                         .from('saved_reports')
-                        .select('id, user_id, church_id, name, created_at, record_count, data') // ✅ CORREÇÃO AQUI
+                        .select('id, user_id, church_id, name, created_at, record_count, data')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
 
@@ -116,21 +117,127 @@ export default () => {
                     }
 
                     const { data: filteredReports } = await query;
-                    reports = filteredReports || [];
+
+                    reports = (filteredReports || []).map(r => {
+                        let parsedData = r.data;
+                        try {
+                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                        } catch {
+                            parsedData = null;
+                        }
+                        return { ...r, data: parsedData };
+                    });
                 }
+
             } catch (reportsErr) {
                 console.error("[Reference API] [!] Erro Crítico Reports:", reportsErr);
             }
 
-            console.log(`[Reference API] [12] Finalizado: ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports.length} relatórios.`);
+            console.log(`[Reference API] [FINAL] Reports com data:`, reports.map(r => ({
+                id: r.id,
+                hasData: !!r.data,
+                results: r.data?.results?.length
+            })));
 
             res.json({ 
                 banks: banks || [], 
                 churches: churches || [],
                 reports: reports
             });
+
         } catch (error) {
             console.error("[Reference API] Erro:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/report/sync', async (req, res) => {
+        const { reportId, name, data, recordCount, churchId, ownerId } = req.body;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração." });
+        }
+
+        try {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            if (effectiveOwnerId !== ownerId) {
+                return res.status(403).json({ error: "Acesso negado: Owner ID incompatível." });
+            }
+
+            const { data: result, error } = await supabase
+                .from('saved_reports')
+                .upsert({
+                    id: reportId,
+                    name: name,
+                    data: data,
+                    record_count: recordCount,
+                    user_id: ownerId,
+                    church_id: churchId
+                }, { onConflict: 'id' })
+                .select()
+                .single();
+
+            if (error) throw error;
+            res.json(result);
+        } catch (error) {
+            console.error("[Reference API] Erro ao sincronizar relatório:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.get('/report/:reportId', async (req, res) => {
+        const { reportId } = req.params;
+        const { ownerId } = req.query;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração." });
+        }
+
+        try {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            if (effectiveOwnerId !== ownerId) {
+                return res.status(403).json({ error: "Acesso negado." });
+            }
+
+            const { data, error } = await supabase
+                .from('saved_reports')
+                .select('data, name')
+                .eq('id', reportId)
+                .eq('user_id', ownerId)
+                .single();
+
+            if (error) throw error;
+
+            let parsedData = data.data;
+            try {
+                parsedData = typeof parsedData === 'string' ? JSON.parse(parsedData) : parsedData;
+            } catch {
+                parsedData = null;
+            }
+
+            res.json({
+                name: data.name,
+                data: parsedData
+            });
+
+        } catch (error) {
+            console.error("[Reference API] Erro ao buscar relatório:", error);
             res.status(500).json({ error: error.message });
         }
     });
