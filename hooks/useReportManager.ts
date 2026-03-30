@@ -40,14 +40,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const fetchReports = async () => {
             if (!user?.id || !subscription?.ownerId) return;
 
-            // Para a API, precisamos do ownerId para passar na validação de permissão
             const apiOwnerId = subscription.ownerId;
             const isOwner = subscription.ownerId === user.id;
             let data: any[] = [];
             
             try {
-                // Se for o dono (Owner), busca diretamente do Supabase (mais rápido)
-                // Se for membro ou tiver outro papel, usa a API que resolve o compartilhamento
                 if (isOwner) {
                     const { data: d, error } = await supabase
                         .from('saved_reports')
@@ -78,31 +75,31 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 }
 
                 if (data && !ignore) {
-                        let hydrated: SavedReport[] = data.map((r: any) => {
-                            let parsedData;
-                            try {
-                                parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-                            } catch (error) {
-                                console.error("JSON corrompido detectado:", error);
-                                parsedData = {
-                                    results: [],
-                                    spreadsheet: null
-                                };
-                            }
-
-                            return {
-                                id: r.id,
-                                name: r.name,
-                                createdAt: r.created_at,
-                                recordCount: r.record_count,
-                                user_id: r.user_id,
-                                church_id: r.church_id,
-                                data: parsedData
+                    let hydrated: SavedReport[] = data.map((r: any) => {
+                        let parsedData;
+                        try {
+                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                        } catch (error) {
+                            console.error("JSON corrompido detectado:", error);
+                            parsedData = {
+                                results: [],
+                                spreadsheet: null
                             };
-                        });
+                        }
 
-                        setSavedReports(hydrated);
-                    }
+                        return {
+                            id: r.id,
+                            name: r.name,
+                            createdAt: r.created_at,
+                            recordCount: r.record_count,
+                            user_id: r.user_id,
+                            church_id: r.church_id,
+                            data: parsedData
+                        };
+                    });
+
+                    setSavedReports(hydrated);
+                }
             } catch (err) {
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
@@ -135,12 +132,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     const oldRecord = payload.old;
 
                     setSavedReports(prev => {
-                        // DELETE
                         if (payload.eventType === 'DELETE') {
                             return (prev || []).filter(r => r.id !== oldRecord.id);
                         }
 
-                        // INSERT ou UPDATE
                         let parsedData;
                         try {
                             parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
@@ -185,17 +180,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user?.id) return;
-        const effectiveUserId = user.id;
+        const effectiveUserId = subscription.ownerId || user.id;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
-    }, [user?.id, showToast]);
+    }, [user?.id, subscription.ownerId, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user?.id || !reportId) return;
         
-        const effectiveUserId = user.id;
+        const effectiveUserId = subscription.ownerId || user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
@@ -234,7 +229,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         } else {
             showToast("Alterações salvas no servidor.", "success");
         }
-    }, [user, showToast, savedReports]);
+    }, [user, subscription.ownerId, showToast, savedReports]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
@@ -250,7 +245,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user?.id) return null;
         
-        // Para usuários secundários, salvamos com o ID do dono para garantir visibilidade centralizada
         const effectiveUserId = subscription.ownerId || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
@@ -267,11 +261,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const newReportId = `rep-${Date.now()}`;
         const results = savingReportState.results || [];
         
-        // Tenta pegar o ID da igreja de várias formas
         const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
         const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
         
-        // Lógica de atribuição de Igreja
         let churchId = null;
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
@@ -317,7 +309,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             showToast('Relatório criado!', 'success');
             return newReportId;
         }
-    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
+    }, [savingReportState, user, subscription.ownerId, showToast, closeSaveReportModal, savedReports.length]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
@@ -327,7 +319,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
         await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [user, savedReports, showToast]);
+    }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         return savedReports
