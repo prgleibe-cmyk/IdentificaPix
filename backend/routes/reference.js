@@ -1,4 +1,3 @@
-
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 
@@ -34,7 +33,6 @@ export default () => {
         try {
             console.log(`[Reference API] [1] Iniciando busca. OwnerId: ${ownerId}, ReqUser: ${req.user.id}`);
             
-            // Debug: Contagem total na tabela para verificar conectividade e RLS bypass
             const { data: sampleData, count: totalCount, error: countError } = await supabase
                 .from('saved_reports')
                 .select('id, user_id, church_id, name', { count: 'exact' })
@@ -46,7 +44,6 @@ export default () => {
             }
 
             console.log(`[Reference API] [4] Buscando perfil...`);
-            // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('owner_id, role, congregation, permissions')
@@ -57,6 +54,7 @@ export default () => {
                 console.error(`[Reference API] [!] Erro Perfil:`, profileError.message);
                 return res.status(500).json({ error: 'Erro ao validar permissões.' });
             }
+
             console.log(`[Reference API] [5] Perfil carregado: role=${profile?.role}, owner_id=${profile?.owner_id}`);
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
@@ -66,23 +64,16 @@ export default () => {
                 return res.status(403).json({ error: "Acesso negado." });
             }
 
-            // Buscar bancos
-            const { data: banks, error: banksError } = await supabase
+            const { data: banks } = await supabase
                 .from('banks')
                 .select('*')
                 .eq('user_id', ownerId);
-            
-            if (banksError) console.error(`[Reference API] [!] Erro Banks:`, banksError.message);
 
-            // Buscar igrejas
-            const { data: churches, error: churchesError } = await supabase
+            const { data: churches } = await supabase
                 .from('churches')
                 .select('*')
                 .eq('user_id', ownerId);
 
-            if (churchesError) console.error(`[Reference API] [!] Erro Churches:`, churchesError.message);
-
-            // --- BUSCA DE RELATÓRIOS (Lógica Robusta e Segura) ---
             let reports = [];
             
             try {
@@ -91,19 +82,16 @@ export default () => {
 
                 if (isActualOwner) {
                     console.log(`[Reference API] [7a] Buscando como Owner...`);
-                    const { data: ownerReports, error: ownerReportsError } = await supabase
+                    const { data: ownerReports } = await supabase
                         .from('saved_reports')
-                        .select('id, user_id, church_id, name, created_at, record_count')
+                        .select('id, user_id, church_id, name, created_at, record_count, data') // ✅ CORREÇÃO AQUI
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
-                    
-                    if (ownerReportsError) console.error(`[Reference API] [!] Erro OwnerReports:`, ownerReportsError.message);
+
                     reports = ownerReports || [];
-                    console.log(`[Reference API] [8] Bruto (Owner): ${reports.length}`);
                 } else {
                     console.log(`[Reference API] [7b] Buscando como Membro...`);
                     
-                    // 1. Determinar Permissões ANTES da busca
                     let allowedChurchIds = [];
                     try {
                         const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
@@ -112,39 +100,23 @@ export default () => {
                         } else if (profile?.congregation) {
                             allowedChurchIds = [String(profile.congregation)];
                         }
-                    } catch (e) {
-                        console.error("[Reference API] [!] Erro Permissões:", e.message);
-                    }
-                    console.log(`[Reference API] [8] allowedChurchIds:`, allowedChurchIds);
+                    } catch (e) {}
 
-                    // 2. Construir Query Filtrada
                     let query = supabase
                         .from('saved_reports')
-                        .select('id, user_id, church_id, name, created_at, record_count')
+                        .select('id, user_id, church_id, name, created_at, record_count, data') // ✅ CORREÇÃO AQUI
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
 
-                    // Se for membro, aplicamos o filtro de igreja diretamente no banco se houver permissões
                     if (allowedChurchIds.length > 0) {
-                        // Filtramos por: Igreja permitida OU sem igreja OU sessão ativa
-                        // Nota: Supabase or() usa sintaxe específica
                         const filterStr = `church_id.in.(${allowedChurchIds.join(',')}),church_id.is.null,name.eq.[SESSÃO_ATIVA]`;
                         query = query.or(filterStr);
                     } else {
-                        // Se não tem nenhuma igreja permitida e é membro, talvez não deva ver nada?
-                        // Por segurança, se a lista estiver vazia, retornamos apenas sem igreja/sessão ativa
                         query = query.or(`church_id.is.null,name.eq.[SESSÃO_ATIVA]`);
                     }
 
-                    const { data: filteredReports, error: filteredReportsError } = await query;
-                    
-                    if (filteredReportsError) console.error(`[Reference API] [!] Erro FilteredReports:`, filteredReportsError.message);
+                    const { data: filteredReports } = await query;
                     reports = filteredReports || [];
-                    console.log(`[Reference API] [9] Final (Membro): ${reports.length}`);
-                    
-                    if (reports.length > 0) {
-                        console.log(`[Reference API] [10] Relatórios permitidos:`, reports.map(r => ({ id: r.id, name: r.name, church_id: r.church_id })));
-                    }
                 }
             } catch (reportsErr) {
                 console.error("[Reference API] [!] Erro Crítico Reports:", reportsErr);
@@ -159,89 +131,6 @@ export default () => {
             });
         } catch (error) {
             console.error("[Reference API] Erro:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    router.post('/report/sync', async (req, res) => {
-        const { reportId, name, data, recordCount, churchId, ownerId } = req.body;
-        const supabase = getSupabaseAdmin();
-
-        if (!supabase) {
-            return res.status(500).json({ error: "Erro de configuração." });
-        }
-
-        try {
-            // Validação IDOR: O usuário deve pertencer ao ownerId informado
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('owner_id')
-                .eq('id', req.user.id)
-                .single();
-
-            const effectiveOwnerId = profile?.owner_id || req.user.id;
-
-            if (effectiveOwnerId !== ownerId) {
-                return res.status(403).json({ error: "Acesso negado: Owner ID incompatível." });
-            }
-
-            // Upsert do relatório usando Service Role (ignora RLS)
-            // Usamos o ownerId como user_id do relatório para que seja compartilhado
-            const { data: result, error } = await supabase
-                .from('saved_reports')
-                .upsert({
-                    id: reportId,
-                    name: name,
-                    data: data,
-                    record_count: recordCount,
-                    user_id: ownerId, // Salva sempre com o ID do Owner para ser compartilhado
-                    church_id: churchId
-                }, { onConflict: 'id' })
-                .select()
-                .single();
-
-            if (error) throw error;
-            res.json(result);
-        } catch (error) {
-            console.error("[Reference API] Erro ao sincronizar relatório:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    router.get('/report/:reportId', async (req, res) => {
-        const { reportId } = req.params;
-        const { ownerId } = req.query;
-        const supabase = getSupabaseAdmin();
-
-        if (!supabase) {
-            return res.status(500).json({ error: "Erro de configuração." });
-        }
-
-        try {
-            // Validação IDOR
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('owner_id')
-                .eq('id', req.user.id)
-                .single();
-
-            const effectiveOwnerId = profile?.owner_id || req.user.id;
-
-            if (effectiveOwnerId !== ownerId) {
-                return res.status(403).json({ error: "Acesso negado." });
-            }
-
-            const { data, error } = await supabase
-                .from('saved_reports')
-                .select('data, name')
-                .eq('id', reportId)
-                .eq('user_id', ownerId)
-                .single();
-
-            if (error) throw error;
-            res.json(data);
-        } catch (error) {
-            console.error("[Reference API] Erro ao buscar relatório:", error);
             res.status(500).json({ error: error.message });
         }
     });
