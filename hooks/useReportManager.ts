@@ -177,7 +177,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user, subscription.ownerId]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);

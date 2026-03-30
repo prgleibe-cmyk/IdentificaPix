@@ -296,10 +296,10 @@ export const useReconciliation = ({
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         // Filtro de segurança para membros no preview
-        let filteredResults = results;
+        let filteredResults = results || [];
         const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+            filteredResults = (results || []).filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
 
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
@@ -322,13 +322,12 @@ export const useReconciliation = ({
             income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }
         });
-    }, []);
+    }, [subscription, user]);
 
     // Sincroniza o Preview sempre que os resultados persistentes mudarem
     useEffect(() => {
-        if (matchResults && matchResults.length > 0) {
-            regenerateReportPreview(matchResults);
-        }
+        // Sempre regenera, mesmo que vazio, para evitar estado 'null' que trava a UI
+        regenerateReportPreview(matchResults);
     }, [matchResults, regenerateReportPreview]);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {

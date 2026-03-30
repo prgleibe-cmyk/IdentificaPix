@@ -54,9 +54,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!activeId) return;
 
         const report = reportManager.savedReports.find(r => r.id === activeId);
-        if (!report || !report.data?.results) return;
+        if (!report) return;
 
-        let hydrated = report.data.results.map((r: any) => ({
+        const results = report.data?.results || [];
+        
+        let hydrated = results.map((r: any) => ({
             ...r,
             church:
                 referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -65,9 +67,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
 
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary && subscription.congregationIds?.length > 0) {
+        if (isSecondary && (subscription.congregationIds || []).length > 0) {
             hydrated = hydrated.filter((r: any) =>
-                subscription.congregationIds.includes(r.church?.id || r._churchId)
+                (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
             );
         }
 
@@ -76,21 +78,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportManager.savedReports,
         reconciliation.activeReportId,
         referenceData.churches,
-        subscription.role,
-        subscription.congregationIds
+        subscription.ownerId,
+        subscription.congregationIds,
+        user?.id
     ]);
-
-    useEffect(() => {
-        if (!reconciliation.activeReportId) return;
-
-        const report = reportManager.savedReports.find(
-            r => r.id === reconciliation.activeReportId
-        );
-
-        if (!report || !report.data?.results) return;
-
-        reconciliation.setMatchResults([...report.data.results]);
-    }, [reportManager.savedReports]);
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
