@@ -42,7 +42,7 @@ export const useReconciliation = ({
     setActiveView
 }: any) => {
 
-    const effectiveUserId = subscription?.ownerId || user?.id;
+    const effectiveUserId = subscription?.ownerId;
     const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)

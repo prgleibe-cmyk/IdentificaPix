@@ -89,29 +89,32 @@ export default () => {
                         .order('created_at', { ascending: false });
                     reports = ownerReports || [];
                 } else {
-                    // Não é o dono (Membro/Secundário): Busca seus próprios relatórios individuais
+                    // Não é o dono (Membro/Secundário): Busca relatórios do Owner (compartilhados) + seus próprios
+                    const { data: ownerReports } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false });
+                    
                     const { data: memberReports } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', req.user.id)
                         .order('created_at', { ascending: false });
                     
-                    // Busca a Sessão Ativa compartilhada do Boss (ownerId)
-                    const { data: sharedSession } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', ownerId)
-                        .eq('name', '[SESSÃO_ATIVA]')
-                        .limit(1);
+                    // Une os resultados sem duplicatas
+                    const allReports = [...(ownerReports || []), ...(memberReports || [])];
+                    const uniqueReports = [];
+                    const seenIds = new Set();
                     
-                    // Une os resultados
-                    reports = [...(memberReports || [])];
-                    if (sharedSession && sharedSession.length > 0) {
-                        // Evita duplicatas se por acaso o ID for o mesmo
-                        if (!reports.find(r => r.id === sharedSession[0].id)) {
-                            reports.push(sharedSession[0]);
+                    for (const r of allReports) {
+                        if (!seenIds.has(r.id)) {
+                            seenIds.add(r.id);
+                            uniqueReports.push(r);
                         }
                     }
+                    
+                    reports = uniqueReports;
 
                     // Filtro de Segurança por Igreja (apenas para relatórios que não são a sessão ativa)
                     let allowedChurchIds = [];

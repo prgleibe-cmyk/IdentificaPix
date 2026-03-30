@@ -22,7 +22,7 @@ export const useLiveListSync = ({
      * Garante que a UI só exiba o que está validado no banco de dados.
      */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const effectiveUserId = subscription?.ownerId;
         if (!effectiveUserId || isCleaning || isHydrating.current) return;
         
         isHydrating.current = true;
@@ -122,7 +122,7 @@ export const useLiveListSync = ({
     }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
 
     useEffect(() => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const effectiveUserId = subscription?.ownerId;
         if (effectiveUserId && effectiveUserId !== lastUserId.current) {
             lastUserId.current = effectiveUserId;
             hydrate(true);
@@ -133,7 +133,7 @@ export const useLiveListSync = ({
      * 📥 PERSIST (O FUNIL DE ENTRADA)
      */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const effectiveUserId = subscription?.ownerId;
         if (!effectiveUserId) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
@@ -147,7 +147,7 @@ export const useLiveListSync = ({
     }, [user, subscription, showToast, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const effectiveUserId = subscription?.ownerId;
         if (!effectiveUserId) return;
         setIsCleaning(true);
         try {

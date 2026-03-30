@@ -32,16 +32,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         let ignore = false;
 
-        if (!user?.id) {
+        if (!user?.id || !subscription?.ownerId) {
             lastOwnerIdRef.current = null;
             return;
         }
 
         // ✅ evita múltiplas execuções desnecessárias
-        if (lastOwnerIdRef.current === user.id) return;
+        if (lastOwnerIdRef.current === subscription.ownerId) return;
 
         const syncData = async () => {
-            const isOwner = subscription.ownerId === user?.id;
+            const isOwner = subscription.ownerId === user.id;
+            lastOwnerIdRef.current = subscription.ownerId;
 
             if (isOwner) {
                 let bankQuery = supabase.from('banks').select('*').eq('user_id', user.id);

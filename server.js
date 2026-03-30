@@ -52,7 +52,8 @@ if (fs.existsSync(distPath)) {
 
 // Middlewares
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Health check
 app.get('/health', (req, res) => res.status(200).send('OK'));

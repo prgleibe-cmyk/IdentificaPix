@@ -4,14 +4,13 @@ import { groupResultsByChurch } from '../services/processingService';
 import { useAuth } from '../contexts/AuthContext';
 
 export const useSummaryData = (reconciliation: any, reportManager: any, selectedBankId?: string | null) => {
-    const { subscription } = useAuth();
+    const { subscription, user } = useAuth();
 
     return useMemo(() => {
         let results = reconciliation.matchResults;
         const hasSession = reconciliation.hasActiveSession;
 
         // Filtro de Segurança para Usuários Secundários: Apenas dados da sua congregação e bancos autorizados
-        const { user } = useAuth();
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {

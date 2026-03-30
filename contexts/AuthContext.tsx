@@ -15,7 +15,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSigningOut = useRef(false);
 
   const { systemSettings, updateSystemSettings, settingsRef } = useSystemSettings();
-  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId } = useSubscriptionState(settingsRef);
+  const { subscription, setSubscription, calculateSubscription, lastProcessedUserId, resetSubscription } = useSubscriptionState(settingsRef);
 
   const refreshSubscription = useCallback(async () => {
     if (user) await calculateSubscription(user.id, true);
@@ -29,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
         if (lastProcessedUserId) lastProcessedUserId.current = null;
+        resetSubscription();
         setSession(null);
         setUser(null);
         await (supabase.auth as any).signOut();

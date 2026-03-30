@@ -133,5 +133,23 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         }
     }, [settingsRef]);
 
-    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId };
+    const resetSubscription = useCallback(() => {
+        setSubscription({
+            plan: 'trial',
+            daysRemaining: 10,
+            totalDays: 10,
+            isExpired: false,
+            isBlocked: false,
+            isLifetime: false,
+            aiLimit: 100, 
+            aiUsage: 0,
+            maxChurches: 2, 
+            maxBanks: 2,
+            role: 'owner',
+            ownerId: ''
+        });
+        lastProcessedUserId.current = null;
+    }, []);
+
+    return { subscription, setSubscription, calculateSubscription, lastProcessedUserId, resetSubscription };
 };

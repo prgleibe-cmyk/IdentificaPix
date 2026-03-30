@@ -38,11 +38,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            if (!user?.id) return;
+            if (!user?.id || !subscription?.ownerId) return;
 
             // Para a API, precisamos do ownerId para passar na validação de permissão
-            const apiOwnerId = subscription?.ownerId || user.id;
-            const isOwner = subscription.ownerId === user?.id;
+            const apiOwnerId = subscription.ownerId;
+            const isOwner = subscription.ownerId === user.id;
             let data: any[] = [];
             
             try {
