@@ -36,6 +36,7 @@ export const useReconciliation = ({
     customIgnoreKeywords,
     contributionKeywords,
     learnedAssociations,
+    savedReports,
     showToast,
     setIsLoading,
     setActiveView
@@ -48,6 +49,82 @@ export const useReconciliation = ({
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
+    
+    const lastCloudSyncRef = useRef<string>('');
+    const isHydratingFromCloud = useRef<boolean>(false);
+
+    // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
+    const syncToCloud = useCallback(async (results: MatchResult[]) => {
+        if (!user?.id || !effectiveUserId || isHydratingFromCloud.current) return;
+        
+        // Evita sync se os dados forem os mesmos
+        const payload = JSON.stringify(results.map(r => ({
+            id: r.transaction.id,
+            status: r.status,
+            contributorId: r.contributor?.id,
+            churchId: r.church?.id || r._churchId
+        })));
+
+        if (payload === lastCloudSyncRef.current) return;
+        lastCloudSyncRef.current = payload;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            await fetch('/api/reference/report/sync', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    reportId: `LIVE_SESSION_${effectiveUserId}`,
+                    name: '[SESSÃO_ATIVA]',
+                    data: { results },
+                    recordCount: results.length,
+                    ownerId: effectiveUserId
+                })
+            });
+        } catch (e) {
+            console.error("[CloudSync] Erro ao sincronizar sessão ativa:", e);
+        }
+    }, [user?.id, effectiveUserId]);
+
+    // Auto-save para a nuvem
+    useEffect(() => {
+        if (matchResults.length > 0 && !activeReportId) {
+            const timer = setTimeout(() => syncToCloud(matchResults), 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [matchResults, activeReportId, syncToCloud]);
+
+    // Hidratação inicial e Real-time da nuvem
+    useEffect(() => {
+        if (!effectiveUserId || activeReportId) return;
+
+        const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+        if (liveReport && liveReport.data?.results) {
+            const cloudResults = liveReport.data.results;
+            
+            // Só atualiza se o cache local estiver vazio ou se os dados da nuvem forem diferentes
+            const cloudPayload = JSON.stringify(cloudResults.map((r: any) => r.transaction.id));
+            const localPayload = JSON.stringify(matchResults.map(r => r.transaction.id));
+
+            if (matchResults.length === 0 || cloudPayload !== localPayload) {
+                isHydratingFromCloud.current = true;
+                setMatchResults(cloudResults);
+                setHasActiveSession(true);
+                lastCloudSyncRef.current = JSON.stringify(cloudResults.map((r: any) => ({
+                    id: r.transaction.id,
+                    status: r.status,
+                    contributorId: r.contributor?.id,
+                    churchId: r.church?.id || r._churchId
+                })));
+                setTimeout(() => { isHydratingFromCloud.current = false; }, 500);
+            }
+        }
+    }, [savedReports, effectiveUserId, activeReportId]);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);

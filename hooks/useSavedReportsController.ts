@@ -27,7 +27,7 @@ export const useSavedReportsController = () => {
 
     // Filtro e Ordenação
     const processedReports = useMemo(() => {
-        let result = [...(savedReports || [])];
+        let result = (savedReports || []).filter(r => r.name !== '[SESSÃO_ATIVA]');
 
         if (searchQuery) {
             const lowerQ = searchQuery.toLowerCase();

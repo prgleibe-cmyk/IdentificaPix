@@ -43,6 +43,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customIgnoreKeywords: effectiveIgnoreKeywords,
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
+        savedReports: reportManager.savedReports,
         showToast,
         setIsLoading,
         setActiveView

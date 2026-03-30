@@ -35,7 +35,7 @@ export default () => {
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
-                .select('owner_id, role, congregation')
+                .select('owner_id, role, congregation, permissions')
                 .eq('id', req.user.id)
                 .single();
 
@@ -73,12 +73,39 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos (Individual - Apenas do usuário logado)
-            const { data: reports, error: reportsError } = await supabase
+            // Buscar relatórios salvos (Membros veem do Owner se tiverem permissão)
+            let reportsQuery = supabase
                 .from('saved_reports')
                 .select('*')
-                .eq('user_id', req.user.id)
                 .order('created_at', { ascending: false });
+
+            if (profile?.role === 'owner') {
+                reportsQuery = reportsQuery.eq('user_id', ownerId);
+            } else {
+                // Se for membro, busca do owner
+                reportsQuery = reportsQuery.eq('user_id', ownerId);
+                
+                // Tenta extrair IDs de igrejas permitidas do perfil
+                let allowedChurchIds = [];
+                try {
+                    const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
+                    if (Array.isArray(perms.congregationIds)) {
+                        allowedChurchIds = perms.congregationIds;
+                    } else if (profile?.congregation) {
+                        const cong = profile.congregation;
+                        allowedChurchIds = Array.isArray(cong) ? cong : (typeof cong === 'string' ? cong.split(',').map(s => s.trim()) : [cong]);
+                    }
+                } catch (e) {
+                    console.error("[Reference API] Erro ao processar permissões:", e);
+                }
+
+                if (allowedChurchIds.length > 0) {
+                    // Filtra por igreja OU inclui a sessão ativa (que pode não ter church_id)
+                    reportsQuery = reportsQuery.or(`church_id.in.(${allowedChurchIds.join(',')}),name.eq.[SESSÃO_ATIVA]`);
+                }
+            }
+
+            const { data: reports, error: reportsError } = await reportsQuery;
 
             if (reportsError) {
                 console.error(`[Reference API] Erro ao buscar relatórios para usuário ${req.user.id}:`, reportsError.message);
@@ -93,6 +120,51 @@ export default () => {
             });
         } catch (error) {
             console.error("[Reference API] Erro:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/report/sync', async (req, res) => {
+        const { reportId, name, data, recordCount, churchId, ownerId } = req.body;
+        const supabase = getSupabaseAdmin();
+
+        if (!supabase) {
+            return res.status(500).json({ error: "Erro de configuração." });
+        }
+
+        try {
+            // Validação IDOR: O usuário deve pertencer ao ownerId informado
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            if (effectiveOwnerId !== ownerId) {
+                return res.status(403).json({ error: "Acesso negado: Owner ID incompatível." });
+            }
+
+            // Upsert do relatório usando Service Role (ignora RLS)
+            // Usamos o ownerId como user_id do relatório para que seja compartilhado
+            const { data: result, error } = await supabase
+                .from('saved_reports')
+                .upsert({
+                    id: reportId,
+                    name: name,
+                    data: data,
+                    record_count: recordCount,
+                    user_id: ownerId, // Salva sempre com o ID do Owner para ser compartilhado
+                    church_id: churchId
+                }, { onConflict: 'id' })
+                .select()
+                .single();
+
+            if (error) throw error;
+            res.json(result);
+        } catch (error) {
+            console.error("[Reference API] Erro ao sincronizar relatório:", error);
             res.status(500).json({ error: error.message });
         }
     });
