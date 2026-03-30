@@ -116,10 +116,14 @@ export const useReconciliation = ({
                 isHydratingFromCloud.current = true;
                 
                 // RE-VINCULA os objetos de igreja (Hidratação)
-                const hydratedResults = cloudResults.map((r: any) => ({
-                    ...r,
-                    church: churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
-                }));
+                const hydratedResults = cloudResults.map((r: any) => {
+                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
+                    const fullChurch = churches.find((c: any) => c.id === churchId);
+                    return {
+                        ...r,
+                        church: fullChurch || r.church || PLACEHOLDER_CHURCH
+                    };
+                });
 
                 setMatchResults(hydratedResults);
                 setHasActiveSession(true);
@@ -153,7 +157,10 @@ export const useReconciliation = ({
         let results = matchResults;
         if (subscription?.role === 'member') {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+                results = results.filter(r => {
+                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
+                    return subscription.congregationIds.includes(churchId);
+                });
             }
             if (subscription.bankIds && subscription.bankIds.length > 0) {
                 results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
@@ -166,7 +173,10 @@ export const useReconciliation = ({
         let results = launchedResults;
         if (subscription?.role === 'member') {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+                results = results.filter(r => {
+                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
+                    return subscription.congregationIds.includes(churchId);
+                });
             }
             if (subscription.bankIds && subscription.bankIds.length > 0) {
                 results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));

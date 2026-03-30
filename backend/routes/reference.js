@@ -77,8 +77,11 @@ export default () => {
             let reports = [];
             
             try {
-                if (profile?.role === 'owner') {
-                    // Owner vê tudo o que ele criou
+                // Lógica agnóstica de role: se o usuário é o dono do ownerId, ele é o "Boss"
+                const isActualOwner = req.user.id === ownerId;
+
+                if (isActualOwner) {
+                    // Owner/Boss vê tudo o que ele criou
                     const { data: ownerReports } = await supabase
                         .from('saved_reports')
                         .select('*')
@@ -86,14 +89,14 @@ export default () => {
                         .order('created_at', { ascending: false });
                     reports = ownerReports || [];
                 } else {
-                    // Membro: Busca seus próprios relatórios individuais
+                    // Não é o dono (Membro/Secundário): Busca seus próprios relatórios individuais
                     const { data: memberReports } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', req.user.id)
                         .order('created_at', { ascending: false });
                     
-                    // Membro: Busca a Sessão Ativa compartilhada do Owner
+                    // Busca a Sessão Ativa compartilhada do Boss (ownerId)
                     const { data: sharedSession } = await supabase
                         .from('saved_reports')
                         .select('*')
@@ -104,7 +107,10 @@ export default () => {
                     // Une os resultados
                     reports = [...(memberReports || [])];
                     if (sharedSession && sharedSession.length > 0) {
-                        reports.push(sharedSession[0]);
+                        // Evita duplicatas se por acaso o ID for o mesmo
+                        if (!reports.find(r => r.id === sharedSession[0].id)) {
+                            reports.push(sharedSession[0]);
+                        }
                     }
 
                     // Filtro de Segurança por Igreja (apenas para relatórios que não são a sessão ativa)
