@@ -32,85 +32,64 @@ export default () => {
         }
 
         try {
-            // Debug: Contagem total na tabela para verificar conectividade e RLS bypass
-            const { count: totalCount, error: countError } = await supabase
-                .from('saved_reports')
-                .select('*', { count: 'exact', head: true });
+            console.log(`[Reference API] [1] Iniciando busca. OwnerId: ${ownerId}, ReqUser: ${req.user.id}`);
             
-            console.log(`[Reference API] Debug Tabela: Total de relatórios na tabela (head select): ${totalCount}, Erro: ${countError?.message || 'Nenhum'}`);
+            // Debug: Contagem total na tabela para verificar conectividade e RLS bypass
+            const { data: sampleData, count: totalCount, error: countError } = await supabase
+                .from('saved_reports')
+                .select('id, user_id, church_id, name', { count: 'exact' })
+                .limit(5);
+            
+            console.log(`[Reference API] [2] Debug Tabela: Total=${totalCount}, Erro=${countError?.message || 'Nenhum'}`);
+            if (sampleData && sampleData.length > 0) {
+                console.log(`[Reference API] [3] Amostra IDs:`, sampleData.map(s => s.user_id));
+            }
 
+            console.log(`[Reference API] [4] Buscando perfil...`);
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('owner_id, role, congregation, permissions')
                 .eq('id', req.user.id)
                 .single();
-
+            
             if (profileError) {
-                console.error(`[Reference API] Erro ao buscar perfil do usuário ${req.user.id}:`, profileError.message);
+                console.error(`[Reference API] [!] Erro Perfil:`, profileError.message);
                 return res.status(500).json({ error: 'Erro ao validar permissões.' });
             }
+            console.log(`[Reference API] [5] Perfil carregado: role=${profile?.role}, owner_id=${profile?.owner_id}`);
 
             const effectiveOwnerId = profile?.owner_id || req.user.id;
 
             if (effectiveOwnerId !== ownerId) {
-                console.warn(`[Reference API] Acesso negado: Usuário ${req.user.id} tentou acessar dados do owner ${ownerId}, mas seu owner_id é ${effectiveOwnerId}`);
+                console.warn(`[Reference API] [!] Acesso negado: owner_id ${effectiveOwnerId} != ${ownerId}`);
                 return res.status(403).json({ error: "Acesso negado." });
-            }
-
-            console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id}, role: ${profile?.role})`);
-
-            // Buscar bancos
-            const { data: banks, error: banksError } = await supabase
-                .from('banks')
-                .select('*')
-                .eq('user_id', ownerId);
-            
-            if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos para owner ${ownerId}:`, banksError.message);
-            }
-
-            // Buscar igrejas
-            const { data: churches, error: churchesError } = await supabase
-                .from('churches')
-                .select('*')
-                .eq('user_id', ownerId);
-
-            if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
             // --- BUSCA DE RELATÓRIOS (Lógica Robusta e Segura) ---
             let reports = [];
             
             try {
-                // Lógica agnóstica de role: se o usuário é o dono do ownerId, ele é o "Boss"
                 const isActualOwner = req.user.id === ownerId;
+                console.log(`[Reference API] [6] isActualOwner: ${isActualOwner}`);
 
                 if (isActualOwner) {
-                    // Owner/Boss vê tudo o que ele criou
+                    console.log(`[Reference API] [7a] Buscando como Owner...`);
                     const { data: ownerReports, error: ownerReportsError } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
                     
-                    if (ownerReportsError) {
-                        console.error(`[Reference API] Erro ao buscar relatórios do owner ${ownerId}:`, ownerReportsError.message);
-                    }
+                    if (ownerReportsError) console.error(`[Reference API] [!] Erro OwnerReports:`, ownerReportsError.message);
                     reports = ownerReports || [];
                 } else {
-                    // Não é o dono (Membro/Secundário): Busca relatórios do Owner (compartilhados) + seus próprios
-                    console.log(`[Reference API] Buscando relatórios do owner ${ownerId} para o usuário ${req.user.id}`);
+                    console.log(`[Reference API] [7b] Buscando como Membro...`);
                     const { data: ownerReports, error: ownerReportsError } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
-                    
-                    if (ownerReportsError) {
-                        console.error(`[Reference API] Erro ao buscar relatórios do owner ${ownerId}:`, ownerReportsError.message);
-                    }
                     
                     const { data: memberReports, error: memberReportsError } = await supabase
                         .from('saved_reports')
@@ -118,59 +97,51 @@ export default () => {
                         .eq('user_id', req.user.id)
                         .order('created_at', { ascending: false });
                     
-                    if (memberReportsError) {
-                        console.error(`[Reference API] Erro ao buscar relatórios do membro ${req.user.id}:`, memberReportsError.message);
-                    }
+                    if (ownerReportsError) console.error(`[Reference API] [!] Erro OwnerReports:`, ownerReportsError.message);
+                    if (memberReportsError) console.error(`[Reference API] [!] Erro MemberReports:`, memberReportsError.message);
                     
-                    console.log(`[Reference API] Encontrados ${ownerReports?.length || 0} relatórios do owner e ${memberReports?.length || 0} relatórios do membro.`);
+                    const rawReports = [...(ownerReports || []), ...(memberReports || [])];
+                    console.log(`[Reference API] [8] Bruto: ${rawReports.length}`);
 
                     // Une os resultados sem duplicatas
-                    const allReports = [...(ownerReports || []), ...(memberReports || [])];
                     const uniqueReports = [];
                     const seenIds = new Set();
-                    
-                    for (const r of allReports) {
+                    for (const r of rawReports) {
                         if (!seenIds.has(r.id)) {
                             seenIds.add(r.id);
                             uniqueReports.push(r);
                         }
                     }
-                    
                     reports = uniqueReports;
 
-                    // Filtro de Segurança por Igreja (apenas para relatórios que não são a sessão ativa)
+                    // Filtro de Segurança por Igreja
                     let allowedChurchIds = [];
                     try {
                         const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
                         if (Array.isArray(perms.congregationIds)) {
-                            allowedChurchIds = perms.congregationIds;
+                            allowedChurchIds = perms.congregationIds.map(id => String(id));
                         } else if (profile?.congregation) {
-                            // Fallback para a coluna congregation se congregationIds não estiver no JSON
-                            allowedChurchIds = [profile.congregation];
+                            allowedChurchIds = [String(profile.congregation)];
                         }
                     } catch (e) {
-                        console.error("[Reference API] Erro ao processar permissões:", e.message);
+                        console.error("[Reference API] [!] Erro Permissões:", e.message);
                     }
 
-                    console.log(`[Reference API] allowedChurchIds para o usuário:`, allowedChurchIds);
+                    console.log(`[Reference API] [9] allowedChurchIds:`, allowedChurchIds);
 
                     if (allowedChurchIds.length > 0) {
                         const beforeFilterCount = reports.length;
                         reports = reports.filter(r => {
                             const isSessaoAtiva = r.name === '[SESSÃO_ATIVA]';
                             const hasNoChurch = !r.church_id;
-                            const isAllowed = allowedChurchIds.includes(r.church_id);
-                            
-                            // Log detalhado para cada relatório se necessário (cuidado com volume)
-                            // console.log(`[Reference API] Relatório ${r.id} (${r.name}): sessaoAtiva=${isSessaoAtiva}, noChurch=${hasNoChurch}, allowed=${isAllowed}, church_id=${r.church_id}`);
-                            
+                            const isAllowed = allowedChurchIds.includes(String(r.church_id));
                             return isSessaoAtiva || hasNoChurch || isAllowed;
                         });
-                        console.log(`[Reference API] Filtro de igreja aplicado: de ${beforeFilterCount} para ${reports.length} relatórios.`);
+                        console.log(`[Reference API] [10] Filtro Igreja: ${beforeFilterCount} -> ${reports.length}`);
                     }
                 }
             } catch (reportsErr) {
-                console.error("[Reference API] Erro crítico ao buscar relatórios:", reportsErr);
+                console.error("[Reference API] [!] Erro Crítico Reports:", reportsErr);
             }
 
             console.log(`[Reference API] Finalizado: ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports.length} relatórios.`);

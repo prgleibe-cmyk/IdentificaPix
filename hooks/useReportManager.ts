@@ -249,7 +249,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user?.id) return null;
-        const effectiveUserId = user.id;
+        
+        // Para usuários secundários, salvamos com o ID do dono para garantir visibilidade centralizada
+        const effectiveUserId = subscription.ownerId || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
