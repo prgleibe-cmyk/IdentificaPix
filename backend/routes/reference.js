@@ -82,10 +82,12 @@ export default () => {
             if (profile?.role === 'owner') {
                 reportsQuery = reportsQuery.eq('user_id', ownerId);
             } else {
-                // Para membros: Seus próprios relatórios OU a Sessão Ativa do Owner
-                // Isso garante que a aba "Relatórios Salvos" seja individual, 
-                // mas a aba "Relatórios" (Trabalho Vivo) continue compartilhada.
-                reportsQuery = reportsQuery.or(`user_id.eq.${req.user.id},and(user_id.eq.${ownerId},name.eq.[SESSÃO_ATIVA])`);
+                // Para membros: 
+                // 1. Ver seus próprios relatórios salvos
+                // 2. VER a Sessão Ativa do Owner (compartilhada)
+                // Usamos aspas duplas no nome para evitar problemas com os colchetes [ ]
+                const sessionName = '"[SESSÃO_ATIVA]"';
+                reportsQuery = reportsQuery.or(`user_id.eq.${req.user.id},and(user_id.eq.${ownerId},name.eq.${sessionName})`);
                 
                 // Tenta extrair IDs de igrejas permitidas do perfil
                 let allowedChurchIds = [];
@@ -102,8 +104,8 @@ export default () => {
                 }
 
                 if (allowedChurchIds.length > 0) {
-                    // Filtra por igreja (para segurança adicional) mas mantém a sessão ativa acessível
-                    reportsQuery = reportsQuery.or(`church_id.in.(${allowedChurchIds.join(',')}),name.eq.[SESSÃO_ATIVA]`);
+                    // Filtra por igreja mas SEMPRE permite a sessão ativa
+                    reportsQuery = reportsQuery.or(`church_id.in.(${allowedChurchIds.join(',')}),name.eq.${sessionName}`);
                 }
             }
 
