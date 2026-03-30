@@ -80,10 +80,35 @@ export default () => {
                 .eq('user_id', ownerId)
                 .order('created_at', { ascending: false });
 
-            // Se for membro, filtra apenas os relatórios da sua congregação
-            if (profile?.role === 'member' && profile?.congregation) {
-                console.log(`[Reference API] Filtrando relatórios para a congregação: ${profile.congregation}`);
-                reportsQuery = reportsQuery.eq('church_id', profile.congregation);
+            // Se for membro, filtra os relatórios das suas congregações ou globais
+            if (profile?.role === 'member') {
+                let congregationIds = [];
+                const congregationRaw = profile.congregation;
+                const permissions = profile.permissions || {};
+
+                // Tenta ler do JSON de permissões primeiro (novo padrão)
+                if (permissions && Array.isArray(permissions.congregationIds)) {
+                    congregationIds = permissions.congregationIds;
+                } 
+                // Fallback para a coluna congregation (pode ser UUID único ou array ou string separada por vírgula)
+                else if (Array.isArray(congregationRaw)) {
+                    congregationIds = congregationRaw;
+                } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
+                    if (congregationRaw.includes(',')) {
+                        congregationIds = congregationRaw.split(',').map(id => id.trim()).filter(id => !!id);
+                    } else {
+                        congregationIds = [congregationRaw];
+                    }
+                }
+
+                if (congregationIds.length > 0) {
+                    console.log(`[Reference API] Filtrando relatórios para as congregações: ${congregationIds.join(', ')}`);
+                    // Permite ver relatórios das suas igrejas OU relatórios globais (church_id is null)
+                    reportsQuery = reportsQuery.or(`church_id.in.(${congregationIds.join(',')}),church_id.is.null`);
+                } else {
+                    // Se não tem igreja vinculada, vê apenas os globais
+                    reportsQuery = reportsQuery.is('church_id', null);
+                }
             }
 
             const { data: reports, error: reportsError } = await reportsQuery;
