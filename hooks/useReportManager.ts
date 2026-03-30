@@ -99,6 +99,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     });
 
                     setSavedReports(hydrated);
+
+                    // 🔥 CORREÇÃO: DEFINIR RELATÓRIO ATIVO
+                    const live = hydrated.find(r => r.id.startsWith('LIVE_SESSION'));
+
+                    if (live) {
+                        setSearchFilters(prev => ({ ...prev, reportId: live.id }));
+                    } else if (hydrated.length > 0) {
+                        setSearchFilters(prev => ({ ...prev, reportId: hydrated[0].id }));
+                    }
                 }
             } catch (err) {
                 if (!ignore) {
