@@ -82,8 +82,10 @@ export default () => {
             if (profile?.role === 'owner') {
                 reportsQuery = reportsQuery.eq('user_id', ownerId);
             } else {
-                // Se for membro, busca do owner
-                reportsQuery = reportsQuery.eq('user_id', ownerId);
+                // Para membros: Seus próprios relatórios OU a Sessão Ativa do Owner
+                // Isso garante que a aba "Relatórios Salvos" seja individual, 
+                // mas a aba "Relatórios" (Trabalho Vivo) continue compartilhada.
+                reportsQuery = reportsQuery.or(`user_id.eq.${req.user.id},and(user_id.eq.${ownerId},name.eq.[SESSÃO_ATIVA])`);
                 
                 // Tenta extrair IDs de igrejas permitidas do perfil
                 let allowedChurchIds = [];
@@ -100,7 +102,7 @@ export default () => {
                 }
 
                 if (allowedChurchIds.length > 0) {
-                    // Filtra por igreja OU inclui a sessão ativa (que pode não ter church_id)
+                    // Filtra por igreja (para segurança adicional) mas mantém a sessão ativa acessível
                     reportsQuery = reportsQuery.or(`church_id.in.(${allowedChurchIds.join(',')}),name.eq.[SESSÃO_ATIVA]`);
                 }
             }
