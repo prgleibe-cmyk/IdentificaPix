@@ -64,7 +64,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 PLACEHOLDER_CHURCH
         }));
 
-        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && subscription.congregationIds?.length > 0) {
             hydrated = hydrated.filter((r: any) =>
                 subscription.congregationIds.includes(r.church?.id || r._churchId)
             );
@@ -103,7 +104,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const { data: { user: currentUser } } = await supabase.auth.getUser();
             const ownerId = subscription.ownerId || currentUser?.id;
 
-            if (subscription.role === 'owner') {
+            const isOwner = subscription.ownerId === user?.id;
+
+            if (isOwner) {
                 const { data, error } = await (supabase.from('saved_reports') as any)
                     .select('data')
                     .eq('id', reportId)
@@ -170,7 +173,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                             PLACEHOLDER_CHURCH
                     }));
 
-                    if (subscription.role === 'member' && (subscription.congregationIds || []).length > 0) {
+                    const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+                    if (isSecondary && (subscription.congregationIds || []).length > 0) {
                         hydrated = (hydrated || []).filter((r: any) =>
                             (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
                         );
@@ -250,7 +254,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!referenceData.banks) return [];
         let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.name }));
 
-        if (subscription.role !== 'owner') {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
             const allowedIds = subscription.bankIds || [];
             if (allowedIds.length > 0) {
                 list = list.filter((b: any) => allowedIds.includes(b.id));
@@ -258,7 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
-    }, [referenceData.banks, subscription]);
+    }, [referenceData.banks, subscription, user?.id]);
 
     const activeSpreadsheetData = useMemo(() => {
         if (!reconciliation.activeReportId) return undefined;

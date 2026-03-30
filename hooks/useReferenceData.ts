@@ -41,8 +41,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         if (lastOwnerIdRef.current === user.id) return;
 
         const syncData = async () => {
+            const isOwner = subscription.ownerId === user?.id;
 
-            if (subscription.role === 'owner') {
+            if (isOwner) {
                 let bankQuery = supabase.from('banks').select('*').eq('user_id', user.id);
                 const { data: b } = await bankQuery;
                 if (b && !ignore) setBanks(b);

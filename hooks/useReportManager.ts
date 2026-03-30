@@ -42,13 +42,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
             // Para a API, precisamos do ownerId para passar na validação de permissão
             const apiOwnerId = subscription?.ownerId || user.id;
-            const isMember = subscription?.ownerId && subscription.ownerId !== user.id;
+            const isOwner = subscription.ownerId === user?.id;
             let data: any[] = [];
             
             try {
                 // Se for o dono (Owner), busca diretamente do Supabase (mais rápido)
                 // Se for membro ou tiver outro papel, usa a API que resolve o compartilhamento
-                if (subscription?.role === 'owner' && !isMember) {
+                if (isOwner) {
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
@@ -271,7 +271,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         
         // Lógica de atribuição de Igreja
         let churchId = null;
-        if (subscription.role === 'member') {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
             churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
         } else if (allSameChurch && firstChurchId) {
             churchId = firstChurchId;

@@ -42,7 +42,7 @@ export const useReconciliation = ({
     setActiveView
 }: any) => {
 
-    const effectiveUserId = subscription?.role === 'member' ? subscription.ownerId : user?.id;
+    const effectiveUserId = subscription?.ownerId || user?.id;
     const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
@@ -155,7 +155,8 @@ export const useReconciliation = ({
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
         let results = matchResults;
-        if (subscription?.role === 'member') {
+        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
                 results = results.filter(r => {
                     const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
@@ -167,11 +168,12 @@ export const useReconciliation = ({
             }
         }
         return results;
-    }, [matchResults, subscription]);
+    }, [matchResults, subscription, user?.id]);
 
     const filteredLaunchedResults = useMemo(() => {
         let results = launchedResults;
-        if (subscription?.role === 'member') {
+        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
                 results = results.filter(r => {
                     const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
@@ -183,7 +185,7 @@ export const useReconciliation = ({
             }
         }
         return results;
-    }, [launchedResults, subscription]);
+    }, [launchedResults, subscription, user?.id]);
 
     const processingFilesRef = useRef<Set<string>>(new Set());
     const lastValidatedHash = useRef<string>('');
@@ -295,7 +297,8 @@ export const useReconciliation = ({
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         // Filtro de segurança para membros no preview
         let filteredResults = results;
-        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
             filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
 
