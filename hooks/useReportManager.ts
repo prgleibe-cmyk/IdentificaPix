@@ -38,7 +38,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const effectiveUserId = user.owner_id || user.main_account_id || user.id;
+            const effectiveUserId = subscription.ownerId || user.id;
             try {
                 let data: any[] | null = null;
 
@@ -115,7 +115,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (!user) return;
 
         const fetchInitialData = async () => {
-            const effectiveUserId = user.owner_id || user.main_account_id || user.id;
+            const effectiveUserId = subscription.ownerId || user.id;
             const { data, error } = await supabase
                 .from('saved_reports')
                 .select('*')
@@ -209,7 +209,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user) return;
-        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
+        const effectiveUserId = subscription.ownerId || user.id;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
@@ -219,7 +219,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
         if (!user || !reportId) return;
         
-        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
+        const effectiveUserId = subscription.ownerId || user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
@@ -273,7 +273,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user) return null;
-        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
+        const effectiveUserId = subscription.ownerId || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -292,7 +292,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId) === firstChurchId);
         
         // Se for membro, usa a congregação dele. Se for owner, usa o ID da igreja se todos os resultados forem dela.
-        const churchId = user.role === 'member' ? user.congregation_id : (allSameChurch ? firstChurchId : null);
+        const churchId = subscription.role === 'member' ? subscription.congregationId : (allSameChurch ? firstChurchId : null);
 
         const newReport: SavedReport = {
             id: newReportId,
@@ -333,7 +333,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
-        const effectiveUserId = user.owner_id || user.main_account_id || user.id;
+        const effectiveUserId = subscription.ownerId || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
