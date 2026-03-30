@@ -38,9 +38,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const effectiveUserId = subscription.ownerId || user.id;
+            // Se for membro e o ownerId ainda não carregou, esperamos
+            if (subscription.role === 'member' && !subscription.ownerId) return;
+
+            const effectiveUserId = subscription.role === 'owner' ? user.id : subscription.ownerId;
+            if (!effectiveUserId) return;
+
             try {
-                let data: any[] | null = null;
 
                 if (subscription.role === 'owner') {
                     const { data: d, error } = await supabase
@@ -115,7 +119,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (!user) return;
 
         const fetchInitialData = async () => {
-            const effectiveUserId = subscription.ownerId || user.id;
+            if (subscription.role === 'member' && !subscription.ownerId) return;
+            
+            const effectiveUserId = subscription.role === 'owner' ? user.id : subscription.ownerId;
+            if (!effectiveUserId) return;
+
             const { data, error } = await supabase
                 .from('saved_reports')
                 .select('*')
@@ -288,11 +296,20 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const newReportId = `rep-${Date.now()}`;
         const results = savingReportState.results || [];
-        const firstChurchId = results[0]?.church?.id || results[0]?._churchId;
-        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId) === firstChurchId);
         
-        // Se for membro, usa a congregação dele. Se for owner, usa o ID da igreja se todos os resultados forem dela.
-        const churchId = subscription.role === 'member' ? subscription.congregationId : (allSameChurch ? firstChurchId : null);
+        // Tenta pegar o ID da igreja de várias formas
+        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
+        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
+        
+        // Lógica de atribuição de Igreja
+        let churchId = null;
+        if (subscription.role === 'member') {
+            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
+        } else if (allSameChurch && firstChurchId) {
+            churchId = firstChurchId;
+        } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
+            churchId = searchFilters.churchIds[0];
+        }
 
         const newReport: SavedReport = {
             id: newReportId,
