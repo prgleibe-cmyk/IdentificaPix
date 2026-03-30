@@ -26,8 +26,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
     const lastSavedPayloadRef = useRef<string>('');
-    const fetchRequestIdRef = useRef(0);
 
+    /**
+     * 📥 CARGA INICIAL
+     */
     useEffect(() => {
         let ignore = false;
         if (!user) {
@@ -36,39 +38,30 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            const requestId = ++fetchRequestIdRef.current;
-            if (!user?.id || !subscription?.ownerId) return;
-
-            const apiOwnerId = subscription.ownerId;
-            const isOwner = subscription.ownerId === user.id;
-            let data: any[] = [];
-            
+            const ownerId = subscription.ownerId || user.id;
             try {
-                if (isOwner) {
+                let data: any[] | null = null;
+
+                if (subscription.role === 'owner') {
                     const { data: d, error } = await supabase
                         .from('saved_reports')
                         .select('*')
-                        .eq('user_id', user.id)
+                        .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
 
                     if (error) throw error;
-                    if (requestId !== fetchRequestIdRef.current) return;
                     if (ignore) return;
-                    data = d || [];
+                    data = d;
                 } else {
                     const { data: { session } } = await supabase.auth.getSession();
-                    if (requestId !== fetchRequestIdRef.current) return;
                     const token = session?.access_token;
 
-                    const response = await fetch(`/api/reference/data/${apiOwnerId}`, {
-                        method: 'GET',
-                        cache: 'no-store',
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 
                     if (response.ok) {
                         const resData = await response.json();
-                        if (requestId !== fetchRequestIdRef.current) return;
                         if (ignore) return;
                         data = resData.reports || [];
                     } else {
@@ -76,45 +69,26 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }
                 }
 
-                if (data && !ignore && requestId === fetchRequestIdRef.current) {
-                    let hydrated: SavedReport[] = data.map((r: any) => {
-                        let parsedData;
-                        try {
-                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-                        } catch {
-                            parsedData = { results: [], spreadsheet: null };
-                        }
+                if (data && !ignore) {
+                    let hydrated: SavedReport[] = data.map((r: any) => ({
+                        id: r.id,
+                        name: r.name,
+                        createdAt: r.created_at,
+                        recordCount: r.record_count,
+                        user_id: r.user_id,
+                        data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data
+                    }));
 
-                        return {
-                            id: r.id,
-                            name: r.name,
-                            createdAt: r.created_at,
-                            recordCount: r.record_count,
-                            user_id: r.user_id,
-                            church_id: r.church_id,
-                            data: parsedData
-                        };
-                    });
+                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+                        hydrated = hydrated.filter(report => {
+                            if (!report.data?.results?.length) return false;
+                            return report.data.results.some(res =>
+                                subscription.congregationIds.includes(res.church?.id || res._churchId)
+                            );
+                        });
+                    }
 
                     setSavedReports(hydrated);
-
-                    // ✅ CORREÇÃO REAL AQUI
-                    const liveWithData = hydrated.find(r =>
-                        r.id.startsWith('LIVE_SESSION') &&
-                        r.data?.results?.length > 0
-                    );
-
-                    const firstWithData = hydrated.find(r =>
-                        r.data?.results?.length > 0
-                    );
-
-                    if (liveWithData) {
-                        setSearchFilters(prev => ({ ...prev, reportId: liveWithData.id }));
-                    } else if (firstWithData) {
-                        setSearchFilters(prev => ({ ...prev, reportId: firstWithData.id }));
-                    } else if (hydrated.length > 0) {
-                        setSearchFilters(prev => ({ ...prev, reportId: hydrated[0].id }));
-                    }
                 }
             } catch (err) {
                 if (!ignore) {
@@ -125,45 +99,39 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds]);
+    }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
+    /**
+     * 🔴 TEMPO REAL (AJUSTE CIRÚRGICO)
+     */
     useEffect(() => {
-        if (!user || !subscription.ownerId) return;
+        if (!user) return;
 
         const channel = supabase
             .channel('reports-realtime')
             .on(
                 'postgres_changes',
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'saved_reports',
-                    filter: `user_id=eq.${subscription.ownerId || user.id}` 
-                },
+                { event: '*', schema: 'public', table: 'saved_reports' },
                 (payload: any) => {
                     const newRecord = payload.new;
                     const oldRecord = payload.old;
 
                     setSavedReports(prev => {
+                        // DELETE
                         if (payload.eventType === 'DELETE') {
-                            return (prev || []).filter(r => r.id !== oldRecord.id);
+                            return prev.filter(r => r.id !== oldRecord.id);
                         }
 
-                        let parsedData;
-                        try {
-                            parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
-                        } catch {
-                            parsedData = { results: [], spreadsheet: null };
-                        }
-
+                        // INSERT ou UPDATE
                         const parsed: SavedReport = {
                             id: newRecord.id,
                             name: newRecord.name,
                             createdAt: newRecord.created_at,
                             recordCount: newRecord.record_count,
                             user_id: newRecord.user_id,
-                            church_id: newRecord.church_id,
-                            data: parsedData
+                            data: typeof newRecord.data === 'string'
+                                ? JSON.parse(newRecord.data)
+                                : newRecord.data
                         };
 
                         const exists = prev.find(r => r.id === parsed.id);
@@ -181,37 +149,35 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, subscription.ownerId]);
+    }, [user]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!user?.id) return;
-        const effectiveUserId = subscription.ownerId || user.id;
+        if(!user) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
-        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
+        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
-    }, [user?.id, subscription.ownerId, showToast]);
+    }, [user, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user?.id || !reportId) return;
+        if (!user || !reportId) return;
         
-        const effectiveUserId = subscription.ownerId || user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
         if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
-        const currentPayload = JSON.stringify({ r: results.length, s: !!spreadsheetData });
+        const currentPayload = JSON.stringify({ r: results?.length || 0, s: !!spreadsheetData });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
         const mergedData = {
             ...currentData,
-            results: results.length > 0 ? results : currentData.results,
+            results: (results && results.length > 0) ? results : currentData.results,
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
 
@@ -229,8 +195,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 data: mergedData as any,
                 record_count: recordCount 
             })
-            .eq('id', reportId)
-            .eq('user_id', effectiveUserId);
+            .eq('id', reportId);
 
         if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
@@ -238,7 +203,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         } else {
             showToast("Alterações salvas no servidor.", "success");
         }
-    }, [user, subscription.ownerId, showToast, savedReports]);
+    }, [user, showToast, savedReports]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
@@ -252,9 +217,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
-        if (!savingReportState || !user?.id) return null;
-        
-        const effectiveUserId = subscription.ownerId || user.id;
+        if (!savingReportState || !user) return null;
+        const ownerId = subscription.ownerId || user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -268,28 +232,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             : savingReportState.results.length;
 
         const newReportId = `rep-${Date.now()}`;
-        const results = savingReportState.results || [];
-        
-        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
-        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
-        
-        let churchId = null;
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
-            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
-        } else if (allSameChurch && firstChurchId) {
-            churchId = firstChurchId;
-        } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
-            churchId = searchFilters.churchIds[0];
-        }
-
         const newReport: SavedReport = {
             id: newReportId,
             name: name,
             createdAt: new Date().toISOString(),
             recordCount: recordCount,
-            user_id: effectiveUserId,
-            church_id: churchId,
+            user_id: ownerId,
             data: {
                 results: savingReportState.results || [],
                 sourceFiles: [],
@@ -306,7 +254,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             name: newReport.name,
             record_count: newReport.recordCount,
             user_id: newReport.user_id,
-            church_id: newReport.church_id,
             data: newReport.data as any
         });
 
@@ -318,23 +265,31 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             showToast('Relatório criado!', 'success');
             return newReportId;
         }
-    }, [savingReportState, user, subscription.ownerId, showToast, closeSaveReportModal, savedReports.length]);
+    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
         if (!user) return;
-        const effectiveUserId = subscription.ownerId || user.id;
+        const ownerId = subscription.ownerId || user.id;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', ownerId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
     }, [user, subscription.ownerId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
-        return savedReports
+        let results = savedReports
             .filter(r => r.data && r.data.results)
             .flatMap(report => report.data!.results);
-    }, [savedReports]);
+            
+        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+            results = results.filter(r =>
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
+            );
+        }
+        
+        return results;
+    }, [savedReports, subscription.role, subscription.congregationIds]);
 
     return useMemo(() => ({
         savedReports, setSavedReports,

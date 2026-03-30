@@ -14,7 +14,7 @@ export const SavedReportsView: React.FC = () => {
     const ctrl = useSavedReportsController();
     const { setActiveView } = useUI();
 
-    if ((ctrl.savedReports || []).length === 0) {
+    if (ctrl.savedReports.length === 0) {
         return (
             <div className="flex-1 flex items-center justify-center">
                 <EmptyState
@@ -39,7 +39,7 @@ export const SavedReportsView: React.FC = () => {
                 onSearchChange={ctrl.setSearchQuery}
                 usagePercent={ctrl.usagePercent}
                 storageColor={ctrl.storageColor}
-                currentCount={(ctrl.savedReports || []).length}
+                currentCount={ctrl.savedReports.length}
                 maxCount={ctrl.maxSavedReports}
             />
 

@@ -98,7 +98,6 @@ export const matchTransactions = (
                     ...matchResult,
                     status: ReconciliationStatus.IDENTIFIED,
                     church: church,
-                    _churchId: church.id,
                     matchMethod: MatchMethod.LEARNED,
                     similarity: 100,
                     contributor: { 
@@ -133,7 +132,6 @@ export const matchTransactions = (
                     status: ReconciliationStatus.IDENTIFIED,
                     contributor: bestMatch,
                     church: bestMatch.church,
-                    _churchId: bestMatch.church.id,
                     matchMethod: MatchMethod.AI,
                     similarity: highestScore,
                     contributorAmount: bestMatch.amount,
@@ -169,7 +167,6 @@ export const matchTransactions = (
                     contributor: { ...contrib, cleanedName: contrib.name },
                     status: ReconciliationStatus.PENDING,
                     church: contrib.church,
-                    _churchId: contrib.church.id,
                     matchMethod: MatchMethod.MANUAL,
                     similarity: 0,
                     contributorAmount: ghostAmount

@@ -23,7 +23,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         try {
             // 1. Tenta buscar pelo ID real do usuário (Cenário ideal)
-            let { data, error } = await (supabase as any)
+            let { data, error } = await supabase
                 .from('user_profiles')
                 .select('*')
                 .eq('id', userId)
@@ -41,7 +41,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const cleanEmail = userEmail.toLowerCase().trim();
                 console.log(`[UserContext] ID não encontrado. Tentando resgate por e-mail: ${cleanEmail}`);
                 
-                const { data: emailData } = await (supabase as any)
+                const { data: emailData } = await supabase
                     .from('user_profiles')
                     .select('*')
                     .eq('email', cleanEmail)
@@ -49,7 +49,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 
                 if (emailData) {
                     console.log(`[UserContext] Perfil encontrado por e-mail. Vinculando ID ${userId}...`);
-                    const { data: claimed, error: claimError } = await (supabase as any)
+                    const { data: claimed, error: claimError } = await supabase
                         .from('user_profiles')
                         .update({ id: userId } as any)
                         .eq('email', cleanEmail)

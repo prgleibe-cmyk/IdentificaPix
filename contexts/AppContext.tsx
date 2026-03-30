@@ -22,18 +22,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-    const viewRequestIdRef = useRef(0);
+
+    const effectiveUser = useMemo(() => {
+        if (!user) return null;
+        return { ...user, id: subscription.ownerId || user.id };
+    }, [user, subscription.ownerId]);
 
     const modalController = useModalController();
-    const referenceData = useReferenceData(user, showToast);
-    const reportManager = useReportManager(user, showToast);
+    const referenceData = useReferenceData(effectiveUser, showToast);
+    const reportManager = useReportManager(effectiveUser, showToast);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user: user,
+        user: effectiveUser,
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
@@ -44,50 +48,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customIgnoreKeywords: effectiveIgnoreKeywords,
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
-        savedReports: reportManager.savedReports,
         showToast,
         setIsLoading,
         setActiveView
     });
 
     /**
-     * 🔥 CORREÇÃO: Inicializa automaticamente um relatório ativo
+     * 🔴 AJUSTE ORIGINAL (mantido)
      */
-    useEffect(() => {
-        if (reconciliation.activeReportId) return;
-        if (!reportManager.savedReports || reportManager.savedReports.length === 0) return;
-
-        const firstValidReport = reportManager.savedReports.find(r => {
-            const data = r.data;
-            if (!data) return false;
-
-            try {
-                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-                return (parsed?.results?.length > 0) || parsed?.spreadsheet;
-            } catch {
-                return false;
-            }
-        });
-
-        if (firstValidReport) {
-            reconciliation.setActiveReportId(firstValidReport.id);
-            reconciliation.setHasActiveSession(true);
-        }
-    }, [
-        reportManager.savedReports,
-        reconciliation.activeReportId
-    ]);
-
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) return;
 
         const report = reportManager.savedReports.find(r => r.id === activeId);
-        if (!report) return;
+        if (!report || !report.data?.results) return;
 
-        const results = report.data?.results || [];
-        
-        let hydrated = results.map((r: any) => ({
+        let hydrated = report.data.results.map((r: any) => ({
             ...r,
             church:
                 referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -95,10 +71,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 PLACEHOLDER_CHURCH
         }));
 
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary && (subscription.congregationIds || []).length > 0) {
+        if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
             hydrated = hydrated.filter((r: any) =>
-                (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
             );
         }
 
@@ -107,90 +82,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportManager.savedReports,
         reconciliation.activeReportId,
         referenceData.churches,
-        subscription.ownerId,
-        subscription.congregationIds,
-        user?.id
+        subscription.role,
+        subscription.congregationIds
     ]);
 
+    /**
+     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
+     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
+     */
+    useEffect(() => {
+        if (!reconciliation.activeReportId) return;
+
+        const report = reportManager.savedReports.find(
+            r => r.id === reconciliation.activeReportId
+        );
+
+        if (!report || !report.data?.results) return;
+
+        reconciliation.setMatchResults([...report.data.results]);
+    }, [reportManager.savedReports]);
+
+    /**
+     * 👁️ VISUALIZADOR DE RELATÓRIOS
+     */
     const viewSavedReport = useCallback(async (reportId: string) => {
-        const requestId = ++viewRequestIdRef.current;
         const report = reportManager.savedReports.find(r => r.id === reportId);
         if (!report) return;
 
         setIsLoading(true);
         try {
-            let results;
-            let spreadsheet;
+            let results = report.data?.results;
+            let spreadsheet = report.data?.spreadsheet;
 
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
-            if (requestId !== viewRequestIdRef.current) return;
-            const ownerId = subscription.ownerId || currentUser?.id;
+            if (!results && !spreadsheet) {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                const ownerId = subscription.ownerId || currentUser?.id;
 
-            const isOwner = subscription.ownerId === user?.id;
+                if (subscription.role === 'owner') {
+                    const { data, error } = await supabase
+                        .from('saved_reports')
+                        .select('data')
+                        .eq('id', reportId)
+                        .single();
 
-            if (isOwner) {
-                const { data, error } = await (supabase.from('saved_reports') as any)
-                    .select('data')
-                    .eq('id', reportId)
-                    .single();
+                    if (error) throw error;
+                    if (!data) throw new Error('Report not found');
 
-                if (error) throw error;
-                if (requestId !== viewRequestIdRef.current) return;
-                if (!data) throw new Error('Report not found');
-
-                const rawData = data.data;
-                let parsedData;
-                try {
-                    parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                } catch (error) {
-                    console.error("JSON corrompido detectado:", error);
-                    parsedData = {
-                        results: [],
-                        spreadsheet: null
-                    };
-                }
-
-                results = parsedData?.results;
-                spreadsheet = parsedData?.spreadsheet;
-            } else {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (requestId !== viewRequestIdRef.current) return;
-                const token = session?.access_token;
-
-                const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
-                    method: 'GET',
-                    cache: 'no-store',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const resData = await response.json();
-                    if (requestId !== viewRequestIdRef.current) return;
-                    const rawData = resData.data;
-                    let parsedData;
-                    try {
-                        parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                    } catch (error) {
-                        console.error("JSON corrompido detectado:", error);
-                        parsedData = {
-                            results: [],
-                            spreadsheet: null
-                        };
-                    }
+                    const rawData = data.data;
+                    const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
 
                     results = parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;
                 } else {
-                    throw new Error("Falha ao buscar detalhes do relatório via API.");
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const resData = await response.json();
+                        const rawData = resData.data;
+                        const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+
+                        results = parsedData?.results;
+                        spreadsheet = parsedData?.spreadsheet;
+                    } else {
+                        throw new Error("Falha ao buscar detalhes do relatório via API.");
+                    }
                 }
             }
 
-            if (requestId === viewRequestIdRef.current && (((results || []).length > 0) || spreadsheet)) {
+            if ((results && results.length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
-                if ((results || []).length > 0) {
-                    let hydrated = (results || []).map((r: any) => ({
+                if (results && results.length > 0) {
+                    let hydrated = results.map((r: any) => ({
                         ...r,
                         church:
                             referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -198,35 +167,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                             PLACEHOLDER_CHURCH
                     }));
 
-                    const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-                    if (isSecondary && (subscription.congregationIds || []).length > 0) {
-                        hydrated = (hydrated || []).filter((r: any) =>
-                            (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
+                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
+                        hydrated = hydrated.filter((r: any) =>
+                            subscription.congregationIds.includes(r.church?.id || r._churchId)
                         );
                     }
 
                     reconciliation.setMatchResults(hydrated);
-                    if (false) {
-                        setActiveView('reports');
-                    }
+                    setActiveView('reports');
                 } else if (spreadsheet) {
                     setActiveView('smart_analysis');
                 }
 
                 showToast(`Relatório "${report.name}" carregado.`, "success");
-            } else if (requestId === viewRequestIdRef.current) {
+            } else {
                 showToast("Este relatório está vazio.", "error");
             }
 
         } catch (error: any) {
-            if (requestId === viewRequestIdRef.current) {
-                console.error("[AppContext] Erro ao abrir relatório:", error);
-                showToast("Erro ao carregar os dados do relatório.", "error");
-            }
+            console.error("[AppContext] Erro ao abrir relatório:", error);
+            showToast("Erro ao carregar os dados do relatório.", "error");
         } finally {
-            if (requestId === viewRequestIdRef.current) {
-                setIsLoading(false);
-            }
+            setIsLoading(false);
         }
     }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 
@@ -260,7 +222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const { confirmDeletion } = useDataDeletion({
-        user: user,
+        user: effectiveUser,
         modalController,
         referenceData,
         reportManager,
@@ -283,8 +245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!referenceData.banks) return [];
         let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.name }));
 
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
+        if (subscription.role !== 'owner') {
             const allowedIds = subscription.bankIds || [];
             if (allowedIds.length > 0) {
                 list = list.filter((b: any) => allowedIds.includes(b.id));
@@ -292,7 +253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
-    }, [referenceData.banks, subscription, user?.id]);
+    }, [referenceData.banks, subscription]);
 
     const activeSpreadsheetData = useMemo(() => {
         if (!reconciliation.activeReportId) return undefined;

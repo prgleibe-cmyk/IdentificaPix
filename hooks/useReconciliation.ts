@@ -36,108 +36,17 @@ export const useReconciliation = ({
     customIgnoreKeywords,
     contributionKeywords,
     learnedAssociations,
-    savedReports,
     showToast,
     setIsLoading,
     setActiveView
 }: any) => {
 
-    const effectiveUserId = subscription?.ownerId;
-    const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
+    const userSuffix = user ? `-${user.id}` : '-guest';
     
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
-    
-    const lastCloudSyncRef = useRef<string>('');
-    const isHydratingFromCloud = useRef<boolean>(false);
-
-    // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
-    const syncToCloud = useCallback(async (results: MatchResult[]) => {
-        if (!user?.id || !effectiveUserId || isHydratingFromCloud.current) return;
-        
-        // Payload simplificado para comparação de mudanças reais
-        const payload = JSON.stringify(results.map(r => ({
-            id: r.transaction.id,
-            status: r.status,
-            churchId: r.church?.id || r._churchId,
-            contributorId: r.contributor?.id
-        })));
-
-        if (payload === lastCloudSyncRef.current) return;
-        lastCloudSyncRef.current = payload;
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-
-            // Sincroniza imediatamente
-            await fetch('/api/reference/report/sync', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    reportId: `LIVE_SESSION_${effectiveUserId}`,
-                    name: '[SESSÃO_ATIVA]',
-                    data: { results }, // Envia os resultados completos
-                    recordCount: results.length,
-                    ownerId: effectiveUserId
-                })
-            });
-        } catch (e) {
-            console.error("[CloudSync] Erro ao sincronizar sessão ativa:", e);
-        }
-    }, [user?.id, effectiveUserId]);
-
-    // Auto-save para a nuvem (mais frequente para evitar perda de dados)
-    useEffect(() => {
-        if (matchResults.length > 0 && !activeReportId) {
-            const timer = setTimeout(() => syncToCloud(matchResults), 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [matchResults, activeReportId, syncToCloud]);
-
-    // Hidratação e Vínculo com Objetos de Igreja
-    useEffect(() => {
-        if (!effectiveUserId || activeReportId || !churches.length) return;
-
-        const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
-        if (liveReport && liveReport.data?.results) {
-            const cloudResults = liveReport.data.results;
-            
-            // Compara se há mudança real na identificação ou status
-            const cloudCheck = JSON.stringify(cloudResults.map((r: any) => ({ id: r.transaction.id, c: r.church?.id || r._churchId, s: r.status })));
-            const localCheck = JSON.stringify(matchResults.map(r => ({ id: r.transaction.id, c: r.church?.id || r._churchId, s: r.status })));
-
-            if (matchResults.length === 0 || cloudCheck !== localCheck) {
-                isHydratingFromCloud.current = true;
-                
-                // RE-VINCULA os objetos de igreja (Hidratação)
-                const hydratedResults = cloudResults.map((r: any) => {
-                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                    const fullChurch = churches.find((c: any) => c.id === churchId);
-                    return {
-                        ...r,
-                        church: fullChurch || r.church || PLACEHOLDER_CHURCH
-                    };
-                });
-
-                setMatchResults(hydratedResults);
-                setHasActiveSession(true);
-                lastCloudSyncRef.current = JSON.stringify(hydratedResults.map((r: any) => ({
-                    id: r.transaction.id,
-                    status: r.status,
-                    churchId: r.church?.id || r._churchId,
-                    contributorId: r.contributor?.id
-                })));
-                
-                setTimeout(() => { isHydratingFromCloud.current = false; }, 500);
-            }
-        }
-    }, [savedReports, effectiveUserId, activeReportId, churches]);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
@@ -155,37 +64,29 @@ export const useReconciliation = ({
     // Filtros de segurança para membros
     const filteredMatchResults = useMemo(() => {
         let results = matchResults;
-        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
+        if (subscription?.role === 'member') {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter(r => {
-                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                    return subscription.congregationIds.includes(churchId);
-                });
+                results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
             }
             if (subscription.bankIds && subscription.bankIds.length > 0) {
                 results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
             }
         }
         return results;
-    }, [matchResults, subscription, user?.id]);
+    }, [matchResults, subscription]);
 
     const filteredLaunchedResults = useMemo(() => {
         let results = launchedResults;
-        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
+        if (subscription?.role === 'member') {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter(r => {
-                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                    return subscription.congregationIds.includes(churchId);
-                });
+                results = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
             }
             if (subscription.bankIds && subscription.bankIds.length > 0) {
                 results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
             }
         }
         return results;
-    }, [launchedResults, subscription, user?.id]);
+    }, [launchedResults, subscription]);
 
     const processingFilesRef = useRef<Set<string>>(new Set());
     const lastValidatedHash = useRef<string>('');
@@ -195,17 +96,17 @@ export const useReconciliation = ({
      * 📡 REALTIME SYNC (Escuta mudanças de confirmação)
      */
     useEffect(() => {
-        if (!effectiveUserId) return;
+        if (!user?.id) return;
         
         const channel = supabase
-            .channel(`reconciliation-status-sync-${effectiveUserId}`)
+            .channel(`reconciliation-status-sync-${user.id}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${effectiveUserId}`
+                    filter: `user_id=eq.${user.id}`
                 },
                 (payload) => {
                     if (payload.new && payload.new.is_confirmed === true) {
@@ -220,7 +121,7 @@ export const useReconciliation = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId]);
+    }, [user?.id]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
@@ -228,7 +129,7 @@ export const useReconciliation = ({
      * Em vez de remover, atualiza o status para 'FECHADO'.
      */
     useEffect(() => {
-        if (!effectiveUserId || matchResults.length === 0 || isValidating.current) return;
+        if (!user || matchResults.length === 0 || isValidating.current) return;
 
         const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
         if (currentIdsHash === lastValidatedHash.current) return;
@@ -247,7 +148,7 @@ export const useReconciliation = ({
             }
 
             try {
-                const confirmedIds = await consolidationService.checkConfirmedTransactions(effectiveUserId, realIds);
+                const confirmedIds = await consolidationService.checkConfirmedTransactions(user.id, realIds);
                 
                 if (confirmedIds.length > 0) {
                     setMatchResults(prev => {
@@ -281,13 +182,13 @@ export const useReconciliation = ({
 
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
-    }, [effectiveUserId, matchResults, setMatchResults, triggerSync]);
+    }, [user, matchResults, setMatchResults, triggerSync]);
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
-        subscription,
         setBankStatementFile,
-        setSelectedBankIds
+        setSelectedBankIds,
+        showToast
     });
 
     const findMatchResult = useCallback((txId: string) => {
@@ -296,10 +197,9 @@ export const useReconciliation = ({
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         // Filtro de segurança para membros no preview
-        let filteredResults = results || [];
-        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = (results || []).filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+        let filteredResults = results;
+        if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
 
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
@@ -322,12 +222,13 @@ export const useReconciliation = ({
             income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }
         });
-    }, [subscription, user]);
+    }, []);
 
     // Sincroniza o Preview sempre que os resultados persistentes mudarem
     useEffect(() => {
-        // Sempre regenera, mesmo que vazio, para evitar estado 'null' que trava a UI
-        regenerateReportPreview(matchResults);
+        if (matchResults && matchResults.length > 0) {
+            regenerateReportPreview(matchResults);
+        }
     }, [matchResults, regenerateReportPreview]);
 
     const handleStatementUpload = useCallback(async (content: string, fileName: string, bankId: string, rawFile?: File, base64?: string) => {
@@ -496,9 +397,7 @@ export const useReconciliation = ({
 
             setMatchResults(results);
             setHasActiveSession(true);
-            if (false) {
-                setActiveView('reports');
-            }
+            setActiveView('reports');
             setIsLoading(false);
             showToast("Conciliação concluída para os itens selecionados!", "success");
         },

@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient';
 
 export const gmailService = {
     connect: async () => {
-        const { error } = await (supabase as any).auth.signInWithOAuth({
+        const { error } = await (supabase.auth as any).signInWithOAuth({
             provider: 'google',
             options: {
                 scopes: 'https://www.googleapis.com/auth/gmail.readonly',

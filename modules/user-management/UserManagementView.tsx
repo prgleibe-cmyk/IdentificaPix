@@ -49,7 +49,7 @@ export const UserManagementView: React.FC = () => {
     const fetchUsers = async () => {
         if (!adminProfile) return;
         setLoading(true);
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('main_account_id', adminProfile.main_account_id);
@@ -75,7 +75,7 @@ export const UserManagementView: React.FC = () => {
         };
 
         if (editingUser) {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('user_profiles')
                 .update(payload as any)
                 .eq('id', editingUser.id);
@@ -89,7 +89,7 @@ export const UserManagementView: React.FC = () => {
             }
         } else {
             // Novo Usuário - Pré-cadastro por E-mail
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('user_profiles')
                 .insert([{
                     id: crypto.randomUUID(), // ID temporário que será substituído no primeiro login
