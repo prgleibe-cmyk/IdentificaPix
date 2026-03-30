@@ -143,23 +143,17 @@ export const useReportsController = () => {
     }, [churchList, reportPreviewData, subscription]);
 
     const activeData = useMemo(() => {
-        if (!reportPreviewData) {
-            console.log("[useReportsController] reportPreviewData is null");
-            return [];
-        }
+        if (!reportPreviewData) return [];
         let data: MatchResult[] = [];
         
         try {
             // 1. Seleção da base por categoria com trava de segurança para membros
             if (subscription.role !== 'owner' && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-                const allowedIds = subscription.congregationIds || [];
-                const currentId = selectedReportId || allowedIds[0];
-                
-                console.log(`[useReportsController] Member view: selectedReportId=${selectedReportId}, using=${currentId}, allowed=${allowedIds.length}`);
-                console.log(`[useReportsController] Available income groups:`, Object.keys(reportPreviewData.income || {}));
-                
-                data = reportPreviewData.income?.[currentId] || [];
-                console.log(`[useReportsController] Found ${data.length} results for ${currentId}`);
+                if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
+                    data = reportPreviewData.income?.[selectedReportId] || [];
+                } else {
+                    data = reportPreviewData.income?.[subscription.congregationIds[0]] || [];
+                }
             } else if (activeCategory === 'general') {
                 const incomeGroups = reportPreviewData.income || {};
                 data = (Object.values(incomeGroups) as MatchResult[][]).flat();

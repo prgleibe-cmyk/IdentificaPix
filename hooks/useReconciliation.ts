@@ -200,11 +200,7 @@ export const useReconciliation = ({
         // Filtro de segurança para membros no preview
         let filteredResults = results;
         if (subscription?.role === 'member' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r => {
-                const churchId = r.church?.id || r._churchId;
-                return subscription.congregationIds.includes(churchId);
-            });
-            console.log(`[useReconciliation] Member filter applied: ${results.length} -> ${filteredResults.length} results for congregations:`, subscription.congregationIds);
+            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
         }
 
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
@@ -223,14 +219,11 @@ export const useReconciliation = ({
             return val < 0;
         });
 
-        const incomeGroups = groupResultsByChurch(incomeResults);
-        console.log(`[useReconciliation] Income groups generated:`, Object.keys(incomeGroups));
-
         setReportPreviewData({
-            income: incomeGroups,
+            income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }
         });
-    }, [subscription]);
+    }, []);
 
     // Sincroniza o Preview sempre que os resultados persistentes mudarem
     useEffect(() => {
