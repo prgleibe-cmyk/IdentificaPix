@@ -91,7 +91,8 @@ export default () => {
 
                 if (isActualOwner) {
                     console.log(`[Reference API] [7a] Buscando como Owner...`);
-                    const { data: ownerReports, error: ownerReportsError } = await (supabase.from('saved_reports') as any)
+                    const { data: ownerReports, error: ownerReportsError } = await supabase
+                        .from('saved_reports')
                         .select('id, user_id, church_id, name, created_at, record_count')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
@@ -101,34 +102,8 @@ export default () => {
                     console.log(`[Reference API] [8] Bruto (Owner): ${reports.length}`);
                 } else {
                     console.log(`[Reference API] [7b] Buscando como Membro...`);
-                    const { data: ownerReports, error: ownerReportsError } = await (supabase.from('saved_reports') as any)
-                        .select('id, user_id, church_id, name, created_at, record_count')
-                        .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false });
                     
-                    const { data: memberReports, error: memberReportsError } = await (supabase.from('saved_reports') as any)
-                        .select('id, user_id, church_id, name, created_at, record_count')
-                        .eq('user_id', req.user.id)
-                        .order('created_at', { ascending: false });
-                    
-                    if (ownerReportsError) console.error(`[Reference API] [!] Erro OwnerReports:`, ownerReportsError.message);
-                    if (memberReportsError) console.error(`[Reference API] [!] Erro MemberReports:`, memberReportsError.message);
-                    
-                    const rawReports = [...(ownerReports || []), ...(memberReports || [])];
-                    
-                    // Une os resultados sem duplicatas
-                    const uniqueReports = [];
-                    const seenIds = new Set();
-                    for (const r of rawReports) {
-                        if (!seenIds.has(r.id)) {
-                            seenIds.add(r.id);
-                            uniqueReports.push(r);
-                        }
-                    }
-                    reports = uniqueReports;
-                    console.log(`[Reference API] [8] Bruto (Membro): ${reports.length}`);
-
-                    // Filtro de Segurança por Igreja
+                    // 1. Determinar Permissões ANTES da busca
                     let allowedChurchIds = [];
                     try {
                         const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
@@ -140,31 +115,35 @@ export default () => {
                     } catch (e) {
                         console.error("[Reference API] [!] Erro Permissões:", e.message);
                     }
+                    console.log(`[Reference API] [8] allowedChurchIds:`, allowedChurchIds);
 
-                    console.log(`[Reference API] [9] allowedChurchIds:`, allowedChurchIds);
+                    // 2. Construir Query Filtrada
+                    let query = supabase
+                        .from('saved_reports')
+                        .select('id, user_id, church_id, name, created_at, record_count')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false });
 
+                    // Se for membro, aplicamos o filtro de igreja diretamente no banco se houver permissões
                     if (allowedChurchIds.length > 0) {
-                        const beforeFilterCount = reports.length;
-                        const filteredOut = [];
-                        reports = reports.filter(r => {
-                            const isSessaoAtiva = r.name === '[SESSÃO_ATIVA]';
-                            const hasNoChurch = !r.church_id;
-                            const rChurchId = String(r.church_id || '');
-                            const isAllowed = allowedChurchIds.includes(rChurchId);
-                            
-                            if (!isSessaoAtiva && !hasNoChurch && !isAllowed) {
-                                filteredOut.push({ id: r.id, name: r.name, church_id: r.church_id });
-                            }
-                            
-                            return isSessaoAtiva || hasNoChurch || isAllowed;
-                        });
-                        console.log(`[Reference API] [10] Filtro Igreja: ${beforeFilterCount} -> ${reports.length}`);
-                        if (reports.length > 0) {
-                            console.log(`[Reference API] [11a] Relatórios permitidos:`, reports.map(r => ({ id: r.id, name: r.name, church_id: r.church_id })));
-                        }
-                        if (filteredOut.length > 0) {
-                            console.log(`[Reference API] [11b] Relatórios filtrados (sem permissão):`, filteredOut);
-                        }
+                        // Filtramos por: Igreja permitida OU sem igreja OU sessão ativa
+                        // Nota: Supabase or() usa sintaxe específica
+                        const filterStr = `church_id.in.(${allowedChurchIds.join(',')}),church_id.is.null,name.eq.[SESSÃO_ATIVA]`;
+                        query = query.or(filterStr);
+                    } else {
+                        // Se não tem nenhuma igreja permitida e é membro, talvez não deva ver nada?
+                        // Por segurança, se a lista estiver vazia, retornamos apenas sem igreja/sessão ativa
+                        query = query.or(`church_id.is.null,name.eq.[SESSÃO_ATIVA]`);
+                    }
+
+                    const { data: filteredReports, error: filteredReportsError } = await query;
+                    
+                    if (filteredReportsError) console.error(`[Reference API] [!] Erro FilteredReports:`, filteredReportsError.message);
+                    reports = filteredReports || [];
+                    console.log(`[Reference API] [9] Final (Membro): ${reports.length}`);
+                    
+                    if (reports.length > 0) {
+                        console.log(`[Reference API] [10] Relatórios permitidos:`, reports.map(r => ({ id: r.id, name: r.name, church_id: r.church_id })));
                     }
                 }
             } catch (reportsErr) {
