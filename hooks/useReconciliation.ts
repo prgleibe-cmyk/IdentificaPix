@@ -57,12 +57,12 @@ export const useReconciliation = ({
     const syncToCloud = useCallback(async (results: MatchResult[]) => {
         if (!user?.id || !effectiveUserId || isHydratingFromCloud.current) return;
         
-        // Evita sync se os dados forem os mesmos
+        // Payload simplificado para comparação de mudanças reais
         const payload = JSON.stringify(results.map(r => ({
             id: r.transaction.id,
             status: r.status,
-            contributorId: r.contributor?.id,
-            churchId: r.church?.id || r._churchId
+            churchId: r.church?.id || r._churchId,
+            contributorId: r.contributor?.id
         })));
 
         if (payload === lastCloudSyncRef.current) return;
@@ -72,6 +72,7 @@ export const useReconciliation = ({
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
+            // Sincroniza imediatamente
             await fetch('/api/reference/report/sync', {
                 method: 'POST',
                 headers: { 
@@ -81,7 +82,7 @@ export const useReconciliation = ({
                 body: JSON.stringify({
                     reportId: `LIVE_SESSION_${effectiveUserId}`,
                     name: '[SESSÃO_ATIVA]',
-                    data: { results },
+                    data: { results }, // Envia os resultados completos
                     recordCount: results.length,
                     ownerId: effectiveUserId
                 })
@@ -91,40 +92,48 @@ export const useReconciliation = ({
         }
     }, [user?.id, effectiveUserId]);
 
-    // Auto-save para a nuvem
+    // Auto-save para a nuvem (mais frequente para evitar perda de dados)
     useEffect(() => {
         if (matchResults.length > 0 && !activeReportId) {
-            const timer = setTimeout(() => syncToCloud(matchResults), 2000);
+            const timer = setTimeout(() => syncToCloud(matchResults), 1000);
             return () => clearTimeout(timer);
         }
     }, [matchResults, activeReportId, syncToCloud]);
 
-    // Hidratação inicial e Real-time da nuvem
+    // Hidratação e Vínculo com Objetos de Igreja
     useEffect(() => {
-        if (!effectiveUserId || activeReportId) return;
+        if (!effectiveUserId || activeReportId || !churches.length) return;
 
         const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
         if (liveReport && liveReport.data?.results) {
             const cloudResults = liveReport.data.results;
             
-            // Só atualiza se o cache local estiver vazio ou se os dados da nuvem forem diferentes
-            const cloudPayload = JSON.stringify(cloudResults.map((r: any) => r.transaction.id));
-            const localPayload = JSON.stringify(matchResults.map(r => r.transaction.id));
+            // Compara se há mudança real na identificação ou status
+            const cloudCheck = JSON.stringify(cloudResults.map((r: any) => ({ id: r.transaction.id, c: r.church?.id || r._churchId, s: r.status })));
+            const localCheck = JSON.stringify(matchResults.map(r => ({ id: r.transaction.id, c: r.church?.id || r._churchId, s: r.status })));
 
-            if (matchResults.length === 0 || cloudPayload !== localPayload) {
+            if (matchResults.length === 0 || cloudCheck !== localCheck) {
                 isHydratingFromCloud.current = true;
-                setMatchResults(cloudResults);
+                
+                // RE-VINCULA os objetos de igreja (Hidratação)
+                const hydratedResults = cloudResults.map((r: any) => ({
+                    ...r,
+                    church: churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
+                }));
+
+                setMatchResults(hydratedResults);
                 setHasActiveSession(true);
-                lastCloudSyncRef.current = JSON.stringify(cloudResults.map((r: any) => ({
+                lastCloudSyncRef.current = JSON.stringify(hydratedResults.map((r: any) => ({
                     id: r.transaction.id,
                     status: r.status,
-                    contributorId: r.contributor?.id,
-                    churchId: r.church?.id || r._churchId
+                    churchId: r.church?.id || r._churchId,
+                    contributorId: r.contributor?.id
                 })));
+                
                 setTimeout(() => { isHydratingFromCloud.current = false; }, 500);
             }
         }
-    }, [savedReports, effectiveUserId, activeReportId]);
+    }, [savedReports, effectiveUserId, activeReportId, churches]);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
