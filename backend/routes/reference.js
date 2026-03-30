@@ -91,25 +91,23 @@ export default () => {
 
                 if (isActualOwner) {
                     console.log(`[Reference API] [7a] Buscando como Owner...`);
-                    const { data: ownerReports, error: ownerReportsError } = await supabase
-                        .from('saved_reports')
-                        .select('*')
+                    const { data: ownerReports, error: ownerReportsError } = await (supabase.from('saved_reports') as any)
+                        .select('id, user_id, church_id, name, created_at, record_count')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
                     
                     if (ownerReportsError) console.error(`[Reference API] [!] Erro OwnerReports:`, ownerReportsError.message);
                     reports = ownerReports || [];
+                    console.log(`[Reference API] [8] Bruto (Owner): ${reports.length}`);
                 } else {
                     console.log(`[Reference API] [7b] Buscando como Membro...`);
-                    const { data: ownerReports, error: ownerReportsError } = await supabase
-                        .from('saved_reports')
-                        .select('*')
+                    const { data: ownerReports, error: ownerReportsError } = await (supabase.from('saved_reports') as any)
+                        .select('id, user_id, church_id, name, created_at, record_count')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
                     
-                    const { data: memberReports, error: memberReportsError } = await supabase
-                        .from('saved_reports')
-                        .select('*')
+                    const { data: memberReports, error: memberReportsError } = await (supabase.from('saved_reports') as any)
+                        .select('id, user_id, church_id, name, created_at, record_count')
                         .eq('user_id', req.user.id)
                         .order('created_at', { ascending: false });
                     
@@ -117,8 +115,7 @@ export default () => {
                     if (memberReportsError) console.error(`[Reference API] [!] Erro MemberReports:`, memberReportsError.message);
                     
                     const rawReports = [...(ownerReports || []), ...(memberReports || [])];
-                    console.log(`[Reference API] [8] Bruto: ${rawReports.length}`);
-
+                    
                     // Une os resultados sem duplicatas
                     const uniqueReports = [];
                     const seenIds = new Set();
@@ -129,6 +126,7 @@ export default () => {
                         }
                     }
                     reports = uniqueReports;
+                    console.log(`[Reference API] [8] Bruto (Membro): ${reports.length}`);
 
                     // Filtro de Segurança por Igreja
                     let allowedChurchIds = [];
