@@ -107,6 +107,7 @@ export default () => {
                         .from('saved_reports')
                         .select('id, user_id, church_id, name, created_at, record_count, data')
                         .eq('user_id', ownerId)
+                        .not('data', 'is', null) // ✅ CORREÇÃO
                         .order('created_at', { ascending: false });
 
                     if (allowedChurchIds.length > 0) {
