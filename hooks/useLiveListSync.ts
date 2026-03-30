@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
+    subscription,
     setBankStatementFile,
     setSelectedBankIds
 }: any) => {

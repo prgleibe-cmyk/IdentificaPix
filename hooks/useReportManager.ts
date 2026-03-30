@@ -38,44 +38,23 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            // Se for membro e o ownerId ainda não carregou, esperamos
-            if (subscription.role === 'member' && !subscription.ownerId) return;
+            if (!user?.id) return;
 
-            const effectiveUserId = subscription.role === 'owner' ? user.id : subscription.ownerId;
-            if (!effectiveUserId) return;
-
+            const effectiveUserId = user.id; // Individual reports
+            let data: any[] = [];
+            
             try {
+                const { data: d, error } = await supabase
+                    .from('saved_reports')
+                    .select('*')
+                    .eq('user_id', effectiveUserId)
+                    .order('created_at', { ascending: false });
 
-                if (subscription.role === 'owner') {
-                    const { data: d, error } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', effectiveUserId)
-                        .order('created_at', { ascending: false });
+                if (error) throw error;
+                if (ignore) return;
+                data = d || [];
 
-                    if (error) throw error;
-                    if (ignore) return;
-                    data = d;
-                } else {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-
-                    const response = await fetch(`/api/reference/data/${effectiveUserId}`, {
-                        method: 'GET',
-                        cache: 'no-store',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (response.ok) {
-                        const resData = await response.json();
-                        if (ignore) return;
-                        data = resData.reports || [];
-                    } else {
-                        throw new Error("Falha ao buscar relatórios via API.");
-                    }
-                }
-
-                    if (data && !ignore) {
+                if (data && !ignore) {
                         let hydrated: SavedReport[] = data.map((r: any) => {
                             let parsedData;
                             try {
@@ -110,7 +89,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
+    }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds]);
 
     /**
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
@@ -182,18 +161,18 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!user) return;
-        const effectiveUserId = subscription.ownerId || user.id;
+        if(!user?.id) return;
+        const effectiveUserId = user.id;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
-    }, [user, showToast]);
+    }, [user?.id, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user || !reportId) return;
+        if (!user?.id || !reportId) return;
         
-        const effectiveUserId = subscription.ownerId || user.id;
+        const effectiveUserId = user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
@@ -246,8 +225,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
-        if (!savingReportState || !user) return null;
-        const effectiveUserId = subscription.ownerId || user.id;
+        if (!savingReportState || !user?.id) return null;
+        const effectiveUserId = user.id;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');

@@ -73,48 +73,15 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
             }
 
-            // Buscar relatórios salvos
-            let reportsQuery = supabase
+            // Buscar relatórios salvos (Individual - Apenas do usuário logado)
+            const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
                 .select('*')
-                .eq('user_id', ownerId)
+                .eq('user_id', req.user.id)
                 .order('created_at', { ascending: false });
 
-            // Se for membro, filtra os relatórios das suas congregações ou globais
-            if (profile?.role === 'member') {
-                let congregationIds = [];
-                const congregationRaw = profile.congregation;
-                const permissions = profile.permissions || {};
-
-                // Tenta ler do JSON de permissões primeiro (novo padrão)
-                if (permissions && Array.isArray(permissions.congregationIds)) {
-                    congregationIds = permissions.congregationIds;
-                } 
-                // Fallback para a coluna congregation (pode ser UUID único ou array ou string separada por vírgula)
-                else if (Array.isArray(congregationRaw)) {
-                    congregationIds = congregationRaw;
-                } else if (typeof congregationRaw === 'string' && congregationRaw.length > 0) {
-                    if (congregationRaw.includes(',')) {
-                        congregationIds = congregationRaw.split(',').map(id => id.trim()).filter(id => !!id);
-                    } else {
-                        congregationIds = [congregationRaw];
-                    }
-                }
-
-                if (congregationIds.length > 0) {
-                    console.log(`[Reference API] Filtrando relatórios para as congregações: ${congregationIds.join(', ')}`);
-                    // Permite ver relatórios das suas igrejas OU relatórios globais (church_id is null)
-                    reportsQuery = reportsQuery.or(`church_id.in.(${congregationIds.join(',')}),church_id.is.null`);
-                } else {
-                    // Se não tem igreja vinculada, vê apenas os globais
-                    reportsQuery = reportsQuery.is('church_id', null);
-                }
-            }
-
-            const { data: reports, error: reportsError } = await reportsQuery;
-
             if (reportsError) {
-                console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
+                console.error(`[Reference API] Erro ao buscar relatórios para usuário ${req.user.id}:`, reportsError.message);
             }
 
             console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);

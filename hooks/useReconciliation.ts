@@ -187,9 +187,9 @@ export const useReconciliation = ({
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
+        subscription,
         setBankStatementFile,
-        setSelectedBankIds,
-        showToast
+        setSelectedBankIds
     });
 
     const findMatchResult = useCallback((txId: string) => {
