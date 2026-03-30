@@ -26,6 +26,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
     const lastSavedPayloadRef = useRef<string>('');
+    const fetchRequestIdRef = useRef(0);
 
     useEffect(() => {
         let ignore = false;
@@ -35,6 +36,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
+            const requestId = ++fetchRequestIdRef.current;
             if (!user?.id || !subscription?.ownerId) return;
 
             const apiOwnerId = subscription.ownerId;
@@ -50,10 +52,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         .order('created_at', { ascending: false });
 
                     if (error) throw error;
+                    if (requestId !== fetchRequestIdRef.current) return;
                     if (ignore) return;
                     data = d || [];
                 } else {
                     const { data: { session } } = await supabase.auth.getSession();
+                    if (requestId !== fetchRequestIdRef.current) return;
                     const token = session?.access_token;
 
                     const response = await fetch(`/api/reference/data/${apiOwnerId}`, {
@@ -64,6 +68,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
                     if (response.ok) {
                         const resData = await response.json();
+                        if (requestId !== fetchRequestIdRef.current) return;
                         if (ignore) return;
                         data = resData.reports || [];
                     } else {
@@ -71,7 +76,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     }
                 }
 
-                if (data && !ignore) {
+                if (data && !ignore && requestId === fetchRequestIdRef.current) {
                     let hydrated: SavedReport[] = data.map((r: any) => {
                         let parsedData;
                         try {
