@@ -55,8 +55,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 try {
                     const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
+                    const ownerId = subscription.ownerId || user.id;
 
-                    const response = await fetch(`/api/reference/data/${user.id}`, {
+                    const response = await fetch(`/api/reference/data/${ownerId}`, {
                         method: 'GET',
                         cache: 'no-store',
                         headers: {
@@ -103,7 +104,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
 
     // ✅ dependências corrigidas (cirúrgico)
-    }, [user?.id, subscription.role]);
+    }, [user?.id, subscription?.role, subscription?.ownerId]);
 
     useEffect(() => {
         let ignore = false;

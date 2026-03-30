@@ -40,19 +40,39 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const fetchReports = async () => {
             if (!user?.id) return;
 
-            const effectiveUserId = user.id; // Individual reports
+            // Para a API, precisamos do ownerId para passar na validação de permissão
+            const apiOwnerId = subscription?.ownerId || user.id;
             let data: any[] = [];
             
             try {
-                const { data: d, error } = await supabase
-                    .from('saved_reports')
-                    .select('*')
-                    .eq('user_id', effectiveUserId)
-                    .order('created_at', { ascending: false });
+                if (subscription?.role === 'owner') {
+                    const { data: d, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false });
 
-                if (error) throw error;
-                if (ignore) return;
-                data = d || [];
+                    if (error) throw error;
+                    if (ignore) return;
+                    data = d || [];
+                } else {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token;
+
+                    const response = await fetch(`/api/reference/data/${apiOwnerId}`, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const resData = await response.json();
+                        if (ignore) return;
+                        data = resData.reports || [];
+                    } else {
+                        throw new Error("Falha ao buscar relatórios via API.");
+                    }
+                }
 
                 if (data && !ignore) {
                         let hydrated: SavedReport[] = data.map((r: any) => {
