@@ -24,7 +24,7 @@ export default () => {
     };
 
     router.get('/data/:ownerId', async (req, res) => {
-        const { ownerId } = req.params;
+        const ownerId = req.params.ownerId?.trim();
         const supabase = getSupabaseAdmin();
 
         if (!supabase) {
@@ -32,6 +32,13 @@ export default () => {
         }
 
         try {
+            // Debug: Contagem total na tabela para verificar conectividade e RLS bypass
+            const { count: totalCount, error: countError } = await supabase
+                .from('saved_reports')
+                .select('*', { count: 'exact', head: true });
+            
+            console.log(`[Reference API] Debug Tabela: Total de relatórios na tabela (head select): ${totalCount}, Erro: ${countError?.message || 'Nenhum'}`);
+
             // Validação: O usuário logado deve ser o ownerId ou ter owner_id igual ao ownerId
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
@@ -82,26 +89,41 @@ export default () => {
 
                 if (isActualOwner) {
                     // Owner/Boss vê tudo o que ele criou
-                    const { data: ownerReports } = await supabase
-                        .from('saved_reports')
-                        .select('*')
-                        .eq('user_id', ownerId)
-                        .order('created_at', { ascending: false });
-                    reports = ownerReports || [];
-                } else {
-                    // Não é o dono (Membro/Secundário): Busca relatórios do Owner (compartilhados) + seus próprios
-                    const { data: ownerReports } = await supabase
+                    const { data: ownerReports, error: ownerReportsError } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
                     
-                    const { data: memberReports } = await supabase
+                    if (ownerReportsError) {
+                        console.error(`[Reference API] Erro ao buscar relatórios do owner ${ownerId}:`, ownerReportsError.message);
+                    }
+                    reports = ownerReports || [];
+                } else {
+                    // Não é o dono (Membro/Secundário): Busca relatórios do Owner (compartilhados) + seus próprios
+                    console.log(`[Reference API] Buscando relatórios do owner ${ownerId} para o usuário ${req.user.id}`);
+                    const { data: ownerReports, error: ownerReportsError } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', ownerId)
+                        .order('created_at', { ascending: false });
+                    
+                    if (ownerReportsError) {
+                        console.error(`[Reference API] Erro ao buscar relatórios do owner ${ownerId}:`, ownerReportsError.message);
+                    }
+                    
+                    const { data: memberReports, error: memberReportsError } = await supabase
                         .from('saved_reports')
                         .select('*')
                         .eq('user_id', req.user.id)
                         .order('created_at', { ascending: false });
                     
+                    if (memberReportsError) {
+                        console.error(`[Reference API] Erro ao buscar relatórios do membro ${req.user.id}:`, memberReportsError.message);
+                    }
+                    
+                    console.log(`[Reference API] Encontrados ${ownerReports?.length || 0} relatórios do owner e ${memberReports?.length || 0} relatórios do membro.`);
+
                     // Une os resultados sem duplicatas
                     const allReports = [...(ownerReports || []), ...(memberReports || [])];
                     const uniqueReports = [];
@@ -122,15 +144,29 @@ export default () => {
                         const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
                         if (Array.isArray(perms.congregationIds)) {
                             allowedChurchIds = perms.congregationIds;
+                        } else if (profile?.congregation) {
+                            // Fallback para a coluna congregation se congregationIds não estiver no JSON
+                            allowedChurchIds = [profile.congregation];
                         }
-                    } catch (e) {}
+                    } catch (e) {
+                        console.error("[Reference API] Erro ao processar permissões:", e.message);
+                    }
+
+                    console.log(`[Reference API] allowedChurchIds para o usuário:`, allowedChurchIds);
 
                     if (allowedChurchIds.length > 0) {
-                        reports = reports.filter(r => 
-                            r.name === '[SESSÃO_ATIVA]' || 
-                            !r.church_id || 
-                            allowedChurchIds.includes(r.church_id)
-                        );
+                        const beforeFilterCount = reports.length;
+                        reports = reports.filter(r => {
+                            const isSessaoAtiva = r.name === '[SESSÃO_ATIVA]';
+                            const hasNoChurch = !r.church_id;
+                            const isAllowed = allowedChurchIds.includes(r.church_id);
+                            
+                            // Log detalhado para cada relatório se necessário (cuidado com volume)
+                            // console.log(`[Reference API] Relatório ${r.id} (${r.name}): sessaoAtiva=${isSessaoAtiva}, noChurch=${hasNoChurch}, allowed=${isAllowed}, church_id=${r.church_id}`);
+                            
+                            return isSessaoAtiva || hasNoChurch || isAllowed;
+                        });
+                        console.log(`[Reference API] Filtro de igreja aplicado: de ${beforeFilterCount} para ${reports.length} relatórios.`);
                     }
                 }
             } catch (reportsErr) {
