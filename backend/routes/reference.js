@@ -66,6 +66,22 @@ export default () => {
                 return res.status(403).json({ error: "Acesso negado." });
             }
 
+            // Buscar bancos
+            const { data: banks, error: banksError } = await supabase
+                .from('banks')
+                .select('*')
+                .eq('user_id', ownerId);
+            
+            if (banksError) console.error(`[Reference API] [!] Erro Banks:`, banksError.message);
+
+            // Buscar igrejas
+            const { data: churches, error: churchesError } = await supabase
+                .from('churches')
+                .select('*')
+                .eq('user_id', ownerId);
+
+            if (churchesError) console.error(`[Reference API] [!] Erro Churches:`, churchesError.message);
+
             // --- BUSCA DE RELATÓRIOS (Lógica Robusta e Segura) ---
             let reports = [];
             
@@ -131,20 +147,33 @@ export default () => {
 
                     if (allowedChurchIds.length > 0) {
                         const beforeFilterCount = reports.length;
+                        const filteredOut = [];
                         reports = reports.filter(r => {
                             const isSessaoAtiva = r.name === '[SESSÃO_ATIVA]';
                             const hasNoChurch = !r.church_id;
-                            const isAllowed = allowedChurchIds.includes(String(r.church_id));
+                            const rChurchId = String(r.church_id || '');
+                            const isAllowed = allowedChurchIds.includes(rChurchId);
+                            
+                            if (!isSessaoAtiva && !hasNoChurch && !isAllowed) {
+                                filteredOut.push({ id: r.id, name: r.name, church_id: r.church_id });
+                            }
+                            
                             return isSessaoAtiva || hasNoChurch || isAllowed;
                         });
                         console.log(`[Reference API] [10] Filtro Igreja: ${beforeFilterCount} -> ${reports.length}`);
+                        if (reports.length > 0) {
+                            console.log(`[Reference API] [11a] Relatórios permitidos:`, reports.map(r => ({ id: r.id, name: r.name, church_id: r.church_id })));
+                        }
+                        if (filteredOut.length > 0) {
+                            console.log(`[Reference API] [11b] Relatórios filtrados (sem permissão):`, filteredOut);
+                        }
                     }
                 }
             } catch (reportsErr) {
                 console.error("[Reference API] [!] Erro Crítico Reports:", reportsErr);
             }
 
-            console.log(`[Reference API] Finalizado: ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports.length} relatórios.`);
+            console.log(`[Reference API] [12] Finalizado: ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports.length} relatórios.`);
 
             res.json({ 
                 banks: banks || [], 
