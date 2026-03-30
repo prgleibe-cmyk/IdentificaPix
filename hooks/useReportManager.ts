@@ -113,55 +113,21 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     }, [user, subscription.ownerId, subscription.role, subscription.congregationIds]);
 
     /**
-     * 🔴 TEMPO REAL (AJUSTE CIRÚRGICO)
+     * 🔴 TEMPO REAL (APENAS ASSINATURA)
      */
     useEffect(() => {
-        if (!user) return;
-
-        const fetchInitialData = async () => {
-            if (subscription.role === 'member' && !subscription.ownerId) return;
-            
-            const effectiveUserId = subscription.role === 'owner' ? user.id : subscription.ownerId;
-            if (!effectiveUserId) return;
-
-            const { data, error } = await supabase
-                .from('saved_reports')
-                .select('*')
-                .eq('user_id', effectiveUserId);
-
-            if (data) {
-                const parsed = (data || []).map((r: any) => {
-                    let parsedData;
-                    try {
-                        parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-                    } catch (e) {
-                        parsedData = { results: [], spreadsheet: null };
-                    }
-                    return {
-                        id: r.id,
-                        name: r.name,
-                        createdAt: r.created_at,
-                        recordCount: r.record_count,
-                        user_id: r.user_id,
-                        church_id: r.church_id,
-                        data: parsedData
-                    };
-                });
-                setSavedReports(parsed as any);
-            }
-
-            if (error) {
-                console.error('Erro ao carregar dados iniciais:', error);
-            }
-        };
-
-        fetchInitialData();
+        if (!user || !subscription.ownerId) return;
 
         const channel = supabase
             .channel('reports-realtime')
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'saved_reports' },
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'saved_reports',
+                    filter: `user_id=eq.${subscription.ownerId || user.id}` 
+                },
                 (payload: any) => {
                     const newRecord = payload.new;
                     const oldRecord = payload.old;
