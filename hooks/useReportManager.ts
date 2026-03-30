@@ -27,9 +27,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
     const lastSavedPayloadRef = useRef<string>('');
 
-    /**
-     * 📥 CARGA INICIAL
-     */
     useEffect(() => {
         let ignore = false;
         if (!user) {
@@ -79,12 +76,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         let parsedData;
                         try {
                             parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-                        } catch (error) {
-                            console.error("JSON corrompido detectado:", error);
-                            parsedData = {
-                                results: [],
-                                spreadsheet: null
-                            };
+                        } catch {
+                            parsedData = { results: [], spreadsheet: null };
                         }
 
                         return {
@@ -100,11 +93,20 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
                     setSavedReports(hydrated);
 
-                    // 🔥 CORREÇÃO: DEFINIR RELATÓRIO ATIVO
-                    const live = hydrated.find(r => r.id.startsWith('LIVE_SESSION'));
+                    // ✅ CORREÇÃO REAL AQUI
+                    const liveWithData = hydrated.find(r =>
+                        r.id.startsWith('LIVE_SESSION') &&
+                        r.data?.results?.length > 0
+                    );
 
-                    if (live) {
-                        setSearchFilters(prev => ({ ...prev, reportId: live.id }));
+                    const firstWithData = hydrated.find(r =>
+                        r.data?.results?.length > 0
+                    );
+
+                    if (liveWithData) {
+                        setSearchFilters(prev => ({ ...prev, reportId: liveWithData.id }));
+                    } else if (firstWithData) {
+                        setSearchFilters(prev => ({ ...prev, reportId: firstWithData.id }));
                     } else if (hydrated.length > 0) {
                         setSearchFilters(prev => ({ ...prev, reportId: hydrated[0].id }));
                     }
@@ -120,9 +122,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
     }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds]);
 
-    /**
-     * 🔴 TEMPO REAL (APENAS ASSINATURA)
-     */
     useEffect(() => {
         if (!user || !subscription.ownerId) return;
 
@@ -148,12 +147,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         let parsedData;
                         try {
                             parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
-                        } catch (error) {
-                            console.error("JSON corrompido detectado:", error);
-                            parsedData = {
-                                results: [],
-                                spreadsheet: null
-                            };
+                        } catch {
+                            parsedData = { results: [], spreadsheet: null };
                         }
 
                         const parsed: SavedReport = {
@@ -203,15 +198,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-        if ((!results || (results || []).length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
+        if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
-        const currentPayload = JSON.stringify({ r: (results || []).length, s: !!spreadsheetData });
+        const currentPayload = JSON.stringify({ r: results.length, s: !!spreadsheetData });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
         const mergedData = {
             ...currentData,
-            results: (results && results.length > 0) ? results : currentData.results,
+            results: results.length > 0 ? results : currentData.results,
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
 
