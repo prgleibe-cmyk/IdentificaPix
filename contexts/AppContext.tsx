@@ -22,7 +22,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
-    const viewRequestIdRef = useRef(0);
 
     const effectiveUser = useMemo(() => {
         if (!user) return null;
@@ -138,8 +137,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * 👁️ VISUALIZADOR DE RELATÓRIOS
      */
     const viewSavedReport = useCallback(async (reportId: string) => {
-        const requestId = ++viewRequestIdRef.current;
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         const report = reportManager.savedReports.find(r => r.id === reportId);
         if (!report) return;
 
@@ -150,7 +147,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             if (!results && !spreadsheet) {
                 const { data: { user: currentUser } } = await supabase.auth.getUser();
-                if (requestId !== viewRequestIdRef.current) return;
                 const ownerId = subscription.ownerId || currentUser?.id;
 
                 if (subscription.role === 'owner') {
@@ -161,7 +157,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         .single();
 
                     if (error) throw error;
-                    if (requestId !== viewRequestIdRef.current) return;
                     if (!data) throw new Error('Report not found');
 
                     const rawData = data.data;
@@ -171,7 +166,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     spreadsheet = parsedData?.spreadsheet;
                 } else {
                     const { data: { session } } = await supabase.auth.getSession();
-                    if (requestId !== viewRequestIdRef.current) return;
                     const token = session?.access_token;
 
                     const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
@@ -180,7 +174,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                     if (response.ok) {
                         const resData = await response.json();
-                        if (requestId !== viewRequestIdRef.current) return;
                         const rawData = resData.data;
                         const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
 
@@ -192,7 +185,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
 
-            if (requestId !== viewRequestIdRef.current) return;
             if ((results && results.length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
@@ -206,13 +198,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                             PLACEHOLDER_CHURCH
                     }));
 
-                    if (isSecondary) {
-                        if (!subscription.congregationIds || subscription.congregationIds.length === 0) {
-                            return;
-                        }
-
+                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
                         hydrated = hydrated.filter((r: any) =>
-                            (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
+                            subscription.congregationIds.includes(r.church?.id || r._churchId)
                         );
                     }
 
@@ -228,14 +216,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
         } catch (error: any) {
-            if (requestId === viewRequestIdRef.current) {
-                console.error("[AppContext] Erro ao abrir relatório:", error);
-                showToast("Erro ao carregar os dados do relatório.", "error");
-            }
+            console.error("[AppContext] Erro ao abrir relatório:", error);
+            showToast("Erro ao carregar os dados do relatório.", "error");
         } finally {
-            if (requestId === viewRequestIdRef.current) {
-                setIsLoading(false);
-            }
+            setIsLoading(false);
         }
     }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 

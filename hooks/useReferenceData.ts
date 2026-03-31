@@ -35,16 +35,17 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         if (!user?.id) {
             lastOwnerIdRef.current = null;
+            hasFetchedRef.current = false;
             return;
         }
-
-        if (hasFetchedRef.current) return;
-        hasFetchedRef.current = true;
 
         const ownerId = subscription.ownerId || user.id;
 
         // ✅ evita múltiplas execuções desnecessárias
-        if (lastOwnerIdRef.current === ownerId) return;
+        if (lastOwnerIdRef.current === ownerId && hasFetchedRef.current) return;
+        
+        lastOwnerIdRef.current = ownerId;
+        hasFetchedRef.current = true;
 
         const syncData = async () => {
 
