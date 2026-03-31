@@ -23,21 +23,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
-    const effectiveUser = useMemo(() => {
-        if (!user) return null;
-        return { ...user, id: subscription.ownerId || user.id };
-    }, [user, subscription.ownerId]);
-
     const modalController = useModalController();
-    const referenceData = useReferenceData(effectiveUser, showToast);
-    const reportManager = useReportManager(effectiveUser, showToast);
+    const referenceData = useReferenceData(user, showToast);
+    const reportManager = useReportManager(user, showToast);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];
     }, [referenceData.customIgnoreKeywords]);
 
     const reconciliation = useReconciliation({
-        user: effectiveUser,
+        user: user,
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
@@ -48,133 +43,148 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customIgnoreKeywords: effectiveIgnoreKeywords,
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
+        savedReports: reportManager.savedReports,
         showToast,
         setIsLoading,
         setActiveView
     });
 
     /**
-     * 🔴 AJUSTE ORIGINAL (mantido)
+     * 🔥 CORREÇÃO: Inicializa automaticamente um relatório ativo
      */
     useEffect(() => {
-        if (!user || !subscription) return;
+        if (reconciliation.activeReportId) return;
+        if (!reportManager.savedReports || reportManager.savedReports.length === 0) return;
 
-        const churches = referenceData.churches || [];
-        const reports = reportManager.savedReports || [];
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const firstValidReport = reportManager.savedReports.find(r => {
+            const data = r.data;
+            if (!data) return false;
 
+            try {
+                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                return (parsed?.results?.length > 0) || parsed?.spreadsheet;
+            } catch {
+                return false;
+            }
+        });
+
+        if (firstValidReport) {
+            reconciliation.setActiveReportId(firstValidReport.id);
+            reconciliation.setHasActiveSession(true);
+        }
+    }, [
+        reportManager.savedReports,
+        reconciliation.activeReportId
+    ]);
+
+    useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) return;
 
-        const report = reports.find(r => r.id === activeId);
-        if (!report || !report.data?.results) return;
+        const report = reportManager.savedReports.find(r => r.id === activeId);
+        if (!report) return;
 
-        let hydrated = report.data.results.map((r: any) => ({
+        const results = report.data?.results || [];
+        
+        let hydrated = results.map((r: any) => ({
             ...r,
             church:
-                churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
                 r.church ||
                 PLACEHOLDER_CHURCH
         }));
 
-        console.log('[DEBUG] isSecondary:', isSecondary);
-        console.log('[DEBUG] congregationIds:', subscription.congregationIds);
-        console.log('[DEBUG] hydrated antes filtro:', hydrated.length);
-
-        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && (subscription.congregationIds || []).length > 0) {
             hydrated = hydrated.filter((r: any) =>
-                subscription.congregationIds.includes(r.church?.id || r._churchId)
+                (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
             );
         }
-
-        console.log('[DEBUG] hydrated depois filtro:', hydrated.length);
 
         reconciliation.setMatchResults(hydrated);
     }, [
         reportManager.savedReports,
         reconciliation.activeReportId,
         referenceData.churches,
-        subscription.role,
+        subscription.ownerId,
         subscription.congregationIds,
         user?.id
     ]);
 
-    /**
-     * 🔴 AJUSTE CIRÚRGICO (ADICIONADO)
-     * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
-     */
-    useEffect(() => {
-        if (!user || !subscription) return;
-        if (!reconciliation.activeReportId) return;
-
-        const reports = reportManager.savedReports || [];
-        const report = reports.find(
-            r => r.id === reconciliation.activeReportId
-        );
-
-        if (!report || !report.data?.results) return;
-
-        reconciliation.setMatchResults([...report.data.results]);
-    }, [reportManager.savedReports, user?.id, subscription]);
-
-    /**
-     * 👁️ VISUALIZADOR DE RELATÓRIOS
-     */
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
         if (!report) return;
 
         setIsLoading(true);
         try {
-            let results = report.data?.results;
-            let spreadsheet = report.data?.spreadsheet;
+            let results;
+            let spreadsheet;
 
-            if (!results && !spreadsheet) {
-                const { data: { user: currentUser } } = await supabase.auth.getUser();
-                const ownerId = subscription.ownerId || currentUser?.id;
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            const ownerId = subscription.ownerId || currentUser?.id;
 
-                if (subscription.role === 'owner') {
-                    const { data, error } = await supabase
-                        .from('saved_reports')
-                        .select('data')
-                        .eq('id', reportId)
-                        .single();
+            const isOwner = subscription.ownerId === user?.id;
 
-                    if (error) throw error;
-                    if (!data) throw new Error('Report not found');
+            if (isOwner) {
+                const { data, error } = await (supabase.from('saved_reports') as any)
+                    .select('data')
+                    .eq('id', reportId)
+                    .single();
 
-                    const rawData = data.data;
-                    const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                if (error) throw error;
+                if (!data) throw new Error('Report not found');
+
+                const rawData = data.data;
+                let parsedData;
+                try {
+                    parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                } catch (error) {
+                    console.error("JSON corrompido detectado:", error);
+                    parsedData = {
+                        results: [],
+                        spreadsheet: null
+                    };
+                }
+
+                results = parsedData?.results;
+                spreadsheet = parsedData?.spreadsheet;
+            } else {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
+                const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const resData = await response.json();
+                    const rawData = resData.data;
+                    let parsedData;
+                    try {
+                        parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                    } catch (error) {
+                        console.error("JSON corrompido detectado:", error);
+                        parsedData = {
+                            results: [],
+                            spreadsheet: null
+                        };
+                    }
 
                     results = parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;
                 } else {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-
-                    const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (response.ok) {
-                        const resData = await response.json();
-                        const rawData = resData.data;
-                        const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-
-                        results = parsedData?.results;
-                        spreadsheet = parsedData?.spreadsheet;
-                    } else {
-                        throw new Error("Falha ao buscar detalhes do relatório via API.");
-                    }
+                    throw new Error("Falha ao buscar detalhes do relatório via API.");
                 }
             }
 
-            if ((results && results.length > 0) || spreadsheet) {
+            if (((results || []).length > 0) || spreadsheet) {
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
-                if (results && results.length > 0) {
-                    let hydrated = results.map((r: any) => ({
+                if ((results || []).length > 0) {
+                    let hydrated = (results || []).map((r: any) => ({
                         ...r,
                         church:
                             referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -182,14 +192,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                             PLACEHOLDER_CHURCH
                     }));
 
-                    if (subscription.role === 'member' && subscription.congregationIds?.length > 0) {
-                        hydrated = hydrated.filter((r: any) =>
-                            subscription.congregationIds.includes(r.church?.id || r._churchId)
+                    const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+                    if (isSecondary && (subscription.congregationIds || []).length > 0) {
+                        hydrated = (hydrated || []).filter((r: any) =>
+                            (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
                         );
                     }
 
                     reconciliation.setMatchResults(hydrated);
-                    setActiveView('reports');
+                    if (false) {
+                        setActiveView('reports');
+                    }
                 } else if (spreadsheet) {
                     setActiveView('smart_analysis');
                 }
@@ -237,7 +250,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const { confirmDeletion } = useDataDeletion({
-        user: effectiveUser,
+        user: user,
         modalController,
         referenceData,
         reportManager,
@@ -260,7 +273,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!referenceData.banks) return [];
         let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.name }));
 
-        if (subscription.role !== 'owner') {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
             const allowedIds = subscription.bankIds || [];
             if (allowedIds.length > 0) {
                 list = list.filter((b: any) => allowedIds.includes(b.id));
@@ -268,7 +282,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
-    }, [referenceData.banks, subscription]);
+    }, [referenceData.banks, subscription, user?.id]);
 
     const activeSpreadsheetData = useMemo(() => {
         if (!reconciliation.activeReportId) return undefined;

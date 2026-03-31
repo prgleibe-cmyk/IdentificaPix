@@ -1,287 +1,349 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { supabase } from '../services/supabaseClient';
-import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
-import { usePersistentState } from './usePersistentState';
-import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { modelService } from '../services/modelService';
+import { supabase } from '../services/supabaseClient';
+import { usePersistentState } from './usePersistentState';
+import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 
-const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
+const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+    dateRange: { start: null, end: null },
+    valueFilter: { operator: 'any', value1: null, value2: null },
+    transactionType: 'all',
+    reconciliationStatus: 'all',
+    filterBy: 'none',
+    churchIds: [],
+    contributorName: '',
+    reportId: null,
+};
 
-export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
-    const { subscription, systemSettings } = useAuth();
+const MAX_REPORTS_PER_USER = 60;
+
+export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
+    const { subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
+    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
+    const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
+    const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 
-    const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
-    const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
-    const [fileModels, setFileModels] = useState<FileModel[]>([]);
-    const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
-    const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
-    
-    const customIgnoreKeywords = useMemo(() => systemSettings?.ignoredKeywords || [], [systemSettings?.ignoredKeywords]);
-    const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
-    const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
-
-    const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
-    const [editingBank, setEditingBank] = useState<Bank | null>(null);
-    const [editingChurch, setEditingChurch] = useState<Church | null>(null);
-
-    // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
-    const lastOwnerIdRef = useRef<string | null>(null);
-    const hasFetchedRef = useRef(false);
+    const lastSavedPayloadRef = useRef<string>('');
 
     useEffect(() => {
         let ignore = false;
-
-        if (!user?.id) {
-            lastOwnerIdRef.current = null;
-            hasFetchedRef.current = false;
+        if (!user) {
+            setSavedReports([]);
             return;
         }
 
-        const ownerId = subscription.ownerId || user.id;
+        const fetchReports = async () => {
+            if (!user?.id || !subscription?.ownerId) return;
 
-        // ✅ evita múltiplas execuções desnecessárias
-        if (lastOwnerIdRef.current === ownerId && hasFetchedRef.current) return;
-        
-        lastOwnerIdRef.current = ownerId;
-        hasFetchedRef.current = true;
+            const apiOwnerId = subscription.ownerId;
+            const isOwner = subscription.ownerId === user.id;
+            let data: any[] = [];
+            
+            try {
+                if (isOwner) {
+                    const { data: d, error } = await supabase
+                        .from('saved_reports')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false });
 
-        const syncData = async () => {
-
-            if (subscription.role === 'owner') {
-                let bankQuery = supabase.from('banks').select('*').eq('user_id', ownerId);
-                const { data: b } = await bankQuery;
-                if (b && !ignore) setBanks(b);
-                
-                let query = supabase.from('churches').select('*').eq('user_id', ownerId);
-                const { data: c } = await query;
-                if (c && !ignore) setChurches(c);
-
-            } else {
-                try {
+                    if (error) throw error;
+                    if (ignore) return;
+                    data = d || [];
+                } else {
                     const { data: { session } } = await supabase.auth.getSession();
                     const token = session?.access_token;
 
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
+                    const response = await fetch(`/api/reference/data/${apiOwnerId}`, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: { 'Authorization': `Bearer ${token}` }
                     });
 
                     if (response.ok) {
-                        const data = await response.json();
+                        const resData = await response.json();
                         if (ignore) return;
-                        
-                        let filteredBanks = data.banks || [];
-                        let filteredChurches = data.churches || [];
-                        
-                        const allowedBankIds = subscription.bankIds || [];
-                        const allowedChurchIds = subscription.congregationIds || [];
-                        
-                        if (allowedBankIds.length > 0) {
-                            filteredBanks = filteredBanks.filter((b: any) => allowedBankIds.includes(b.id));
-                        }
-                        if (allowedChurchIds.length > 0) {
-                            filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
-                        }
-                        
-                        if (!ignore) {
-                            setBanks(filteredBanks);
-                            setChurches(filteredChurches);
-                        }
-                    }
-
-                } catch (error) {
-                    if (!ignore) {
-                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                        data = resData.reports || [];
+                    } else {
+                        throw new Error("Falha ao buscar relatórios via API.");
                     }
                 }
-            }
 
-            // ✅ marca como executado
-            lastOwnerIdRef.current = ownerId;
+                if (data && !ignore) {
+                    let hydrated: SavedReport[] = data.map((r: any) => {
+                        let parsedData;
+                        try {
+                            parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                        } catch {
+                            parsedData = { results: [], spreadsheet: null };
+                        }
+
+                        return {
+                            id: r.id,
+                            name: r.name,
+                            createdAt: r.created_at,
+                            recordCount: r.record_count,
+                            user_id: r.user_id,
+                            church_id: r.church_id,
+                            data: parsedData
+                        };
+                    });
+
+                    setSavedReports(hydrated);
+
+                    // ✅ CORREÇÃO REAL AQUI
+                    const liveWithData = hydrated.find(r =>
+                        r.id.startsWith('LIVE_SESSION') &&
+                        r.data?.results?.length > 0
+                    );
+
+                    const firstWithData = hydrated.find(r =>
+                        r.data?.results?.length > 0
+                    );
+
+                    if (liveWithData) {
+                        setSearchFilters(prev => ({ ...prev, reportId: liveWithData.id }));
+                    } else if (firstWithData) {
+                        setSearchFilters(prev => ({ ...prev, reportId: firstWithData.id }));
+                    } else if (hydrated.length > 0) {
+                        setSearchFilters(prev => ({ ...prev, reportId: hydrated[0].id }));
+                    }
+                }
+            } catch (err) {
+                if (!ignore) {
+                    console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
+                }
+            }
         };
 
-        syncData();
-
+        fetchReports();
         return () => { ignore = true; };
-
-    // ✅ dependências corrigidas (cirúrgico)
-    }, [user?.id, subscription.ownerId, subscription.role]);
+    }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds]);
 
     useEffect(() => {
-        let ignore = false;
-        if (!user) return;
-        const fetchAssociations = async () => {
-            const ownerId = subscription.ownerId || user.id;
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', ownerId) as { data: any[] | null };
-            if (data && !ignore) {
-                setLearnedAssociations(data.map((d: any) => ({
-                    id: d.id, 
-                    normalizedDescription: d.normalized_description,
-                    contributorNormalizedName: d.contributor_normalized_name,
-                    churchId: d.church_id, 
-                    bankId: 'global',
-                    user_id: d.user_id
-                })));
-            }
+        if (!user || !subscription.ownerId) return;
+
+        const channel = supabase
+            .channel('reports-realtime')
+            .on(
+                'postgres_changes',
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'saved_reports',
+                    filter: `user_id=eq.${subscription.ownerId || user.id}` 
+                },
+                (payload: any) => {
+                    const newRecord = payload.new;
+                    const oldRecord = payload.old;
+
+                    setSavedReports(prev => {
+                        if (payload.eventType === 'DELETE') {
+                            return (prev || []).filter(r => r.id !== oldRecord.id);
+                        }
+
+                        let parsedData;
+                        try {
+                            parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
+                        } catch {
+                            parsedData = { results: [], spreadsheet: null };
+                        }
+
+                        const parsed: SavedReport = {
+                            id: newRecord.id,
+                            name: newRecord.name,
+                            createdAt: newRecord.created_at,
+                            recordCount: newRecord.record_count,
+                            user_id: newRecord.user_id,
+                            church_id: newRecord.church_id,
+                            data: parsedData
+                        };
+
+                        const exists = prev.find(r => r.id === parsed.id);
+
+                        if (exists) {
+                            return prev.map(r => r.id === parsed.id ? parsed : r);
+                        } else {
+                            return [parsed, ...prev];
+                        }
+                    });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
         };
-        fetchAssociations();
-        return () => { ignore = true; };
-    }, [user]);
-
-    const learnAssociation = useCallback(async (matchResult: MatchResult) => {
-        if (!user || !matchResult.church) return;
-
-        const contributorObj = matchResult.contributor;
-        const contributorName = contributorObj?.cleanedName || contributorObj?.name || matchResult.transaction.cleanedDescription || matchResult.transaction.description;
-        
-        const normalizedDesc = strictNormalize(matchResult.transaction.description);
-        
-        const ownerId = subscription.ownerId || user.id;
-        const newAssociation: LearnedAssociation = { 
-            normalizedDescription: normalizedDesc, 
-            contributorNormalizedName: contributorName, 
-            churchId: matchResult.church.id, 
-            bankId: 'global',
-            user_id: ownerId 
-        };
-
-        setLearnedAssociations(prev => {
-            const filtered = prev.filter(la => la.normalizedDescription !== normalizedDesc);
-            return [newAssociation, ...filtered];
-        });
-
-        try {
-            const { data: existing } = await supabase
-                .from('learned_associations')
-                .select('id')
-                .eq('normalized_description', normalizedDesc)
-                .eq('user_id', ownerId)
-                .maybeSingle() as { data: any | null };
-
-            if (existing) {
-                await (supabase.from('learned_associations') as any).update({ 
-                    contributor_normalized_name: contributorName, 
-                    church_id: matchResult.church.id
-                }).eq('id', existing.id);
-            } else {
-                await (supabase.from('learned_associations') as any).insert({ 
-                    user_id: ownerId, 
-                    normalized_description: normalizedDesc, 
-                    contributor_normalized_name: contributorName, 
-                    church_id: matchResult.church.id
-                });
-            }
-        } catch (err) {
-            console.error("Erro ao persistir aprendizado:", err);
-        }
-    }, [user]);
-
-    const fetchModels = useCallback(async () => {
-        if (!user) return;
-        const ownerId = subscription.ownerId || user.id;
-        try {
-            const models = await modelService.getUserModels(ownerId);
-            setFileModels(models);
-        } catch (e) { console.error(e); }
     }, [user, subscription.ownerId]);
 
-    useEffect(() => { fetchModels(); }, [fetchModels]);
+    const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
+    const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
+    const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
-    const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
-    const closeEditBank = useCallback(() => setEditingBank(null), []);
+    const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
+        if(!user?.id) return;
+        const effectiveUserId = subscription.ownerId || user.id;
+        setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
+        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
+        if (error) showToast('Erro ao renomear relatório.', 'error');
+        else showToast('Relatório renomeado.', 'success');
+    }, [user?.id, subscription.ownerId, showToast]);
 
-    const updateBank = useCallback(async (bankId: string, name: string) => {
-        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
-        closeEditBank();
-        await (supabase.from('banks') as any).update({ name }).eq('id', bankId);
-        showToast('Banco atualizado.', 'success');
-    }, [closeEditBank, setBanks, showToast]);
+    const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
+        if (!user?.id || !reportId) return;
+        
+        const effectiveUserId = subscription.ownerId || user.id;
+        const existingReport = savedReports.find(r => r.id === reportId);
+        const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-    const addBank = useCallback(async (name: string): Promise<boolean> => {
-        if(!user) return false;
-        const ownerId = subscription.ownerId || user.id;
-        if (banks.length >= (subscription.maxBanks || 1)) {
-            showToast(`Limite atingido.`, 'error');
-            return false;
+        if ((!results || results.length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
+
+        const currentPayload = JSON.stringify({ r: results.length, s: !!spreadsheetData });
+        if (lastSavedPayloadRef.current === currentPayload + reportId) return;
+        lastSavedPayloadRef.current = currentPayload + reportId;
+
+        const mergedData = {
+            ...currentData,
+            results: results.length > 0 ? results : currentData.results,
+            spreadsheet: spreadsheetData || currentData.spreadsheet
+        };
+
+        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
+
+        setSavedReports(prev => prev.map(r => r.id === reportId ? {
+            ...r,
+            recordCount,
+            data: mergedData
+        } : r));
+
+        const { error } = await (supabase
+            .from('saved_reports') as any)
+            .update({ 
+                data: mergedData as any,
+                record_count: recordCount 
+            })
+            .eq('id', reportId)
+            .eq('user_id', effectiveUserId);
+
+        if (error) {
+            console.error("[AutoSave] Erro ao persistir no Supabase:", error);
+            showToast("Falha ao salvar alterações no servidor.", "error");
+        } else {
+            showToast("Alterações salvas no servidor.", "success");
         }
-        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: ownerId }]).select();
-        if (data) {
-            setBanks(prev => [...prev, data[0]]);
-            showToast('Banco adicionado.', 'success');
-            return true;
+    }, [user, subscription.ownerId, showToast, savedReports]);
+
+    const saveFilteredReport = useCallback((results: MatchResult[]) => {
+        setSavingReportState({
+            type: 'search',
+            results: results,
+            groupName: 'Filtrado'
+        });
+    }, []);
+    
+    const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
+    const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
+    
+    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
+        if (!savingReportState || !user?.id) return null;
+        
+        const effectiveUserId = subscription.ownerId || user.id;
+        
+        if (savedReports.length >= MAX_REPORTS_PER_USER) {
+            showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
+            closeSaveReportModal();
+            return null;
         }
-        return false;
-    }, [user, banks, subscription.maxBanks, subscription.ownerId, setBanks, showToast]);
 
-    const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
-    const closeEditChurch = useCallback(() => setEditingChurch(null), []);
+        const isSpreadsheet = savingReportState.type === 'spreadsheet';
+        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
+            ? savingReportState.spreadsheetData.rows.length 
+            : savingReportState.results.length;
 
-    const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
-        setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
-        closeEditChurch();
-        await (supabase.from('churches') as any).update(formData).eq('id', churchId);
-        showToast('Igreja atualizada.', 'success');
-    }, [closeEditChurch, setChurches, showToast]);
-
-    const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
-        if(!user) return false;
-        const ownerId = subscription.ownerId || user.id;
-        if (churches.length >= (subscription.maxChurches || 1)) {
-            showToast(`Limite atingido.`, 'error');
-            return false;
+        const newReportId = `rep-${Date.now()}`;
+        const results = savingReportState.results || [];
+        
+        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
+        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
+        
+        let churchId = null;
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
+            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
+        } else if (allSameChurch && firstChurchId) {
+            churchId = firstChurchId;
+        } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
+            churchId = searchFilters.churchIds[0];
         }
-        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: ownerId }]).select();
-        if (data) {
-            setChurches(prev => [...prev, data[0]]);
-            showToast('Igreja adicionada.', 'success');
-            return true;
+
+        const newReport: SavedReport = {
+            id: newReportId,
+            name: name,
+            createdAt: new Date().toISOString(),
+            recordCount: recordCount,
+            user_id: effectiveUserId,
+            church_id: churchId,
+            data: {
+                results: savingReportState.results || [],
+                sourceFiles: [],
+                bankStatementFile: null,
+                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
+            }
+        };
+
+        setSavedReports(prev => [newReport, ...prev]);
+        closeSaveReportModal();
+        
+        const { error } = await (supabase.from('saved_reports') as any).insert({
+            id: newReport.id,
+            name: newReport.name,
+            record_count: newReport.recordCount,
+            user_id: newReport.user_id,
+            church_id: newReport.church_id,
+            data: newReport.data as any
+        });
+
+        if (error) {
+            setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
+            showToast('Erro ao salvar relatório.', 'error');
+            return null;
+        } else {
+            showToast('Relatório criado!', 'success');
+            return newReportId;
         }
-        return false;
-    }, [user, churches, subscription.maxChurches, subscription.ownerId, setChurches, showToast]);
+    }, [savingReportState, user, subscription.ownerId, showToast, closeSaveReportModal, savedReports.length]);
 
-    const addContributionKeyword = useCallback((keyword: string) => {
-        const upper = keyword.trim().toUpperCase();
-        if (!contributionKeywords.includes(upper)) {
-            setContributionKeywords(prev => [...prev, upper]);
-            showToast(`Palavra "${upper}" adicionada.`, 'success');
-        }
-    }, [contributionKeywords, setContributionKeywords, showToast]);
+    const deleteOldReports = useCallback(async (dateThreshold: Date) => {
+        if (!user) return;
+        const effectiveUserId = subscription.ownerId || user.id;
+        const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
+        if (reportsToDelete.length === 0) return;
+        setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
+        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
+        showToast(`${reportsToDelete.length} itens removidos.`, "success");
+    }, [user, subscription.ownerId, savedReports, showToast]);
 
-    const removeContributionKeyword = useCallback((keyword: string) => {
-        setContributionKeywords(prev => prev.filter(k => k !== keyword));
-        showToast("Palavra removida.", "success");
-    }, [setContributionKeywords, showToast]);
-
-    const addPaymentMethod = useCallback((method: string) => {
-        const upper = method.trim().toUpperCase();
-        if (!paymentMethods.includes(upper)) {
-            setPaymentMethods(prev => [...prev, upper]);
-            showToast(`Forma "${upper}" adicionada.`, 'success');
-        }
-    }, [paymentMethods, setPaymentMethods, showToast]);
-
-    const removePaymentMethod = useCallback((method: string) => {
-        setPaymentMethods(prev => prev.filter(m => m !== method));
-        showToast("Forma removida.", "success");
-    }, [setPaymentMethods, showToast]);
+    const allHistoricalResults = useMemo(() => {
+        return savedReports
+            .filter(r => r.data && r.data.results)
+            .flatMap(report => report.data!.results);
+    }, [savedReports]);
 
     return useMemo(() => ({
-        banks, churches, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
-        customIgnoreKeywords, contributionKeywords, addContributionKeyword, removeContributionKeyword,
-        paymentMethods, addPaymentMethod, removePaymentMethod,
-        learnedAssociations, learnAssociation,
-        editingBank, openEditBank, closeEditBank, updateBank, addBank,
-        editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
-        setBanks, setChurches, setLearnedAssociations
+        savedReports, setSavedReports,
+        maxSavedReports: MAX_REPORTS_PER_USER,
+        searchFilters, setSearchFilters,
+        isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
+        savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
+        updateSavedReportName, saveFilteredReport, overwriteSavedReport,
+        deleteOldReports,
+        allHistoricalResults
     }), [
-        banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
-        customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
-        editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
-        setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
-        openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
+        savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
+        setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
+        openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
+        deleteOldReports
     ]);
 };
