@@ -23,8 +23,6 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     const { user, subscription } = useAuth();
     const { showToast } = useUI();
 
-    const effectiveOwnerId = subscription?.ownerId || user?.id;
-
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [menuPos, setMenuPos] = useState<{x: number, y: number} | null>(null);
@@ -64,7 +62,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     }, [isDragging]);
 
     const handleAppend = async (content: string, fileName: string, rawFile: File, base64?: string) => {
-        if (!user || !effectiveOwnerId) return;
+        if (!user?.id) return;
         setIsUploading(true);
         try {
             const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
@@ -123,7 +121,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     };
 
     const removeSpecificFile = async (fileToRemove: any) => {
-        if (!user || !effectiveOwnerId) return;
+        if (!user?.id) return;
         setIsUploading(true);
         setIsMenuOpen(false);
         
@@ -133,13 +131,13 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
             const remainingFiles = bankFiles.filter((f: any) => f !== fileToRemove);
             
             // 2. Limpa todos os pendentes deste banco
-            await LaunchService.clearBankLaunch(effectiveOwnerId, bank.id);
+            await LaunchService.clearBankLaunch(user.id, bank.id);
             
             // 3. Re-insere apenas os que sobraram (o launchToBank fará o dedupe novamente)
             if (remainingFiles.length > 0) {
                 const allTxs = remainingFiles.flatMap((f: any) => f.processedTransactions || []);
                 if (allTxs.length > 0) {
-                    await LaunchService.launchToBank(user.id, bank.id, allTxs, 'file', effectiveOwnerId);
+                    await LaunchService.launchToBank(user.id, bank.id, allTxs, 'file');
                 }
             }
 

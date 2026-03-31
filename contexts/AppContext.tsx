@@ -33,7 +33,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const reconciliation = useReconciliation({
         user: user,
-        subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
         fileModels: referenceData.fileModels,
@@ -251,7 +250,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const { confirmDeletion } = useDataDeletion({
         user: user,
-        subscription,
         modalController,
         referenceData,
         reportManager,

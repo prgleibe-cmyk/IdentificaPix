@@ -57,21 +57,19 @@ export const LaunchService = {
         userId: string, 
         bankId: string, 
         transactions: Transaction[],
-        source: 'file' | 'gmail' = 'file',
-        ownerId?: string
+        source: 'file' | 'gmail' = 'file'
     ): Promise<{ added: number, skipped: number, total: number }> {
         if (!userId || !transactions || transactions.length === 0) {
             return { added: 0, skipped: 0, total: transactions?.length || 0 };
         }
 
-        const effectiveOwnerId = ownerId || userId;
         const totalReceived = transactions.length;
         const isUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
         const currentBankId = isUuid ? bankId : null;
 
         try {
-            // Busca todos os hashes existentes no banco para este usuário/tenant
-            const existingData = await consolidationService.getExistingTransactionsForDedup(effectiveOwnerId);
+            // Busca todos os hashes existentes no banco para este usuário
+            const existingData = await consolidationService.getExistingTransactionsForDedup(userId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
             const toPersist = transactions
@@ -94,8 +92,6 @@ export const LaunchService = {
                         pix_key: currentBankId ? (item.paymentMethod || 'OUTROS') : bankId, 
                         source: source,
                         user_id: userId,
-                        owner_id: effectiveOwnerId,
-                        created_by: userId,
                         bank_id: currentBankId,
                         row_hash: finalRowHash,
                         status: 'pending' as const
@@ -121,9 +117,9 @@ export const LaunchService = {
         }
     },
 
-    async clearBankLaunch(ownerId: string, bankId: string): Promise<boolean> {
+    async clearBankLaunch(userId: string, bankId: string): Promise<boolean> {
         try {
-            return await consolidationService.deletePendingTransactions(ownerId, bankId);
+            return await consolidationService.deletePendingTransactions(userId, bankId);
         } catch (error) {
             throw error;
         }
