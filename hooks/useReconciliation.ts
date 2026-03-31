@@ -222,7 +222,7 @@ export const useReconciliation = ({
             income: groupResultsByChurch(incomeResults),
             expenses: { 'all_expenses_group': expenseResults }
         });
-    }, []);
+    }, [subscription, matchResults]);
 
     // Sincroniza o Preview sempre que os resultados persistentes mudarem
     useEffect(() => {
