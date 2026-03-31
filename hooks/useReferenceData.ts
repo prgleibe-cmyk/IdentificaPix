@@ -108,6 +108,75 @@ export function useReferenceData(user?: any, showToast?: any) {
         }
     };
 
+    const addBank = async (name: string) => {
+        if (!user?.id) return false;
+        try {
+            const { data: newBank, error } = await supabase
+                .from('banks')
+                .insert([{ name, user_id: user.id }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setData(prev => ({
+                ...prev,
+                banks: [...prev.banks, newBank] as any
+            }));
+            showToast?.("Banco adicionado com sucesso!", "success");
+            return true;
+        } catch (err: any) {
+            console.error("[useReferenceData] Erro ao adicionar banco:", err);
+            showToast?.("Erro ao adicionar banco: " + err.message, "error");
+            return false;
+        }
+    };
+
+    const addChurch = async (churchData: any) => {
+        if (!user?.id) return false;
+        try {
+            const { data: newChurch, error } = await supabase
+                .from('churches')
+                .insert([{ ...churchData, user_id: user.id }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setData(prev => ({
+                ...prev,
+                churches: [...prev.churches, newChurch] as any
+            }));
+            showToast?.("Igreja adicionada com sucesso!", "success");
+            return true;
+        } catch (err: any) {
+            console.error("[useReferenceData] Erro ao adicionar igreja:", err);
+            showToast?.("Erro ao adicionar igreja: " + err.message, "error");
+            return false;
+        }
+    };
+
+    const setBanks = (updater: any) => {
+        setData(prev => ({
+            ...prev,
+            banks: typeof updater === 'function' ? updater(prev.banks) : updater
+        }));
+    };
+
+    const setChurches = (updater: any) => {
+        setData(prev => ({
+            ...prev,
+            churches: typeof updater === 'function' ? updater(prev.churches) : updater
+        }));
+    };
+
+    const setLearnedAssociations = (updater: any) => {
+        setData(prev => ({
+            ...prev,
+            learnedAssociations: typeof updater === 'function' ? updater(prev.learnedAssociations) : updater
+        }));
+    };
+
     return {
         ...data,
         similarityLevel: 55,
@@ -116,6 +185,11 @@ export function useReferenceData(user?: any, showToast?: any) {
         loading,
         error,
         learnAssociation,
+        addBank,
+        addChurch,
+        setBanks,
+        setChurches,
+        setLearnedAssociations,
         refresh: fetchData
     };
 }

@@ -75,31 +75,31 @@ export default () => {
             const { data: banks, error: banksError } = await supabase
                 .from('banks')
                 .select('*')
-                .eq('user_id', ownerId);
+                .in('user_id', teamIds);
             
             if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos para owner ${ownerId}:`, banksError.message);
+                console.error(`[Reference API] Erro ao buscar bancos para a equipe do owner ${ownerId}:`, banksError.message);
             }
 
             // Buscar igrejas
             const { data: churches, error: churchesError } = await supabase
                 .from('churches')
                 .select('*')
-                .eq('user_id', ownerId);
+                .in('user_id', teamIds);
 
             if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
+                console.error(`[Reference API] Erro ao buscar igrejas para a equipe do owner ${ownerId}:`, churchesError.message);
             }
 
             // Buscar relatórios salvos
             const { data: reports, error: reportsError } = await supabase
                 .from('saved_reports')
                 .select('*')
-                .eq('user_id', ownerId)
+                .in('user_id', teamIds)
                 .order('created_at', { ascending: false });
 
             if (reportsError) {
-                console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
+                console.error(`[Reference API] Erro ao buscar relatórios para a equipe do owner ${ownerId}:`, reportsError.message);
             }
 
             console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas, ${reports?.length || 0} relatórios e ${learnedAssociations?.length || 0} associações.`);
