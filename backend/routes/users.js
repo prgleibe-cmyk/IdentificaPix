@@ -1,4 +1,3 @@
-
 import express from 'express';
 import { getSupabaseAdmin } from '../lib/supabase.js';
 import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
@@ -93,7 +92,6 @@ export default () => {
             if (authError) {
                 console.error("[Users API] Erro no Auth.admin.createUser:", authError);
                 
-                // Supabase retorna 422 e código 'email_exists' para duplicatas
                 const isDuplicate = authError.code === 'email_exists' || 
                                    (authError.message && authError.message.toLowerCase().includes('already registered')) ||
                                    (authError.message && authError.message.toLowerCase().includes('already been registered'));
@@ -117,17 +115,15 @@ export default () => {
                 .upsert({
                     id: newUser.id,
                     email: email,
-                    name: req.body.name, // Nome completo do formulário
+                    name: req.body.name,
                     owner_id: ownerId,
                     role: 'member',
                     permissions: permissionsObject,
-                    congregation: churchIds[0] || null // Apenas o primeiro ID (UUID) para evitar erro de sintaxe
+                    congregation: churchIds[0] || null
                 }, { onConflict: 'id' });
 
             if (profileError) {
                 console.error("[Users API] Erro ao criar perfil:", profileError);
-                // Se falhar ao criar o perfil, tentamos remover o usuário do auth para manter consistência
-                console.log("[Users API] Removendo usuário do Auth devido a falha no perfil...");
                 await supabaseAdmin.auth.admin.deleteUser(newUser.id);
                 throw profileError;
             }
@@ -138,11 +134,9 @@ export default () => {
         } catch (error) {
             console.error("[Users API] Erro fatal na criação de usuário:", error);
             
-            // Tenta extrair o status code do erro original
             let statusCode = error.status || 500;
             let errorMessage = error.message || "Falha ao criar usuário secundário.";
 
-            // Reforço para erro de e-mail duplicado no catch
             if (error.code === 'email_exists' || 
                 (error.message && error.message.toLowerCase().includes('already registered')) ||
                 (error.message && error.message.toLowerCase().includes('already been registered'))) {
@@ -172,11 +166,12 @@ export default () => {
         try {
             console.log("[Users API] Listando usuários para owner:", ownerId);
             
-            // Buscamos todos os perfis onde o owner_id é o solicitado
+            const effectiveOwnerId = req.user.owner_id || req.user.id;
+
             const { data, error, count } = await supabaseAdmin
                 .from('profiles')
                 .select('*', { count: 'exact' })
-                .eq('owner_id', ownerId)
+                .eq('owner_id', effectiveOwnerId)
                 .order('created_at', { ascending: false });
 
             if (error) {
@@ -184,14 +179,12 @@ export default () => {
                 throw error;
             }
 
-            console.log(`[Users API] Encontrados ${count || 0} usuários para o owner ${ownerId}`);
+            console.log(`[Users API] Encontrados ${count || 0} usuários para o owner ${effectiveOwnerId}`);
             
             if (data && data.length > 0) {
                 console.log("[Users API] IDs dos usuários encontrados:", data.map(u => u.id));
             }
 
-            // Retornamos a lista, garantindo que não incluímos o próprio usuário logado na lista de "gerenciáveis" 
-            // (geralmente não se edita a si mesmo nesta tela)
             const filteredData = (data || []).filter(p => p.id !== req.user.id);
             
             console.log("[Users API] Total após filtro:", filteredData.length);
@@ -221,7 +214,6 @@ export default () => {
         try {
             console.log("[Users API] Tentando excluir usuário:", userId, "solicitado por owner:", ownerId);
             
-            // 1. Validar se o solicitante é o owner desse usuário
             const { data: userProfile, error: userError } = await supabaseAdmin
                 .from('profiles')
                 .select('owner_id')
@@ -238,14 +230,12 @@ export default () => {
                 return res.status(403).json({ error: "Sem permissão para excluir este usuário." });
             }
 
-            // 2. Excluir do Auth (isso deve disparar a exclusão do profile se houver trigger, senão excluímos manualmente)
             const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
             if (authError) {
                 console.error("[Users API] Erro ao excluir do Auth:", authError);
                 throw authError;
             }
 
-            // 3. Garantir que o profile foi removido (caso não haja trigger)
             await supabaseAdmin.from('profiles').delete().eq('id', userId);
 
             console.log("[Users API] Usuário excluído com sucesso!");
@@ -269,17 +259,15 @@ export default () => {
         try {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
             
-            // Verificação de segurança centralizada (IDOR Protection)
             validateOwnerAccess(req, ownerId);
             
             const permissionsObject = {
                 ...permissions,
-                "congregationIds": churchIds // Armazenamos o array completo no JSON de permissões
+                "congregationIds": churchIds
             };
             
             console.log("[Users API] permissionsObject final para salvamento:", JSON.stringify(permissionsObject, null, 2));
             
-            // 1. Validar se o solicitante é o owner desse usuário
             const { data: userProfile, error: userError } = await supabaseAdmin
                 .from('profiles')
                 .select('owner_id')
@@ -292,7 +280,6 @@ export default () => {
                 return res.status(403).json({ error: "Sem permissão para editar este usuário." });
             }
 
-            // 2. Atualizar no Auth se email ou senha forem fornecidos
             if (req.body.email || req.body.password) {
                 console.log("[Users API] Atualizando dados no Auth...");
                 const updateData = {};
@@ -310,14 +297,13 @@ export default () => {
                 }
             }
 
-            // 3. Atualizar o profile
             const { error: updateError } = await supabaseAdmin
                 .from('profiles')
                 .update({
                     name: name,
-                    email: req.body.email || undefined, // Atualiza o email no profile também se mudou
+                    email: req.body.email || undefined,
                     permissions: permissionsObject,
-                    congregation: churchIds[0] || null // Apenas o primeiro ID (UUID)
+                    congregation: churchIds[0] || null
                 })
                 .eq('id', userId);
 
@@ -331,7 +317,6 @@ export default () => {
             let statusCode = error.status || 500;
             let errorMessage = error.message || "Falha ao atualizar usuário.";
 
-            // Reforço para erro de e-mail duplicado no catch
             if (error.code === 'email_exists' || 
                 (error.message && error.message.toLowerCase().includes('already registered')) ||
                 (error.message && error.message.toLowerCase().includes('already been registered'))) {
