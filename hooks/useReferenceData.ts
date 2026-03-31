@@ -347,3 +347,20 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         deleteOldReports
     ]);
 };
+
+export function useReferenceData(user?: any, showToast?: any) {
+    return {
+        churches: [],
+        banks: [],
+        fileModels: [],
+        fetchModels: [],
+        similarityLevel: 55,
+        dayTolerance: 2,
+        customIgnoreKeywords: [],
+        contributionKeywords: [],
+        learnedAssociations: [],
+        data: [],
+        loading: false,
+        error: null
+    };
+}
