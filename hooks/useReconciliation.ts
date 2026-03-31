@@ -48,6 +48,7 @@ export const useReconciliation = ({
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
+    const [autoRunTriggered, setAutoRunTriggered] = useState(false);
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
@@ -184,6 +185,66 @@ export const useReconciliation = ({
         return () => clearTimeout(timer);
     }, [user, matchResults, setMatchResults, triggerSync]);
 
+    const handleCompare = useCallback(async () => {
+        setIsLoading(true);
+        
+        // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
+        // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
+        const allTransactions = activeBankFiles
+            .filter(f => selectedBankIds.includes(String(f.bankId)))
+            .flatMap(f => f.processedTransactions || []);
+        
+        if (allTransactions.length === 0) { 
+            showToast("Selecione pelo menos um extrato com dados.", "error"); 
+            setIsLoading(false); 
+            return; 
+        }
+
+        // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
+        // Ao rodar a comparação, preservamos apenas os resultados manuais ou já identificados 
+        // que pertençam aos bancos atualmente selecionados.
+        const filteredExistingResults = matchResults.filter(r => 
+            selectedBankIds.includes(String(r.transaction.bank_id))
+        );
+
+        // 🧬 FUSÃO INTELIGENTE: Executa o matching apenas no escopo selecionado
+        const results = matchTransactions(
+            allTransactions, 
+            contributorFiles, 
+            { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, 
+            learnedAssociations, 
+            churches, 
+            customIgnoreKeywords,
+            filteredExistingResults 
+        );
+
+        setMatchResults(results);
+        setHasActiveSession(true);
+        setActiveView('reports');
+        setIsLoading(false);
+        showToast("Conciliação concluída para os itens selecionados!", "success");
+    }, [
+        setIsLoading, activeBankFiles, selectedBankIds, showToast, 
+        matchResults, contributorFiles, similarityLevel, dayTolerance, 
+        learnedAssociations, churches, customIgnoreKeywords, 
+        setMatchResults, setHasActiveSession, setActiveView
+    ]);
+
+    /**
+     * 🤖 GATILHO AUTOMÁTICO DE CONCILIAÇÃO
+     * Dispara o matching automaticamente quando os dados necessários estão presentes.
+     */
+    useEffect(() => {
+        const allTransactions = activeBankFiles
+            .filter(f => selectedBankIds.includes(String(f.bankId)))
+            .flatMap(f => f.processedTransactions || []);
+
+        if (!autoRunTriggered && allTransactions.length > 0 && churches?.length > 0 && contributorFiles?.length > 0) {
+            handleCompare();
+            setAutoRunTriggered(true);
+        }
+    }, [activeBankFiles, selectedBankIds, churches, contributorFiles, autoRunTriggered, handleCompare]);
+
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
         setBankStatementFile,
@@ -306,6 +367,7 @@ export const useReconciliation = ({
             setContributorFiles([]);
             setHasActiveSession(false);
             setActiveReportId(null);
+            setAutoRunTriggered(false);
             showToast("Sistema reiniciado.", "success");
             setActiveView('upload');
         } finally {
@@ -362,45 +424,7 @@ export const useReconciliation = ({
         removeBankStatementFile,
         removeContributorFile: (churchId: string) => setContributorFiles(prev => prev.filter(f => f.churchId !== churchId)),
         toggleBankSelection: (id: string) => setSelectedBankIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
-        handleCompare: async () => {
-            setIsLoading(true);
-            
-            // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
-            // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
-            const allTransactions = activeBankFiles
-                .filter(f => selectedBankIds.includes(String(f.bankId)))
-                .flatMap(f => f.processedTransactions || []);
-            
-            if (allTransactions.length === 0) { 
-                showToast("Selecione pelo menos um extrato com dados.", "error"); 
-                setIsLoading(false); 
-                return; 
-            }
-
-            // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
-            // Ao rodar a comparação, preservamos apenas os resultados manuais ou já identificados 
-            // que pertençam aos bancos atualmente selecionados.
-            const filteredExistingResults = matchResults.filter(r => 
-                selectedBankIds.includes(String(r.transaction.bank_id))
-            );
-
-            // 🧬 FUSÃO INTELIGENTE: Executa o matching apenas no escopo selecionado
-            const results = matchTransactions(
-                allTransactions, 
-                contributorFiles, 
-                { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, 
-                learnedAssociations, 
-                churches, 
-                customIgnoreKeywords,
-                filteredExistingResults 
-            );
-
-            setMatchResults(results);
-            setHasActiveSession(true);
-            setActiveView('reports');
-            setIsLoading(false);
-            showToast("Conciliação concluída para os itens selecionados!", "success");
-        },
+        handleCompare,
         resetReconciliation,
         updateReportData: (updatedRow: MatchResult) => {
             setMatchResults(prev => {
