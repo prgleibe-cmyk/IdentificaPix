@@ -161,13 +161,13 @@ export default () => {
             return res.status(500).json({ error: "Erro de configuração" });
         }
 
-        validateOwnerAccess(req, ownerId);
-
         try {
-            console.log("[Users API] Listando usuários para owner:", ownerId);
-            
             const effectiveOwnerId = req.user.owner_id || req.user.id;
 
+            validateOwnerAccess(req, effectiveOwnerId);
+
+            console.log("[Users API] Listando usuários para owner:", effectiveOwnerId);
+            
             const { data, error, count } = await supabaseAdmin
                 .from('profiles')
                 .select('*', { count: 'exact' })
