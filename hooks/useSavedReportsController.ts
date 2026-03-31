@@ -27,7 +27,7 @@ export const useSavedReportsController = () => {
 
     // Filtro e Ordenação
     const processedReports = useMemo(() => {
-        let result = [...savedReports];
+        let result = (savedReports || []).filter(r => r.name !== '[SESSÃO_ATIVA]');
 
         if (searchQuery) {
             const lowerQ = searchQuery.toLowerCase();
@@ -85,7 +85,7 @@ export const useSavedReportsController = () => {
     }, [editName, updateSavedReportName]);
 
     // Cálculo de Armazenamento
-    const usagePercent = Math.min(100, (savedReports.length / maxSavedReports) * 100);
+    const usagePercent = Math.min(100, ((savedReports || []).length / maxSavedReports) * 100);
     let storageColor = "bg-emerald-500";
     if (usagePercent > 80) storageColor = "bg-red-500";
     else if (usagePercent > 50) storageColor = "bg-amber-500";

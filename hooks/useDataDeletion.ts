@@ -23,7 +23,7 @@ export const useDataDeletion = ({
 }: UseDataDeletionProps) => {
 
     const confirmDeletion = useCallback(async () => {
-        if (!modalController.deletingItem || !user?.id) return;
+        if (!modalController.deletingItem) return;
         const { type, id } = modalController.deletingItem;
         
         try {
@@ -68,12 +68,12 @@ export const useDataDeletion = ({
                 }
                 case 'all-data': {
                     reconciliation.resetReconciliation();
-                    await consolidationService.deletePendingTransactions(user.id); 
+                    await supabase.rpc('delete_pending_transactions'); 
                     showToast("Todos os dados temporários foram limpos.", "success");
                     break;
                 }
                 case 'uploaded-files': {
-                    await consolidationService.deletePendingTransactions(user.id);
+                    await supabase.rpc('delete_pending_transactions');
                     reconciliation.setBankStatementFile([]);
                     reconciliation.setSelectedBankIds([]);
                     showToast("Arquivos e transações limpos.", "success");
@@ -102,7 +102,7 @@ export const useDataDeletion = ({
         } finally {
             modalController.closeDeleteConfirmation();
         }
-    }, [user?.id, modalController, referenceData, reportManager, reconciliation, showToast]);
+    }, [user, modalController, referenceData, reportManager, reconciliation, showToast]);
 
     return { confirmDeletion };
 };

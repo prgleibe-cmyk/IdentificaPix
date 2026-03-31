@@ -1,5 +1,5 @@
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,8 +22,18 @@ import { StatsStrip } from '../components/reports/StatsStrip';
 export const ReportsView: React.FC = () => {
     const ctrl = useReportsController();
     const { t, language } = useTranslation();
-    const { loadingAiId, openSmartEdit } = useContext(AppContext);
+    const { loadingAiId, openSmartEdit, handleCompare } = useContext(AppContext);
     const { subscription } = useAuth();
+    const autoLoaded = useRef(false);
+
+    useEffect(() => {
+        if (autoLoaded.current) return;
+        autoLoaded.current = true;
+
+        if (handleCompare) {
+            handleCompare();
+        }
+    }, [handleCompare]);
 
     if (!ctrl.reportPreviewData) {
         return (

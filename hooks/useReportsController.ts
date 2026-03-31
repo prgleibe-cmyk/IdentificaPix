@@ -63,21 +63,23 @@ export const useReportsController = () => {
 
     // Forçar categoria para membros
     useEffect(() => {
-        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             setActiveCategory('churches');
-            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
+            if (!selectedReportId || !(subscription.congregationIds || []).includes(selectedReportId)) {
                 setSelectedReportId(subscription.congregationIds[0]);
             }
         }
-    }, [subscription, selectedReportId]);
+    }, [subscription, selectedReportId, user?.id]);
 
     useEffect(() => {
         if (!reportPreviewData) return;
         
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         // Se for membro, garante que está na categoria correta e com uma igreja válida
-        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             setActiveCategory('churches');
-            if (!selectedReportId || !subscription.congregationIds.includes(selectedReportId)) {
+            if (!selectedReportId || !(subscription.congregationIds || []).includes(selectedReportId)) {
                 setSelectedReportId(subscription.congregationIds[0]);
             }
             return;
@@ -88,7 +90,7 @@ export const useReportsController = () => {
         } else if (activeCategory === 'churches') {
             const incomeData = reportPreviewData.income || {};
             const churchIds = Object.keys(incomeData).filter(k => k !== 'unidentified').sort();
-            if (churchIds.length > 0) {
+            if ((churchIds || []).length > 0) {
                 if (!selectedReportId || !churchIds.includes(selectedReportId) || selectedReportId === 'general_all') {
                     setSelectedReportId(churchIds[0]);
                 }
@@ -107,8 +109,9 @@ export const useReportsController = () => {
         let entries = Object.entries(reportPreviewData.income)
             .filter(([id]) => id !== 'unidentified');
             
-        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            entries = entries.filter(([id]) => subscription.congregationIds.includes(id));
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+            entries = entries.filter(([id]) => (subscription.congregationIds || []).includes(id));
         }
 
         return entries.map(([id, results]) => {
@@ -116,7 +119,7 @@ export const useReportsController = () => {
                 return {
                     id,
                     name: res[0]?.church?.name || 'Igreja Desconhecida',
-                    count: res.length,
+                    count: (res || []).length,
                     total: res.reduce((sum, r) => sum + (r.transaction?.amount || 0), 0)
                 };
             })
@@ -126,19 +129,20 @@ export const useReportsController = () => {
     const counts = useMemo(() => {
         const incomeGroups = reportPreviewData?.income || {};
         
-        if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             return { 
                 general: 0, 
-                churches: subscription.congregationIds.length, 
+                churches: (subscription.congregationIds || []).length, 
                 pending: 0, 
                 expenses: 0 
             };
         }
 
-        const general = Object.values(incomeGroups).flat().length;
-        const churchesCount = churchList.length;
-        const pending = incomeGroups['unidentified']?.length || 0;
-        const expenses = reportPreviewData?.expenses?.['all_expenses_group']?.length || 0;
+        const general = (Object.values(incomeGroups).flat() || []).length;
+        const churchesCount = (churchList || []).length;
+        const pending = (incomeGroups['unidentified'] || []).length;
+        const expenses = (reportPreviewData?.expenses?.['all_expenses_group'] || []).length;
         return { general, churches: churchesCount, pending, expenses };
     }, [churchList, reportPreviewData, subscription]);
 
@@ -147,9 +151,10 @@ export const useReportsController = () => {
         let data: MatchResult[] = [];
         
         try {
+            const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
             // 1. Seleção da base por categoria com trava de segurança para membros
-            if (subscription.role !== 'owner' && subscription.congregationIds && subscription.congregationIds.length > 0) {
-                if (selectedReportId && subscription.congregationIds.includes(selectedReportId)) {
+            if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+                if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
                     data = reportPreviewData.income?.[selectedReportId] || [];
                 } else {
                     data = reportPreviewData.income?.[subscription.congregationIds[0]] || [];
@@ -166,9 +171,9 @@ export const useReportsController = () => {
             // 1.5 Filtro por Banco (Global)
             if (selectedBankId && selectedBankId !== 'all') {
                 data = data.filter(r => String(r.transaction?.bank_id) === selectedBankId);
-            } else if (subscription.role !== 'owner' && subscription.bankIds && subscription.bankIds.length > 0) {
+            } else if (isSecondary && subscription.bankIds && (subscription.bankIds || []).length > 0) {
                 // Se for "Todos os Bancos", mas o usuário tem restrição, filtra pelos autorizados
-                data = data.filter(r => subscription.bankIds.includes(String(r.transaction?.bank_id)));
+                data = (data || []).filter(r => (subscription.bankIds || []).includes(String(r.transaction?.bank_id)));
             }
 
             // 2. Aplicação de Filtros Avançados (Modal)
@@ -191,7 +196,7 @@ export const useReportsController = () => {
 
     const sortedData = useMemo(() => {
         const source = Array.isArray(activeData) ? activeData : [];
-        if (source.length === 0) return [];
+        if ((source || []).length === 0) return [];
         if (!sortConfig) return source;
 
         return [...source].sort((a, b) => {
@@ -242,10 +247,10 @@ export const useReportsController = () => {
         const pendingTxs = activeData.filter(r => r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO');
 
         return { 
-            count: activeData.length, total, 
-            auto: autoTxs.length, autoValue: autoTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
-            manual: manualTxs.length, manualValue: manualTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
-            pending: pendingTxs.length, pendingValue: pendingTxs.reduce((s, r) => s + (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0)), 0)
+            count: (activeData || []).length, total, 
+            auto: (autoTxs || []).length, autoValue: autoTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
+            manual: (manualTxs || []).length, manualValue: manualTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
+            pending: (pendingTxs || []).length, pendingValue: pendingTxs.reduce((s, r) => s + (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0)), 0)
         };
     }, [activeData]);
 

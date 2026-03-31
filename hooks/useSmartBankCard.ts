@@ -20,7 +20,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         setModelRequiredData 
     } = useContext(AppContext);
     
-    const { user, subscription } = useAuth();
+    const { user } = useAuth();
     const { showToast } = useUI();
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -62,7 +62,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     }, [isDragging]);
 
     const handleAppend = async (content: string, fileName: string, rawFile: File, base64?: string) => {
-        if (!user?.id) return;
+        if (!user) return;
         setIsUploading(true);
         try {
             const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
@@ -121,7 +121,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     };
 
     const removeSpecificFile = async (fileToRemove: any) => {
-        if (!user?.id) return;
+        if (!user) return;
         setIsUploading(true);
         setIsMenuOpen(false);
         
@@ -137,14 +137,14 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
             if (remainingFiles.length > 0) {
                 const allTxs = remainingFiles.flatMap((f: any) => f.processedTransactions || []);
                 if (allTxs.length > 0) {
-                    await LaunchService.launchToBank(user.id, bank.id, allTxs, 'file');
+                    await LaunchService.launchToBank(user.id, bank.id, allTxs);
                 }
             }
 
             // 4. Reidrata a UI a partir da única fonte de verdade
             await hydrate(false);
             
-            showToast("Arquivo remover.", "success");
+            showToast("Arquivo removido.", "success");
         } catch (e: any) {
             showToast("Erro ao remover arquivo.", "error");
         } finally {

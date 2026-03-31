@@ -33,6 +33,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const reconciliation = useReconciliation({
         user: user,
+        subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
         fileModels: referenceData.fileModels,
@@ -48,44 +49,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
-    /**
-     * 🔥 CORREÇÃO: Inicializa automaticamente um relatório ativo
-     */
-    useEffect(() => {
-        if (reconciliation.activeReportId) return;
-        if (!reportManager.savedReports || reportManager.savedReports.length === 0) return;
-
-        const firstValidReport = reportManager.savedReports.find(r => {
-            const data = r.data;
-            if (!data) return false;
-
-            try {
-                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-                return (parsed?.results?.length > 0) || parsed?.spreadsheet;
-            } catch {
-                return false;
-            }
-        });
-
-        if (firstValidReport) {
-            reconciliation.setActiveReportId(firstValidReport.id);
-            reconciliation.setHasActiveSession(true);
-        }
-    }, [
-        reportManager.savedReports,
-        reconciliation.activeReportId
-    ]);
-
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) return;
 
         const report = reportManager.savedReports.find(r => r.id === activeId);
-        if (!report) return;
+        if (!report || !report.data?.results) return;
 
-        const results = report.data?.results || [];
-        
-        let hydrated = results.map((r: any) => ({
+        let hydrated = report.data.results.map((r: any) => ({
             ...r,
             church:
                 referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -94,9 +65,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
 
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary && (subscription.congregationIds || []).length > 0) {
+        if (isSecondary && subscription.congregationIds?.length > 0) {
             hydrated = hydrated.filter((r: any) =>
-                (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
             );
         }
 
@@ -105,10 +76,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportManager.savedReports,
         reconciliation.activeReportId,
         referenceData.churches,
-        subscription.ownerId,
-        subscription.congregationIds,
-        user?.id
+        subscription.role,
+        subscription.congregationIds
     ]);
+
+    useEffect(() => {
+        if (!reconciliation.activeReportId) return;
+
+        const report = reportManager.savedReports.find(
+            r => r.id === reconciliation.activeReportId
+        );
+
+        if (!report || !report.data?.results) return;
+
+        reconciliation.setMatchResults([...report.data.results]);
+    }, [reportManager.savedReports]);
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);

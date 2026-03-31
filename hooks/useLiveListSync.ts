@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
+    subscription,
     setBankStatementFile,
     setSelectedBankIds
 }: any) => {
@@ -21,13 +22,14 @@ export const useLiveListSync = ({
      * Garante que a UI só exiba o que está validado no banco de dados.
      */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        if (!user?.id || isCleaning || isHydrating.current) return;
+        const effectiveUserId = subscription?.ownerId || user?.id;
+        if (!effectiveUserId || isCleaning || isHydrating.current) return;
         
         isHydrating.current = true;
         setSyncError(null);
         
         try {
-            const dbTransactions = await consolidationService.getPendingTransactions(user.id);
+            const dbTransactions = await consolidationService.getPendingTransactions(effectiveUserId);
             
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile([]);
@@ -89,23 +91,24 @@ export const useLiveListSync = ({
         } finally {
             isHydrating.current = false;
         }
-    }, [user, isCleaning, setBankStatementFile, setSelectedBankIds]);
+    }, [user, subscription, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
      */
     useEffect(() => {
-        if (!user?.id) return;
+        const effectiveUserId = subscription?.ownerId || user?.id;
+        if (!effectiveUserId) return;
 
         const channel = supabase
-            .channel(`realtime-viva-${user.id}`)
+            .channel(`realtime-viva-${effectiveUserId}`)
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${user.id}`
+                    filter: `user_id=eq.${effectiveUserId}`
                 },
                 () => {
                     hydrate(false);
@@ -116,41 +119,44 @@ export const useLiveListSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, hydrate]);
+    }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
 
     useEffect(() => {
-        if (user?.id && user?.id !== lastUserId.current) {
-            lastUserId.current = user?.id;
+        const effectiveUserId = subscription?.ownerId || user?.id;
+        if (effectiveUserId && effectiveUserId !== lastUserId.current) {
+            lastUserId.current = effectiveUserId;
             hydrate(true);
         }
-    }, [user?.id, hydrate]);
+    }, [user, subscription, hydrate]);
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
      */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
-        if (!user?.id) return { added: 0, skipped: 0, total: transactions.length };
+        const effectiveUserId = subscription?.ownerId || user?.id;
+        if (!effectiveUserId) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
-            const stats = await LaunchService.launchToBank(user.id, bankId, transactions, 'file');
+            const stats = await LaunchService.launchToBank(effectiveUserId, bankId, transactions);
             await hydrate(false);
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
-    }, [user, showToast, hydrate]);
+    }, [user, subscription, showToast, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
-        if (!user?.id) return;
+        const effectiveUserId = subscription?.ownerId || user?.id;
+        if (!effectiveUserId) return;
         setIsCleaning(true);
         try {
-            await consolidationService.deletePendingTransactions(user.id, bankId);
+            await consolidationService.deletePendingTransactions(effectiveUserId, bankId);
         } finally {
             setIsCleaning(false);
             await hydrate(false);
         }
-    }, [user?.id, hydrate]);
+    }, [user, subscription, hydrate]);
 
     return { persistTransactions, clearRemoteList, hydrate, syncError };
 };
