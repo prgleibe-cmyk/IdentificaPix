@@ -150,6 +150,7 @@ export interface SavedReport {
   createdAt: string;
   recordCount: number;
   user_id: string;
+  church_id?: string | null;
   data: {
     results: MatchResult[];
     sourceFiles: any[];
