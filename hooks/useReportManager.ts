@@ -51,7 +51,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 if (isOwner) {
                     const { data: d, error } = await supabase
                         .from('saved_reports')
-                        .select('*')
+                        .select('id, name, created_at, record_count, user_id, church_id')
                         .eq('user_id', user.id)
                         .order('created_at', { ascending: false });
 
@@ -78,31 +78,18 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 }
 
                 if (data && !ignore) {
-                        let hydrated: SavedReport[] = data.map((r: any) => {
-                            let parsedData;
-                            try {
-                                parsedData = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-                            } catch (error) {
-                                console.error("JSON corrompido detectado:", error);
-                                parsedData = {
-                                    results: [],
-                                    spreadsheet: null
-                                };
-                            }
+                    const hydrated: SavedReport[] = data.map((r: any) => ({
+                        id: r.id,
+                        name: r.name,
+                        createdAt: r.created_at || r.createdAt,
+                        recordCount: r.record_count || r.recordCount,
+                        user_id: r.user_id || r.userId,
+                        church_id: r.church_id || r.churchId,
+                        data: r.data || { results: [], spreadsheet: null }
+                    }));
 
-                            return {
-                                id: r.id,
-                                name: r.name,
-                                createdAt: r.created_at,
-                                recordCount: r.record_count,
-                                user_id: r.user_id,
-                                church_id: r.church_id,
-                                data: parsedData
-                            };
-                        });
-
-                        setSavedReports(hydrated);
-                    }
+                    setSavedReports(hydrated);
+                }
             } catch (err) {
                 if (!ignore) {
                     console.error("[ReportManager] Erro ao carregar relatórios históricos:", err);
