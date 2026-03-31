@@ -1,11 +1,18 @@
-import { getSupabaseAdmin } from '../lib/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 
 let supabaseClient = null;
 
 const getSupabase = () => {
     if (supabaseClient) return supabaseClient;
     try {
-        supabaseClient = getSupabaseAdmin();
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error('SUPABASE_URL ou SUPABASE_ANON_KEY não definidos.');
+        }
+
+        supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
         return supabaseClient;
     } catch (e) {
         console.error('[Auth Middleware] Erro ao inicializar Supabase:', e.message);
@@ -34,7 +41,6 @@ export const authMiddleware = async (req, res, next) => {
             return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
         }
 
-        // Buscar perfil para obter role e owner_id
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('role, owner_id')
@@ -43,10 +49,8 @@ export const authMiddleware = async (req, res, next) => {
 
         if (profileError) {
             console.error('[Auth Middleware] Erro ao buscar perfil:', profileError.message);
-            // Mesmo sem perfil, mantemos o user do auth, mas sem as roles customizadas
             req.user = user;
         } else {
-            // Mescla os dados do perfil no objeto user
             req.user = {
                 ...user,
                 role: profile.role,
