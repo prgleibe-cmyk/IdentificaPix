@@ -59,10 +59,14 @@ export default (ai) => {
 
             const rowHash = `sms_${userId}_${bankId}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
 
+            const effectiveOwnerId = req.user?.owner_id || req.user?.id || userId;
+
             const { error } = await supabaseAdmin
                 .from('consolidated_transactions')
                 .insert({
                     user_id: userId,
+                    owner_id: effectiveOwnerId,
+                    created_by: req.user?.id || userId,
                     bank_id: bankId,
                     transaction_date: data.date,
                     description: data.description.toUpperCase(),

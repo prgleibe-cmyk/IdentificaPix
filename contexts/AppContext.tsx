@@ -251,6 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const { confirmDeletion } = useDataDeletion({
         user: user,
+        subscription,
         modalController,
         referenceData,
         reportManager,

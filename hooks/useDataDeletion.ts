@@ -6,6 +6,7 @@ import { consolidationService } from '../services/ConsolidationService';
 
 interface UseDataDeletionProps {
     user: any;
+    subscription: any;
     modalController: any;
     referenceData: any;
     reportManager: any;
@@ -15,6 +16,7 @@ interface UseDataDeletionProps {
 
 export const useDataDeletion = ({
     user,
+    subscription,
     modalController,
     referenceData,
     reportManager,
@@ -22,8 +24,10 @@ export const useDataDeletion = ({
     showToast
 }: UseDataDeletionProps) => {
 
+    const effectiveOwnerId = subscription?.ownerId || user?.id;
+
     const confirmDeletion = useCallback(async () => {
-        if (!modalController.deletingItem) return;
+        if (!modalController.deletingItem || !effectiveOwnerId) return;
         const { type, id } = modalController.deletingItem;
         
         try {
@@ -68,12 +72,12 @@ export const useDataDeletion = ({
                 }
                 case 'all-data': {
                     reconciliation.resetReconciliation();
-                    await supabase.rpc('delete_pending_transactions'); 
+                    await consolidationService.deletePendingTransactions(effectiveOwnerId); 
                     showToast("Todos os dados temporários foram limpos.", "success");
                     break;
                 }
                 case 'uploaded-files': {
-                    await supabase.rpc('delete_pending_transactions');
+                    await consolidationService.deletePendingTransactions(effectiveOwnerId);
                     reconciliation.setBankStatementFile([]);
                     reconciliation.setSelectedBankIds([]);
                     showToast("Arquivos e transações limpos.", "success");
@@ -102,7 +106,7 @@ export const useDataDeletion = ({
         } finally {
             modalController.closeDeleteConfirmation();
         }
-    }, [user, modalController, referenceData, reportManager, reconciliation, showToast]);
+    }, [user, effectiveOwnerId, modalController, referenceData, reportManager, reconciliation, showToast]);
 
     return { confirmDeletion };
 };

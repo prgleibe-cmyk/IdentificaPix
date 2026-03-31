@@ -20,8 +20,10 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         setModelRequiredData 
     } = useContext(AppContext);
     
-    const { user } = useAuth();
+    const { user, subscription } = useAuth();
     const { showToast } = useUI();
+
+    const effectiveOwnerId = subscription?.ownerId || user?.id;
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -62,7 +64,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     }, [isDragging]);
 
     const handleAppend = async (content: string, fileName: string, rawFile: File, base64?: string) => {
-        if (!user) return;
+        if (!user || !effectiveOwnerId) return;
         setIsUploading(true);
         try {
             const result = await processFileContent(content, fileName, fileModels, effectiveIgnoreKeywords, base64);
@@ -121,7 +123,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     };
 
     const removeSpecificFile = async (fileToRemove: any) => {
-        if (!user) return;
+        if (!user || !effectiveOwnerId) return;
         setIsUploading(true);
         setIsMenuOpen(false);
         
@@ -131,20 +133,20 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
             const remainingFiles = bankFiles.filter((f: any) => f !== fileToRemove);
             
             // 2. Limpa todos os pendentes deste banco
-            await LaunchService.clearBankLaunch(user.id, bank.id);
+            await LaunchService.clearBankLaunch(effectiveOwnerId, bank.id);
             
             // 3. Re-insere apenas os que sobraram (o launchToBank fará o dedupe novamente)
             if (remainingFiles.length > 0) {
                 const allTxs = remainingFiles.flatMap((f: any) => f.processedTransactions || []);
                 if (allTxs.length > 0) {
-                    await LaunchService.launchToBank(user.id, bank.id, allTxs);
+                    await LaunchService.launchToBank(user.id, bank.id, allTxs, 'file', effectiveOwnerId);
                 }
             }
 
             // 4. Reidrata a UI a partir da única fonte de verdade
             await hydrate(false);
             
-            showToast("Arquivo removido.", "success");
+            showToast("Arquivo remover.", "success");
         } catch (e: any) {
             showToast("Erro ao remover arquivo.", "error");
         } finally {

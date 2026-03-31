@@ -97,17 +97,18 @@ export const useReconciliation = ({
      * 📡 REALTIME SYNC (Escuta mudanças de confirmação)
      */
     useEffect(() => {
-        if (!user?.id) return;
+        const effectiveOwnerId = subscription?.ownerId || user?.id;
+        if (!effectiveOwnerId) return;
         
         const channel = supabase
-            .channel(`reconciliation-status-sync-${user.id}`)
+            .channel(`reconciliation-status-sync-${effectiveOwnerId}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${user.id}`
+                    filter: `owner_id=eq.${effectiveOwnerId}`
                 },
                 (payload) => {
                     if (payload.new && payload.new.is_confirmed === true) {
@@ -122,7 +123,7 @@ export const useReconciliation = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id]);
+    }, [user?.id, subscription?.ownerId]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
@@ -130,7 +131,8 @@ export const useReconciliation = ({
      * Em vez de remover, atualiza o status para 'FECHADO'.
      */
     useEffect(() => {
-        if (!user || matchResults.length === 0 || isValidating.current) return;
+        const effectiveOwnerId = subscription?.ownerId || user?.id;
+        if (!effectiveOwnerId || matchResults.length === 0 || isValidating.current) return;
 
         const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
         if (currentIdsHash === lastValidatedHash.current) return;
@@ -149,7 +151,7 @@ export const useReconciliation = ({
             }
 
             try {
-                const confirmedIds = await consolidationService.checkConfirmedTransactions(user.id, realIds);
+                const confirmedIds = await consolidationService.checkConfirmedTransactions(effectiveOwnerId, realIds);
                 
                 if (confirmedIds.length > 0) {
                     setMatchResults(prev => {
@@ -183,7 +185,7 @@ export const useReconciliation = ({
 
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
-    }, [user, matchResults, setMatchResults, triggerSync]);
+    }, [user, subscription?.ownerId, matchResults, setMatchResults, triggerSync]);
 
     const handleCompare = useCallback(async () => {
         setIsLoading(true);
@@ -247,6 +249,7 @@ export const useReconciliation = ({
 
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
+        subscription,
         setBankStatementFile,
         setSelectedBankIds,
         showToast

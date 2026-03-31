@@ -39,6 +39,8 @@ export const consolidationService = {
                         pix_key: t.pix_key || null,
                         source: t.source || 'file',
                         user_id: t.user_id,
+                        owner_id: t.owner_id,
+                        created_by: t.created_by || t.user_id,
                         bank_id: t.bank_id || null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
@@ -158,9 +160,9 @@ export const consolidationService = {
     }
 },
 
-    getExistingTransactionsForDedup: async (userId: string) => {
+    getExistingTransactionsForDedup: async (ownerId: string) => {
 
-        if (!userId) throw new Error("UserID é obrigatório.");
+        if (!ownerId) throw new Error("OwnerID é obrigatório.");
         
         let allHashes: { row_hash: string | null }[] = [];
         let from = 0;
@@ -174,7 +176,7 @@ export const consolidationService = {
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('row_hash')
-                    .eq('user_id', userId)
+                    .eq('owner_id', ownerId)
                     .range(from, from + step - 1);
 
                 if (error) throw error;
@@ -201,16 +203,16 @@ export const consolidationService = {
         }
     },
 
-    deletePendingTransactions: async (userId: string, bankId?: string) => {
+    deletePendingTransactions: async (ownerId: string, bankId?: string) => {
 
         try {
 
-            if (!userId) return false;
+            if (!ownerId) return false;
 
             let query = supabase
                 .from('consolidated_transactions')
                 .delete()
-                .eq('user_id', userId)
+                .eq('owner_id', ownerId)
                 .eq('status', 'pending')
                 .eq('is_confirmed', false);
 
@@ -245,9 +247,9 @@ export const consolidationService = {
     /**
      * LISTA VIVA (pendentes)
      */
-    getPendingTransactions: async (userId: string) => {
+    getPendingTransactions: async (ownerId: string) => {
 
-        if (!userId) return [];
+        if (!ownerId) return [];
 
         let allTransactions: any[] = [];
         let from = 0;
@@ -261,7 +263,7 @@ export const consolidationService = {
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
-                    .eq('user_id', userId)
+                    .eq('owner_id', ownerId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)
                     .order('transaction_date', { ascending: false })
@@ -318,8 +320,8 @@ export const consolidationService = {
      * Retorna apenas os IDs que já estão confirmados no banco.
      * Implementa chunking para evitar limites de tamanho de URL no Supabase/PostgREST.
      */
-    checkConfirmedTransactions: async (userId: string, ids: string[]) => {
-        if (!userId || !ids || ids.length === 0) return [];
+    checkConfirmedTransactions: async (ownerId: string, ids: string[]) => {
+        if (!ownerId || !ids || ids.length === 0) return [];
         
         try {
             const chunkSize = 50; // Tamanho seguro para evitar URLs gigantes
@@ -331,7 +333,7 @@ export const consolidationService = {
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('id')
-                    .eq('user_id', userId)
+                    .eq('owner_id', ownerId)
                     .eq('is_confirmed', true)
                     .in('id', chunk);
 
@@ -339,7 +341,7 @@ export const consolidationService = {
                     console.error("[Consolidation:CHECK_CONFIRMED_CHUNK_FAIL]", {
                         error,
                         chunkSize: chunk.length,
-                        userId
+                        ownerId
                     });
                     continue;
                 }
@@ -362,8 +364,8 @@ export const consolidationService = {
      * Remove registros que possuem o mesmo row_hash, mantendo apenas um.
      * Garante que as listas "vivas" e históricas fiquem limpas.
      */
-    runGlobalDeduplication: async (userId: string) => {
-        if (!userId) return 0;
+    runGlobalDeduplication: async (ownerId: string) => {
+        if (!ownerId) return 0;
         
         try {
             let allRecords: any[] = [];
@@ -376,7 +378,7 @@ export const consolidationService = {
                 const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
-                    .eq('user_id', userId)
+                    .eq('owner_id', ownerId)
                     .range(from, from + step - 1);
 
                 if (error) throw error;

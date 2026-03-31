@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
+    subscription,
     setBankStatementFile,
     setSelectedBankIds
 }: any) => {
@@ -16,18 +17,20 @@ export const useLiveListSync = ({
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
 
+    const effectiveOwnerId = subscription?.ownerId || user?.id;
+
     /**
      * 🛡️ HYDRATE (O FUNIL DE SAÍDA PARA A UI)
      * Garante que a UI só exiba o que está validado no banco de dados.
      */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        if (!user || isCleaning || isHydrating.current) return;
+        if (!effectiveOwnerId || isCleaning || isHydrating.current) return;
         
         isHydrating.current = true;
         setSyncError(null);
         
         try {
-            const dbTransactions = await consolidationService.getPendingTransactions(user.id);
+            const dbTransactions = await consolidationService.getPendingTransactions(effectiveOwnerId);
             
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile([]);
@@ -95,17 +98,17 @@ export const useLiveListSync = ({
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
      */
     useEffect(() => {
-        if (!user?.id) return;
+        if (!effectiveOwnerId) return;
 
         const channel = supabase
-            .channel(`realtime-viva-${user.id}`)
+            .channel(`realtime-viva-${effectiveOwnerId}`)
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${user.id}`
+                    filter: `owner_id=eq.${effectiveOwnerId}`
                 },
                 () => {
                     hydrate(false);
@@ -116,41 +119,41 @@ export const useLiveListSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, hydrate]);
+    }, [effectiveOwnerId, hydrate]);
 
     useEffect(() => {
-        if (user?.id && user.id !== lastUserId.current) {
-            lastUserId.current = user.id;
+        if (effectiveOwnerId && effectiveOwnerId !== lastUserId.current) {
+            lastUserId.current = effectiveOwnerId;
             hydrate(true);
         }
-    }, [user, hydrate]);
+    }, [effectiveOwnerId, hydrate]);
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
      */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
-        if (!user) return { added: 0, skipped: 0, total: transactions.length };
+        if (!user || !effectiveOwnerId) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
-            const stats = await LaunchService.launchToBank(user.id, bankId, transactions);
+            const stats = await LaunchService.launchToBank(user.id, bankId, transactions, 'file', effectiveOwnerId);
             await hydrate(false);
             return stats;
         } catch (e: any) {
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
-    }, [user, showToast, hydrate]);
+    }, [user, effectiveOwnerId, showToast, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
-        if (!user) return;
+        if (!effectiveOwnerId) return;
         setIsCleaning(true);
         try {
-            await consolidationService.deletePendingTransactions(user.id, bankId);
+            await consolidationService.deletePendingTransactions(effectiveOwnerId, bankId);
         } finally {
             setIsCleaning(false);
             await hydrate(false);
         }
-    }, [user, hydrate]);
+    }, [effectiveOwnerId, hydrate]);
 
     return { persistTransactions, clearRemoteList, hydrate, syncError };
 };
