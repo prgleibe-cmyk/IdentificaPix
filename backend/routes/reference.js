@@ -84,7 +84,7 @@ export default () => {
                     // Owner/Boss vê tudo o que ele criou
                     const { data: ownerReports } = await supabase
                         .from('saved_reports')
-                        .select('*')
+                        .select('id, name, created_at, record_count, user_id, church_id')
                         .eq('user_id', ownerId)
                         .order('created_at', { ascending: false });
                     reports = ownerReports || [];
@@ -92,14 +92,14 @@ export default () => {
                     // Não é o dono (Membro/Secundário): Busca seus próprios relatórios individuais
                     const { data: memberReports } = await supabase
                         .from('saved_reports')
-                        .select('*')
+                        .select('id, name, created_at, record_count, user_id, church_id')
                         .eq('user_id', req.user.id)
                         .order('created_at', { ascending: false });
                     
                     // Busca a Sessão Ativa compartilhada do Boss (ownerId)
                     const { data: sharedSession } = await supabase
                         .from('saved_reports')
-                        .select('*')
+                        .select('id, name, created_at, record_count, user_id, church_id')
                         .eq('user_id', ownerId)
                         .eq('name', '[SESSÃO_ATIVA]')
                         .limit(1);
