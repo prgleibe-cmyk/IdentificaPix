@@ -52,6 +52,16 @@ export default () => {
             }
 
             console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id}, role: ${profile?.role})`);
+            
+            // Buscar associações aprendidas
+            const { data: learnedAssociations, error: learnedError } = await supabase
+                .from('learned_associations')
+                .select('*')
+                .eq('user_id', ownerId);
+
+            if (learnedError) {
+                console.error(`[Reference API] Erro ao buscar associações para owner ${ownerId}:`, learnedError.message);
+            }
 
             // Buscar bancos
             const { data: banks, error: banksError } = await supabase
@@ -84,15 +94,40 @@ export default () => {
                 console.error(`[Reference API] Erro ao buscar relatórios para owner ${ownerId}:`, reportsError.message);
             }
 
-            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas e ${reports?.length || 0} relatórios.`);
+            console.log(`[Reference API] Retornando ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas, ${reports?.length || 0} relatórios e ${learnedAssociations?.length || 0} associações.`);
 
             res.json({ 
                 banks: banks || [], 
                 churches: churches || [],
-                reports: reports || []
+                reports: reports || [],
+                learnedAssociations: learnedAssociations || []
             });
         } catch (error) {
             console.error("[Reference API] Erro:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/learn', async (req, res) => {
+        const supabase = getSupabaseAdmin();
+        if (!supabase) return res.status(500).json({ error: "Erro de configuração." });
+
+        try {
+            const { association } = req.body;
+            const { data, error } = await supabase
+                .from('learned_associations')
+                .upsert({
+                    user_id: req.user.id,
+                    normalized_description: association.normalizedDescription,
+                    church_id: association.churchId,
+                    contributor_normalized_name: association.contributorNormalizedName,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id,normalized_description' });
+
+            if (error) throw error;
+            res.json({ success: true, data });
+        } catch (error) {
+            console.error("[Reference API] Erro ao salvar aprendizado:", error);
             res.status(500).json({ error: error.message });
         }
     });
