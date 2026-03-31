@@ -6,6 +6,28 @@ type ConsolidatedTransactionInsert = Database['public']['Tables']['consolidated_
 
 export const consolidationService = {
 
+    /**
+     * Helper genérico para busca paginada (Centralização de Lógica)
+     */
+    _fetchPaginated: async (queryFn: (from: number, to: number) => Promise<{data: any[] | null, error: any}>, step: number = 1000, maxRecords?: number) => {
+        let allData: any[] = [];
+        let from = 0;
+        let hasMore = true;
+
+        while (hasMore && (!maxRecords || allData.length < maxRecords)) {
+            const { data, error } = await queryFn(from, from + step - 1);
+            if (error) throw error;
+            if (data && data.length > 0) {
+                allData = [...allData, ...data];
+                from += step;
+                if (data.length < step) hasMore = false;
+            } else {
+                hasMore = false;
+            }
+        }
+        return allData;
+    },
+
     addTransactions: async (transactions: ConsolidatedTransactionInsert[]) => {
         if (transactions.length === 0) return [];
         
@@ -162,42 +184,13 @@ export const consolidationService = {
 
         if (!userId) throw new Error("UserID é obrigatório.");
         
-        let allHashes: { row_hash: string | null }[] = [];
-        let from = 0;
-        const step = 1000;
-        let hasMore = true;
-
         try {
-
-            while (hasMore) {
-
-                const { data, error } = await (supabase as any)
-                    .from('consolidated_transactions')
-                    .select('row_hash')
-                    .eq('user_id', userId)
-                    .range(from, from + step - 1);
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-
-                    allHashes = [...allHashes, ...data];
-                    from += step;
-
-                    if (data.length < step) hasMore = false;
-
-                } else {
-                    hasMore = false;
-                }
-            }
-
-            return allHashes;
-
+            return await consolidationService._fetchPaginated((from, to) => 
+                (supabase as any).from('consolidated_transactions').select('row_hash').eq('user_id', userId).range(from, to)
+            );
         } catch (e: any) {
-
             console.error("[Consolidation:DEDUP_FETCH_FAIL]", e);
             throw e;
-
         }
     },
 
@@ -251,40 +244,19 @@ export const consolidationService = {
 
         if (!userId) return [];
 
-        let allTransactions: any[] = [];
-        let from = 0;
-        const step = 1000;
-        const maxRecords = 5000; // Limite de segurança para performance da UI
-        let hasMore = true;
-
         try {
-
-            while (hasMore && allTransactions.length < maxRecords) {
-
-                const { data, error } = await (supabase as any)
-                    .from('consolidated_transactions')
+            const maxRecords = 5000;
+            const allTransactions = await consolidationService._fetchPaginated((from, to) => 
+                (supabase as any).from('consolidated_transactions')
                     .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)
                     .order('transaction_date', { ascending: false })
-                    .range(from, from + step - 1);
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-
-                    allTransactions = [...allTransactions, ...data];
-                    from += step;
-
-                    if (data.length < step) hasMore = false;
-
-                } else {
-
-                    hasMore = false;
-
-                }
-            }
+                    .range(from, to),
+                1000,
+                maxRecords
+            );
 
             if (allTransactions.length >= maxRecords) {
                 console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
@@ -293,10 +265,8 @@ export const consolidationService = {
             return allTransactions;
 
         } catch (e: any) {
-
             console.error("[Consolidation:FETCH_FAIL]", e);
             throw e;
-
         }
     },
 
@@ -374,27 +344,14 @@ export const consolidationService = {
         
         try {
             let allRecords: any[] = [];
-            let from = 0;
-            const step = 1000;
-            let hasMore = true;
 
             // 1. Busca exaustiva de todos os registros para comparação
-            while (hasMore) {
-                const { data, error } = await (supabase as any)
-                    .from('consolidated_transactions')
+            allRecords = await consolidationService._fetchPaginated((from, to) => 
+                (supabase as any).from('consolidated_transactions')
                     .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
                     .eq('user_id', userId)
-                    .range(from, from + step - 1);
-
-                if (error) throw error;
-                if (data && data.length > 0) {
-                    allRecords = [...allRecords, ...data];
-                    from += step;
-                    if (data.length < step) hasMore = false;
-                } else {
-                    hasMore = false;
-                }
-            }
+                    .range(from, to)
+            );
 
             // 2. Identifica duplicatas baseadas no row_hash OU no conteúdo exato
             const seenHashes = new Set<string>();

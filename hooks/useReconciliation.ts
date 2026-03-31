@@ -89,40 +89,26 @@ export const useReconciliation = (props: any) => {
     // 4. Hook de Matching de Transações
     const matcher = useTransactionMatcher(params);
 
-    // Filtros de segurança para membros (Lógica de View)
-    const filteredMatchResults = useMemo(() => {
-        let results = matchResults;
+    // ✅ Filtros de segurança unificados (Membros/Secundários)
+    const applySecurityFilters = useCallback((results: MatchResult[]) => {
         const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
-            if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter(r => {
-                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                    return subscription.congregationIds.includes(churchId);
-                });
-            }
-            if (subscription.bankIds && subscription.bankIds.length > 0) {
-                results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
-            }
-        }
-        return results;
-    }, [matchResults, subscription, user?.id]);
+        if (!isSecondary) return results;
 
-    const filteredLaunchedResults = useMemo(() => {
-        let results = launchedResults;
-        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
-            if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter(r => {
-                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                    return subscription.congregationIds.includes(churchId);
-                });
-            }
-            if (subscription.bankIds && subscription.bankIds.length > 0) {
-                results = results.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
-            }
+        let filtered = results;
+        if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+            filtered = filtered.filter(r => {
+                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
+                return subscription.congregationIds.includes(churchId);
+            });
         }
-        return results;
-    }, [launchedResults, subscription, user?.id]);
+        if (subscription.bankIds && subscription.bankIds.length > 0) {
+            filtered = filtered.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
+        }
+        return filtered;
+    }, [subscription, user?.id]);
+
+    const filteredMatchResults = useMemo(() => applySecurityFilters(matchResults), [matchResults, applySecurityFilters]);
+    const filteredLaunchedResults = useMemo(() => applySecurityFilters(launchedResults), [launchedResults, applySecurityFilters]);
 
     const resetReconciliation = useCallback(async () => {
         setIsLoading(true);
