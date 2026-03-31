@@ -1,54 +1,16 @@
 
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '../lib/supabase.js';
+import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
 import fs from 'fs';
 import path from 'path';
 
 const router = express.Router();
 
 export default () => {
-    const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
-    const hardcodedAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
-    
-    // Função para obter o cliente Supabase atualizado com as chaves do ambiente
-    const getSupabaseAdmin = () => {
-        // Tenta várias nomenclaturas comuns
-        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                               process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
-                               process.env.SERVICE_ROLE_KEY ||
-                               process.env.SUPABASE_SERVICE_KEY;
-                               
-        const anonKey = process.env.SUPABASE_ANON_KEY || 
-                        process.env.VITE_SUPABASE_ANON_KEY || 
-                        process.env.ANON_KEY ||
-                        hardcodedAnon;
-                        
-        const key = serviceRoleKey || anonKey;
-
-        if (!key) {
-            console.error("[Users API] Nenhuma chave Supabase encontrada no ambiente.");
-            return null;
-        }
-
-        try {
-            return {
-                client: createClient(supabaseUrl, key, {
-                    auth: {
-                        autoRefreshToken: false,
-                        persistSession: false
-                    }
-                }),
-                isServiceRole: !!serviceRoleKey,
-                keyUsed: serviceRoleKey ? 'SERVICE_ROLE' : 'ANON'
-            };
-        } catch (e) {
-            console.error("[Users API] Supabase Init Error:", e.message);
-            return null;
-        }
-    };
-
     // Rota de diagnóstico para verificar as chaves (sem mostrá-las inteiras)
     router.get('/debug-env', (req, res) => {
+        const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
         const srk = process.env.SUPABASE_SERVICE_ROLE_KEY || 
                     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
                     process.env.SERVICE_ROLE_KEY ||
@@ -76,16 +38,11 @@ export default () => {
     router.post('/create', async (req, res) => {
         console.log("[Users API] Recebida requisição de criação de usuário:", req.body.email);
         const { email, password, churchIds, permissions, ownerId } = req.body;
-        const supabase = getSupabaseAdmin();
+        const supabaseAdmin = getSupabaseAdmin();
 
-        if (!supabase || !supabase.client) {
+        if (!supabaseAdmin) {
             console.error("[Users API] Falha ao inicializar Supabase");
             return res.status(500).json({ error: "Erro de configuração: Cliente Supabase não pôde ser inicializado. Verifique as variáveis de ambiente." });
-        }
-
-        // Removemos o bloqueio fatal para ver o erro real do Supabase se a chave for insuficiente
-        if (!supabase.isServiceRole) {
-            console.warn("[Users API] Aviso: Chave de serviço (Service Role) não detectada. Tentando com chave disponível...");
         }
         
         if (!email || !password || !churchIds || !ownerId) {
@@ -93,24 +50,8 @@ export default () => {
             return res.status(400).json({ error: "Dados incompletos para criação de usuário." });
         }
 
-        // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado ou um admin do mesmo dono
-        const { data: requesterProfile, error: requesterError } = await supabase.client
-            .from('profiles')
-            .select('owner_id, role')
-            .eq('id', req.user.id)
-            .single();
-
-        if (requesterError) {
-            console.error("[Users API] Erro ao buscar perfil do solicitante:", requesterError);
-            return res.status(500).json({ error: "Erro ao validar permissões." });
-        }
-
-        const requesterEffectiveOwnerId = requesterProfile.owner_id || req.user.id;
-
-        if (req.user.id !== ownerId && requesterEffectiveOwnerId !== ownerId) {
-            console.error("[Users API] Tentativa de criação não autorizada. Autenticado:", req.user.id, "Solicitado:", ownerId);
-            return res.status(403).json({ error: "Acesso negado: Você não tem permissão para criar usuários nesta conta." });
-        }
+        // Verificação de segurança centralizada (IDOR Protection)
+        validateOwnerAccess(req, ownerId);
 
         const permissionsObject = {
             "confirmar_final": permissions.confirmar_final,
@@ -125,7 +66,7 @@ export default () => {
         try {
             // 1. Verificar se o solicitante é OWNER
             console.log("[Users API] Verificando permissão do owner:", ownerId);
-            const { data: ownerProfile, error: ownerError } = await supabase.client
+            const { data: ownerProfile, error: ownerError } = await supabaseAdmin
                 .from('profiles')
                 .select('role')
                 .eq('id', ownerId)
@@ -143,7 +84,7 @@ export default () => {
 
             // 2. Criar usuário no Supabase Auth
             console.log("[Users API] Criando usuário no Auth...");
-            const { data: authData, error: authError } = await supabase.client.auth.admin.createUser({
+            const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
                 email,
                 password,
                 email_confirm: true // Confirmar automaticamente para usuários secundários
@@ -171,7 +112,7 @@ export default () => {
 
             // 3. Criar ou atualizar registro na tabela profiles
             console.log("[Users API] Criando/Atualizando perfil na tabela profiles...");
-            const { error: profileError } = await supabase.client
+            const { error: profileError } = await supabaseAdmin
                 .from('profiles')
                 .upsert({
                     id: newUser.id,
@@ -187,7 +128,7 @@ export default () => {
                 console.error("[Users API] Erro ao criar perfil:", profileError);
                 // Se falhar ao criar o perfil, tentamos remover o usuário do auth para manter consistência
                 console.log("[Users API] Removendo usuário do Auth devido a falha no perfil...");
-                await supabase.client.auth.admin.deleteUser(newUser.id);
+                await supabaseAdmin.auth.admin.deleteUser(newUser.id);
                 throw profileError;
             }
 
@@ -220,41 +161,19 @@ export default () => {
     // Listar usuários de um owner
     router.get('/list/:ownerId', async (req, res) => {
         const { ownerId } = req.params;
-        const supabase = getSupabaseAdmin();
+        const supabaseAdmin = getSupabaseAdmin();
 
-        // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado
-        if (req.user.id !== ownerId) {
-            return res.status(403).json({ error: "Acesso negado: Você só pode listar seus próprios usuários." });
-        }
-
-        if (!supabase || !supabase.client) {
+        if (!supabaseAdmin) {
             return res.status(500).json({ error: "Erro de configuração" });
         }
 
+        validateOwnerAccess(req, ownerId);
+
         try {
-            const { ownerId } = req.params;
-            
-            // Validação IDOR: O usuário só pode listar usuários se for o owner ou se for um subordinado do mesmo owner
-            // Primeiro buscamos o perfil do usuário logado para verificar seu owner_id
-            const { data: currentUserProfile, error: authProfileError } = await supabase.client
-                .from('profiles')
-                .select('owner_id, role')
-                .eq('id', req.user.id)
-                .single();
-
-            if (authProfileError) throw authProfileError;
-
-            const userEffectiveOwnerId = currentUserProfile.owner_id || req.user.id;
-            
-            // Se o usuário logado não for o owner solicitado E o owner do usuário logado também não for o owner solicitado
-            if (req.user.id !== ownerId && userEffectiveOwnerId !== ownerId) {
-                return res.status(403).json({ error: "Acesso negado. Você não tem permissão para listar estes usuários." });
-            }
-
             console.log("[Users API] Listando usuários para owner:", ownerId);
             
             // Buscamos todos os perfis onde o owner_id é o solicitado
-            const { data, error, count } = await supabase.client
+            const { data, error, count } = await supabaseAdmin
                 .from('profiles')
                 .select('*', { count: 'exact' })
                 .eq('owner_id', ownerId)
@@ -279,7 +198,7 @@ export default () => {
             res.json(filteredData);
         } catch (error) {
             console.error("[Users API] Erro ao listar usuários:", error);
-            res.status(500).json({ error: error.message });
+            res.status(error.status || 500).json({ error: error.message });
         }
     });
 
@@ -287,9 +206,9 @@ export default () => {
     router.delete('/delete/:userId', async (req, res) => {
         const { userId } = req.params;
         const { ownerId } = req.query;
-        const supabase = getSupabaseAdmin();
+        const supabaseAdmin = getSupabaseAdmin();
 
-        if (!supabase || !supabase.client) {
+        if (!supabaseAdmin) {
             return res.status(500).json({ error: "Erro de configuração" });
         }
 
@@ -297,29 +216,13 @@ export default () => {
             return res.status(400).json({ error: "ownerId é obrigatório para exclusão." });
         }
 
-        // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado ou um admin do mesmo dono
-        const { data: requesterProfile, error: requesterError } = await supabase.client
-            .from('profiles')
-            .select('owner_id, role')
-            .eq('id', req.user.id)
-            .single();
-
-        if (requesterError) {
-            console.error("[Users API] Erro ao buscar perfil do solicitante:", requesterError);
-            return res.status(500).json({ error: "Erro ao validar permissões." });
-        }
-
-        const requesterEffectiveOwnerId = requesterProfile.owner_id || req.user.id;
-
-        if (req.user.id !== ownerId && requesterEffectiveOwnerId !== ownerId) {
-            return res.status(403).json({ error: "Acesso negado: Você não tem permissão para excluir usuários desta conta." });
-        }
+        validateOwnerAccess(req, ownerId);
 
         try {
             console.log("[Users API] Tentando excluir usuário:", userId, "solicitado por owner:", ownerId);
             
             // 1. Validar se o solicitante é o owner desse usuário
-            const { data: userProfile, error: userError } = await supabase.client
+            const { data: userProfile, error: userError } = await supabaseAdmin
                 .from('profiles')
                 .select('owner_id')
                 .eq('id', userId)
@@ -336,20 +239,20 @@ export default () => {
             }
 
             // 2. Excluir do Auth (isso deve disparar a exclusão do profile se houver trigger, senão excluímos manualmente)
-            const { error: authError } = await supabase.client.auth.admin.deleteUser(userId);
+            const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
             if (authError) {
                 console.error("[Users API] Erro ao excluir do Auth:", authError);
                 throw authError;
             }
 
             // 3. Garantir que o profile foi removido (caso não haja trigger)
-            await supabase.client.from('profiles').delete().eq('id', userId);
+            await supabaseAdmin.from('profiles').delete().eq('id', userId);
 
             console.log("[Users API] Usuário excluído com sucesso!");
             res.json({ success: true });
         } catch (error) {
             console.error("[Users API] Erro fatal ao excluir usuário:", error);
-            res.status(500).json({ error: error.message });
+            res.status(error.status || 500).json({ error: error.message });
         }
     });
 
@@ -357,32 +260,17 @@ export default () => {
     router.post('/update/:userId', async (req, res) => {
         const { userId } = req.params;
         const { name, churchIds, permissions, ownerId } = req.body;
-        const supabase = getSupabaseAdmin();
+        const supabaseAdmin = getSupabaseAdmin();
 
-        if (!supabase || !supabase.client) {
+        if (!supabaseAdmin) {
             return res.status(500).json({ error: "Erro de configuração" });
         }
 
         try {
             console.log("[Users API] Atualizando usuário:", userId, "solicitado por owner:", ownerId);
             
-            // Validação IDOR: Garantir que o usuário autenticado é o dono solicitado ou um admin do mesmo dono
-            const { data: requesterProfile, error: requesterError } = await supabase.client
-                .from('profiles')
-                .select('owner_id, role')
-                .eq('id', req.user.id)
-                .single();
-
-            if (requesterError) {
-                console.error("[Users API] Erro ao buscar perfil do solicitante:", requesterError);
-                return res.status(500).json({ error: "Erro ao validar permissões." });
-            }
-
-            const requesterEffectiveOwnerId = requesterProfile.owner_id || req.user.id;
-
-            if (req.user.id !== ownerId && requesterEffectiveOwnerId !== ownerId) {
-                return res.status(403).json({ error: "Acesso negado: Você não tem permissão para editar usuários desta conta." });
-            }
+            // Verificação de segurança centralizada (IDOR Protection)
+            validateOwnerAccess(req, ownerId);
             
             const permissionsObject = {
                 ...permissions,
@@ -392,7 +280,7 @@ export default () => {
             console.log("[Users API] permissionsObject final para salvamento:", JSON.stringify(permissionsObject, null, 2));
             
             // 1. Validar se o solicitante é o owner desse usuário
-            const { data: userProfile, error: userError } = await supabase.client
+            const { data: userProfile, error: userError } = await supabaseAdmin
                 .from('profiles')
                 .select('owner_id')
                 .eq('id', userId)
@@ -411,7 +299,7 @@ export default () => {
                 if (req.body.email) updateData.email = req.body.email;
                 if (req.body.password) updateData.password = req.body.password;
 
-                const { error: authUpdateError } = await supabase.client.auth.admin.updateUserById(
+                const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
                     userId,
                     updateData
                 );
@@ -423,7 +311,7 @@ export default () => {
             }
 
             // 3. Atualizar o profile
-            const { error: updateError } = await supabase.client
+            const { error: updateError } = await supabaseAdmin
                 .from('profiles')
                 .update({
                     name: name,

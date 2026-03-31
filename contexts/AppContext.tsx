@@ -25,7 +25,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const modalController = useModalController();
     const referenceData = useReferenceData(user, showToast);
-    const reportManager = useReportManager(user, showToast);
+    const reportManager = useReportManager(user, showToast, referenceData.reports);
 
     const effectiveIgnoreKeywords = useMemo(() => {
         return referenceData.customIgnoreKeywords || [];

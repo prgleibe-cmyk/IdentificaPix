@@ -17,7 +17,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 
 const MAX_REPORTS_PER_USER = 60;
 
-export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
+export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[]) => {
     const { subscription } = useAuth();
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -37,44 +37,46 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             return;
         }
 
+        // Se já recebemos relatórios iniciais (ex: via useReferenceData no AppContext),
+        // evitamos a chamada duplicada ao endpoint /api/reference/data/:ownerId
+        if (initialReports && initialReports.length > 0) {
+            const hydrated: SavedReport[] = initialReports.map((r: any) => ({
+                id: r.id,
+                name: r.name,
+                createdAt: r.created_at || r.createdAt,
+                recordCount: r.record_count || r.recordCount,
+                user_id: r.user_id || r.userId,
+                church_id: r.church_id || r.churchId,
+                data: r.data || { results: [], spreadsheet: null }
+            }));
+            setSavedReports(hydrated);
+            return;
+        }
+
         const fetchReports = async () => {
             if (!user?.id) return;
 
             // Para a API, precisamos do ownerId para passar na validação de permissão
             const apiOwnerId = subscription?.ownerId || user.id;
-            const isOwner = subscription.ownerId === user?.id;
             let data: any[] = [];
             
             try {
-                // Se for o dono (Owner), busca diretamente do Supabase (mais rápido)
-                // Se for membro ou tiver outro papel, usa a API que resolve o compartilhamento
-                if (isOwner) {
-                    const { data: d, error } = await supabase
-                        .from('saved_reports')
-                        .select('id, name, created_at, record_count, user_id, church_id')
-                        .eq('user_id', user.id)
-                        .order('created_at', { ascending: false });
+                // Agora sempre buscamos via API para centralizar a lógica no ReportService.js do backend
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
 
-                    if (error) throw error;
+                const response = await fetch(`/api/reference/data/${apiOwnerId}?limit=50&offset=0`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const resData = await response.json();
                     if (ignore) return;
-                    data = d || [];
+                    data = resData.reports || [];
                 } else {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-
-                    const response = await fetch(`/api/reference/data/${apiOwnerId}`, {
-                        method: 'GET',
-                        cache: 'no-store',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-
-                    if (response.ok) {
-                        const resData = await response.json();
-                        if (ignore) return;
-                        data = resData.reports || [];
-                    } else {
-                        throw new Error("Falha ao buscar relatórios via API.");
-                    }
+                    throw new Error("Falha ao buscar relatórios via API.");
                 }
 
                 if (data && !ignore) {
@@ -99,7 +101,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds]);
+    }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds, initialReports]);
 
     /**
      * 🔴 TEMPO REAL (APENAS ASSINATURA)

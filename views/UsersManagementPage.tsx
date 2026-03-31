@@ -1,15 +1,15 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useReferenceData } from '../hooks/useReferenceData';
+import { AppContext } from '../contexts/AppContext';
 import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon, TrashIcon, PencilIcon } from '../components/Icons';
 import { supabase } from '../services/supabaseClient';
 
 export const UsersManagementPage: React.FC = () => {
     const { setActiveView } = useUI();
     const { subscription, user: authUser } = useAuth();
-    const { churches, banks } = useReferenceData(authUser, () => {});
+    const { churches, banks } = useContext(AppContext);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(false);

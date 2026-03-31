@@ -1,56 +1,54 @@
-import { supabaseAdmin } from './supabase.js';
 
 /**
- * Valida se o usuário autenticado tem permissão para acessar dados de um Owner específico.
- * Centraliza a lógica de proteção contra IDOR (Insecure Direct Object Reference).
+ * validateOwnerAccess - Centraliza a validação de acesso ao ownerId.
  * 
- * @param {Object} req - Objeto da requisição Express (deve conter req.user)
- * @param {string} ownerId - O ID do Owner que se deseja acessar
- * @returns {Promise<boolean>} - Retorna true se o acesso for permitido, false caso contrário
+ * Esta função verifica se o usuário autenticado (req.user) tem permissão para acessar
+ * os dados pertencentes ao ownerId fornecido.
+ * 
+ * Regras:
+ * - OWNER: Pode acessar se o seu ID for igual ao ownerId.
+ * - ADMIN: Pode acessar se o seu owner_id for igual ao ownerId.
+ * - PRINCIPAL/SECUNDÁRIO: Podem acessar se o seu owner_id for igual ao ownerId.
+ * 
+ * @param {Object} req - Objeto de requisição do Express (contém req.user)
+ * @param {string} ownerId - ID do proprietário dos dados solicitados
+ * @throws {Error} - Lança erro com status 403 se o acesso for negado.
  */
-export async function validateOwnerAccess(req, ownerId) {
-    if (!req.user || !req.user.id) return false;
+export const validateOwnerAccess = (req, ownerId) => {
+  const { user } = req;
+  const timestamp = new Date().toISOString();
 
-    try {
-        // 1. Tenta usar dados já presentes no req.user (caso o middleware tenha sido expandido)
-        // ou busca o perfil atualizado no banco de dados.
-        let role = req.user.role;
-        let linkedOwnerId = req.user.owner_id;
+  if (!user) {
+    console.error(`[AUDITORIA] Tentativa de acesso sem usuário autenticado em ${timestamp}`);
+    const error = new Error("Usuário não autenticado.");
+    error.status = 401;
+    throw error;
+  }
 
-        if (!role) {
-            const { data: profile, error } = await supabaseAdmin
-                .from('profiles')
-                .select('owner_id, role')
-                .eq('id', req.user.id)
-                .single();
+  let hasAccess = false;
 
-            if (error || !profile) return false;
-            
-            role = profile.role;
-            linkedOwnerId = profile.owner_id;
-        }
+  // 1. Validação por Papel (Role)
+  if (user.role === 'owner' && user.id === ownerId) {
+    hasAccess = true;
+  } else if (user.role === 'admin' && user.owner_id === ownerId) {
+    hasAccess = true;
+  } else if ((user.role === 'principal' || user.role === 'secondary') && user.owner_id === ownerId) {
+    hasAccess = true;
+  }
 
-        // 2. Aplica as regras de negócio por papel (Role)
-        
-        // Caso OWNER: Só pode acessar seu próprio ID
-        if (role === 'owner') {
-            return req.user.id === ownerId;
-        }
+  // 2. Auditoria e Bloqueio
+  if (!hasAccess) {
+    console.warn(`[AUDITORIA - ACESSO NEGADO] 
+      Timestamp: ${timestamp}
+      Solicitante (userId): ${user.id}
+      Papel (role): ${user.role}
+      Owner Requisitado: ${ownerId}
+    `);
 
-        // Caso ADMIN: Pode acessar o ownerId ao qual está vinculado
-        if (role === 'admin') {
-            return linkedOwnerId === ownerId;
-        }
+    const error = new Error("Acesso negado: Você não tem permissão para acessar estes dados.");
+    error.status = 403;
+    throw error;
+  }
 
-        // Caso MEMBER: Pode acessar o ownerId ao qual está vinculado
-        // (A filtragem por congregação é feita em nível de dados, não de ownerId)
-        if (role === 'member') {
-            return linkedOwnerId === ownerId;
-        }
-
-        return false;
-    } catch (err) {
-        console.error('[validateOwnerAccess] Erro crítico na validação:', err.message);
-        return false;
-    }
-}
+  return true;
+};

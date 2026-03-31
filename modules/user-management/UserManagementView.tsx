@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { usePermissions } from './usePermissions';
 import { UserProfile, DEFAULT_TREASURER_PERMISSIONS } from './types';
-import { useReferenceData } from '../../hooks/useReferenceData';
+import { AppContext } from '../../contexts/AppContext';
 import { useUser } from './UserContext';
 import { Users, UserPlus, Shield, Church as ChurchIcon, Check, X, Trash2, Edit2 } from 'lucide-react';
 
@@ -21,7 +21,7 @@ const PERMISSION_LABELS: Record<string, string> = {
 export const UserManagementView: React.FC = () => {
     const { profile: adminProfile } = useUser();
     const { isRole } = usePermissions();
-    const { churches } = useReferenceData(adminProfile, (m, t) => console.log(m, t));
+    const { churches } = useContext(AppContext);
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);

@@ -14,6 +14,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
     const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
+    const [reports, setReports] = useState<any[]>([]);
     const [fileModels, setFileModels] = useState<FileModel[]>([]);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
@@ -58,7 +59,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     const token = session?.access_token;
                     const ownerId = subscription.ownerId || user.id;
 
-                    const response = await fetch(`/api/reference/data/${ownerId}`, {
+                    const response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
                         method: 'GET',
                         cache: 'no-store',
                         headers: {
@@ -72,6 +73,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         
                         let filteredBanks = data.banks || [];
                         let filteredChurches = data.churches || [];
+                        let fetchedReports = data.reports || [];
+                        let fetchedAssociations = data.associations || [];
+                        let fetchedModels = data.models || [];
                         
                         const allowedBankIds = subscription.bankIds || [];
                         const allowedChurchIds = subscription.congregationIds || [];
@@ -86,6 +90,20 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         if (!ignore) {
                             setBanks(filteredBanks);
                             setChurches(filteredChurches);
+                            setReports(fetchedReports);
+                            
+                            // ✅ Consumindo associações consolidadas
+                            setLearnedAssociations(fetchedAssociations.map((d: any) => ({
+                                id: d.id, 
+                                normalizedDescription: d.normalized_description,
+                                contributorNormalizedName: d.contributor_normalized_name,
+                                churchId: d.church_id, 
+                                bankId: 'global',
+                                user_id: d.user_id
+                            })));
+
+                            // ✅ Consumindo modelos consolidados
+                            setFileModels(fetchedModels);
                         }
                     }
 
@@ -107,25 +125,37 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     // ✅ dependências corrigidas (cirúrgico)
     }, [user?.id, subscription?.role, subscription?.ownerId]);
 
+    // ✅ Carregamento inicial de associações e modelos para OWNER (Membros já recebem via API consolidada)
     useEffect(() => {
         let ignore = false;
-        if (!user) return;
-        const fetchAssociations = async () => {
-            const { data } = await supabase.from('learned_associations').select('*').eq('user_id', user.id) as { data: any[] | null };
-            if (data && !ignore) {
-                setLearnedAssociations(data.map((d: any) => ({
-                    id: d.id, 
-                    normalizedDescription: d.normalized_description,
-                    contributorNormalizedName: d.contributor_normalized_name,
-                    churchId: d.church_id, 
-                    bankId: 'global',
-                    user_id: d.user_id
-                })));
+        if (!user || subscription.ownerId !== user.id) return;
+
+        const fetchOwnerExtras = async () => {
+            try {
+                // Associações
+                const { data: assocData } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
+                if (assocData && !ignore) {
+                    setLearnedAssociations(assocData.map((d: any) => ({
+                        id: d.id, 
+                        normalizedDescription: d.normalized_description,
+                        contributorNormalizedName: d.contributor_normalized_name,
+                        churchId: d.church_id, 
+                        bankId: 'global',
+                        user_id: d.user_id
+                    })));
+                }
+
+                // Modelos
+                const models = await modelService.getUserModels(user.id);
+                if (models && !ignore) setFileModels(models);
+            } catch (e) {
+                console.error("[useReferenceData] Erro ao buscar extras do owner:", e);
             }
         };
-        fetchAssociations();
+
+        fetchOwnerExtras();
         return () => { ignore = true; };
-    }, [user]);
+    }, [user?.id, subscription?.ownerId]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;
@@ -176,11 +206,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const fetchModels = useCallback(async () => {
         if (!user) return;
+        // Se for membro, os modelos já vêm via API consolidada no syncData
+        if (subscription.ownerId !== user.id) return;
+        
         try {
             const models = await modelService.getUserModels(user.id);
             setFileModels(models);
         } catch (e) { console.error(e); }
-    }, [user]);
+    }, [user, subscription.ownerId]);
 
     useEffect(() => { fetchModels(); }, [fetchModels]);
 
@@ -261,7 +294,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [setPaymentMethods, showToast]);
 
     return useMemo(() => ({
-        banks, churches, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
+        banks, churches, reports, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         customIgnoreKeywords, contributionKeywords, addContributionKeyword, removeContributionKeyword,
         paymentMethods, addPaymentMethod, removePaymentMethod,
         learnedAssociations, learnAssociation,
@@ -269,7 +302,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
-        banks, churches, fileModels, fetchModels, similarityLevel, dayTolerance, 
+        banks, churches, reports, fileModels, fetchModels, similarityLevel, dayTolerance, 
         customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 

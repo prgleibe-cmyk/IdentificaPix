@@ -244,6 +244,8 @@ export const consolidationService = {
 
     /**
      * LISTA VIVA (pendentes)
+     * Implementa um limite de segurança de 5000 registros para evitar travamento do navegador
+     * em contas com volume massivo de transações pendentes.
      */
     getPendingTransactions: async (userId: string) => {
 
@@ -252,11 +254,12 @@ export const consolidationService = {
         let allTransactions: any[] = [];
         let from = 0;
         const step = 1000;
+        const maxRecords = 5000; // Limite de segurança para performance da UI
         let hasMore = true;
 
         try {
 
-            while (hasMore) {
+            while (hasMore && allTransactions.length < maxRecords) {
 
                 const { data, error } = await (supabase as any)
                     .from('consolidated_transactions')
@@ -281,6 +284,10 @@ export const consolidationService = {
                     hasMore = false;
 
                 }
+            }
+
+            if (allTransactions.length >= maxRecords) {
+                console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
             }
 
             return allTransactions;

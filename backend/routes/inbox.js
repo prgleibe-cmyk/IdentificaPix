@@ -1,28 +1,18 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '../lib/supabase.js';
+import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
 
 const router = express.Router();
 
 export default (ai) => {
-    const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
-    const hardcodedAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
-    
-    const getSupabaseAdmin = () => {
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                           process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
-                           process.env.SUPABASE_ANON_KEY || 
-                           process.env.VITE_SUPABASE_ANON_KEY || 
-                           hardcodedAnon;
-        if (!supabaseKey) return null;
-        try {
-            return createClient(supabaseUrl, supabaseKey);
-        } catch (e) {
-            console.error("[Inbox API] Supabase Init Error:", e.message);
-            return null;
-        }
-    };
-
     router.post('/:userId/:bankId', async (req, res) => {
+        const apiKey = req.headers['x-api-key'];
+        const validKey = process.env.INBOX_API_KEY;
+
+        if (!apiKey || apiKey !== validKey) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
+        }
+
         const { userId, bankId } = req.params;
         const { text } = req.body;
         const supabaseAdmin = getSupabaseAdmin();
@@ -30,8 +20,9 @@ export default (ai) => {
         // Validação IDOR: Garantir que o usuário autenticado é o dono dos dados
         // Se req.user existir (rota autenticada), validamos o ID.
         // Se não existir, permitimos (webhook externo sem token).
-        if (req.user && req.user.id !== userId) {
-            return res.status(403).json({ error: "Acesso negado: Você não pode processar notificações para outro usuário." });
+        if (req.user) {
+            // Verificação de segurança centralizada (IDOR Protection)
+            validateOwnerAccess(req, userId);
         }
 
         if (!ai) return res.status(500).json({ error: "IA não configurada no servidor." });
@@ -85,7 +76,7 @@ export default (ai) => {
 
         } catch (error) {
             console.error("[Inbox API] Erro no processamento:", error.message);
-            res.status(500).json({ error: "Falha ao processar notificação via IA." });
+            res.status(error.status || 500).json({ error: error.message || "Falha ao processar notificação via IA." });
         }
     });
 
