@@ -53,61 +53,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
-    const isDataReady =
-        !!user &&
-        !!subscription &&
-        referenceData.churches?.length > 0 &&
-        reportManager.savedReports !== null;
-
     /**
      * 🔴 AJUSTE ORIGINAL (mantido)
      */
     useEffect(() => {
-        if (!isDataReady) return;
         if (!user || !subscription) return;
-        if (!referenceData.churches || referenceData.churches.length === 0) return;
-        if (!reportManager.savedReports) return;
 
+        const churches = referenceData.churches || [];
+        const reports = reportManager.savedReports || [];
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-
-        console.log('[DEBUG] isSecondary:', isSecondary);
-        console.log('[DEBUG] congregationIds:', subscription.congregationIds);
-        console.log('[DEBUG] churches loaded:', referenceData.churches?.length);
-        console.log('[DEBUG] savedReports:', reportManager.savedReports?.length);
-
-        if (isSecondary) {
-            if (!subscription.congregationIds || subscription.congregationIds.length === 0) {
-                return; // ⛔ impede filtro com dados incompletos
-            }
-        }
 
         const activeId = reconciliation.activeReportId;
         if (!activeId) return;
 
-        const report = reportManager.savedReports.find(r => r.id === activeId);
+        const report = reports.find(r => r.id === activeId);
         if (!report || !report.data?.results) return;
 
         let hydrated = report.data.results.map((r: any) => ({
             ...r,
             church:
-                referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
                 r.church ||
                 PLACEHOLDER_CHURCH
         }));
 
-        if (isSecondary) {
-            if (!subscription.congregationIds || subscription.congregationIds.length === 0) {
-                return;
-            }
+        console.log('[DEBUG] isSecondary:', isSecondary);
+        console.log('[DEBUG] congregationIds:', subscription.congregationIds);
+        console.log('[DEBUG] hydrated antes filtro:', hydrated.length);
 
+        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
             hydrated = hydrated.filter((r: any) =>
-                (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
             );
         }
 
+        console.log('[DEBUG] hydrated depois filtro:', hydrated.length);
+
         reconciliation.setMatchResults(hydrated);
     }, [
-        isDataReady,
         reportManager.savedReports,
         reconciliation.activeReportId,
         referenceData.churches,
@@ -121,17 +104,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      * SINCRONIZA EM TEMPO REAL O RELATÓRIO ABERTO
      */
     useEffect(() => {
-        if (!isDataReady) return;
+        if (!user || !subscription) return;
         if (!reconciliation.activeReportId) return;
 
-        const report = reportManager.savedReports.find(
+        const reports = reportManager.savedReports || [];
+        const report = reports.find(
             r => r.id === reconciliation.activeReportId
         );
 
         if (!report || !report.data?.results) return;
 
         reconciliation.setMatchResults([...report.data.results]);
-    }, [isDataReady, reportManager.savedReports]);
+    }, [reportManager.savedReports, user?.id, subscription]);
 
     /**
      * 👁️ VISUALIZADOR DE RELATÓRIOS
