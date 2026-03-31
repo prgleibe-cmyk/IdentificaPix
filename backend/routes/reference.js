@@ -77,6 +77,13 @@ export default () => {
             let reports = [];
             
             try {
+                const effectiveUserId = req.user.owner_id || req.user.id;
+                console.log('USER DEBUG:', {
+                  userId: req.user.id,
+                  ownerId: req.user.owner_id,
+                  effectiveUserId
+                });
+
                 // Lógica agnóstica de role: se o usuário é o dono do ownerId, ele é o "Boss"
                 const isActualOwner = req.user.id === ownerId;
 
@@ -85,7 +92,7 @@ export default () => {
                     const { data: ownerReports } = await supabase
                         .from('saved_reports')
                         .select('id, name, created_at, record_count, user_id, church_id')
-                        .eq('user_id', ownerId)
+                        .eq('user_id', effectiveUserId)
                         .order('created_at', { ascending: false });
                     reports = ownerReports || [];
                 } else {
@@ -100,7 +107,7 @@ export default () => {
                     const { data: sharedSession } = await supabase
                         .from('saved_reports')
                         .select('id, name, created_at, record_count, user_id, church_id')
-                        .eq('user_id', ownerId)
+                        .eq('user_id', effectiveUserId)
                         .eq('name', '[SESSÃO_ATIVA]')
                         .limit(1);
                     
