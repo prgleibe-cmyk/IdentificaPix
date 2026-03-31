@@ -28,6 +28,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
     const lastOwnerIdRef = useRef<string | null>(null);
+    const hasFetchedRef = useRef(false);
 
     useEffect(() => {
         let ignore = false;
@@ -36,6 +37,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             lastOwnerIdRef.current = null;
             return;
         }
+
+        if (hasFetchedRef.current) return;
+        hasFetchedRef.current = true;
 
         const ownerId = subscription.ownerId || user.id;
 
