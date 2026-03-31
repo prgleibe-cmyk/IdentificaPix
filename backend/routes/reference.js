@@ -53,14 +53,22 @@ export default () => {
 
             console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id}, role: ${profile?.role})`);
             
-            // Buscar associações aprendidas
+            // 1. Buscar todos os IDs de usuários vinculados a este owner para carregar todo o aprendizado da equipe (incluindo órfãos)
+            const { data: teamProfiles } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('owner_id', ownerId);
+            
+            const teamIds = [ownerId, ...(teamProfiles?.map(p => p.id) || [])];
+
+            // 2. Buscar associações aprendidas de toda a equipe
             const { data: learnedAssociations, error: learnedError } = await supabase
                 .from('learned_associations')
                 .select('*')
-                .eq('user_id', ownerId);
+                .in('user_id', teamIds);
 
             if (learnedError) {
-                console.error(`[Reference API] Erro ao buscar associações para owner ${ownerId}:`, learnedError.message);
+                console.error(`[Reference API] Erro ao buscar associações para a equipe do owner ${ownerId}:`, learnedError.message);
             }
 
             // Buscar bancos
@@ -114,10 +122,25 @@ export default () => {
 
         try {
             const { association } = req.body;
+            
+            // 1. Obter o owner_id do usuário logado para garantir que o aprendizado seja compartilhado
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', req.user.id)
+                .single();
+
+            if (profileError) {
+                console.error(`[Reference API] Erro ao buscar perfil para salvar aprendizado:`, profileError.message);
+            }
+
+            const effectiveOwnerId = profile?.owner_id || req.user.id;
+
+            // 2. Salvar usando o effectiveOwnerId
             const { data, error } = await supabase
                 .from('learned_associations')
                 .upsert({
-                    user_id: req.user.id,
+                    user_id: effectiveOwnerId,
                     normalized_description: association.normalizedDescription,
                     church_id: association.churchId,
                     contributor_normalized_name: association.contributorNormalizedName,
@@ -125,6 +148,16 @@ export default () => {
                 }, { onConflict: 'user_id,normalized_description' });
 
             if (error) throw error;
+
+            // 3. Se for um admin, remover a regra órfã antiga (se existir) para manter o banco limpo
+            if (effectiveOwnerId !== req.user.id) {
+                await supabase
+                    .from('learned_associations')
+                    .delete()
+                    .eq('user_id', req.user.id)
+                    .eq('normalized_description', association.normalizedDescription);
+            }
+
             res.json({ success: true, data });
         } catch (error) {
             console.error("[Reference API] Erro ao salvar aprendizado:", error);
