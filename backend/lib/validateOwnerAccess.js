@@ -1,4 +1,3 @@
-
 /**
  * validateOwnerAccess - Centraliza a validação de acesso ao ownerId.
  * 
@@ -8,7 +7,7 @@
  * Regras:
  * - OWNER: Pode acessar se o seu ID for igual ao ownerId.
  * - ADMIN: Pode acessar se o seu owner_id for igual ao ownerId.
- * - PRINCIPAL/SECUNDÁRIO: Podem acessar se o seu owner_id for igual ao ownerId.
+ * - PRINCIPAL/SECUNDÁRIO/MEMBER: Podem acessar se o seu owner_id for igual ao ownerId.
  * 
  * @param {Object} req - Objeto de requisição do Express (contém req.user)
  * @param {string} ownerId - ID do proprietário dos dados solicitados
@@ -32,7 +31,10 @@ export const validateOwnerAccess = (req, ownerId) => {
     hasAccess = true;
   } else if (user.role === 'admin' && user.owner_id === ownerId) {
     hasAccess = true;
-  } else if ((user.role === 'principal' || user.role === 'secondary') && user.owner_id === ownerId) {
+  } else if (
+    (user.role === 'principal' || user.role === 'secondary' || user.role === 'member') &&
+    user.owner_id === ownerId
+  ) {
     hasAccess = true;
   }
 
