@@ -1,4 +1,3 @@
-
 import express from 'express';
 import { getSupabaseAdmin } from '../lib/supabase.js';
 import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
@@ -8,59 +7,55 @@ const router = express.Router();
 
 export default () => {
     router.get('/data/:ownerId', async (req, res) => {
-        const { ownerId } = req.params;
         const supabaseAdmin = getSupabaseAdmin();
 
         if (!supabaseAdmin) {
             return res.status(500).json({ error: "Erro de configuração: Service Role não encontrada." });
         }
 
-        // Verificação de segurança centralizada (IDOR Protection)
-        validateOwnerAccess(req, ownerId);
+        const effectiveOwnerId = req.user.owner_id || req.user.id;
+
+        // 🔥 CORREÇÃO AQUI
+        validateOwnerAccess(req, effectiveOwnerId);
         
         const limit = parseInt(req.query.limit) || 50;
         const offset = parseInt(req.query.offset) || 0;
 
         try {
-            console.log(`[Reference API] Buscando dados de referência para owner ${ownerId} (requisitado por ${req.user.id})`);
+            console.log(`[Reference API] Buscando dados de referência para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
 
-            // Buscar bancos (Otimizado: apenas campos necessários)
             const { data: banks, error: banksError } = await supabaseAdmin
                 .from('banks')
                 .select('id, name, user_id')
-                .eq('user_id', ownerId);
+                .eq('user_id', effectiveOwnerId);
             
             if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos para owner ${ownerId}:`, banksError.message);
+                console.error(`[Reference API] Erro ao buscar bancos para owner ${effectiveOwnerId}:`, banksError.message);
             }
 
-            // Buscar igrejas (Otimizado: apenas campos necessários)
             const { data: churches, error: churchesError } = await supabaseAdmin
                 .from('churches')
                 .select('id, name, user_id, address, pastor, logoUrl')
-                .eq('user_id', ownerId);
+                .eq('user_id', effectiveOwnerId);
 
             if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas para owner ${ownerId}:`, churchesError.message);
+                console.error(`[Reference API] Erro ao buscar igrejas para owner ${effectiveOwnerId}:`, churchesError.message);
             }
 
-            // --- BUSCA DE ASSOCIAÇÕES APRENDIDAS (Consolidado) ---
             const { data: associations } = await supabaseAdmin
                 .from('learned_associations')
                 .select('id, normalized_description, contributor_normalized_name, church_id, user_id')
-                .eq('user_id', ownerId);
+                .eq('user_id', effectiveOwnerId);
 
-            // --- BUSCA DE MODELOS DE ARQUIVO (Consolidado) ---
             const { data: models } = await supabaseAdmin
                 .from('file_models')
                 .select('id, name, fingerprint, mapping, parsing_rules, lineage_id, version')
-                .eq('user_id', ownerId)
+                .eq('user_id', effectiveOwnerId)
                 .eq('is_active', true);
 
-            // --- BUSCA DE RELATÓRIOS (Centralizado via ReportService) ---
             let reports = [];
             try {
-                reports = await ReportService.listReports(req, ownerId, limit, offset);
+                reports = await ReportService.listReports(req, effectiveOwnerId, limit, offset);
             } catch (reportsErr) {
                 console.error("[Reference API] Erro crítico ao buscar relatórios via ReportService:", reportsErr);
             }
@@ -88,11 +83,12 @@ export default () => {
             return res.status(500).json({ error: "Erro de configuração." });
         }
 
-        validateOwnerAccess(req, ownerId);
+        const effectiveOwnerId = req.user.owner_id || req.user.id;
+
+        // 🔥 CORREÇÃO AQUI
+        validateOwnerAccess(req, effectiveOwnerId);
 
         try {
-            // Upsert do relatório usando Service Role (ignora RLS)
-            // Usamos o ownerId como user_id do relatório para que seja compartilhado
             const { data: result, error } = await supabaseAdmin
                 .from('saved_reports')
                 .upsert({
@@ -100,7 +96,7 @@ export default () => {
                     name: name,
                     data: data,
                     record_count: recordCount,
-                    user_id: ownerId, // Salva sempre com o ID do Owner para ser compartilhado
+                    user_id: effectiveOwnerId,
                     church_id: churchId
                 }, { onConflict: 'id' })
                 .select()
@@ -116,21 +112,23 @@ export default () => {
 
     router.get('/report/:reportId', async (req, res) => {
         const { reportId } = req.params;
-        const { ownerId } = req.query;
         const supabaseAdmin = getSupabaseAdmin();
 
         if (!supabaseAdmin) {
             return res.status(500).json({ error: "Erro de configuração." });
         }
 
-        validateOwnerAccess(req, ownerId);
+        const effectiveOwnerId = req.user.owner_id || req.user.id;
+
+        // 🔥 CORREÇÃO AQUI
+        validateOwnerAccess(req, effectiveOwnerId);
 
         try {
             const { data, error } = await supabaseAdmin
                 .from('saved_reports')
                 .select('data, name')
                 .eq('id', reportId)
-                .eq('user_id', ownerId)
+                .eq('user_id', effectiveOwnerId)
                 .single();
 
             if (error) throw error;
