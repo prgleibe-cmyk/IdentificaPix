@@ -23,7 +23,8 @@ export const useReportsController = () => {
         selectedBankId,
         setSelectedBankId,
         bankList,
-        hydrate
+        hydrate,
+        regenerateReportPreview
     } = useContext(AppContext);
     
     const { language } = useTranslation();
@@ -35,8 +36,14 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Faxina automática de duplicatas ao carregar os relatórios
-    // Removido para evitar reprocessamento automático ao acessar a aba Relatórios
+    // 🔄 RESTAURAÇÃO AUTOMÁTICA: Se houver resultados mas o preview estiver nulo, regenera o preview
+    // Isso garante que relatórios já processados apareçam ao entrar na aba sem reprocessar
+    useEffect(() => {
+        if (!reportPreviewData && matchResults && matchResults.length > 0 && regenerateReportPreview) {
+            console.log("[useReportsController] Restaurando preview de relatório a partir dos resultados existentes...");
+            regenerateReportPreview(matchResults);
+        }
+    }, [reportPreviewData, matchResults, regenerateReportPreview]);
 
     // Forçar categoria para membros
     useEffect(() => {
