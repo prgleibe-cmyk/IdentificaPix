@@ -6,34 +6,36 @@ import { formatCurrency } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
-    results: any[]; // ✅ NOVO: fonte correta dos dados
     onClear: () => void;
 }
 
-export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
-    const { setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
+export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, onClear }) => {
+    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
+    // ✅ PROTEÇÃO TOTAL contra undefined
+    const safeMatchResults = Array.isArray(matchResults) ? matchResults : [];
+
     const selectedData = useMemo(() => {
-    if (!results || !Array.isArray(results)) return [];
-    return results.filter((r: any) => selectedIds.includes(r.transaction.id));
-}, [selectedIds, results]);
+        return safeMatchResults.filter((r: any) => selectedIds.includes(r.transaction?.id));
+    }, [selectedIds, safeMatchResults]);
 
     const totalAmount = useMemo(() => {
         return selectedData.reduce((acc: number, curr: any) => {
             const val = curr.status === 'PENDENTE' 
                 ? (curr.contributorAmount || curr.contributor?.amount || 0)
-                : curr.transaction.amount;
+                : (curr.transaction?.amount || 0);
             return acc + val;
         }, 0);
     }, [selectedData]);
 
-    if (selectedIds.length === 0) return null;
+    if (!selectedIds || selectedIds.length === 0) return null;
 
     const handleBulkIdentify = () => {
         const txsToProcess = selectedData
             .filter((r: any) => !r.isConfirmed)
-            .map((r: any) => r.transaction);
+            .map((r: any) => r.transaction)
+            .filter(Boolean);
 
         if (txsToProcess.length === 0) return;
 
