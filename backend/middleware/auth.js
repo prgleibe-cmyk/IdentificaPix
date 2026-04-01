@@ -1,22 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '../lib/supabase.js';
 
 let supabaseClient = null;
 
 const getSupabase = () => {
     if (supabaseClient) return supabaseClient;
-    try {
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-        if (!supabaseUrl || !supabaseAnonKey) {
-            throw new Error('SUPABASE_URL ou SUPABASE_ANON_KEY não definidos.');
+    try {
+        supabaseClient = getSupabaseAdmin();
+
+        if (!supabaseClient) {
+            throw new Error('getSupabaseAdmin retornou null');
         }
 
-        supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
         return supabaseClient;
     } catch (e) {
         console.error('[Auth Middleware] Erro ao inicializar Supabase:', e.message);
-        return null;
+        throw e; // 🔥 NÃO esconder erro
     }
 };
 
@@ -28,10 +27,12 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const supabase = getSupabase();
 
-    if (!supabase) {
-        return res.status(500).json({ error: 'Erro interno: Serviço de autenticação não disponível.' });
+    let supabase;
+    try {
+        supabase = getSupabase();
+    } catch (e) {
+        return res.status(500).json({ error: 'Erro interno: Supabase não inicializado corretamente.' });
     }
 
     try {
