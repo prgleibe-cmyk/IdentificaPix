@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import { MatchResult } from '../../types';
+import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributor } from '../../types';
 import { PLACEHOLDER_CHURCH } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
 
@@ -13,6 +13,8 @@ interface UseCloudSyncProps {
     activeReportId: string | null;
     savedReports: any[];
     churches: any[];
+    learnedAssociations: any[];
+    showToast: (msg: string, type: 'success' | 'error') => void;
 }
 
 export const useCloudSync = ({
@@ -23,7 +25,9 @@ export const useCloudSync = ({
     setHasActiveSession,
     activeReportId,
     savedReports,
-    churches
+    churches,
+    learnedAssociations,
+    showToast
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -32,99 +36,104 @@ export const useCloudSync = ({
     const isValidating = useRef<boolean>(false);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
+    // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
     const syncToCloud = useCallback(async (results: MatchResult[]) => {
-        if (!user?.id || !effectiveUserId || isHydratingFromCloud.current) return;
-        
-        // Payload simplificado para comparação de mudanças reais
-        const payload = JSON.stringify(results.map(r => ({
-            id: r.transaction.id,
-            status: r.status,
-            churchId: r.church?.id || r._churchId,
-            contributorId: r.contributor?.id
-        })));
+        // Agora o syncToCloud só deve ser usado para salvar snapshots manuais ou backups raros
+        // A sincronização em tempo real agora é feita via deltas nas tabelas individuais
+        return;
+    }, []);
 
-        if (payload === lastCloudSyncRef.current) return;
-        lastCloudSyncRef.current = payload;
-
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-
-            // Sincroniza imediatamente
-            await fetch('/api/reference/report/sync', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    reportId: `LIVE_SESSION_${effectiveUserId}`,
-                    name: '[SESSÃO_ATIVA]',
-                    data: { results }, // Envia os resultados completos
-                    recordCount: results.length,
-                    ownerId: effectiveUserId
-                })
-            });
-        } catch (e) {
-            console.error("[CloudSync] Erro ao sincronizar sessão ativa:", e);
-        }
-    }, [user?.id, effectiveUserId]);
-
-    // Auto-save para a nuvem (mais frequente para evitar perda de dados)
+    // Auto-save desativado em favor da sincronização atômica por registro
     useEffect(() => {
-        if (matchResults.length > 0 && !activeReportId) {
-            const timer = setTimeout(() => syncToCloud(matchResults), 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [matchResults, activeReportId, syncToCloud]);
+        // O progresso agora é salvo individualmente em cada ação (Identificar/Confirmar)
+    }, []);
 
-    // Hidratação e Vínculo com Objetos de Igreja
+    // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
-        if (!effectiveUserId || activeReportId || !churches.length) return;
+        if (!effectiveUserId || activeReportId || !churches.length || isHydratingFromCloud.current) return;
 
-        const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
-        if (liveReport && liveReport.data?.results) {
-            const cloudResults = liveReport.data.results;
-            
-            // Compara se há mudança real na identificação ou status
-            const cloudCheck = JSON.stringify(cloudResults.map((r: any) => ({ id: r.transaction.id, c: r.church?.id || r._churchId, s: r.status })));
-            const localCheck = JSON.stringify(matchResults.map(r => ({ id: r.transaction.id, c: r.church?.id || r._churchId, s: r.status })));
+        const reconstructSession = async () => {
+            // Se já temos resultados locais, não sobrescrevemos a menos que explicitamente necessário
+            if (matchResults.length > 0) return;
 
-            if (matchResults.length === 0 || cloudCheck !== localCheck) {
-                isHydratingFromCloud.current = true;
-                
-                // RE-VINCULA os objetos de igreja (Hidratação)
-                const hydratedResults = cloudResults.map((r: any) => {
-                    const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                    const fullChurch = churches.find((c: any) => c.id === churchId);
+            console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
+            isHydratingFromCloud.current = true;
+
+            try {
+                // 1. Busca as transações que não estão pendentes (já foram tocadas nesta ou em sessões anteriores)
+                const { data: txs, error } = await supabase
+                    .from('consolidated_transactions')
+                    .select('*')
+                    .eq('user_id', effectiveUserId)
+                    .neq('status', 'pending')
+                    .order('transaction_date', { ascending: false })
+                    .limit(1000);
+
+                if (error) throw error;
+                if (!txs || txs.length === 0) {
+                    isHydratingFromCloud.current = false;
+                    return;
+                }
+
+                // 2. Mapeia para MatchResults usando as associações aprendidas
+                const reconstructed: MatchResult[] = txs.map((t: any) => {
+                    const desc = (t.cleanedDescription || t.description || '').trim().toUpperCase();
+                    const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === desc);
+                    const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+
+                    const transaction: Transaction = {
+                        id: t.id,
+                        date: t.transaction_date,
+                        description: t.description,
+                        rawDescription: t.description,
+                        amount: t.amount,
+                        bank_id: t.bank_id,
+                        isConfirmed: t.is_confirmed
+                    };
+
+                    const contributor: Contributor | null = assoc ? {
+                        name: assoc.contributorNormalizedName || t.description,
+                        amount: t.amount,
+                        cleanedName: assoc.contributorNormalizedName || t.description
+                    } : null;
+
+                    let status = ReconciliationStatus.UNIDENTIFIED;
+                    if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
+                    else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
+
                     return {
-                        ...r,
-                        church: fullChurch || r.church || PLACEHOLDER_CHURCH
+                        transaction,
+                        contributor,
+                        church,
+                        status,
+                        isConfirmed: t.is_confirmed,
+                        matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
+                        similarity: 100
                     };
                 });
 
-                setMatchResults(() => hydratedResults);
+                setMatchResults(() => reconstructed);
                 setHasActiveSession(true);
-                lastCloudSyncRef.current = JSON.stringify(hydratedResults.map((r: any) => ({
-                    id: r.transaction.id,
-                    status: r.status,
-                    churchId: r.church?.id || r._churchId,
-                    contributorId: r.contributor?.id
-                })));
-                
+                showToast("Sessão ativa recuperada com sucesso.", "success");
+            } catch (e) {
+                console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
+            } finally {
                 setTimeout(() => { isHydratingFromCloud.current = false; }, 500);
             }
-        }
-    }, [savedReports, effectiveUserId, activeReportId, churches, setMatchResults, setHasActiveSession, matchResults]);
+        };
+
+        reconstructSession();
+    }, [effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, matchResults.length, showToast]);
 
     /**
-     * 📡 REALTIME SYNC (Escuta mudanças de confirmação)
+     * 📡 REALTIME SYNC (Atomização)
+     * Escuta mudanças individuais em transações e associações aprendidas
      */
     useEffect(() => {
         if (!effectiveUserId) return;
         
         const channel = supabase
-            .channel(`reconciliation-status-sync-${effectiveUserId}`)
+            .channel(`reconciliation-atom-sync-${effectiveUserId}`)
             .on(
                 'postgres_changes',
                 {
@@ -134,10 +143,73 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    if (payload.new && (payload.new.is_confirmed !== payload.old.is_confirmed || payload.new.status !== payload.old.status)) {
-                        // Força a re-validação do cache local
-                        lastValidatedHash.current = '';
-                        setTriggerSync(prev => prev + 1);
+                    if (payload.new) {
+                        const { id, is_confirmed, status } = payload.new;
+                        
+                        setMatchResults(prev => {
+                            const idx = prev.findIndex(r => r.transaction.id === id);
+                            if (idx === -1) return prev;
+                            
+                            const current = prev[idx];
+                            if (current.isConfirmed === is_confirmed && current.status === status) return prev;
+
+                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
+                            
+                            const updated = [...prev];
+                            const statusMap: Record<string, ReconciliationStatus> = {
+                                'pending': ReconciliationStatus.UNIDENTIFIED,
+                                'identified': ReconciliationStatus.IDENTIFIED,
+                                'resolved': ReconciliationStatus.RESOLVED
+                            };
+
+                            updated[idx] = {
+                                ...current,
+                                status: statusMap[status] || current.status,
+                                isConfirmed: is_confirmed,
+                                transaction: { ...current.transaction, isConfirmed: is_confirmed }
+                            };
+                            return updated;
+                        });
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'learned_associations',
+                    filter: `user_id=eq.${effectiveUserId}`
+                },
+                (payload) => {
+                    if (payload.new) {
+                        const { normalized_description, church_id, contributor_normalized_name } = payload.new;
+                        const fullChurch = churches.find((c: any) => c.id === church_id);
+                        
+                        if (fullChurch) {
+                            console.log(`[Realtime:ATOM] Nova associação aprendida: ${normalized_description} -> ${fullChurch.name}`);
+                            setMatchResults(prev => {
+                                let hasChanges = false;
+                                const updated = prev.map(r => {
+                                    const desc = (r.transaction.cleanedDescription || r.transaction.description || '').trim().toUpperCase();
+                                    if (desc === normalized_description && (r.church?.id !== church_id)) {
+                                        hasChanges = true;
+                                        return {
+                                            ...r,
+                                            church: fullChurch,
+                                            contributor: r.contributor || {
+                                                name: contributor_normalized_name || r.transaction.description,
+                                                amount: r.transaction.amount,
+                                                cleanedName: contributor_normalized_name || r.transaction.description
+                                            },
+                                            status: r.status === ReconciliationStatus.UNIDENTIFIED ? ReconciliationStatus.IDENTIFIED : r.status
+                                        };
+                                    }
+                                    return r;
+                                });
+                                return hasChanges ? updated : prev;
+                            });
+                        }
                     }
                 }
             )
@@ -146,7 +218,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId]);
+    }, [effectiveUserId, churches, setMatchResults]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)

@@ -55,21 +55,6 @@ export const useReconciliationActions = ({
     reconciliation.setMatchResults(currentResults);
     if (onAfterAction) onAfterAction(currentResults);
 
-    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS
-    if (reportManager?.setSavedReports) {
-      reportManager.setSavedReports((prev: any[]) => {
-        return prev.map(report => {
-          if (report.id === reportManager.activeReportId && report.data?.results) {
-            const updatedResults = report.data.results.map((r: any) => 
-              r.transaction.id === txId ? updatedResult : r
-            );
-            return { ...report, data: { ...report.data, results: updatedResults } };
-          }
-          return report;
-        });
-      });
-    }
-
     referenceData.learnAssociation(updatedResult);
 
     reconciliation.closeManualIdentify();
@@ -124,42 +109,6 @@ export const useReconciliationActions = ({
 
     reconciliation.setMatchResults(currentResults);
 
-    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
-    if (reportManager?.setSavedReports) {
-      reportManager.setSavedReports((prev: any[]) => {
-        let anyReportUpdated = false;
-        const updated = prev.map(report => {
-          if (!report.data?.results) return report;
-          let reportUpdated = false;
-          const newResults = report.data.results.map((r: any) => {
-            if (txIds.includes(r.transaction?.id)) {
-              const contributor: Contributor = r.contributor || {
-                name: r.transaction.cleanedDescription || r.transaction.description,
-                amount: r.transaction.amount,
-                cleanedName: r.transaction.cleanedDescription || r.transaction.description
-              };
-              reportUpdated = true;
-              anyReportUpdated = true;
-              return { 
-                ...r, 
-                status: ReconciliationStatus.IDENTIFIED,
-                contributor,
-                church,
-                matchMethod: MatchMethod.MANUAL,
-                similarity: 100,
-                contributorAmount: contributor.amount,
-                divergence: undefined
-              };
-            }
-            return r;
-          });
-          if (!reportUpdated) return report;
-          return { ...report, data: { ...report.data, results: newResults } };
-        });
-        return anyReportUpdated ? updated : prev;
-      });
-    }
-
     reconciliation.closeManualIdentify();
 
     showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
@@ -202,37 +151,6 @@ export const useReconciliationActions = ({
     reconciliation.setMatchResults(currentResults);
     if (onAfterAction) onAfterAction(currentResults);
 
-    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
-    if (reportManager?.setSavedReports) {
-      reportManager.setSavedReports((prev: any[]) => {
-        let anyReportUpdated = false;
-        const updated = prev.map(report => {
-          if (!report.data?.results) return report;
-          let reportUpdated = false;
-          const newResults = report.data.results.map((r: any) => {
-            if (txIds.includes(r.transaction?.id)) {
-              reportUpdated = true;
-              anyReportUpdated = true;
-              const newStatus = confirmed 
-                ? ReconciliationStatus.RESOLVED 
-                : (r.contributor ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED);
-              
-              return { 
-                ...r, 
-                status: newStatus,
-                isConfirmed: confirmed, 
-                transaction: { ...r.transaction, isConfirmed: confirmed } 
-              };
-            }
-            return r;
-          });
-          if (!reportUpdated) return report;
-          return { ...report, data: { ...report.data, results: newResults } };
-        });
-        return anyReportUpdated ? updated : prev;
-      });
-    }
-
     showToast(
       confirmed
         ? "Registros confirmados e bloqueados."
@@ -273,28 +191,6 @@ export const useReconciliationActions = ({
 
     reconciliation.setMatchResults(updatedResults);
     if (onAfterAction) onAfterAction(updatedResults);
-
-    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS
-    if (reportManager?.setSavedReports) {
-      reportManager.setSavedReports((prev: any[]) => {
-        return prev.map(report => {
-          if (report.id === reportManager.activeReportId && report.data?.results) {
-            const newResults = report.data.results.map((r: any) => 
-              r.transaction.id === txId ? { 
-                ...r, 
-                status: ReconciliationStatus.UNIDENTIFIED,
-                contributor: null,
-                church: referenceData.PLACEHOLDER_CHURCH || r.church,
-                isConfirmed: false,
-                transaction: { ...r.transaction, isConfirmed: false }
-              } : r
-            );
-            return { ...report, data: { ...report.data, results: newResults } };
-          }
-          return report;
-        });
-      });
-    }
 
     showToast("Identificação desfeita.", "success");
 

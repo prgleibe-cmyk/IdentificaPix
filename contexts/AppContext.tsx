@@ -221,15 +221,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [reconciliation.activeReportId, reconciliation.fullMatchResults, reconciliation.syncToCloud, reportManager]);
 
-    // 💾 AUTO-SAVE: Salva o progresso do relatório ativo a cada 3 segundos de inatividade
+    // 💾 AUTO-SAVE: Desativado em favor da atomização (cada clique salva individualmente)
     useEffect(() => {
-        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length > 0) {
-            const timer = setTimeout(() => {
-                persistActiveReport();
-            }, 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults, persistActiveReport]);
+        // O progresso agora é sincronizado via deltas em consolidated_transactions e learned_associations
+    }, []);
 
     // 🔄 AUTO-LOAD: Tenta carregar os detalhes de um relatório ativo se os dados locais estiverem ausentes
     useEffect(() => {

@@ -73,7 +73,11 @@ export const useReconciliation = (props: any) => {
     };
 
     // 1. Hook de Sincronização em Nuvem (CloudSync + Cache Integrity)
-    const cloud = useCloudSync(params);
+    const cloud = useCloudSync({
+        ...params,
+        learnedAssociations,
+        showToast
+    });
 
     // 2. Hook de Sincronização de Lista (Original)
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
