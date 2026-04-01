@@ -264,11 +264,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!savedReport || !savedReport.data?.results) return;
 
         // Compara se o que está na nuvem é diferente do que temos localmente
-        // Usamos uma comparação simplificada para evitar loops
-        const cloudCheck = JSON.stringify(savedReport.data.results.slice(0, 50).map((r: any) => ({ id: r.transaction?.id, s: r.status, c: !!r.isConfirmed })));
-        const localCheck = JSON.stringify(reconciliation.fullMatchResults.slice(0, 50).map((r: any) => ({ id: r.transaction?.id, s: r.status, c: !!r.isConfirmed })));
+        // Usamos uma amostragem de dados para detectar mudanças sem pesar no processamento
+        const cloudSample = (savedReport.data.results || []).slice(0, 100).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
+        const localSample = (reconciliation.fullMatchResults || []).slice(0, 100).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
+        
+        const cloudTotal = (savedReport.data.results || []).length;
+        const localTotal = (reconciliation.fullMatchResults || []).length;
 
-        if (cloudCheck !== localCheck && reconciliation.fullMatchResults.length > 0) {
+        if ((cloudSample !== localSample || cloudTotal !== localTotal) && reconciliation.fullMatchResults.length > 0) {
             console.log("[AppContext] Sincronizando mudança remota no relatório ativo.");
             // Hidratação básica
             const hydrated = savedReport.data.results.map((r: any) => ({

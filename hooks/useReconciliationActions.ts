@@ -260,24 +260,36 @@ export const useReconciliationActions = ({
       await consolidationService.updateConfirmationStatus([txId], false);
     }
 
-    reconciliation.revertMatch(txId);
-    if (onAfterAction) onAfterAction(reconciliation.fullMatchResults);
+    const updatedResults = reconciliation.fullMatchResults.map((r: MatchResult) => 
+      r.transaction.id === txId ? { 
+        ...r, 
+        status: ReconciliationStatus.UNIDENTIFIED,
+        contributor: null,
+        church: referenceData.PLACEHOLDER_CHURCH || r.church,
+        isConfirmed: false,
+        transaction: { ...r.transaction, isConfirmed: false }
+      } : r
+    );
+
+    reconciliation.setMatchResults(updatedResults);
+    if (onAfterAction) onAfterAction(updatedResults);
 
     // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS
     if (reportManager?.setSavedReports) {
       reportManager.setSavedReports((prev: any[]) => {
         return prev.map(report => {
           if (report.id === reportManager.activeReportId && report.data?.results) {
-            const updatedResults = report.data.results.map((r: any) => 
+            const newResults = report.data.results.map((r: any) => 
               r.transaction.id === txId ? { 
                 ...r, 
                 status: ReconciliationStatus.UNIDENTIFIED,
                 contributor: null,
                 church: referenceData.PLACEHOLDER_CHURCH || r.church,
-                isConfirmed: false
+                isConfirmed: false,
+                transaction: { ...r.transaction, isConfirmed: false }
               } : r
             );
-            return { ...report, data: { ...report.data, results: updatedResults } };
+            return { ...report, data: { ...report.data, results: newResults } };
           }
           return report;
         });

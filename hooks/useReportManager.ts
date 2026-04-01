@@ -202,8 +202,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const currentPayload = JSON.stringify({ 
             r: (results || []).length, 
             s: !!spreadsheetData,
-            // Fingerprint para detectar mudanças de status/confirmação sem stringify total
-            f: (results || []).slice(0, 20).map(r => `${r.status}-${r.isConfirmed}`).join('|')
+            // Fingerprint mais robusto para detectar mudanças em qualquer lugar da lista
+            // Usamos uma amostragem maior e incluímos o total de confirmados para detectar mudanças rápidas
+            f: (results || []).length > 100 
+                ? `${(results || []).filter(r => r.isConfirmed).length}-${(results || []).filter(r => r.status === 'IDENTIFICADO').length}`
+                : (results || []).map(r => `${r.status}-${r.isConfirmed}`).join('|')
         });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;

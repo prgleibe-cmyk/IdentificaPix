@@ -36,14 +36,25 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // 🔄 RESTAURAÇÃO AUTOMÁTICA: Se houver resultados mas o preview estiver nulo, regenera o preview
-    // Isso garante que relatórios já processados apareçam ao entrar na aba sem reprocessar
+    // 🔄 SINCRONIZAÇÃO DO PREVIEW: Sempre que os resultados mudarem, o preview deve ser atualizado
+    // Isso garante que ações de "Identificar" e "Confirmar" reflitam imediatamente no relatório
     useEffect(() => {
-        if (!reportPreviewData && matchResults && matchResults.length > 0 && regenerateReportPreview) {
-            console.log("[useReportsController] Restaurando preview de relatório a partir dos resultados existentes...");
-            regenerateReportPreview(matchResults);
+        if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
+            // Se não houver preview OU se o preview estiver desatualizado em relação aos resultados
+            // (usamos uma comparação simples de contagem e status para evitar loops infinitos)
+            const currentTotal = (matchResults || []).length;
+            const currentIdentified = (matchResults || []).filter(r => r.status === 'IDENTIFICADO').length;
+            const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
+            
+            const previewTotal = reportPreviewData ? (Object.values(reportPreviewData.income || {}).flat().length + (reportPreviewData.expenses?.['all_expenses_group']?.length || 0)) : 0;
+            
+            // Se houver mudança na contagem ou nos estados, regenera o preview
+            if (!reportPreviewData || currentTotal !== previewTotal) {
+                console.log("[useReportsController] Sincronizando preview de relatório...");
+                regenerateReportPreview(matchResults);
+            }
         }
-    }, [reportPreviewData, matchResults, regenerateReportPreview]);
+    }, [matchResults, regenerateReportPreview, reportPreviewData]);
 
     // Forçar categoria para membros
     useEffect(() => {
