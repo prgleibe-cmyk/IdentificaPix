@@ -23,7 +23,7 @@ export const useReconciliationActions = ({
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
-    const currentResults = [...reconciliation.matchResults];
+    const currentResults = [...reconciliation.fullMatchResults];
     const idx = currentResults.findIndex(r => r.transaction.id === txId);
     if (idx === -1) return;
 
@@ -68,7 +68,7 @@ export const useReconciliationActions = ({
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
-    const currentResults = [...reconciliation.matchResults];
+    const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
 
     for (const id of txIds) {
@@ -108,31 +108,6 @@ export const useReconciliationActions = ({
     }
 
     reconciliation.setMatchResults(currentResults);
-
-    if (reconciliation.setReportPreviewData) {
-
-      const incomeResults = currentResults.filter(r => {
-        const val = r.status === ReconciliationStatus.PENDING
-          ? (r.contributorAmount || 0)
-          : r.transaction.amount;
-
-        return val >= 0;
-      });
-
-      const expenseResults = currentResults.filter(r => {
-        const val = r.status === ReconciliationStatus.PENDING
-          ? (r.contributorAmount || 0)
-          : r.transaction.amount;
-
-        return val < 0;
-      });
-
-      reconciliation.setReportPreviewData({
-        income: groupResultsByChurch(incomeResults),
-        expenses: { 'all_expenses_group': expenseResults }
-      });
-
-    }
 
     // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
     if (reportManager?.setSavedReports) {
@@ -182,8 +157,6 @@ export const useReconciliationActions = ({
 
   const toggleConfirmation = useCallback(async (txIds: string[], confirmed: boolean) => {
 
-    console.log("[ConfirmarFinal] IDs recebidos:", txIds);
-
     const idsToUpdate = txIds.filter(
       id =>
         /^[0-9a-fA-F-]{36}$/.test(id) &&
@@ -191,53 +164,22 @@ export const useReconciliationActions = ({
         !id.startsWith('sim')
     );
 
-    console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
-
     if (idsToUpdate.length > 0) {
       await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
-      if (reconciliation.reloadTransactions) {
-        await reconciliation.reloadTransactions();
-      }
     }
 
-    const currentResults = [...reconciliation.matchResults];
-    let localUpdated = false;
-
-    currentResults.forEach(r => {
+    const currentResults = reconciliation.fullMatchResults.map((r: MatchResult) => {
       if (txIds.includes(r.transaction.id)) {
-        r.isConfirmed = confirmed;
-        if (r.transaction) {
-          r.transaction.isConfirmed = confirmed;
-        }
-        localUpdated = true;
+        return {
+          ...r,
+          isConfirmed: confirmed,
+          transaction: { ...r.transaction, isConfirmed: confirmed }
+        };
       }
+      return r;
     });
 
-    if (localUpdated) {
-      reconciliation.setMatchResults(currentResults);
-    }
-
-    // ✅ ATUALIZAÇÃO DO PREVIEW (Para refletir no ReportsView imediatamente)
-    if (reconciliation.setReportPreviewData) {
-      const incomeResults = currentResults.filter(r => {
-        const val = r.status === ReconciliationStatus.PENDING
-          ? (r.contributorAmount || 0)
-          : r.transaction.amount;
-        return val >= 0;
-      });
-
-      const expenseResults = currentResults.filter(r => {
-        const val = r.status === ReconciliationStatus.PENDING
-          ? (r.contributorAmount || 0)
-          : r.transaction.amount;
-        return val < 0;
-      });
-
-      reconciliation.setReportPreviewData({
-        income: groupResultsByChurch(incomeResults),
-        expenses: { 'all_expenses_group': expenseResults }
-      });
-    }
+    reconciliation.setMatchResults(currentResults);
 
     // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
     if (reportManager?.setSavedReports) {
@@ -280,7 +222,7 @@ export const useReconciliationActions = ({
 
   const undoIdentification = useCallback(async (txId: string) => {
 
-    const existing = reconciliation.matchResults.find(
+    const existing = reconciliation.fullMatchResults.find(
       (r: MatchResult) => r.transaction.id === txId
     );
 
@@ -298,7 +240,7 @@ export const useReconciliationActions = ({
     showToast("Identificação desfeita.", "success");
 
     setTimeout(() => {
-      if (onAfterAction) onAfterAction(reconciliation.matchResults);
+      if (onAfterAction) onAfterAction(reconciliation.fullMatchResults);
     }, 100);
 
   }, [reconciliation, showToast, onAfterAction]);

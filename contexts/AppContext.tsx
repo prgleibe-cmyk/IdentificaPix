@@ -203,7 +203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
         const reportId = reconciliation.activeReportId;
-        const resultsToSave = customResults || reconciliation.matchResults;
+        const resultsToSave = customResults || reconciliation.fullMatchResults;
 
         if (reportId && (resultsToSave.length > 0 || reportManager.savedReports.find(r => r.id === reportId)?.data?.spreadsheet)) {
             setIsSyncing(true);

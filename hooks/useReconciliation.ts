@@ -133,6 +133,7 @@ export const useReconciliation = (props: any) => {
         activeBankFiles, 
         contributorFiles, 
         matchResults: filteredMatchResults, 
+        fullMatchResults: matchResults,
         reportPreviewData,
         activeReportId, 
         setActiveReportId, 
