@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributor } from '../../types';
-import { PLACEHOLDER_CHURCH } from '../../services/processingService';
+import { PLACEHOLDER_CHURCH, strictNormalize } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
 
 interface UseCloudSyncProps {
@@ -31,6 +31,7 @@ export const useCloudSync = ({
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
+    const needsRetry = useRef<boolean>(false);
     const [triggerSync, setTriggerSync] = useState(0);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
@@ -50,14 +51,18 @@ export const useCloudSync = ({
 
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
-        if (!effectiveUserId || activeReportId || !churches.length || isHydratingFromCloud.current) return;
+        if (!effectiveUserId || activeReportId || !churches.length) return;
 
         const reconstructSession = async () => {
-            // Se já estamos hidratando, evitamos concorrência
-            if (isHydratingFromCloud.current) return;
+            // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
+            if (isHydratingFromCloud.current) {
+                needsRetry.current = true;
+                return;
+            }
 
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
+            needsRetry.current = false;
 
             try {
                 // 1. Busca as transações que não estão pendentes (já foram tocadas nesta ou em sessões anteriores)
@@ -77,8 +82,8 @@ export const useCloudSync = ({
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 const reconstructed: MatchResult[] = txs.map((t: any) => {
-                    const desc = (t.cleanedDescription || t.description || '').trim().toUpperCase();
-                    const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === desc);
+                    const normalizedDesc = strictNormalize(t.description);
+                    const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                     const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
                     const transaction: Transaction = {
@@ -120,7 +125,11 @@ export const useCloudSync = ({
                         const idx = updated.findIndex(p => p.transaction.id === r.transaction.id);
                         if (idx !== -1) {
                             // Se já existe, atualizamos com o estado da nuvem (que é a verdade absoluta)
-                            if (updated[idx].status !== r.status || updated[idx].isConfirmed !== r.isConfirmed) {
+                            const hasStatusChange = updated[idx].status !== r.status;
+                            const hasConfirmChange = updated[idx].isConfirmed !== r.isConfirmed;
+                            const hasChurchChange = (updated[idx].church?.id || 'none') !== (r.church?.id || 'none');
+
+                            if (hasStatusChange || hasConfirmChange || hasChurchChange) {
                                 updated[idx] = { ...updated[idx], ...r };
                                 hasChanges = true;
                             }
@@ -141,12 +150,18 @@ export const useCloudSync = ({
             } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
             } finally {
-                setTimeout(() => { isHydratingFromCloud.current = false; }, 500);
+                setTimeout(() => { 
+                    isHydratingFromCloud.current = false; 
+                    if (needsRetry.current) {
+                        needsRetry.current = false;
+                        setTriggerSync(prev => prev + 1);
+                    }
+                }, 500);
             }
         };
 
         reconstructSession();
-    }, [effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, matchResults.length, showToast]);
+    }, [effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, matchResults.length, showToast, triggerSync]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
@@ -214,7 +229,7 @@ export const useCloudSync = ({
                             setMatchResults(prev => {
                                 let hasChanges = false;
                                 const updated = prev.map(r => {
-                                    const desc = (r.transaction.cleanedDescription || r.transaction.description || '').trim().toUpperCase();
+                                    const desc = strictNormalize(r.transaction.description);
                                     if (desc === normalized_description && (r.church?.id !== church_id)) {
                                         hasChanges = true;
                                         return {

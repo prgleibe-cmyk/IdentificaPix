@@ -45,12 +45,13 @@ export const useReportsController = () => {
             const currentTotal = (matchResults || []).length;
             const currentIdentified = (matchResults || []).filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
             const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
+            const currentWithChurch = (matchResults || []).filter(r => r.church?.id && r.church.id !== 'unidentified').length;
             
             const previewTotal = reportPreviewData ? (Object.values(reportPreviewData.income || {}).flat().length + (reportPreviewData.expenses?.['all_expenses_group']?.length || 0)) : 0;
             
             // Se houver mudança na contagem ou nos estados, regenera o preview
-            // Adicionamos um hash simples do estado para detectar mudanças internas sem mudar o total
-            const currentStateHash = `${currentTotal}-${currentIdentified}-${currentConfirmed}`;
+            // Adicionamos um hash do estado para detectar mudanças internas (status, confirmação, igreja)
+            const currentStateHash = `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
             const lastStateHash = (reportPreviewData as any)?._stateHash;
 
             if (!reportPreviewData || currentTotal !== previewTotal || currentStateHash !== lastStateHash) {
