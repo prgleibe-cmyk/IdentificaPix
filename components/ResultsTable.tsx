@@ -94,7 +94,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden mt-6 flex flex-col relative">
-            <BulkActionToolbar selectedIds={selectedIds} onClear={() => setSelectedIds([])} />
+            <BulkActionToolbar 
+    selectedIds={selectedIds} 
+    results={results}
+    onClear={() => setSelectedIds([])} 
+/>
 
             <div className="overflow-x-auto custom-scrollbar relative">
                 <table className="w-full text-left border-collapse">
