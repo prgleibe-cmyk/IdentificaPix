@@ -6,19 +6,20 @@ import { formatCurrency } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
+    results: any[];
     onClear: () => void;
 }
 
-export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, onClear }) => {
-    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
+export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
+    const { setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
     // ✅ PROTEÇÃO TOTAL contra undefined
-    const safeMatchResults = Array.isArray(matchResults) ? matchResults : [];
+    const safeResults = Array.isArray(results) ? results : [];
 
     const selectedData = useMemo(() => {
-        return safeMatchResults.filter((r: any) => selectedIds.includes(r.transaction?.id));
-    }, [selectedIds, safeMatchResults]);
+        return safeResults.filter((r: any) => selectedIds.includes(r.transaction?.id));
+    }, [selectedIds, safeResults]);
 
     const totalAmount = useMemo(() => {
         return selectedData.reduce((acc: number, curr: any) => {
@@ -33,7 +34,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
 
     const handleBulkIdentify = () => {
         const txsToProcess = selectedData
-            .filter((r: any) => !r.isConfirmed)
+            .filter((r: any) => !(r.transaction?.isConfirmed ?? r.isConfirmed ?? false))
             .map((r: any) => r.transaction)
             .filter(Boolean);
 
@@ -48,7 +49,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
         onClear();
     };
 
-    const canConfirm = selectedData.some((r: any) => !r.isConfirmed);
+    const canConfirm = selectedData.some((r: any) => !(r.transaction?.isConfirmed ?? r.isConfirmed ?? false));
 
     return (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
