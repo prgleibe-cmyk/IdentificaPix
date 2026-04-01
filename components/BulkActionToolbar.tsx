@@ -15,8 +15,9 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     const { language } = useTranslation();
 
     const selectedData = useMemo(() => {
-        return results.filter((r: any) => selectedIds.includes(r.transaction.id));
-    }, [selectedIds, results]);
+    if (!results || !Array.isArray(results)) return [];
+    return results.filter((r: any) => selectedIds.includes(r.transaction.id));
+}, [selectedIds, results]);
 
     const totalAmount = useMemo(() => {
         return selectedData.reduce((acc: number, curr: any) => {
