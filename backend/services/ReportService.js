@@ -1,4 +1,3 @@
-
 import { getSupabaseAdmin } from '../lib/supabase.js';
 
 /**
@@ -19,15 +18,12 @@ export const ReportService = {
         const user = req.user;
         const effectiveUserId = user.owner_id || user.id;
         
-        // Lógica de permissão: se o usuário é o dono do ownerId, ele é o "Boss"
         const isActualOwner = user.id === ownerId;
 
         let reports = [];
 
         try {
-            // 1. Filtragem de Permissão: Owner vs Membro
             if (isActualOwner) {
-                // Funções de filtragem de permissão: Owner vê tudo o que ele criou
                 const { data: ownerReports, error } = await supabaseAdmin
                     .from('saved_reports')
                     .select('id, name, created_at, record_count, user_id, church_id')
@@ -39,8 +35,6 @@ export const ReportService = {
                 if (error) throw error;
                 reports = ownerReports || [];
             } else {
-                // Membro/Secundário: Busca seus próprios relatórios individuais + Sessão Ativa do Boss (ownerId)
-                // Otimizado: Query combinada com filtro OR para trazer tudo ordenado pelo banco em uma única chamada
                 const { data: combinedReports, error } = await supabaseAdmin
                     .from('saved_reports')
                     .select('id, name, created_at, record_count, user_id, church_id')
@@ -52,8 +46,6 @@ export const ReportService = {
                 if (error) throw error;
                 reports = combinedReports || [];
 
-                // 2. Filtragem de Permissão por Igreja (Congregação)
-                // Busca perfil para verificar permissões de congregação
                 const { data: profile } = await supabaseAdmin
                     .from('profiles')
                     .select('permissions')
@@ -62,9 +54,12 @@ export const ReportService = {
 
                 let allowedChurchIds = [];
                 try {
-                    const perms = typeof profile?.permissions === 'string' ? JSON.parse(profile.permissions) : (profile?.permissions || {});
+                    const perms = typeof profile?.permissions === 'string' 
+                        ? JSON.parse(profile.permissions) 
+                        : (profile?.permissions || {});
+                    
                     if (Array.isArray(perms.congregationIds)) {
-                        allowedChurchIds = perms.congregationIds;
+                        allowedChurchIds = perms.congregationIds.map(id => String(id));
                     }
                 } catch (e) {}
 
@@ -72,7 +67,7 @@ export const ReportService = {
                     reports = reports.filter(r => 
                         r.name === '[SESSÃO_ATIVA]' || 
                         !r.church_id || 
-                        allowedChurchIds.includes(r.church_id)
+                        allowedChurchIds.includes(String(r.church_id))
                     );
                 }
             }
