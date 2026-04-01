@@ -53,8 +53,8 @@ export const useCloudSync = ({
         if (!effectiveUserId || activeReportId || !churches.length || isHydratingFromCloud.current) return;
 
         const reconstructSession = async () => {
-            // Se já temos resultados locais, não sobrescrevemos a menos que explicitamente necessário
-            if (matchResults.length > 0) return;
+            // Se já estamos hidratando, evitamos concorrência
+            if (isHydratingFromCloud.current) return;
 
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
@@ -112,9 +112,32 @@ export const useCloudSync = ({
                     };
                 });
 
-                setMatchResults(() => reconstructed);
+                setMatchResults(prev => {
+                    const updated = [...prev];
+                    let hasChanges = false;
+
+                    reconstructed.forEach(r => {
+                        const idx = updated.findIndex(p => p.transaction.id === r.transaction.id);
+                        if (idx !== -1) {
+                            // Se já existe, atualizamos com o estado da nuvem (que é a verdade absoluta)
+                            if (updated[idx].status !== r.status || updated[idx].isConfirmed !== r.isConfirmed) {
+                                updated[idx] = { ...updated[idx], ...r };
+                                hasChanges = true;
+                            }
+                        } else {
+                            // Se não existe na lista local (ex: fantasmas ou itens já processados), adicionamos
+                            updated.push(r);
+                            hasChanges = true;
+                        }
+                    });
+
+                    return hasChanges ? updated : prev;
+                });
+
                 setHasActiveSession(true);
-                showToast("Sessão ativa recuperada com sucesso.", "success");
+                if (reconstructed.length > 0) {
+                    showToast("Sessão ativa sincronizada.", "success");
+                }
             } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
             } finally {

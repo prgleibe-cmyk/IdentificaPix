@@ -3,7 +3,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
-import { MatchResult } from '../types';
+import { MatchResult, ReconciliationStatus } from '../types';
 import { ExportService } from '../services/ExportService';
 import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
@@ -43,15 +43,23 @@ export const useReportsController = () => {
             // Se não houver preview OU se o preview estiver desatualizado em relação aos resultados
             // (usamos uma comparação simples de contagem e status para evitar loops infinitos)
             const currentTotal = (matchResults || []).length;
-            const currentIdentified = (matchResults || []).filter(r => r.status === 'IDENTIFICADO').length;
+            const currentIdentified = (matchResults || []).filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
             const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
             
             const previewTotal = reportPreviewData ? (Object.values(reportPreviewData.income || {}).flat().length + (reportPreviewData.expenses?.['all_expenses_group']?.length || 0)) : 0;
             
             // Se houver mudança na contagem ou nos estados, regenera o preview
-            if (!reportPreviewData || currentTotal !== previewTotal) {
+            // Adicionamos um hash simples do estado para detectar mudanças internas sem mudar o total
+            const currentStateHash = `${currentTotal}-${currentIdentified}-${currentConfirmed}`;
+            const lastStateHash = (reportPreviewData as any)?._stateHash;
+
+            if (!reportPreviewData || currentTotal !== previewTotal || currentStateHash !== lastStateHash) {
                 console.log("[useReportsController] Sincronizando preview de relatório...");
                 regenerateReportPreview(matchResults);
+                // Injetamos o hash no preview para controle futuro
+                if (reportPreviewData) {
+                    (reportPreviewData as any)._stateHash = currentStateHash;
+                }
             }
         }
     }, [matchResults, regenerateReportPreview, reportPreviewData]);

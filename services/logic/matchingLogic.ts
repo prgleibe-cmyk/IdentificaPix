@@ -185,7 +185,11 @@ export const groupResultsByChurch = (results: MatchResult[]): Record<string, Mat
     const grouped: Record<string, MatchResult[]> = {};
     results.forEach(r => {
         let key = 'unidentified';
-        if ((r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.PENDING) && r.church?.id) {
+        const isIdentified = r.status === ReconciliationStatus.IDENTIFIED || 
+                           r.status === ReconciliationStatus.PENDING || 
+                           r.status === ReconciliationStatus.RESOLVED;
+        
+        if (isIdentified && r.church?.id) {
             key = r.church.id;
         }
         if (!grouped[key]) grouped[key] = [];
