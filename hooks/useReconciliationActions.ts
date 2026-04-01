@@ -6,6 +6,7 @@ import { consolidationService } from '../services/ConsolidationService';
 interface UseReconciliationActionsProps {
   reconciliation: any;
   referenceData: any;
+  reportManager?: any;
   showToast: (msg: string, type: 'success' | 'error') => void;
   onAfterAction?: (updatedResults: MatchResult[]) => void;
 }
@@ -13,6 +14,7 @@ interface UseReconciliationActionsProps {
 export const useReconciliationActions = ({
   reconciliation,
   referenceData,
+  reportManager,
   showToast,
   onAfterAction
 }: UseReconciliationActionsProps) => {
@@ -132,6 +134,42 @@ export const useReconciliationActions = ({
 
     }
 
+    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
+    if (reportManager?.setSavedReports) {
+      reportManager.setSavedReports((prev: any[]) => {
+        let anyReportUpdated = false;
+        const updated = prev.map(report => {
+          if (!report.data?.results) return report;
+          let reportUpdated = false;
+          const newResults = report.data.results.map((r: any) => {
+            if (txIds.includes(r.transaction?.id)) {
+              const contributor: Contributor = r.contributor || {
+                name: r.transaction.cleanedDescription || r.transaction.description,
+                amount: r.transaction.amount,
+                cleanedName: r.transaction.cleanedDescription || r.transaction.description
+              };
+              reportUpdated = true;
+              anyReportUpdated = true;
+              return { 
+                ...r, 
+                status: ReconciliationStatus.IDENTIFIED,
+                contributor,
+                church,
+                matchMethod: MatchMethod.MANUAL,
+                similarity: 100,
+                contributorAmount: contributor.amount,
+                divergence: undefined
+              };
+            }
+            return r;
+          });
+          if (!reportUpdated) return report;
+          return { ...report, data: { ...report.data, results: newResults } };
+        });
+        return anyReportUpdated ? updated : prev;
+      });
+    }
+
     reconciliation.closeManualIdentify();
 
     showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
@@ -156,33 +194,76 @@ export const useReconciliationActions = ({
     console.log("[ConfirmarFinal] IDs após filtro:", idsToUpdate);
 
     if (idsToUpdate.length > 0) {
-
-      const updatedRows = await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
-
-      console.log("[ConfirmarFinal] Linhas atualizadas:", updatedRows);
-
+      await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
       if (reconciliation.reloadTransactions) {
         await reconciliation.reloadTransactions();
       }
     }
 
     const currentResults = [...reconciliation.matchResults];
+    let localUpdated = false;
 
     currentResults.forEach(r => {
-
       if (txIds.includes(r.transaction.id)) {
-
         r.isConfirmed = confirmed;
-
         if (r.transaction) {
           r.transaction.isConfirmed = confirmed;
         }
-
+        localUpdated = true;
       }
-
     });
 
-    reconciliation.setMatchResults(currentResults);
+    if (localUpdated) {
+      reconciliation.setMatchResults(currentResults);
+    }
+
+    // ✅ ATUALIZAÇÃO DO PREVIEW (Para refletir no ReportsView imediatamente)
+    if (reconciliation.setReportPreviewData) {
+      const incomeResults = currentResults.filter(r => {
+        const val = r.status === ReconciliationStatus.PENDING
+          ? (r.contributorAmount || 0)
+          : r.transaction.amount;
+        return val >= 0;
+      });
+
+      const expenseResults = currentResults.filter(r => {
+        const val = r.status === ReconciliationStatus.PENDING
+          ? (r.contributorAmount || 0)
+          : r.transaction.amount;
+        return val < 0;
+      });
+
+      reconciliation.setReportPreviewData({
+        income: groupResultsByChurch(incomeResults),
+        expenses: { 'all_expenses_group': expenseResults }
+      });
+    }
+
+    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
+    if (reportManager?.setSavedReports) {
+      reportManager.setSavedReports((prev: any[]) => {
+        let anyReportUpdated = false;
+        const updated = prev.map(report => {
+          if (!report.data?.results) return report;
+          let reportUpdated = false;
+          const newResults = report.data.results.map((r: any) => {
+            if (txIds.includes(r.transaction?.id)) {
+              reportUpdated = true;
+              anyReportUpdated = true;
+              return { 
+                ...r, 
+                isConfirmed: confirmed, 
+                transaction: { ...r.transaction, isConfirmed: confirmed } 
+              };
+            }
+            return r;
+          });
+          if (!reportUpdated) return report;
+          return { ...report, data: { ...report.data, results: newResults } };
+        });
+        return anyReportUpdated ? updated : prev;
+      });
+    }
 
     showToast(
       confirmed
@@ -193,7 +274,7 @@ export const useReconciliationActions = ({
 
     if (onAfterAction) onAfterAction(currentResults);
 
-  }, [reconciliation, showToast, onAfterAction]);
+  }, [reconciliation, reportManager, showToast, onAfterAction]);
 
 
 

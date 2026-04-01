@@ -69,45 +69,50 @@ export const ManualIdModal: React.FC = () => {
 
     if (!targetTx && !isBulk) return null;
     
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         if (!selectedChurchId) return;
         setIsSaving(true);
 
-        if (isBulk) {
-            const ids = bulkIdentificationTxs.map(tx => tx.id);
-            confirmBulkManualIdentification(ids, selectedChurchId);
-        } else if (targetTx) {
-            const originalResult = findMatchResult(targetTx.id);
-            const church = churches.find(c => c.id === selectedChurchId);
-        
-            if (!originalResult || !church) {
-                confirmManualIdentification(targetTx.id, selectedChurchId);
-            } else {
-                let finalContributorName = originalResult.transaction.cleanedDescription || originalResult.transaction.description;
-                if (aiSuggestion && selectedChurchId === aiSuggestion.churchId) {
-                    finalContributorName = aiSuggestion.contributorName;
-                }
+        try {
+            if (isBulk) {
+                const ids = bulkIdentificationTxs.map(tx => tx.id);
+                await confirmBulkManualIdentification(ids, selectedChurchId);
+            } else if (targetTx) {
+                const originalResult = findMatchResult(targetTx.id);
+                const church = churches.find(c => c.id === selectedChurchId);
+            
+                if (!originalResult || !church) {
+                    await confirmManualIdentification(targetTx.id, selectedChurchId);
+                } else {
+                    let finalContributorName = originalResult.transaction.cleanedDescription || originalResult.transaction.description;
+                    if (aiSuggestion && selectedChurchId === aiSuggestion.churchId) {
+                        finalContributorName = aiSuggestion.contributorName;
+                    }
 
-                const newContributor: Contributor = {
-                    id: `manual-${targetTx.id}`,
-                    name: finalContributorName,
-                    originalAmount: originalResult.transaction.originalAmount,
-                    amount: originalResult.transaction.amount,
-                };
-                const updatedRow: MatchResult = {
-                    ...originalResult,
-                    status: ReconciliationStatus.IDENTIFIED,
-                    church,
-                    contributor: newContributor,
-                    matchMethod: MatchMethod.MANUAL,
-                    similarity: 100,
-                    contributorAmount: originalResult.transaction.amount,
-                };
-                learnAssociation(updatedRow);
-                confirmManualIdentification(targetTx.id, selectedChurchId);
+                    const newContributor: Contributor = {
+                        id: `manual-${targetTx.id}`,
+                        name: finalContributorName,
+                        originalAmount: originalResult.transaction.originalAmount,
+                        amount: originalResult.transaction.amount,
+                    };
+                    const updatedRow: MatchResult = {
+                        ...originalResult,
+                        status: ReconciliationStatus.IDENTIFIED,
+                        church,
+                        contributor: newContributor,
+                        matchMethod: MatchMethod.MANUAL,
+                        similarity: 100,
+                        contributorAmount: originalResult.transaction.amount,
+                    };
+                    learnAssociation(updatedRow);
+                    await confirmManualIdentification(targetTx.id, selectedChurchId);
+                }
             }
+        } catch (error) {
+            console.error("[ManualIdModal] Error confirming identification:", error);
+        } finally {
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
 
     const count = bulkIdentificationTxs?.length || 0;

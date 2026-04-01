@@ -38,14 +38,14 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
             .map((r: any) => r.transaction)
             .filter(Boolean);
 
-        if (txsToProcess.length === 0) return;
-
-        setBulkIdentificationTxs(txsToProcess);
-        setManualIdentificationTx(null);
+        if (txsToProcess.length > 0) {
+            setBulkIdentificationTxs(txsToProcess);
+            setManualIdentificationTx(null);
+        }
     };
 
-    const handleBulkConfirm = () => {
-        toggleConfirmation(selectedIds, true);
+    const handleBulkConfirm = async () => {
+        await toggleConfirmation(selectedIds, true);
         onClear();
     };
 
