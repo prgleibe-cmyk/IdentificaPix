@@ -6,16 +6,17 @@ import { formatCurrency } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
+    results: any[]; // ✅ NOVO: fonte correta dos dados
     onClear: () => void;
 }
 
-export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, onClear }) => {
-    const { matchResults, setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
+export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
+    const { setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
     const selectedData = useMemo(() => {
-        return matchResults.filter((r: any) => selectedIds.includes(r.transaction.id));
-    }, [selectedIds, matchResults]);
+        return results.filter((r: any) => selectedIds.includes(r.transaction.id));
+    }, [selectedIds, results]);
 
     const totalAmount = useMemo(() => {
         return selectedData.reduce((acc: number, curr: any) => {
@@ -29,8 +30,12 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     if (selectedIds.length === 0) return null;
 
     const handleBulkIdentify = () => {
-        const txsToProcess = selectedData.filter((r: any) => !r.isConfirmed).map((r: any) => r.transaction);
+        const txsToProcess = selectedData
+            .filter((r: any) => !r.isConfirmed)
+            .map((r: any) => r.transaction);
+
         if (txsToProcess.length === 0) return;
+
         setBulkIdentificationTxs(txsToProcess);
         setManualIdentificationTx(null);
     };
