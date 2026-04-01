@@ -134,7 +134,7 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    if (payload.new && payload.new.is_confirmed === true) {
+                    if (payload.new && (payload.new.is_confirmed !== payload.old.is_confirmed || payload.new.status !== payload.old.status)) {
                         // Força a re-validação do cache local
                         lastValidatedHash.current = '';
                         setTriggerSync(prev => prev + 1);

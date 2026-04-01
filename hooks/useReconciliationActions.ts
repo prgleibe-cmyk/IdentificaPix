@@ -53,12 +53,27 @@ export const useReconciliationActions = ({
     }
 
     reconciliation.setMatchResults(currentResults);
+    if (onAfterAction) onAfterAction(currentResults);
+
+    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS
+    if (reportManager?.setSavedReports) {
+      reportManager.setSavedReports((prev: any[]) => {
+        return prev.map(report => {
+          if (report.id === reportManager.activeReportId && report.data?.results) {
+            const updatedResults = report.data.results.map((r: any) => 
+              r.transaction.id === txId ? updatedResult : r
+            );
+            return { ...report, data: { ...report.data, results: updatedResults } };
+          }
+          return report;
+        });
+      });
+    }
+
     referenceData.learnAssociation(updatedResult);
 
     reconciliation.closeManualIdentify();
     showToast("Identificado e aprendido pela IA.", "success");
-
-    if (onAfterAction) onAfterAction(currentResults);
 
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
@@ -170,8 +185,13 @@ export const useReconciliationActions = ({
 
     const currentResults = reconciliation.fullMatchResults.map((r: MatchResult) => {
       if (txIds.includes(r.transaction.id)) {
+        const newStatus = confirmed 
+          ? ReconciliationStatus.RESOLVED 
+          : (r.contributor ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED);
+        
         return {
           ...r,
+          status: newStatus,
           isConfirmed: confirmed,
           transaction: { ...r.transaction, isConfirmed: confirmed }
         };
@@ -180,6 +200,7 @@ export const useReconciliationActions = ({
     });
 
     reconciliation.setMatchResults(currentResults);
+    if (onAfterAction) onAfterAction(currentResults);
 
     // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS (Para refletir no SearchView imediatamente)
     if (reportManager?.setSavedReports) {
@@ -192,8 +213,13 @@ export const useReconciliationActions = ({
             if (txIds.includes(r.transaction?.id)) {
               reportUpdated = true;
               anyReportUpdated = true;
+              const newStatus = confirmed 
+                ? ReconciliationStatus.RESOLVED 
+                : (r.contributor ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED);
+              
               return { 
                 ...r, 
+                status: newStatus,
                 isConfirmed: confirmed, 
                 transaction: { ...r.transaction, isConfirmed: confirmed } 
               };
@@ -214,8 +240,6 @@ export const useReconciliationActions = ({
       "success"
     );
 
-    if (onAfterAction) onAfterAction(currentResults);
-
   }, [reconciliation, reportManager, showToast, onAfterAction]);
 
 
@@ -233,15 +257,34 @@ export const useReconciliationActions = ({
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
       await consolidationService.updateTransactionStatus(txId, 'pending');
+      await consolidationService.updateConfirmationStatus([txId], false);
     }
 
     reconciliation.revertMatch(txId);
+    if (onAfterAction) onAfterAction(reconciliation.fullMatchResults);
+
+    // ✅ ATUALIZAÇÃO DOS RELATÓRIOS SALVOS
+    if (reportManager?.setSavedReports) {
+      reportManager.setSavedReports((prev: any[]) => {
+        return prev.map(report => {
+          if (report.id === reportManager.activeReportId && report.data?.results) {
+            const updatedResults = report.data.results.map((r: any) => 
+              r.transaction.id === txId ? { 
+                ...r, 
+                status: ReconciliationStatus.UNIDENTIFIED,
+                contributor: null,
+                church: referenceData.PLACEHOLDER_CHURCH || r.church,
+                isConfirmed: false
+              } : r
+            );
+            return { ...report, data: { ...report.data, results: updatedResults } };
+          }
+          return report;
+        });
+      });
+    }
 
     showToast("Identificação desfeita.", "success");
-
-    setTimeout(() => {
-      if (onAfterAction) onAfterAction(reconciliation.fullMatchResults);
-    }, 100);
 
   }, [reconciliation, showToast, onAfterAction]);
 

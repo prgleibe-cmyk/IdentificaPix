@@ -1,7 +1,8 @@
 export enum ReconciliationStatus {
   IDENTIFIED = 'IDENTIFICADO',
   UNIDENTIFIED = 'NÃO IDENTIFICADO',
-  PENDING = 'PENDENTE' // Ghost records
+  PENDING = 'PENDENTE', // Ghost records
+  RESOLVED = 'RESOLVIDO' // Confirmed records
 }
 
 export enum MatchMethod {

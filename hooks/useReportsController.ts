@@ -36,30 +36,7 @@ export const useReportsController = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     // Faxina automática de duplicatas ao carregar os relatórios
-    useEffect(() => {
-        const userId = subscription.ownerId || user?.id;
-        if (!userId) return;
-
-        // Evita rodar múltiplas vezes na mesma sessão para performance
-        const sessionKey = `dedupe_done_${userId}`;
-        if (sessionStorage.getItem(sessionKey)) return;
-
-        const runCleanup = async () => {
-            try {
-                const removed = await consolidationService.runGlobalDeduplication(userId);
-                if (removed > 0) {
-                    console.log(`[Deduplication] ${removed} registros duplicados foram limpos.`);
-                    // Atualiza os dados locais para refletir a limpeza no banco
-                    if (hydrate) hydrate();
-                }
-                sessionStorage.setItem(sessionKey, 'true');
-            } catch (e) {
-                console.error("[Deduplication:AUTO_FAIL]", e);
-            }
-        };
-
-        runCleanup();
-    }, [subscription.ownerId, user?.id, updateReportData]);
+    // Removido para evitar reprocessamento automático ao acessar a aba Relatórios
 
     // Forçar categoria para membros
     useEffect(() => {

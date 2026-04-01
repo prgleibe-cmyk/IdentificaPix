@@ -19,6 +19,7 @@ const MAX_REPORTS_PER_USER = 60;
 
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[]) => {
     const { subscription } = useAuth();
+    const effectiveUserId = subscription?.ownerId || user?.id;
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
@@ -32,7 +33,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      */
     useEffect(() => {
         let ignore = false;
-        if (!user) {
+        if (!user || !effectiveUserId) {
             setSavedReports([]);
             return;
         }
@@ -54,10 +55,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            if (!user?.id) return;
-
             // Para a API, precisamos do ownerId para passar na validação de permissão
-            const apiOwnerId = subscription?.ownerId || user.id;
+            const apiOwnerId = effectiveUserId;
             let data: any[] = [];
             
             try {
@@ -101,7 +100,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user?.id, subscription?.ownerId, subscription?.role, subscription?.congregationIds, initialReports]);
+    }, [user, effectiveUserId, initialReports]);
 
     /**
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
@@ -173,24 +172,39 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const clearSearchFilters = useCallback(() => setSearchFilters(DEFAULT_SEARCH_FILTERS), [setSearchFilters]);
 
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
-        if(!user?.id) return;
-        const effectiveUserId = user.id;
+        if(!user?.id || !effectiveUserId) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
-    }, [user?.id, showToast]);
+    }, [user?.id, effectiveUserId, showToast]);
+
+    const deleteReport = useCallback(async (reportId: string) => {
+        if (!user?.id || !effectiveUserId) return;
+        
+        const { error } = await supabase.from('saved_reports').delete().eq('id', reportId).eq('user_id', effectiveUserId);
+        if (error) {
+            showToast('Erro ao excluir relatório.', 'error');
+        } else {
+            setSavedReports(prev => prev.filter(r => r.id !== reportId));
+            showToast('Relatório excluído.', 'success');
+        }
+    }, [user?.id, effectiveUserId, showToast]);
 
     const overwriteSavedReport = useCallback(async (reportId: string, results: MatchResult[], spreadsheetData?: SpreadsheetData) => {
-        if (!user?.id || !reportId) return;
+        if (!user?.id || !effectiveUserId || !reportId) return;
         
-        const effectiveUserId = user.id;
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
         if ((!results || (results || []).length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
-        const currentPayload = JSON.stringify({ r: (results || []).length, s: !!spreadsheetData });
+        const currentPayload = JSON.stringify({ 
+            r: (results || []).length, 
+            s: !!spreadsheetData,
+            // Fingerprint para detectar mudanças de status/confirmação sem stringify total
+            f: (results || []).slice(0, 20).map(r => `${r.status}-${r.isConfirmed}`).join('|')
+        });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
@@ -237,8 +251,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
-        if (!savingReportState || !user?.id) return null;
-        const effectiveUserId = user.id;
+        if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -304,17 +317,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             showToast('Relatório criado!', 'success');
             return newReportId;
         }
-    }, [savingReportState, user, showToast, closeSaveReportModal, savedReports.length]);
+    }, [savingReportState, user, effectiveUserId, showToast, closeSaveReportModal, savedReports.length, subscription, searchFilters]);
 
     const deleteOldReports = useCallback(async (dateThreshold: Date) => {
-        if (!user) return;
-        const effectiveUserId = subscription.ownerId || user.id;
+        if (!user || !effectiveUserId) return;
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
         await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
-    }, [user, savedReports, showToast]);
+    }, [user, effectiveUserId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {
         return savedReports
@@ -329,12 +341,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         isSearchFiltersOpen, openSearchFilters, closeSearchFilters, clearSearchFilters,
         savingReportState, openSaveReportModal, closeSaveReportModal, confirmSaveReport,
         updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports,
+        deleteReport, deleteOldReports,
         allHistoricalResults
     }), [
         savedReports, searchFilters, isSearchFiltersOpen, savingReportState, allHistoricalResults,
         setSavedReports, setSearchFilters, openSearchFilters, closeSearchFilters, clearSearchFilters,
         openSaveReportModal, closeSaveReportModal, confirmSaveReport, updateSavedReportName, saveFilteredReport, overwriteSavedReport,
-        deleteOldReports
+        deleteReport, deleteOldReports
     ]);
 };

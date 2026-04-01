@@ -17,7 +17,7 @@ export const AppContext = createContext<any>(null!);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, subscription } = useAuth();
-    const { showToast, setIsLoading, setActiveView } = useUI();
+    const { showToast, setIsLoading, setActiveView, isLoading } = useUI();
 
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -49,13 +49,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView
     });
 
+    // 🔄 SINCRONIZAÇÃO DE DADOS DO RELATÓRIO ATIVO
+    const lastLoadedReportId = useRef<string | null>(null);
+
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
-        if (!activeId) return;
+        if (!activeId) {
+            lastLoadedReportId.current = null;
+            return;
+        }
+
+        // Só carregamos se o ID mudou
+        const shouldLoad = activeId !== lastLoadedReportId.current;
+        if (!shouldLoad) return;
 
         const report = reportManager.savedReports.find(r => r.id === activeId);
         if (!report || !report.data?.results) return;
 
+        console.log("[AppContext] Carregando dados do relatório ativo:", activeId);
+        
         let hydrated = report.data.results.map((r: any) => ({
             ...r,
             church:
@@ -72,6 +84,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         reconciliation.setMatchResults(hydrated);
+        lastLoadedReportId.current = activeId;
     }, [
         reportManager.savedReports,
         reconciliation.activeReportId,
@@ -80,17 +93,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscription.congregationIds
     ]);
 
-    useEffect(() => {
-        if (!reconciliation.activeReportId) return;
-
-        const report = reportManager.savedReports.find(
-            r => r.id === reconciliation.activeReportId
-        );
-
-        if (!report || !report.data?.results) return;
-
-        reconciliation.setMatchResults([...report.data.results]);
-    }, [reportManager.savedReports]);
+    // Removido o segundo useEffect redundante que causava resets indesejados
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
@@ -212,8 +215,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } finally {
                 setTimeout(() => setIsSyncing(false), 500);
             }
+        } else if (!reportId && resultsToSave.length > 0) {
+            // Se não há um relatório salvo, mas há dados, sincronizamos como sessão ativa
+            reconciliation.syncToCloud(resultsToSave);
         }
-    }, [reconciliation.activeReportId, reconciliation.matchResults, reportManager]);
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults, reconciliation.syncToCloud, reportManager]);
+
+    // 💾 AUTO-SAVE: Salva o progresso do relatório ativo a cada 3 segundos de inatividade
+    useEffect(() => {
+        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length > 0) {
+            const timer = setTimeout(() => {
+                persistActiveReport();
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults, persistActiveReport]);
+
+    // 🔄 AUTO-LOAD: Tenta carregar os detalhes de um relatório ativo se os dados locais estiverem ausentes
+    useEffect(() => {
+        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading) {
+            const savedReport = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
+            if (savedReport && savedReport.data?.results?.length > 0) {
+                console.log("[AppContext] Auto-carregando dados do relatório ativo:", reconciliation.activeReportId);
+                reconciliation.setMatchResults(() => savedReport.data.results);
+                reconciliation.setHasActiveSession(true);
+            }
+        }
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation]);
+
+    // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
+    useEffect(() => {
+        if (!reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading) {
+            const liveReport = reportManager.savedReports.find(r => r.name === '[SESSÃO_ATIVA]');
+            if (liveReport && liveReport.data?.results?.length > 0) {
+                console.log("[AppContext] Auto-carregando sessão ativa da nuvem.");
+                reconciliation.setMatchResults(() => liveReport.data.results);
+                reconciliation.setHasActiveSession(true);
+            }
+        }
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation]);
+
+    // 📡 REAL-TIME SYNC: Sincroniza o relatório ativo se houver mudanças remotas
+    useEffect(() => {
+        const activeId = reconciliation.activeReportId;
+        if (!activeId || isSyncing || isLoading) return;
+
+        const savedReport = reportManager.savedReports.find(r => r.id === activeId);
+        if (!savedReport || !savedReport.data?.results) return;
+
+        // Compara se o que está na nuvem é diferente do que temos localmente
+        // Usamos uma comparação simplificada para evitar loops
+        const cloudCheck = JSON.stringify(savedReport.data.results.slice(0, 50).map((r: any) => ({ id: r.transaction?.id, s: r.status, c: !!r.isConfirmed })));
+        const localCheck = JSON.stringify(reconciliation.fullMatchResults.slice(0, 50).map((r: any) => ({ id: r.transaction?.id, s: r.status, c: !!r.isConfirmed })));
+
+        if (cloudCheck !== localCheck && reconciliation.fullMatchResults.length > 0) {
+            console.log("[AppContext] Sincronizando mudança remota no relatório ativo.");
+            // Hidratação básica
+            const hydrated = savedReport.data.results.map((r: any) => ({
+                ...r,
+                church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
+            }));
+            reconciliation.setMatchResults(hydrated);
+        }
+    }, [reportManager.savedReports, reconciliation.activeReportId, isSyncing, isLoading, referenceData.churches, reconciliation.fullMatchResults.length]);
 
     const wrappedConfirmSaveReport = useCallback(async (name: string) => {
         const newId = await reportManager.confirmSaveReport(name);
