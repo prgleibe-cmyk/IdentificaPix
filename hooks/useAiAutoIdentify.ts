@@ -71,7 +71,12 @@ export const useAiAutoIdentify = ({
                         
                         // Atualiza no banco
                         if (!res.transaction.id.includes('ghost') && !res.transaction.id.includes('sim')) {
-                            await consolidationService.updateTransactionStatus(res.transaction.id, 'identified');
+                            await consolidationService.updateTransactionStatus(
+                                res.transaction.id, 
+                                'identified', 
+                                church.id, 
+                                res.transaction.bank_id
+                            );
                         }
 
                         nextResults.push({

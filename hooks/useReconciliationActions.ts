@@ -49,7 +49,7 @@ export const useReconciliationActions = ({
     currentResults[idx] = updatedResult;
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(txId, 'identified');
+      await consolidationService.updateTransactionStatus(txId, 'identified', churchId, originalResult.transaction.bank_id);
     }
 
     reconciliation.setMatchResults(currentResults);
@@ -101,7 +101,7 @@ export const useReconciliationActions = ({
       referenceData.learnAssociation(updated);
 
       if (!id.includes('ghost') && !id.includes('sim')) {
-        await consolidationService.updateTransactionStatus(id, 'identified');
+        await consolidationService.updateTransactionStatus(id, 'identified', churchId, original.transaction.bank_id);
       }
 
       affectedCount++;
@@ -129,7 +129,15 @@ export const useReconciliationActions = ({
     );
 
     if (idsToUpdate.length > 0) {
-      await consolidationService.updateConfirmationStatus(idsToUpdate, confirmed);
+      // Sincronização atômica: Garante que cada transação persista sua igreja e banco ao confirmar
+      for (const id of idsToUpdate) {
+        const result = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
+        if (result) {
+          const churchId = result.church?.id || result._churchId;
+          const bankId = result.transaction.bank_id;
+          await consolidationService.updateConfirmationStatus([id], confirmed, churchId, bankId);
+        }
+      }
     }
 
     const currentResults = reconciliation.fullMatchResults.map((r: MatchResult) => {
@@ -174,8 +182,8 @@ export const useReconciliationActions = ({
     }
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(txId, 'pending');
-      await consolidationService.updateConfirmationStatus([txId], false);
+      await consolidationService.updateTransactionStatus(txId, 'pending', null as any);
+      await consolidationService.updateConfirmationStatus([txId], false, null as any);
     }
 
     const updatedResults = reconciliation.fullMatchResults.map((r: MatchResult) => 
