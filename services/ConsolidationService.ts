@@ -6,28 +6,6 @@ type ConsolidatedTransactionInsert = Database['public']['Tables']['consolidated_
 
 export const consolidationService = {
 
-    /**
-     * Helper genérico para busca paginada (Centralização de Lógica)
-     */
-    _fetchPaginated: async (queryFn: (from: number, to: number) => Promise<{data: any[] | null, error: any}>, step: number = 1000, maxRecords?: number) => {
-        let allData: any[] = [];
-        let from = 0;
-        let hasMore = true;
-
-        while (hasMore && (!maxRecords || allData.length < maxRecords)) {
-            const { data, error } = await queryFn(from, from + step - 1);
-            if (error) throw error;
-            if (data && data.length > 0) {
-                allData = [...allData, ...data];
-                from += step;
-                if (data.length < step) hasMore = false;
-            } else {
-                hasMore = false;
-            }
-        }
-        return allData;
-    },
-
     addTransactions: async (transactions: ConsolidatedTransactionInsert[]) => {
         if (transactions.length === 0) return [];
         
@@ -79,12 +57,9 @@ export const consolidationService = {
 
                 const chunk = sanitizedPayload.slice(i, i + CHUNK_SIZE);
 
-                const { data, error } = await (supabase as any)
+                const { data, error } = await supabase
                     .from('consolidated_transactions')
-                    .upsert(chunk, { 
-                        onConflict: 'row_hash',
-                        ignoreDuplicates: true 
-                    })
+                    .insert(chunk)
                     .select('*');
 
                 if (error) {
@@ -101,12 +76,9 @@ export const consolidationService = {
 
                         const recoveryChunk = chunk.map(({ is_confirmed, ...rest }: any) => rest);
 
-                        const { data: recData, error: recError } = await (supabase as any)
+                        const { data: recData, error: recError } = await supabase
                             .from('consolidated_transactions')
-                            .upsert(recoveryChunk, { 
-                                onConflict: 'row_hash',
-                                ignoreDuplicates: true 
-                            })
+                            .insert(recoveryChunk)
                             .select('*');
 
                         if (recError) throw new Error(recError.message);
@@ -133,21 +105,13 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
-        try {
-            const updateData: any = { 
-                status,
-                updated_at: new Date().toISOString()
-            };
-            
-            if (churchId !== undefined) updateData.church_id = churchId;
-            if (bankId !== undefined) updateData.bank_id = bankId;
-            if (contributorId !== undefined) updateData.contributor_id = contributorId;
-            if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved') => {
 
-            const { error } = await (supabase as any)
+        try {
+
+            const { error } = await supabase
                 .from('consolidated_transactions')
-                .update(updateData)
+                .update({ status })
                 .eq('id', id);
 
             if (error) throw error;
@@ -165,25 +129,18 @@ export const consolidationService = {
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean) => {
 
     try {
 
         if (!ids || ids.length === 0) return true;
 
-        const updateData: any = {
-            is_confirmed,
-            status: is_confirmed ? 'resolved' : 'pending',
-            updated_at: new Date().toISOString()
-        };
-
-        if (churchId !== undefined) updateData.church_id = churchId;
-        if (bankId !== undefined) updateData.bank_id = bankId;
-        if (contributorId !== undefined) updateData.contributor_id = contributorId;
-
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
             .from('consolidated_transactions')
-            .update(updateData)
+            .update({
+                is_confirmed,
+                status: is_confirmed ? 'resolved' : 'pending'
+            })
             .in('id', ids)
             .select();
 
@@ -205,13 +162,42 @@ export const consolidationService = {
 
         if (!userId) throw new Error("UserID é obrigatório.");
         
+        let allHashes: { row_hash: string | null }[] = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
         try {
-            return await consolidationService._fetchPaginated((from, to) => 
-                (supabase as any).from('consolidated_transactions').select('row_hash').eq('user_id', userId).range(from, to)
-            );
+
+            while (hasMore) {
+
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
+                    .select('row_hash')
+                    .eq('user_id', userId)
+                    .range(from, from + step - 1);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+
+                    allHashes = [...allHashes, ...data];
+                    from += step;
+
+                    if (data.length < step) hasMore = false;
+
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            return allHashes;
+
         } catch (e: any) {
+
             console.error("[Consolidation:DEDUP_FETCH_FAIL]", e);
             throw e;
+
         }
     },
 
@@ -221,7 +207,7 @@ export const consolidationService = {
 
             if (!userId) return false;
 
-            let query = (supabase as any)
+            let query = supabase
                 .from('consolidated_transactions')
                 .delete()
                 .eq('user_id', userId)
@@ -258,36 +244,52 @@ export const consolidationService = {
 
     /**
      * LISTA VIVA (pendentes)
-     * Implementa um limite de segurança de 5000 registros para evitar travamento do navegador
-     * em contas com volume massivo de transações pendentes.
      */
     getPendingTransactions: async (userId: string) => {
 
         if (!userId) return [];
 
+        let allTransactions: any[] = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
         try {
-            const maxRecords = 5000;
-            const allTransactions = await consolidationService._fetchPaginated((from, to) => 
-                (supabase as any).from('consolidated_transactions')
+
+            while (hasMore) {
+
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
                     .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)
                     .order('transaction_date', { ascending: false })
-                    .range(from, to),
-                1000,
-                maxRecords
-            );
+                    .range(from, from + step - 1);
 
-            if (allTransactions.length >= maxRecords) {
-                console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+
+                    allTransactions = [...allTransactions, ...data];
+                    from += step;
+
+                    if (data.length < step) hasMore = false;
+
+                } else {
+
+                    hasMore = false;
+
+                }
             }
 
             return allTransactions;
 
         } catch (e: any) {
+
             console.error("[Consolidation:FETCH_FAIL]", e);
             throw e;
+
         }
     },
 
@@ -295,7 +297,7 @@ export const consolidationService = {
 
         try {
 
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('consolidated_transactions')
                 .delete()
                 .eq('id', id);
@@ -326,7 +328,7 @@ export const consolidationService = {
             for (let i = 0; i < ids.length; i += chunkSize) {
                 const chunk = ids.slice(i, i + chunkSize);
                 
-                const { data, error } = await (supabase as any)
+                const { data, error } = await supabase
                     .from('consolidated_transactions')
                     .select('id')
                     .eq('user_id', userId)
@@ -356,25 +358,36 @@ export const consolidationService = {
     },
 
     /**
-     * 🧹 FAXINA GLOBAL DE DUPLICATAS (V6 - ALINHAMENTO COM LAUNCHSERVICE)
-     * Remove registros que possuem o mesmo row_hash ou conteúdo idêntico, mantendo apenas um.
+     * FAXINA GLOBAL DE DUPLICATAS (V1)
+     * Remove registros que possuem o mesmo row_hash, mantendo apenas um.
      * Garante que as listas "vivas" e históricas fiquem limpas.
      */
     runGlobalDeduplication: async (userId: string) => {
         if (!userId) return 0;
         
         try {
-            console.log("[Consolidation:DEDUP] Iniciando auditoria de duplicatas...");
-            
-            // 1. Busca exaustiva de todos os registros para comparação
-            const allRecords = await consolidationService._fetchPaginated((from, to) => 
-                (supabase as any).from('consolidated_transactions')
-                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key, is_confirmed')
-                    .eq('user_id', userId)
-                    .range(from, to)
-            );
+            let allRecords: any[] = [];
+            let from = 0;
+            const step = 1000;
+            let hasMore = true;
 
-            if (!allRecords || allRecords.length === 0) return 0;
+            // 1. Busca exaustiva de todos os registros para comparação
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('consolidated_transactions')
+                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
+                    .eq('user_id', userId)
+                    .range(from, from + step - 1);
+
+                if (error) throw error;
+                if (data && data.length > 0) {
+                    allRecords = [...allRecords, ...data];
+                    from += step;
+                    if (data.length < step) hasMore = false;
+                } else {
+                    hasMore = false;
+                }
+            }
 
             // 2. Identifica duplicatas baseadas no row_hash OU no conteúdo exato
             const seenHashes = new Set<string>();
@@ -382,15 +395,8 @@ export const consolidationService = {
             const duplicateIds: string[] = [];
 
             allRecords.forEach(rec => {
-                // Normalização para comparação de conteúdo (mesma lógica do LaunchService)
-                const date = rec.transaction_date;
-                const amount = Number(rec.amount || 0).toFixed(2);
-                const desc = String(rec.description || '').trim().toUpperCase();
-                const type = rec.type;
-                const bank = rec.bank_id || 'null';
-                const pix = rec.pix_key || 'null';
-
-                const contentKey = `${date}|${amount}|${desc}|${type}|${bank}|${pix}`;
+                // Chave de conteúdo para pegar duplicatas que podem ter hashes diferentes (por versões antigas do app)
+                const contentKey = `${rec.transaction_date}|${String(rec.description || '').trim().toUpperCase()}|${Number(rec.amount || 0).toFixed(2)}|${rec.type}|${rec.bank_id || 'null'}|${rec.pix_key || 'null'}`;
                 
                 let isDuplicate = false;
                 
@@ -414,7 +420,7 @@ export const consolidationService = {
                 const chunkSize = 100;
                 for (let i = 0; i < duplicateIds.length; i += chunkSize) {
                     const chunk = duplicateIds.slice(i, i + chunkSize);
-                    await (supabase as any)
+                    await supabase
                         .from('consolidated_transactions')
                         .delete()
                         .in('id', chunk);

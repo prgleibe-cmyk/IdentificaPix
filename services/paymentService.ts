@@ -33,12 +33,11 @@ export const paymentService = {
         Logger.info(`Initiating Real Payment [${method}]...`, { amount, customerName, email });
 
         try {
-            const { data: { session } } = await (supabase as any).auth.getSession();
+            const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
             const response = await fetch('/api/payment/create', {
                 method: 'POST',
-                cache: 'no-store',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -102,12 +101,10 @@ export const paymentService = {
      */
     checkPaymentStatus: async (paymentId: string): Promise<'PENDING' | 'RECEIVED' | 'OVERDUE' | 'CONFIRMED'> => {
         try {
-            const { data: { session } } = await (supabase as any).auth.getSession();
+            const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
             const response = await fetch(`/api/payment/status/${paymentId}`, {
-                method: 'GET',
-                cache: 'no-store',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

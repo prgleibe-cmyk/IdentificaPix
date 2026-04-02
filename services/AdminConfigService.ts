@@ -13,7 +13,7 @@ export const AdminConfigService = {
         }
 
         try {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('admin_config')
                 .select('value')
                 .eq('key', key)
@@ -43,7 +43,7 @@ export const AdminConfigService = {
 
         try {
             // O onConflict: 'key' agora funciona pois o SQL V12 adicionou a constraint UNIQUE
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('admin_config')
                 .upsert(
                     { 
@@ -69,7 +69,7 @@ export const AdminConfigService = {
 
     async getAll(): Promise<Record<string, any>> {
         try {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('admin_config')
                 .select('key, value');
 
