@@ -32,16 +32,26 @@ export const LaunchService = {
         return { finalDate, cleanName, finalValue };
     },
 
-    computeBaseHash: (t: any, userId: string) => {
+    computeBaseHash: (t: any, userId: string, bankId: string | null) => {
         const { finalDate, cleanName, finalValue } = LaunchService.normalizeTriplet(t);
         
         /**
-         * 🛡️ IDENTIDADE ESTENDIDA (V5)
-         * Incluímos o rawDescription (linha bruta) no Hash.
-         * Isso garante que se o Saldo ou qualquer outra coluna for diferente, o Hash muda.
+         * 🛡️ IDENTIDADE ESTENDIDA (V6 - REGRAS DE DEDUPLICAÇÃO ESTRITAS)
+         * Conforme solicitado, o Hash deve ser composto por:
+         * transaction_date, amount, description, pix_key, bank_id, type.
          */
+        const amount = finalValue;
+        const description = cleanName;
+        const type = Number(t.amount || 0) >= 0 ? 'income' : 'expense';
+        
+        const isUuid = /^[0-9a-fA-F-]{36}$/.test(bankId || '');
+        const bank_id = isUuid ? bankId : 'null';
+        const pix_key = isUuid ? (t.paymentMethod || 'OUTROS') : (bankId || 'OUTROS');
+        
+        // Incluímos também o rawDescription (linha bruta) para garantir a unicidade da LINHA física no arquivo.
         const rawContent = String(t.rawDescription || t.description || '').trim().toUpperCase();
-        const rawKey = `U${userId}|D${finalDate}|N${cleanName}|V${finalValue}|R${rawContent}`;
+
+        const rawKey = `U${userId}|D${finalDate}|A${amount}|N${description}|P${pix_key}|B${bank_id}|T${type}|R${rawContent}`;
         
         let hash = 5381;
         for (let i = 0; i < rawKey.length; i++) {
@@ -74,7 +84,7 @@ export const LaunchService = {
             
             const toPersist = transactions
                 .map((item) => {
-                    const finalRowHash = this.computeBaseHash(item, userId);
+                    const finalRowHash = this.computeBaseHash(item, userId, bankId);
                     
                     // Bloqueia se já existe no banco ou se está sendo processado agora (inFlight)
                     if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {
