@@ -17,15 +17,23 @@ export const useLiveListSync = ({
     const [isCleaning, setIsCleaning] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
 
+    const pendingHydrate = useRef(false);
+
     /**
      * 🛡️ HYDRATE (O FUNIL DE SAÍDA PARA A UI)
      * Garante que a UI só exiba o que está validado no banco de dados.
      */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
         const effectiveUserId = subscription?.ownerId || user?.id;
-        if (!effectiveUserId || isCleaning || isHydrating.current) return;
+        if (!effectiveUserId || isCleaning) return;
+        
+        if (isHydrating.current) {
+            pendingHydrate.current = true;
+            return;
+        }
         
         isHydrating.current = true;
+        pendingHydrate.current = false;
         setSyncError(null);
         
         try {
@@ -34,7 +42,6 @@ export const useLiveListSync = ({
             if (!dbTransactions || dbTransactions.length === 0) {
                 setBankStatementFile([]);
                 if (forceClearUI) setSelectedBankIds([]);
-                isHydrating.current = false;
                 return;
             }
 
@@ -90,6 +97,10 @@ export const useLiveListSync = ({
             setSyncError("Falha ao sincronizar dados.");
         } finally {
             isHydrating.current = false;
+            if (pendingHydrate.current) {
+                pendingHydrate.current = false;
+                hydrate(forceClearUI);
+            }
         }
     }, [user, subscription, isCleaning, setBankStatementFile, setSelectedBankIds]);
 

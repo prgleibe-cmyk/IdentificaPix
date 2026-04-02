@@ -175,36 +175,58 @@ export const useCloudSync = ({
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    // DELETE
+                    if (payload.eventType === 'DELETE') {
+                        const deletedId = payload.old?.id;
+                        if (deletedId) {
+                            setMatchResults(prev => prev.filter(r => r.transaction.id !== deletedId));
+                        }
+                        return;
+                    }
+
                     if (payload.new) {
-                        const { id, is_confirmed, status } = payload.new;
+                        const { id, is_confirmed, status, church_id } = payload.new;
                         
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
-                            if (idx === -1) return prev;
+                            
+                            // Se não existe (INSERT), poderíamos adicionar, mas geralmente o hydrate cuida disso.
+                            // No entanto, para realtime multiusuário, vamos adicionar se for relevante.
+                            if (idx === -1) {
+                                // Apenas adicionamos se não for pending (ou se quisermos ver tudo em tempo real)
+                                // Para evitar duplicidade com o hydrate inicial, vamos focar em updates de estado
+                                return prev;
+                            }
                             
                             const current = prev[idx];
-                            if (current.isConfirmed === is_confirmed && current.status === status) return prev;
-
-                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
-                            
-                            const updated = [...prev];
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'pending': ReconciliationStatus.UNIDENTIFIED,
                                 'identified': ReconciliationStatus.IDENTIFIED,
                                 'resolved': ReconciliationStatus.RESOLVED
                             };
 
+                            const newStatus = statusMap[status] || current.status;
+                            const newChurch = churches.find(c => c.id === church_id) || current.church;
+
+                            if (current.isConfirmed === is_confirmed && 
+                                current.status === newStatus && 
+                                current.church?.id === newChurch?.id) return prev;
+
+                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
+                            
+                            const updated = [...prev];
                             updated[idx] = {
                                 ...current,
-                                status: statusMap[status] || current.status,
+                                status: newStatus,
+                                church: newChurch,
                                 isConfirmed: is_confirmed,
-                                transaction: { ...current.transaction, isConfirmed: is_confirmed }
+                                transaction: { ...current.transaction, isConfirmed: is_confirmed, bank_id: payload.new.bank_id }
                             };
                             return updated;
                         });
@@ -214,18 +236,23 @@ export const useCloudSync = ({
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT',
+                    event: '*',
                     schema: 'public',
                     table: 'learned_associations',
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    if (payload.eventType === 'DELETE') {
+                        // Se uma associação for deletada, não removemos o resultado, mas ele perde o vínculo "learned"
+                        return;
+                    }
+
                     if (payload.new) {
                         const { normalized_description, church_id, contributor_normalized_name } = payload.new;
                         const fullChurch = churches.find((c: any) => c.id === church_id);
                         
                         if (fullChurch) {
-                            console.log(`[Realtime:ATOM] Nova associação aprendida: ${normalized_description} -> ${fullChurch.name}`);
+                            console.log(`[Realtime:ATOM] Associação aprendida (Event:${payload.eventType}): ${normalized_description} -> ${fullChurch.name}`);
                             setMatchResults(prev => {
                                 let hasChanges = false;
                                 const updated = prev.map(r => {

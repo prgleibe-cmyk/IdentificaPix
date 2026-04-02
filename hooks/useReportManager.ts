@@ -106,17 +106,18 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
      */
     useEffect(() => {
-        if (!user || !subscription.ownerId) return;
+        const ownerId = subscription.ownerId || user?.id;
+        if (!user || !ownerId) return;
 
         const channel = supabase
-            .channel('reports-realtime')
+            .channel(`reports-realtime-${ownerId}`)
             .on(
                 'postgres_changes',
                 { 
                     event: '*', 
                     schema: 'public', 
                     table: 'saved_reports',
-                    filter: `user_id=eq.${subscription.ownerId || user.id}` 
+                    filter: `user_id=eq.${ownerId}` 
                 },
                 (payload: any) => {
                     const newRecord = payload.new;
@@ -165,7 +166,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user, subscription.ownerId]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);
