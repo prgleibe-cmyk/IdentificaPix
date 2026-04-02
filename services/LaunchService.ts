@@ -9,45 +9,49 @@ const hashesInFlight = new Set<string>();
 
 export const LaunchService = {
     /**
-     * 🛡️ FUNIL DE NORMALIZAÇÃO PARA HASH (V4 - ESTABILIDADE ABSOLUTA)
-     * Gera uma representação normalizada apenas para evitar duplicatas.
+     * 🛡️ FUNIL DE NORMALIZAÇÃO PARA HASH (V5 - PADRONIZAÇÃO GLOBAL)
+     * Gera uma representação normalizada e limpa para garantir deduplicação consistente.
      */
     normalizeTriplet: (t: any) => {
         let rawDate = String(t.date || t.transaction_date || '').trim();
-        let isoDate = rawDate;
-        if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-            const resolved = DateResolver.resolveToISO(rawDate, new Date().getFullYear());
+        let isoDate = rawDate.split('T')[0];
+        if (isoDate && !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+            const resolved = DateResolver.resolveToISO(isoDate, new Date().getFullYear());
             if (resolved) isoDate = resolved;
         }
-        const finalDate = isoDate || rawDate || '0000-00-00';
+        const finalDate = isoDate || '0000-00-00';
 
-        /**
-         * 🎯 REATIVAÇÃO: Priorizamos o texto BRUTO (Literal) para o Hash.
-         * Isso garante que, se o usuário subir o mesmo arquivo, o Hash será idêntico,
-         * independente de como a IA limpou a descrição visual.
-         */
-        const cleanName = NameResolver.normalize(t.rawDescription || t.description || 'SEM_DESCRICAO');
+        const cleanName = NameResolver.normalize(t.description || t.rawDescription || 'SEM_DESCRICAO');
         const finalValue = Number(t.amount || 0).toFixed(2);
 
         return { finalDate, cleanName, finalValue };
     },
 
-    computeBaseHash: (t: any, userId: string) => {
+    computeBaseHash: (t: any, userId: string, bankId: string | null) => {
         const { finalDate, cleanName, finalValue } = LaunchService.normalizeTriplet(t);
         
         /**
-         * 🛡️ IDENTIDADE ESTENDIDA (V5)
-         * Incluímos o rawDescription (linha bruta) no Hash.
-         * Isso garante que se o Saldo ou qualquer outra coluna for diferente, o Hash muda.
+         * 🛡️ ALGORITMO DE HASH GLOBAL (V7)
+         * Padronizado para todas as fontes (Arquivo, Gmail, SMS).
+         * Campos: User, Data, Valor, Descrição, PixKey, BankId, Tipo.
          */
-        const rawContent = String(t.rawDescription || t.description || '').trim().toUpperCase();
-        const rawKey = `U${userId}|D${finalDate}|N${cleanName}|V${finalValue}|R${rawContent}`;
+        const amount = finalValue;
+        const description = cleanName;
+        const type = Number(t.amount || 0) >= 0 ? 'income' : 'expense';
+        
+        // Normalização rigorosa de bank_id e pix_key
+        const isUuid = /^[0-9a-fA-F-]{36}$/.test(bankId || '');
+        const bank_id = isUuid ? bankId : String(bankId || 'NULL').toUpperCase().trim();
+        const pix_key = String(t.pix_key || t.paymentMethod || 'OUTROS').toUpperCase().trim();
+        
+        // String Única (Sem rawContent para permitir deduplicação entre fontes diferentes)
+        const rawKey = `U:${userId}|D:${finalDate}|V:${amount}|N:${description}|P:${pix_key}|B:${bank_id}|T:${type}`;
         
         let hash = 5381;
         for (let i = 0; i < rawKey.length; i++) {
             hash = ((hash << 5) + hash) + rawKey.charCodeAt(i);
         }
-        return `viva_${Math.abs(hash).toString(36)}`;
+        return `glb_${Math.abs(hash).toString(36)}`;
     },
 
     /**
@@ -74,7 +78,7 @@ export const LaunchService = {
             
             const toPersist = transactions
                 .map((item) => {
-                    const finalRowHash = this.computeBaseHash(item, userId);
+                    const finalRowHash = this.computeBaseHash(item, userId, bankId);
                     
                     // Bloqueia se já existe no banco ou se está sendo processado agora (inFlight)
                     if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {

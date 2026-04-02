@@ -45,8 +45,18 @@ export const useLiveListSync = ({
                 return;
             }
 
+            // 🛡️ DEDUPLICAÇÃO GLOBAL NA UI (V2)
+            // Garante que mesmo se o banco tiver lixo, a UI mostre apenas o que é único por row_hash
+            const seenHashes = new Set<string>();
+            const uniqueTransactions = dbTransactions.filter((t: any) => {
+                if (!t.row_hash) return true; // Se não tem hash, deixa passar (não deveria ocorrer)
+                if (seenHashes.has(t.row_hash)) return false;
+                seenHashes.add(t.row_hash);
+                return true;
+            });
+
             const groupedByBank: Record<string, Transaction[]> = {};
-            dbTransactions.forEach((t: any) => {
+            uniqueTransactions.forEach((t: any) => {
                 let bankId = t.bank_id;
                 if (!bankId && t.pix_key && t.pix_key.includes('-')) {
                     bankId = t.pix_key;
