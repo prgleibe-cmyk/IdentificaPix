@@ -74,6 +74,7 @@ export interface MatchResult {
   contributionType?: string;
   paymentMethod?: string;
   isConfirmed?: boolean;
+  updatedAt?: string;
   divergence?: {
     expectedChurch: Church;
     actualChurch: Church;

@@ -91,7 +91,8 @@ export const useAiAutoIdentify = ({
                                 cleanedName: learned.contributorNormalizedName 
                             },
                             contributorAmount: res.transaction.amount,
-                            suggestion: undefined
+                            suggestion: undefined,
+                            updatedAt: new Date().toISOString()
                         });
                         continue;
                     }

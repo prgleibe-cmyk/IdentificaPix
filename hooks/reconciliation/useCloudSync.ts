@@ -113,7 +113,8 @@ export const useCloudSync = ({
                         status,
                         isConfirmed: t.is_confirmed,
                         matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
-                        similarity: 100
+                        similarity: 100,
+                        updatedAt: t.updated_at
                     };
                 });
 
@@ -124,13 +125,36 @@ export const useCloudSync = ({
                     reconstructed.forEach(r => {
                         const idx = updated.findIndex(p => p.transaction.id === r.transaction.id);
                         if (idx !== -1) {
-                            // Se já existe, atualizamos com o estado da nuvem (que é a verdade absoluta)
-                            const hasStatusChange = updated[idx].status !== r.status;
-                            const hasConfirmChange = updated[idx].isConfirmed !== r.isConfirmed;
-                            const hasChurchChange = (updated[idx].church?.id || 'none') !== (r.church?.id || 'none');
+                            const local = updated[idx];
+                            
+                            // 🛡️ REGRAS DE MERGE (Prioridade ao dado mais recente/forte)
+                            
+                            // 1. Se o local está confirmado/resolvido e o banco não, 
+                            // e o banco não é explicitamente mais novo, mantemos o local.
+                            const localIsStrong = local.isConfirmed || local.status === ReconciliationStatus.RESOLVED;
+                            const cloudIsWeak = !r.isConfirmed && r.status !== ReconciliationStatus.RESOLVED;
+                            
+                            if (localIsStrong && cloudIsWeak) {
+                                if (!r.updatedAt || !local.updatedAt || new Date(r.updatedAt) <= new Date(local.updatedAt)) {
+                                    // Ignora dado fraco do banco se o local for forte e mais novo/igual
+                                    return;
+                                }
+                            }
+
+                            // 2. Comparação direta de timestamps se ambos existirem
+                            if (local.updatedAt && r.updatedAt) {
+                                const localTime = new Date(local.updatedAt).getTime();
+                                const cloudTime = new Date(r.updatedAt).getTime();
+                                if (localTime >= cloudTime) return; // Local é mais novo ou igual
+                            }
+
+                            // Se chegou aqui, o dado da nuvem é considerado mais novo ou o local é fraco
+                            const hasStatusChange = local.status !== r.status;
+                            const hasConfirmChange = local.isConfirmed !== r.isConfirmed;
+                            const hasChurchChange = (local.church?.id || 'none') !== (r.church?.id || 'none');
 
                             if (hasStatusChange || hasConfirmChange || hasChurchChange) {
-                                updated[idx] = { ...updated[idx], ...r };
+                                updated[idx] = { ...local, ...r };
                                 hasChanges = true;
                             }
                         } else {
@@ -196,15 +220,18 @@ export const useCloudSync = ({
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             
-                            // Se não existe (INSERT), poderíamos adicionar, mas geralmente o hydrate cuida disso.
-                            // No entanto, para realtime multiusuário, vamos adicionar se for relevante.
-                            if (idx === -1) {
-                                // Apenas adicionamos se não for pending (ou se quisermos ver tudo em tempo real)
-                                // Para evitar duplicidade com o hydrate inicial, vamos focar em updates de estado
-                                return prev;
-                            }
+                            if (idx === -1) return prev;
                             
                             const current = prev[idx];
+                            const cloudUpdatedAt = payload.new.updated_at;
+
+                            // 🛡️ Regra de Realtime: Se o local é mais novo, ignoramos o evento
+                            if (current.updatedAt && cloudUpdatedAt) {
+                                if (new Date(cloudUpdatedAt) <= new Date(current.updatedAt)) {
+                                    return prev;
+                                }
+                            }
+
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'pending': ReconciliationStatus.UNIDENTIFIED,
                                 'identified': ReconciliationStatus.IDENTIFIED,
@@ -226,7 +253,8 @@ export const useCloudSync = ({
                                 status: newStatus,
                                 church: newChurch,
                                 isConfirmed: is_confirmed,
-                                transaction: { ...current.transaction, isConfirmed: is_confirmed, bank_id: payload.new.bank_id }
+                                transaction: { ...current.transaction, isConfirmed: is_confirmed, bank_id: payload.new.bank_id },
+                                updatedAt: cloudUpdatedAt
                             };
                             return updated;
                         });

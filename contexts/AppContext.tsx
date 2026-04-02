@@ -205,6 +205,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
+        // 🛡️ Prevenção de sobrescrita por dado antigo durante hidratação
+        if (reconciliation.isHydratingFromCloud.current) {
+            console.log("[AppContext] Persistência adiada: Hidratação em curso.");
+            return;
+        }
+
         const reportId = reconciliation.activeReportId;
         const resultsToSave = customResults || reconciliation.fullMatchResults;
 

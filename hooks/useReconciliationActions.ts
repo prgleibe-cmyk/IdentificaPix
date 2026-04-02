@@ -43,7 +43,8 @@ export const useReconciliationActions = ({
       matchMethod: MatchMethod.MANUAL,
       similarity: 100,
       contributorAmount: contributor.amount,
-      divergence: undefined
+      divergence: undefined,
+      updatedAt: new Date().toISOString()
     };
 
     currentResults[idx] = updatedResult;
@@ -93,7 +94,8 @@ export const useReconciliationActions = ({
         matchMethod: MatchMethod.MANUAL,
         similarity: 100,
         contributorAmount: contributor.amount,
-        divergence: undefined
+        divergence: undefined,
+        updatedAt: new Date().toISOString()
       };
 
       currentResults[idx] = updated;
@@ -150,7 +152,8 @@ export const useReconciliationActions = ({
           ...r,
           status: newStatus,
           isConfirmed: confirmed,
-          transaction: { ...r.transaction, isConfirmed: confirmed }
+          transaction: { ...r.transaction, isConfirmed: confirmed },
+          updatedAt: new Date().toISOString()
         };
       }
       return r;
@@ -193,7 +196,8 @@ export const useReconciliationActions = ({
         contributor: null,
         church: referenceData.PLACEHOLDER_CHURCH || r.church,
         isConfirmed: false,
-        transaction: { ...r.transaction, isConfirmed: false }
+        transaction: { ...r.transaction, isConfirmed: false },
+        updatedAt: new Date().toISOString()
       } : r
     );
 
