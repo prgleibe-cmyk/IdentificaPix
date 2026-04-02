@@ -81,10 +81,7 @@ export const consolidationService = {
 
                 const { data, error } = await (supabase as any)
                     .from('consolidated_transactions')
-                    .upsert(chunk, { 
-                        onConflict: 'row_hash',
-                        ignoreDuplicates: true 
-                    })
+                    .insert(chunk)
                     .select('*');
 
                 if (error) {
@@ -103,10 +100,7 @@ export const consolidationService = {
 
                         const { data: recData, error: recError } = await (supabase as any)
                             .from('consolidated_transactions')
-                            .upsert(recoveryChunk, { 
-                                onConflict: 'row_hash',
-                                ignoreDuplicates: true 
-                            })
+                            .insert(recoveryChunk)
                             .select('*');
 
                         if (recError) throw new Error(recError.message);
@@ -356,25 +350,23 @@ export const consolidationService = {
     },
 
     /**
-     * 🧹 FAXINA GLOBAL DE DUPLICATAS (V6 - ALINHAMENTO COM LAUNCHSERVICE)
-     * Remove registros que possuem o mesmo row_hash ou conteúdo idêntico, mantendo apenas um.
+     * FAXINA GLOBAL DE DUPLICATAS (V1)
+     * Remove registros que possuem o mesmo row_hash, mantendo apenas um.
      * Garante que as listas "vivas" e históricas fiquem limpas.
      */
     runGlobalDeduplication: async (userId: string) => {
         if (!userId) return 0;
         
         try {
-            console.log("[Consolidation:DEDUP] Iniciando auditoria de duplicatas...");
-            
+            let allRecords: any[] = [];
+
             // 1. Busca exaustiva de todos os registros para comparação
-            const allRecords = await consolidationService._fetchPaginated((from, to) => 
+            allRecords = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key, is_confirmed')
+                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
                     .eq('user_id', userId)
                     .range(from, to)
             );
-
-            if (!allRecords || allRecords.length === 0) return 0;
 
             // 2. Identifica duplicatas baseadas no row_hash OU no conteúdo exato
             const seenHashes = new Set<string>();
@@ -382,19 +374,8 @@ export const consolidationService = {
             const duplicateIds: string[] = [];
 
             allRecords.forEach(rec => {
-                // Normalização para comparação de conteúdo (Sincronizado com LaunchService V7)
-                const date = rec.transaction_date;
-                const amount = Number(rec.amount || 0).toFixed(2);
-                const desc = String(rec.description || '').toUpperCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/\s+/g, ' ').trim();
-                const type = rec.type;
-                
-                const isUuid = /^[0-9a-fA-F-]{36}$/.test(rec.bank_id || '');
-                const bank = isUuid ? rec.bank_id : String(rec.bank_id || 'NULL').toUpperCase().trim();
-                const pix = String(rec.pix_key || 'OUTROS').toUpperCase().trim();
-
-                const contentKey = `${date}|${amount}|${desc}|${type}|${bank}|${pix}`;
+                // Chave de conteúdo para pegar duplicatas que podem ter hashes diferentes (por versões antigas do app)
+                const contentKey = `${rec.transaction_date}|${String(rec.description || '').trim().toUpperCase()}|${Number(rec.amount || 0).toFixed(2)}|${rec.type}|${rec.bank_id || 'null'}|${rec.pix_key || 'null'}`;
                 
                 let isDuplicate = false;
                 

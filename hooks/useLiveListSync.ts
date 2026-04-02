@@ -24,10 +24,7 @@ export const useLiveListSync = ({
      * Garante que a UI só exiba o que está validado no banco de dados.
      */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        const userId = user?.id;
-        const ownerId = subscription?.ownerId;
-        const effectiveUserId = ownerId || userId;
-        
+        const effectiveUserId = subscription?.ownerId || user?.id;
         if (!effectiveUserId || isCleaning) return;
         
         if (isHydrating.current) {
@@ -48,18 +45,8 @@ export const useLiveListSync = ({
                 return;
             }
 
-            // 🛡️ DEDUPLICAÇÃO GLOBAL NA UI (V2)
-            // Garante que mesmo se o banco tiver lixo, a UI mostre apenas o que é único por row_hash
-            const seenHashes = new Set<string>();
-            const uniqueTransactions = dbTransactions.filter((t: any) => {
-                if (!t.row_hash) return true; // Se não tem hash, deixa passar (não deveria ocorrer)
-                if (seenHashes.has(t.row_hash)) return false;
-                seenHashes.add(t.row_hash);
-                return true;
-            });
-
             const groupedByBank: Record<string, Transaction[]> = {};
-            uniqueTransactions.forEach((t: any) => {
+            dbTransactions.forEach((t: any) => {
                 let bankId = t.bank_id;
                 if (!bankId && t.pix_key && t.pix_key.includes('-')) {
                     bankId = t.pix_key;
@@ -115,7 +102,7 @@ export const useLiveListSync = ({
                 hydrate(forceClearUI);
             }
         }
-    }, [user?.id, subscription?.ownerId, isCleaning, setBankStatementFile, setSelectedBankIds]);
+    }, [user, subscription, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
@@ -146,24 +133,18 @@ export const useLiveListSync = ({
     }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
 
     useEffect(() => {
-        const userId = user?.id;
-        const ownerId = subscription?.ownerId;
-        const effectiveUserId = ownerId || userId;
-        
+        const effectiveUserId = subscription?.ownerId || user?.id;
         if (effectiveUserId && effectiveUserId !== lastUserId.current) {
             lastUserId.current = effectiveUserId;
             hydrate(true);
         }
-    }, [user?.id, subscription?.ownerId, hydrate]);
+    }, [user, subscription, hydrate]);
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
      */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
-        const userId = user?.id;
-        const ownerId = subscription?.ownerId;
-        const effectiveUserId = ownerId || userId;
-        
+        const effectiveUserId = subscription?.ownerId || user?.id;
         if (!effectiveUserId) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
@@ -174,13 +155,10 @@ export const useLiveListSync = ({
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
-    }, [user?.id, subscription?.ownerId, showToast, hydrate]);
+    }, [user, subscription, showToast, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
-        const userId = user?.id;
-        const ownerId = subscription?.ownerId;
-        const effectiveUserId = ownerId || userId;
-        
+        const effectiveUserId = subscription?.ownerId || user?.id;
         if (!effectiveUserId) return;
         setIsCleaning(true);
         try {
@@ -189,7 +167,7 @@ export const useLiveListSync = ({
             setIsCleaning(false);
             await hydrate(false);
         }
-    }, [user?.id, subscription?.ownerId, hydrate]);
+    }, [user, subscription, hydrate]);
 
     return { persistTransactions, clearRemoteList, hydrate, syncError };
 };

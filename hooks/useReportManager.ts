@@ -33,8 +33,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      */
     useEffect(() => {
         let ignore = false;
-        const userId = user?.id;
-        if (!userId || !effectiveUserId) {
+        if (!user || !effectiveUserId) {
             setSavedReports([]);
             return;
         }
@@ -101,15 +100,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user?.id, effectiveUserId, initialReports]);
+    }, [user, effectiveUserId, initialReports]);
 
     /**
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
      */
     useEffect(() => {
-        const userId = user?.id;
-        const ownerId = subscription?.ownerId || userId;
-        if (!userId || !ownerId) return;
+        const ownerId = subscription.ownerId || user?.id;
+        if (!user || !ownerId) return;
 
         const channel = supabase
             .channel(`reports-realtime-${ownerId}`)
@@ -168,7 +166,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, subscription?.ownerId]);
+    }, [user, subscription.ownerId]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);

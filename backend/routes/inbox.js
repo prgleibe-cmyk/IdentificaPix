@@ -48,23 +48,7 @@ export default (ai) => {
 
             const data = JSON.parse(response.text);
 
-            // 🛡️ ALGORITMO DE HASH GLOBAL (V7) - Sincronizado com LaunchService.ts
-            const normDate = data.date;
-            const normAmount = Number(data.amount).toFixed(2);
-            const normDesc = data.description.toUpperCase()
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/\s+/g, ' ').trim();
-            const normType = data.type;
-            const normBankId = String(bankId || 'NULL').toUpperCase().trim();
-            const normPixKey = 'AUTO_SMS';
-
-            const rawKey = `U:${userId}|D:${normDate}|V:${normAmount}|N:${normDesc}|P:${normPixKey}|B:${normBankId}|T:${normType}`;
-            
-            let hashVal = 5381;
-            for (let i = 0; i < rawKey.length; i++) {
-                hashVal = ((hashVal << 5) + hashVal) + rawKey.charCodeAt(i);
-            }
-            const rowHash = `glb_${Math.abs(hashVal).toString(36)}`;
+            const rowHash = `sms_${userId}_${bankId}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
 
             const { error } = await supabaseAdmin
                 .from('consolidated_transactions')
