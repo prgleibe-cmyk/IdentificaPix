@@ -127,8 +127,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string, bankId?: string) => {
-
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
         try {
             const updateData: any = { 
                 status,
@@ -137,6 +136,8 @@ export const consolidationService = {
             
             if (churchId !== undefined) updateData.church_id = churchId;
             if (bankId !== undefined) updateData.bank_id = bankId;
+            if (contributorId !== undefined) updateData.contributor_id = contributorId;
+            if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
 
             const { error } = await (supabase as any)
                 .from('consolidated_transactions')
@@ -158,7 +159,7 @@ export const consolidationService = {
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string, bankId?: string) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
 
     try {
 
@@ -172,6 +173,7 @@ export const consolidationService = {
 
         if (churchId !== undefined) updateData.church_id = churchId;
         if (bankId !== undefined) updateData.bank_id = bankId;
+        if (contributorId !== undefined) updateData.contributor_id = contributorId;
 
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')

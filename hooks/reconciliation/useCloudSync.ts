@@ -97,10 +97,15 @@ export const useCloudSync = ({
                     };
 
                     const contributor: Contributor | null = assoc ? {
+                        id: t.contributor_id || undefined,
                         name: assoc.contributorNormalizedName || t.description,
                         amount: t.amount,
                         cleanedName: assoc.contributorNormalizedName || t.description
-                    } : null;
+                    } : (t.contributor_id ? {
+                        id: t.contributor_id,
+                        name: t.description,
+                        amount: t.amount
+                    } : null);
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
@@ -152,7 +157,7 @@ export const useCloudSync = ({
                             const hasStatusChange = local.status !== r.status;
                             const hasConfirmChange = local.isConfirmed !== r.isConfirmed;
                             const hasChurchChange = (local.church?.id || 'none') !== (r.church?.id || 'none');
-                            const hasContributorChange = local.contributor?.name !== r.contributor?.name;
+                            const hasContributorChange = local.contributor?.id !== r.contributor?.id || local.contributor?.name !== r.contributor?.name;
 
                             if (hasStatusChange || hasConfirmChange || hasChurchChange || hasContributorChange) {
                                 updated[idx] = { ...local, ...r };
@@ -216,7 +221,7 @@ export const useCloudSync = ({
                     }
 
                     if (payload.new) {
-                        const { id, is_confirmed, status, church_id } = payload.new;
+                        const { id, is_confirmed, status, church_id, contributor_id } = payload.new;
                         
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
@@ -250,14 +255,20 @@ export const useCloudSync = ({
                             const newChurch = churches.find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
                             
                             const newContributor: Contributor | null = assoc ? {
+                                id: contributor_id || undefined,
                                 name: assoc.contributorNormalizedName || current.transaction.description,
                                 amount: current.transaction.amount,
                                 cleanedName: assoc.contributorNormalizedName || current.transaction.description
-                            } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor);
+                            } : (contributor_id ? {
+                                id: contributor_id,
+                                name: current.transaction.description,
+                                amount: current.transaction.amount
+                            } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
 
                             if (current.isConfirmed === is_confirmed && 
                                 current.status === newStatus && 
-                                current.church?.id === newChurch?.id &&
+                                current.church?.id === church_id &&
+                                current.contributor?.id === contributor_id &&
                                 current.contributor?.name === newContributor?.name) return prev;
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}, church=${newChurch?.name}`);

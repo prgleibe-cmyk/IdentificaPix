@@ -75,7 +75,9 @@ export const useAiAutoIdentify = ({
                                 res.transaction.id, 
                                 'identified', 
                                 church.id, 
-                                res.transaction.bank_id
+                                res.transaction.bank_id,
+                                undefined,
+                                false
                             );
                         }
 
