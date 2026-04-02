@@ -24,7 +24,10 @@ export const useLiveListSync = ({
      * Garante que a UI só exiba o que está validado no banco de dados.
      */
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const userId = user?.id;
+        const ownerId = subscription?.ownerId;
+        const effectiveUserId = ownerId || userId;
+        
         if (!effectiveUserId || isCleaning) return;
         
         if (isHydrating.current) {
@@ -112,7 +115,7 @@ export const useLiveListSync = ({
                 hydrate(forceClearUI);
             }
         }
-    }, [user, subscription, isCleaning, setBankStatementFile, setSelectedBankIds]);
+    }, [user?.id, subscription?.ownerId, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
@@ -143,18 +146,24 @@ export const useLiveListSync = ({
     }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
 
     useEffect(() => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const userId = user?.id;
+        const ownerId = subscription?.ownerId;
+        const effectiveUserId = ownerId || userId;
+        
         if (effectiveUserId && effectiveUserId !== lastUserId.current) {
             lastUserId.current = effectiveUserId;
             hydrate(true);
         }
-    }, [user, subscription, hydrate]);
+    }, [user?.id, subscription?.ownerId, hydrate]);
 
     /**
      * 📥 PERSIST (O FUNIL DE ENTRADA)
      */
     const persistTransactions = useCallback(async (bankId: string, transactions: Transaction[]) => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const userId = user?.id;
+        const ownerId = subscription?.ownerId;
+        const effectiveUserId = ownerId || userId;
+        
         if (!effectiveUserId) return { added: 0, skipped: 0, total: transactions.length };
         
         try {
@@ -165,10 +174,13 @@ export const useLiveListSync = ({
             showToast("Erro no Lançamento: " + (e.message || "Erro de rede."), "error");
             throw e; 
         }
-    }, [user, subscription, showToast, hydrate]);
+    }, [user?.id, subscription?.ownerId, showToast, hydrate]);
 
     const clearRemoteList = useCallback(async (bankId?: string) => {
-        const effectiveUserId = subscription?.ownerId || user?.id;
+        const userId = user?.id;
+        const ownerId = subscription?.ownerId;
+        const effectiveUserId = ownerId || userId;
+        
         if (!effectiveUserId) return;
         setIsCleaning(true);
         try {
@@ -177,7 +189,7 @@ export const useLiveListSync = ({
             setIsCleaning(false);
             await hydrate(false);
         }
-    }, [user, subscription, hydrate]);
+    }, [user?.id, subscription?.ownerId, hydrate]);
 
     return { persistTransactions, clearRemoteList, hydrate, syncError };
 };

@@ -28,18 +28,22 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
 
     // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
-    const lastOwnerIdRef = useRef<string | null>(null);
+    const lastExecutionKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
         let ignore = false;
 
         if (!user?.id) {
-            lastOwnerIdRef.current = null;
+            lastExecutionKeyRef.current = null;
             return;
         }
 
-        // ✅ evita múltiplas execuções desnecessárias
-        if (lastOwnerIdRef.current === user.id) return;
+        // ✅ evita múltiplas execuções desnecessárias (incluindo mudanças de owner/role)
+        const executionKey = `${user.id}-${subscription?.ownerId || ''}-${subscription?.role || ''}`;
+        if (lastExecutionKeyRef.current === executionKey) return;
+        
+        // Marca imediatamente para evitar race conditions durante o async
+        lastExecutionKeyRef.current = executionKey;
 
         const syncData = async () => {
             const isOwner = subscription.ownerId === user?.id;
@@ -113,9 +117,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     }
                 }
             }
-
-            // ✅ marca como executado
-            lastOwnerIdRef.current = user.id;
         };
 
         syncData();
@@ -205,7 +206,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [user]);
 
     const fetchModels = useCallback(async () => {
-        if (!user) return;
+        if (!user?.id) return;
         // Se for membro, os modelos já vêm via API consolidada no syncData
         if (subscription.ownerId !== user.id) return;
         
@@ -213,9 +214,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             const models = await modelService.getUserModels(user.id);
             setFileModels(models);
         } catch (e) { console.error(e); }
-    }, [user, subscription.ownerId]);
+    }, [user?.id, subscription.ownerId]);
 
-    useEffect(() => { fetchModels(); }, [fetchModels]);
+    // ✅ Removido useEffect redundante que causava loop de re-render
+    // O fetchModels agora é chamado apenas quando necessário ou via syncData/fetchOwnerExtras
 
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
