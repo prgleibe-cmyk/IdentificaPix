@@ -51,7 +51,7 @@ export const useCloudSync = ({
 
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
-        if (!effectiveUserId || activeReportId || !churches.length) return;
+        if (!effectiveUserId || activeReportId || !churches.length || !learnedAssociations.length) return;
 
         const reconstructSession = async () => {
             // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
@@ -152,8 +152,9 @@ export const useCloudSync = ({
                             const hasStatusChange = local.status !== r.status;
                             const hasConfirmChange = local.isConfirmed !== r.isConfirmed;
                             const hasChurchChange = (local.church?.id || 'none') !== (r.church?.id || 'none');
+                            const hasContributorChange = local.contributor?.name !== r.contributor?.name;
 
-                            if (hasStatusChange || hasConfirmChange || hasChurchChange) {
+                            if (hasStatusChange || hasConfirmChange || hasChurchChange || hasContributorChange) {
                                 updated[idx] = { ...local, ...r };
                                 hasChanges = true;
                             }
