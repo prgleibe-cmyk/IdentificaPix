@@ -239,19 +239,34 @@ export const useCloudSync = ({
                             };
 
                             const newStatus = statusMap[status] || current.status;
-                            const newChurch = churches.find(c => c.id === church_id) || current.church;
+                            
+                            // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
+                            // A tabela consolidated_transactions não tem o nome do contribuinte.
+                            // Buscamos nas associações aprendidas para recompor o objeto completo.
+                            const normalizedDesc = strictNormalize(current.transaction.description);
+                            const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                            
+                            const newChurch = churches.find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
+                            
+                            const newContributor: Contributor | null = assoc ? {
+                                name: assoc.contributorNormalizedName || current.transaction.description,
+                                amount: current.transaction.amount,
+                                cleanedName: assoc.contributorNormalizedName || current.transaction.description
+                            } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor);
 
                             if (current.isConfirmed === is_confirmed && 
                                 current.status === newStatus && 
-                                current.church?.id === newChurch?.id) return prev;
+                                current.church?.id === newChurch?.id &&
+                                current.contributor?.name === newContributor?.name) return prev;
 
-                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
+                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}, church=${newChurch?.name}`);
                             
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
                                 status: newStatus,
                                 church: newChurch,
+                                contributor: newContributor,
                                 isConfirmed: is_confirmed,
                                 transaction: { ...current.transaction, isConfirmed: is_confirmed, bank_id: payload.new.bank_id },
                                 updatedAt: cloudUpdatedAt
@@ -285,18 +300,24 @@ export const useCloudSync = ({
                                 let hasChanges = false;
                                 const updated = prev.map(r => {
                                     const desc = strictNormalize(r.transaction.description);
-                                    if (desc === normalized_description && (r.church?.id !== church_id)) {
-                                        hasChanges = true;
-                                        return {
-                                            ...r,
-                                            church: fullChurch,
-                                            contributor: r.contributor || {
-                                                name: contributor_normalized_name || r.transaction.description,
-                                                amount: r.transaction.amount,
-                                                cleanedName: contributor_normalized_name || r.transaction.description
-                                            },
-                                            status: r.status === ReconciliationStatus.UNIDENTIFIED ? ReconciliationStatus.IDENTIFIED : r.status
-                                        };
+                                    if (desc === normalized_description) {
+                                        const hasChurchChange = r.church?.id !== church_id;
+                                        const hasContributorChange = r.contributor?.name !== contributor_normalized_name;
+                                        
+                                        if (hasChurchChange || hasContributorChange) {
+                                            hasChanges = true;
+                                            return {
+                                                ...r,
+                                                church: fullChurch || r.church,
+                                                contributor: {
+                                                    name: contributor_normalized_name || r.transaction.description,
+                                                    amount: r.transaction.amount,
+                                                    cleanedName: contributor_normalized_name || r.transaction.description
+                                                },
+                                                status: r.status === ReconciliationStatus.UNIDENTIFIED ? ReconciliationStatus.IDENTIFIED : r.status,
+                                                updatedAt: new Date().toISOString() // Força prioridade no próximo merge
+                                            };
+                                        }
                                     }
                                     return r;
                                 });
@@ -311,7 +332,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, churches, setMatchResults]);
+    }, [effectiveUserId, churches, setMatchResults, learnedAssociations]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
