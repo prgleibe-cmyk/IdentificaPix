@@ -65,14 +65,18 @@ export const useCloudSync = ({
             needsRetry.current = false;
 
             try {
-                // 1. Busca as transações que não estão pendentes (já foram tocadas nesta ou em sessões anteriores)
+                // 1. Busca as transações que não estão pendentes (últimos 30 dias)
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                const dateThreshold = thirtyDaysAgo.toISOString().split('T')[0];
+
                 const { data: txs, error } = await supabase
                     .from('consolidated_transactions')
                     .select('*')
                     .eq('user_id', effectiveUserId)
                     .neq('status', 'pending')
-                    .order('transaction_date', { ascending: false })
-                    .limit(1000);
+                    .gte('transaction_date', dateThreshold)
+                    .order('transaction_date', { ascending: false });
 
                 if (error) throw error;
                 if (!txs || txs.length === 0) {
@@ -163,10 +167,6 @@ export const useCloudSync = ({
                                 updated[idx] = { ...local, ...r };
                                 hasChanges = true;
                             }
-                        } else {
-                            // Se não existe na lista local (ex: fantasmas ou itens já processados), adicionamos
-                            updated.push(r);
-                            hasChanges = true;
                         }
                     });
 
