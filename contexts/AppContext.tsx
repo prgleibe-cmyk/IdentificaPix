@@ -266,16 +266,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Compara se o que está na nuvem é diferente do que temos localmente
         // Usamos uma amostragem de dados para detectar mudanças sem pesar no processamento
-        const cloudSample = (savedReport.data.results || []).slice(0, 100).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
-        const localSample = (reconciliation.fullMatchResults || []).slice(0, 100).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
+        const cloudResults = savedReport.data.results || [];
+        const localResults = reconciliation.fullMatchResults || [];
         
-        const cloudTotal = (savedReport.data.results || []).length;
-        const localTotal = (reconciliation.fullMatchResults || []).length;
+        const cloudTotal = cloudResults.length;
+        const localTotal = localResults.length;
 
-        if ((cloudSample !== localSample || cloudTotal !== localTotal) && reconciliation.fullMatchResults.length > 0) {
-            console.log("[AppContext] Sincronizando mudança remota no relatório ativo.");
-            // Hidratação básica
-            const hydrated = savedReport.data.results.map((r: any) => ({
+        if (cloudTotal !== localTotal && localTotal > 0) {
+            console.log("[AppContext] Sincronizando mudança remota (tamanho) no relatório ativo.");
+            const hydrated = cloudResults.map((r: any) => ({
+                ...r,
+                church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
+            }));
+            reconciliation.setMatchResults(hydrated);
+            return;
+        }
+
+        // Se o tamanho é igual, checamos uma amostragem de hashes de confirmação/status
+        // Aumentamos a amostragem para 250 itens para maior precisão
+        const cloudSample = cloudResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
+        const localSample = localResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
+
+        if (cloudSample !== localSample && localTotal > 0) {
+            console.log("[AppContext] Sincronizando mudança remota (conteúdo) no relatório ativo.");
+            const hydrated = cloudResults.map((r: any) => ({
                 ...r,
                 church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
             }));

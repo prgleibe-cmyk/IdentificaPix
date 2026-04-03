@@ -221,15 +221,24 @@ export const useCloudSync = ({
                     }
 
                     if (payload.new) {
-                        const { id, is_confirmed, status, church_id, contributor_id } = payload.new;
+                        const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
                         
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             
+                            // 🛡️ CORREÇÃO SEGURA: Ignora se o item não existe localmente no estado de conciliação.
+                            // Isso evita duplicidade visual e garante que respeitamos o contexto de bancos selecionados.
                             if (idx === -1) return prev;
                             
+                            // 🛡️ CORREÇÃO SEGURA: Se o item foi movido para 'pending' remotamente, 
+                            // removemos do estado local para evitar inconsistência entre as listas (Trabalho Vivo vs Lista Viva).
+                            if (status === 'pending') {
+                                console.log(`[Realtime:ATOM] Removendo transação movida para pendente: ${id}`);
+                                return prev.filter(r => r.transaction.id !== id);
+                            }
+
                             const current = prev[idx];
-                            const cloudUpdatedAt = payload.new.updated_at;
+                            const cloudUpdatedAt = updated_at;
 
                             // 🛡️ Regra de Realtime: Se o local é mais novo, ignoramos o evento
                             if (current.updatedAt && cloudUpdatedAt) {
@@ -237,9 +246,8 @@ export const useCloudSync = ({
                                     return prev;
                                 }
                             }
-
+                            
                             const statusMap: Record<string, ReconciliationStatus> = {
-                                'pending': ReconciliationStatus.UNIDENTIFIED,
                                 'identified': ReconciliationStatus.IDENTIFIED,
                                 'resolved': ReconciliationStatus.RESOLVED
                             };
@@ -247,8 +255,6 @@ export const useCloudSync = ({
                             const newStatus = statusMap[status] || current.status;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
-                            // A tabela consolidated_transactions não tem o nome do contribuinte.
-                            // Buscamos nas associações aprendidas para recompor o objeto completo.
                             const normalizedDesc = strictNormalize(current.transaction.description);
                             const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
@@ -265,13 +271,13 @@ export const useCloudSync = ({
                                 amount: current.transaction.amount
                             } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
 
-                            if (current.isConfirmed === is_confirmed && 
+                            if (current.isConfirmed === !!is_confirmed && 
                                 current.status === newStatus && 
                                 current.church?.id === church_id &&
                                 current.contributor?.id === contributor_id &&
                                 current.contributor?.name === newContributor?.name) return prev;
 
-                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}, church=${newChurch?.name}`);
+                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
                             const updated = [...prev];
                             updated[idx] = {
@@ -279,8 +285,8 @@ export const useCloudSync = ({
                                 status: newStatus,
                                 church: newChurch,
                                 contributor: newContributor,
-                                isConfirmed: is_confirmed,
-                                transaction: { ...current.transaction, isConfirmed: is_confirmed, bank_id: payload.new.bank_id },
+                                isConfirmed: !!is_confirmed,
+                                transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
                                 updatedAt: cloudUpdatedAt
                             };
                             return updated;

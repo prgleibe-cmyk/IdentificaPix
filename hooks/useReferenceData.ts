@@ -157,6 +157,75 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
     }, [user?.id, subscription?.ownerId]);
 
+    // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
+    useEffect(() => {
+        const effectiveOwnerId = subscription.ownerId || user?.id;
+        if (!effectiveOwnerId) return;
+
+        const channel = supabase
+            .channel(`reference-realtime-${effectiveOwnerId}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${effectiveOwnerId}` },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        setBanks(prev => {
+                            if (prev.some(b => b.id === payload.new.id)) return prev;
+                            return [...prev, payload.new as Bank];
+                        });
+                    } else if (payload.eventType === 'UPDATE') {
+                        setBanks(prev => prev.map(b => b.id === payload.new.id ? { ...b, ...payload.new } : b));
+                    } else if (payload.eventType === 'DELETE') {
+                        setBanks(prev => prev.filter(b => b.id === payload.old.id));
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${effectiveOwnerId}` },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        setChurches(prev => {
+                            if (prev.some(c => c.id === payload.new.id)) return prev;
+                            return [...prev, payload.new as Church];
+                        });
+                    } else if (payload.eventType === 'UPDATE') {
+                        setChurches(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+                    } else if (payload.eventType === 'DELETE') {
+                        setChurches(prev => prev.filter(c => c.id === payload.old.id));
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${effectiveOwnerId}` },
+                (payload) => {
+                    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                        const d = payload.new;
+                        const newAssoc: LearnedAssociation = {
+                            id: d.id,
+                            normalizedDescription: d.normalized_description,
+                            contributorNormalizedName: d.contributor_normalized_name,
+                            churchId: d.church_id,
+                            bankId: 'global',
+                            user_id: d.user_id
+                        };
+                        setLearnedAssociations(prev => {
+                            const filtered = prev.filter(la => la.id !== d.id && la.normalizedDescription !== d.normalized_description);
+                            return [newAssoc, ...filtered];
+                        });
+                    } else if (payload.eventType === 'DELETE') {
+                        setLearnedAssociations(prev => prev.filter(la => la.id !== payload.old.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id, subscription.ownerId, setBanks, setChurches, setLearnedAssociations]);
+
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;
 
