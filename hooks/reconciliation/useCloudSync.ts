@@ -37,7 +37,16 @@ export const useCloudSync = ({
     const isValidating = useRef<boolean>(false);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
-    const isReady = !!effectiveUserId && churches.length > 0 && learnedAssociations.length > 0;
+    const isReady =
+        !!effectiveUserId &&
+        Array.isArray(churches) &&
+        Array.isArray(learnedAssociations) &&
+        churches.length > 0 &&
+        learnedAssociations.length > 0;
+
+    const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
+
+    const lastDataReadyKeyRef = useRef<string>('');
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -55,6 +64,10 @@ export const useCloudSync = ({
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
         if (!isReady || activeReportId) return;
+
+        // 🛡️ Evita reconstrução com dados incompletos repetidos
+        if (lastDataReadyKeyRef.current === dataReadyKey) return;
+        lastDataReadyKeyRef.current = dataReadyKey;
 
         const reconstructSession = async () => {
             // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
@@ -200,7 +213,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, matchResults.length, showToast, triggerSync]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, showToast, triggerSync]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
