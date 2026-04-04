@@ -87,25 +87,41 @@ export const useTransactionMatcher = ({
         }
     }, [matchResults, regenerateReportPreview]);
 
-    const handleCompare = useCallback(async () => {
+    const handleCompare = useCallback(async (isAutoParam: any = false) => {
+        const isAuto = isAutoParam === true;
+        if (isAuto) console.log('[AutoProcess:START]');
         setIsLoading(true);
         
         // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
         // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
-        const allTransactions = activeBankFiles
+        let allTransactions = activeBankFiles
             .filter(f => selectedBankIds.includes(String(f.bankId)))
             .flatMap(f => f.processedTransactions || []);
-        
+
+        if (isAuto) {
+            console.log('[AutoProcess:CLEAR_REPORTS]');
+            // No modo automático, capturamos as transações da Lista Viva se não houver arquivos ativos
+            if (allTransactions.length === 0 && matchResults.length > 0) {
+                console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
+                allTransactions = matchResults.map(r => r.transaction);
+            }
+            // Limpamos o estado para garantir reconstrução do zero
+            setMatchResults(() => []);
+            setReportPreviewData(null);
+        }
+
         if (allTransactions.length === 0) { 
-            showToast("Selecione pelo menos um extrato com dados.", "error"); 
+            if (!isAuto) showToast("Selecione pelo menos um extrato com dados.", "error"); 
             setIsLoading(false); 
+            if (isAuto) console.log('[AutoProcess:DONE] No transactions found');
             return; 
         }
 
+        if (isAuto) console.log('[AutoProcess:PROCESSING]');
+
         // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
-        // Ao rodar a comparação, preservamos apenas os resultados manuais ou já identificados 
-        // que pertençam aos bancos atualmente selecionados.
-        const filteredExistingResults = matchResults.filter(r => 
+        // No modo automático, NÃO usamos resultados existentes para forçar re-identificação total
+        const filteredExistingResults = isAuto ? [] : matchResults.filter(r => 
             selectedBankIds.includes(String(r.transaction.bank_id))
         );
 
@@ -123,12 +139,17 @@ export const useTransactionMatcher = ({
         setMatchResults(() => results);
         setHasActiveSession(true);
         setIsLoading(false);
-        showToast("Conciliação concluída para os itens selecionados!", "success");
+        
+        if (isAuto) {
+            console.log('[AutoProcess:DONE]');
+        } else {
+            showToast("Conciliação concluída para os itens selecionados!", "success");
+        }
     }, [
         activeBankFiles, selectedBankIds, matchResults, contributorFiles, 
         similarityLevel, dayTolerance, learnedAssociations, churches, 
         customIgnoreKeywords, setMatchResults, setHasActiveSession, 
-        setIsLoading, showToast
+        setIsLoading, showToast, setReportPreviewData
     ]);
 
     const findMatchResult = useCallback((txId: string) => {

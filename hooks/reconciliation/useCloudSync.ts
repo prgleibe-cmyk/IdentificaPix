@@ -16,7 +16,7 @@ interface UseCloudSyncProps {
     churches: any[];
     learnedAssociations: any[];
     showToast: (msg: string, type: 'success' | 'error') => void;
-    handleCompare?: () => Promise<void>;
+    handleCompare?: (isAuto?: boolean) => Promise<void>;
     isLoading?: boolean;
 }
 
@@ -244,7 +244,7 @@ export const useCloudSync = ({
                     if (typeof handleCompare === 'function') {
                         console.log('[AutoProcess:RECONSTRUCT] Disparando processamento automático após hidratação');
                         hasAutoProcessedRef.current = true;
-                        handleCompare();
+                        handleCompare(true);
                     } else {
                         console.log('[ERROR] Função de processamento não encontrada');
                     }
