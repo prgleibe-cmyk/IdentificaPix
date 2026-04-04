@@ -145,53 +145,41 @@ export const useCloudSync = ({
                 });
 
                 setMatchResults(prev => {
-                    const updated = [...prev];
+                    const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
-                        const idx = updated.findIndex(p => p.transaction.id === r.transaction.id);
-                        if (idx !== -1) {
-                            const local = updated[idx];
-                            
-                            // 🛡️ REGRAS DE MERGE (Prioridade ao dado mais recente/forte)
-                            
-                            // 1. Se o local está confirmado/resolvido e o banco não, 
-                            // e o banco não é explicitamente mais novo, mantemos o local.
-                            const localIsStrong = local.isConfirmed || local.status === ReconciliationStatus.RESOLVED;
-                            const cloudIsWeak = !r.isConfirmed && r.status !== ReconciliationStatus.RESOLVED;
-                            
-                            if (localIsStrong && cloudIsWeak) {
-                                if (!r.updatedAt || !local.updatedAt || new Date(r.updatedAt) <= new Date(local.updatedAt)) {
-                                    // Ignora dado fraco do banco se o local for forte e mais novo/igual
-                                    return;
-                                }
-                            }
+                        const existing = map.get(r.transaction.id);
 
-                            // 2. Comparação direta de timestamps se ambos existirem
-                            if (local.updatedAt && r.updatedAt) {
-                                const localTime = new Date(local.updatedAt).getTime();
-                                const cloudTime = new Date(r.updatedAt).getTime();
-                                if (localTime >= cloudTime) return; // Local é mais novo ou igual
-                            }
-
-                            // Se chegou aqui, o dado da nuvem é considerado mais novo ou o local é fraco
-                            const hasStatusChange = local.status !== r.status;
-                            const hasConfirmChange = local.isConfirmed !== r.isConfirmed;
-                            const hasChurchChange = (local.church?.id || 'none') !== (r.church?.id || 'none');
-                            const hasContributorChange = local.contributor?.id !== r.contributor?.id || local.contributor?.name !== r.contributor?.name;
-
-                            if (hasStatusChange || hasConfirmChange || hasChurchChange || hasContributorChange) {
-                                updated[idx] = { ...local, ...r };
-                                hasChanges = true;
-                            }
-                        } else {
-                            // adicionar novo item vindo da nuvem
-                            updated.push(r);
+                        if (!existing) {
+                            map.set(r.transaction.id, r);
                             hasChanges = true;
+                            return;
                         }
+
+                        // lógica atual de prioridade (mantida)
+                        const localIsStrong = existing.isConfirmed || existing.status === ReconciliationStatus.RESOLVED;
+                        const cloudIsWeak = !r.isConfirmed && r.status !== ReconciliationStatus.RESOLVED;
+
+                        if (localIsStrong && cloudIsWeak) {
+                            if (!r.updatedAt || !existing.updatedAt || new Date(r.updatedAt) <= new Date(existing.updatedAt)) {
+                                return;
+                            }
+                        }
+
+                        if (existing.updatedAt && r.updatedAt) {
+                            if (new Date(existing.updatedAt) >= new Date(r.updatedAt)) {
+                                return;
+                            }
+                        }
+
+                        map.set(r.transaction.id, { ...existing, ...r });
+                        hasChanges = true;
                     });
 
-                    return hasChanges ? updated : prev;
+                    const final = Array.from(map.values());
+
+                    return hasChanges ? final : prev;
                 });
 
                 setHasActiveSession(true);
