@@ -30,6 +30,7 @@ const MAX_REPORTS_PER_USER = 60;
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[]) => {
     const { subscription } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.id;
+    const executionId = useRef(Math.random().toString(36).substring(7));
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
@@ -50,6 +51,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * 📥 CARGA INICIAL
      */
     useEffect(() => {
+        console.log("[AUDIT][USE_EFFECT_TRIGGER]", {
+            userId: user?.id,
+            effectiveUserId,
+            hasInitialReports: !!initialReports?.length,
+            executionId: executionId.current,
+            timestamp: Date.now()
+        });
+
         let ignore = false;
         if (!user || !effectiveUserId) {
             setSavedReports([]);
@@ -68,6 +77,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 church_id: r.church_id || r.churchId,
                 data: r.data || { results: [], spreadsheet: null }
             }));
+
+            console.log("[AUDIT][SET_REPORTS]", {
+                userId: user?.id,
+                effectiveUserId,
+                total: hydrated.length,
+                source: 'initialReports',
+                executionId: executionId.current,
+                timestamp: Date.now()
+            });
+
             setSavedReports(hydrated);
             return;
         }
@@ -82,6 +101,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
 
+                console.log("[AUDIT][FETCH_START]", {
+                    userId: user?.id,
+                    effectiveUserId,
+                    executionId: executionId.current,
+                    timestamp: Date.now()
+                });
+
                 const response = await fetch(`/api/reference/data/${apiOwnerId}?limit=50&offset=0`, {
                     method: 'GET',
                     cache: 'no-store',
@@ -90,6 +116,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
                 if (response.ok) {
                     const resData = await response.json();
+
+                    console.log("[AUDIT][FETCH_END]", {
+                        userId: user?.id,
+                        effectiveUserId,
+                        reports: resData.reports?.length,
+                        churches: resData.churches?.length,
+                        executionId: executionId.current,
+                        timestamp: Date.now()
+                    });
+
                     if (ignore) return;
                     data = resData.reports || [];
                 } else {
@@ -106,6 +142,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         church_id: r.church_id || r.churchId,
                         data: r.data || { results: [], spreadsheet: null }
                     }));
+
+                    console.log("[AUDIT][SET_REPORTS]", {
+                        userId: user?.id,
+                        effectiveUserId,
+                        total: hydrated.length,
+                        source: 'fetchReports',
+                        executionId: executionId.current,
+                        timestamp: Date.now()
+                    });
 
                     setSavedReports(hydrated);
                 }
