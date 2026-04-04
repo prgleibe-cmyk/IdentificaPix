@@ -119,7 +119,7 @@ export const useLiveListSync = ({
                     event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `owner_id=eq.${ownerId}`
+                    filter: `user_id=eq.${ownerId}`
                 },
                 () => {
                     hydrate(false);

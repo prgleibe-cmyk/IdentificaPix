@@ -199,7 +199,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             )
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'learned_associations', filter: `owner_id=eq.${ownerId}` },
+                { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                         const d = payload.new;
