@@ -239,17 +239,6 @@ export const useCloudSync = ({
 
                 setHasActiveSession(true);
 
-                // 🆕 Disparo automático do processamento após hidratação
-                if (!activeReportId && reconstructed.length > 0 && !isLoading && !hasAutoProcessedRef.current) {
-                    if (typeof handleCompare === 'function') {
-                        console.log('[AutoProcess:RECONSTRUCT] Disparando processamento automático após hidratação');
-                        hasAutoProcessedRef.current = true;
-                        handleCompare(true);
-                    } else {
-                        console.log('[ERROR] Função de processamento não encontrada');
-                    }
-                }
-
                 if (reconstructed.length > 0) {
                     showToast("Sessão ativa sincronizada.", "success");
                 }
@@ -258,9 +247,10 @@ export const useCloudSync = ({
             } finally {
                 setTimeout(() => { 
                     isHydratingFromCloud.current = false; 
+                    // Força re-render para o useEffect de disparo automático
+                    setTriggerSync(prev => prev + 1);
                     if (needsRetry.current) {
                         needsRetry.current = false;
-                        setTriggerSync(prev => prev + 1);
                     }
                 }, 500);
             }
@@ -532,6 +522,51 @@ export const useCloudSync = ({
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
     }, [effectiveUserId, matchResults, setMatchResults, triggerSync]);
+
+    /**
+     * 🚀 DISPARO AUTOMÁTICO DO PROCESSAMENTO (Garante dados completos)
+     */
+    useEffect(() => {
+        if (hasAutoProcessedRef.current) return;
+
+        const canProcess = 
+            matchResults.length > 0 && 
+            churches.length > 0 && 
+            learnedAssociations.length > 0 && 
+            isHydratingFromCloud.current === false && 
+            isLoading === false && 
+            activeReportId === null;
+
+        if (!canProcess) {
+            // Log apenas se houver algum progresso mas não estiver pronto
+            if (matchResults.length > 0 || churches.length > 0 || learnedAssociations.length > 0) {
+                console.log('[AutoProcess:WAITING_DATA]', {
+                    results: matchResults.length > 0,
+                    churches: churches.length > 0,
+                    assoc: learnedAssociations.length > 0,
+                    hydrating: isHydratingFromCloud.current,
+                    loading: isLoading,
+                    report: activeReportId
+                });
+            }
+            return;
+        }
+
+        console.log('[AutoProcess:READY]');
+        if (typeof handleCompare === 'function') {
+            console.log('[AutoProcess:TRIGGERED]');
+            hasAutoProcessedRef.current = true;
+            handleCompare(true);
+        }
+    }, [
+        matchResults.length, 
+        churches.length, 
+        learnedAssociations.length, 
+        isLoading, 
+        activeReportId, 
+        handleCompare,
+        triggerSync
+    ]);
 
     return {
         syncToCloud,
