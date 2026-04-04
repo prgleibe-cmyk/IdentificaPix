@@ -109,13 +109,25 @@ export const useCloudSync = ({
 
                 const txs = allTxs;
 
-                if (!txs || txs.length === 0) {
+                // 🆕 BUSCAR RELATÓRIOS SALVOS COMO BASE COMPLETA
+                const reportsMap = new Map<string, MatchResult>();
+
+                (savedReports || []).forEach((report: any) => {
+                    const results = report?.data?.results || [];
+                    results.forEach((r: MatchResult) => {
+                        if (r?.transaction?.id) {
+                            reportsMap.set(r.transaction.id, r);
+                        }
+                    });
+                });
+
+                if ((!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
                     return;
                 }
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
-                const reconstructed: MatchResult[] = txs.map((t: any) => {
+                const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                     const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
@@ -156,6 +168,23 @@ export const useCloudSync = ({
                         updatedAt: t.updated_at
                     };
                 });
+
+                // 🆕 COMBINAR COM RELATÓRIOS
+                const reconstructedMap = new Map<string, MatchResult>();
+
+                // prioridade para relatórios
+                reportsMap.forEach((value, key) => {
+                    reconstructedMap.set(key, value);
+                });
+
+                // depois complementar com transações
+                txResults.forEach(r => {
+                    if (!reconstructedMap.has(r.transaction.id)) {
+                        reconstructedMap.set(r.transaction.id, r);
+                    }
+                });
+
+                const reconstructed = Array.from(reconstructedMap.values());
 
                 setMatchResults(prev => {
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
