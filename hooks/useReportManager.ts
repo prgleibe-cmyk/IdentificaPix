@@ -34,6 +34,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
+    const hasHydratedRef = useRef(false);
 
     // 🛡️ RESET DE FILTROS NO LOGIN: Garante que cada nova sessão comece com o padrão de 30 dias
     useEffect(() => {
@@ -87,7 +88,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 timestamp: Date.now()
             });
 
-            setSavedReports(hydrated);
+            if (!hasHydratedRef.current) {
+                setSavedReports(hydrated);
+                hasHydratedRef.current = true;
+            } else {
+                console.log('[ReportManager] Ignorando sobrescrita de relatórios já hidratados (initialReports)');
+            }
             return;
         }
 
@@ -152,7 +158,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         timestamp: Date.now()
                     });
 
-                    setSavedReports(hydrated);
+                    if (!hasHydratedRef.current) {
+                        setSavedReports(hydrated);
+                        hasHydratedRef.current = true;
+                    } else {
+                        console.log('[ReportManager] Ignorando sobrescrita de relatórios já hidratados (fetchReports)');
+                    }
                 }
             } catch (err) {
                 if (!ignore) {
