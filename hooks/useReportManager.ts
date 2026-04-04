@@ -4,8 +4,18 @@ import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 
+const getInitialDateRange = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    return {
+        start: thirtyDaysAgo.toISOString().split('T')[0],
+        end: today.toISOString().split('T')[0]
+    };
+};
+
 const DEFAULT_SEARCH_FILTERS: SearchFilters = {
-    dateRange: { start: null, end: null },
+    dateRange: getInitialDateRange(),
     valueFilter: { operator: 'any', value1: null, value2: null },
     transactionType: 'all',
     reconciliationStatus: 'all',
@@ -23,6 +33,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
+
+    // 🛡️ RESET DE FILTROS NO LOGIN: Garante que cada nova sessão comece com o padrão de 30 dias
+    useEffect(() => {
+        if (user?.id) {
+            setSearchFilters(DEFAULT_SEARCH_FILTERS);
+        }
+    }, [user?.id, setSearchFilters]);
+
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
 

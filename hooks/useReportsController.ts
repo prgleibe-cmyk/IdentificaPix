@@ -181,7 +181,24 @@ export const useReportsController = () => {
             }
 
             // 2. Aplicação de Filtros Avançados (Modal)
-            // A função applyAdvancedFilters cuida da normalização internamente
+            // Filtro de Período (DateRange) - Aplicado explicitamente na camada de renderização
+            if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
+                const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
+                const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
+                
+                data = data.filter(r => {
+                    const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                    if (!dateStr) return true;
+                    
+                    // Normalização básica para garantir comparação de data pura
+                    const itemDate = new Date(dateStr.split('T')[0]).getTime();
+                    if (start && itemDate < start) return false;
+                    if (end && itemDate >= end) return false;
+                    return true;
+                });
+            }
+
+            // Outros filtros avançados
             if (searchFilters) {
                 data = applyAdvancedFilters(data, searchFilters);
             }

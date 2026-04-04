@@ -47,6 +47,22 @@ export const useSearchController = () => {
     const filteredResults = useMemo(() => {
         let results = [...sourceData];
 
+        // 1. Filtro de Período (DateRange) - Aplicado explicitamente na camada de renderização
+        if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
+            const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
+            const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
+            
+            results = results.filter((r: any) => {
+                const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                if (!dateStr) return true;
+                
+                const itemDate = new Date(dateStr.split('T')[0]).getTime();
+                if (start && itemDate < start) return false;
+                if (end && itemDate >= end) return false;
+                return true;
+            });
+        }
+
         if (searchFilters.transactionType === 'income') {
             results = results.filter((r: any) => r.transaction.amount > 0);
         } else if (searchFilters.transactionType === 'expenses') {
@@ -76,18 +92,6 @@ export const useSearchController = () => {
             results = results.filter((r: any) => searchFilters.churchIds.includes(r.church.id));
         }
 
-        const startDate = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
-        const endDate = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
-        if (startDate || endDate) {
-            results = results.filter((r: any) => {
-                const itemDate = parseDate(r.transaction.date)?.getTime();
-                if (!itemDate) return false;
-                if (startDate && itemDate < startDate) return false;
-                if (endDate && itemDate >= endDate) return false;
-                return true;
-            });
-        }
-        
         const { operator, value1, value2 } = searchFilters.valueFilter;
         if (operator !== 'any' && value1 !== null) {
             results = results.filter((r: any) => {

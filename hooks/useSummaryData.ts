@@ -10,7 +10,24 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
         let results = reconciliation.matchResults;
         const hasSession = reconciliation.hasActiveSession;
 
-        // Filtro de Segurança para Usuários Secundários: Apenas dados da sua congregação e bancos autorizados
+        // 1. Filtro de Período (DateRange) - Aplicado explicitamente para garantir paridade com a renderização
+        const { dateRange } = reportManager.searchFilters;
+        if (dateRange && (dateRange.start || dateRange.end)) {
+            const start = dateRange.start ? new Date(dateRange.start).getTime() : null;
+            const end = dateRange.end ? new Date(dateRange.end).getTime() + 86400000 : null;
+            
+            results = results.filter((r: any) => {
+                const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                if (!dateStr) return true;
+                
+                const itemDate = new Date(dateStr.split('T')[0]).getTime();
+                if (start && itemDate < start) return false;
+                if (end && itemDate >= end) return false;
+                return true;
+            });
+        }
+
+        // 2. Filtro de Segurança para Usuários Secundários: Apenas dados da sua congregação e bancos autorizados
         const { user } = useAuth();
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
