@@ -44,6 +44,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
         savedReports: reportManager.savedReports,
+        overwriteSavedReport: reportManager.overwriteSavedReport,
         showToast,
         setIsLoading,
         setActiveView

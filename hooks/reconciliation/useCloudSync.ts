@@ -12,6 +12,7 @@ interface UseCloudSyncProps {
     setHasActiveSession: (has: boolean) => void;
     activeReportId: string | null;
     savedReports: any[];
+    overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
     churches: any[];
     learnedAssociations: any[];
     showToast: (msg: string, type: 'success' | 'error') => void;
@@ -25,6 +26,7 @@ export const useCloudSync = ({
     setHasActiveSession,
     activeReportId,
     savedReports,
+    overwriteSavedReport,
     churches,
     learnedAssociations,
     showToast
@@ -224,6 +226,12 @@ export const useCloudSync = ({
                     return hasChanges ? final : prev;
                 });
 
+                // 🆕 Persistência automática após reconstrução inicial
+                if (activeReportId && reconstructed.length > 0) {
+                    console.log('[AutoSave:RECONSTRUCT] Atualizando relatório automaticamente após hidratação');
+                    overwriteSavedReport(activeReportId, reconstructed);
+                }
+
                 setHasActiveSession(true);
                 if (reconstructed.length > 0) {
                     showToast("Sessão ativa sincronizada.", "success");
@@ -242,7 +250,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, showToast, triggerSync]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, triggerSync]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
