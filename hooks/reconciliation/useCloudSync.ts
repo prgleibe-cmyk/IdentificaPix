@@ -82,7 +82,6 @@ export const useCloudSync = ({
                         .from('consolidated_transactions')
                         .select('*')
                         .eq('user_id', effectiveUserId)
-                        .neq('status', 'pending')
                         .gte('transaction_date', dateThreshold)
                         .order('transaction_date', { ascending: false })
                         .range(from, from + pageSize - 1);
