@@ -170,6 +170,10 @@ export const useCloudSync = ({
                                 updated[idx] = { ...local, ...r };
                                 hasChanges = true;
                             }
+                        } else {
+                            // adicionar novo item vindo da nuvem
+                            updated.push(r);
+                            hasChanges = true;
                         }
                     });
 
