@@ -18,44 +18,44 @@ export default () => {
         // 🔥 CORREÇÃO AQUI
         validateOwnerAccess(req, effectiveOwnerId);
         
-        const limit = parseInt(req.query.limit) || 50;
-        const offset = parseInt(req.query.offset) || 0;
+        // Função auxiliar para busca paginada completa (Garante 100% dos dados)
+        const fetchAll = async (table, select, userIdField = 'user_id', extraFilters = (q) => q) => {
+            let allData = [];
+            let from = 0;
+            const pageSize = 1000;
+            
+            while (true) {
+                let query = supabaseAdmin
+                    .from(table)
+                    .select(select)
+                    .eq(userIdField, effectiveOwnerId)
+                    .range(from, from + pageSize - 1);
+                
+                query = extraFilters(query);
+                
+                const { data, error } = await query;
+                if (error) throw error;
+                if (!data || data.length === 0) break;
+                
+                allData = [...allData, ...data];
+                if (data.length < pageSize) break;
+                from += pageSize;
+            }
+            return allData;
+        };
 
         try {
             console.log(`[Reference API] Buscando dados de referência para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
 
-            const { data: banks, error: banksError } = await supabaseAdmin
-                .from('banks')
-                .select('id, name, user_id')
-                .eq('user_id', effectiveOwnerId);
-            
-            if (banksError) {
-                console.error(`[Reference API] Erro ao buscar bancos para owner ${effectiveOwnerId}:`, banksError.message);
-            }
-
-            const { data: churches, error: churchesError } = await supabaseAdmin
-                .from('churches')
-                .select('id, name, user_id, address, pastor, logoUrl')
-                .eq('user_id', effectiveOwnerId);
-
-            if (churchesError) {
-                console.error(`[Reference API] Erro ao buscar igrejas para owner ${effectiveOwnerId}:`, churchesError.message);
-            }
-
-            const { data: associations } = await supabaseAdmin
-                .from('learned_associations')
-                .select('id, normalized_description, contributor_normalized_name, church_id, user_id')
-                .eq('user_id', effectiveOwnerId);
-
-            const { data: models } = await supabaseAdmin
-                .from('file_models')
-                .select('id, name, fingerprint, mapping, parsing_rules, lineage_id, version')
-                .eq('user_id', effectiveOwnerId)
-                .eq('is_active', true);
+            const banks = await fetchAll('banks', 'id, name, user_id');
+            const churches = await fetchAll('churches', 'id, name, user_id, address, pastor, logoUrl');
+            const associations = await fetchAll('learned_associations', 'id, normalized_description, contributor_normalized_name, church_id, user_id');
+            const models = await fetchAll('file_models', 'id, name, fingerprint, mapping, parsing_rules, lineage_id, version', 'user_id', (q) => q.eq('is_active', true));
 
             let reports = [];
             try {
-                reports = await ReportService.listReports(req, effectiveOwnerId, limit, offset);
+                // Removemos a limitação de paginação fixa do ReportService
+                reports = await ReportService.listReports(req, effectiveOwnerId);
             } catch (reportsErr) {
                 console.error("[Reference API] Erro crítico ao buscar relatórios via ReportService:", reportsErr);
             }

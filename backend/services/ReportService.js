@@ -9,11 +9,9 @@ export const ReportService = {
      * 
      * @param {Object} req - Objeto de requisição do Express (contém req.user)
      * @param {string} ownerId - ID do proprietário dos dados
-     * @param {number} limit - Limite de registros (default: 50)
-     * @param {number} offset - Deslocamento de registros (default: 0)
      * @returns {Promise<Array>} - Lista de relatórios formatada
      */
-    async listReports(req, ownerId, limit = 50, offset = 0) {
+    async listReports(req, ownerId) {
         const supabaseAdmin = getSupabaseAdmin();
         const user = req.user;
         const effectiveUserId = user.owner_id || user.id;
@@ -23,28 +21,40 @@ export const ReportService = {
         let reports = [];
 
         try {
+            const fetchAllReports = async (queryBuilder) => {
+                let allData = [];
+                let from = 0;
+                const pageSize = 1000;
+                while (true) {
+                    const { data, error } = await queryBuilder
+                        .range(from, from + pageSize - 1);
+                    
+                    if (error) throw error;
+                    if (!data || data.length === 0) break;
+                    
+                    allData = [...allData, ...data];
+                    if (data.length < pageSize) break;
+                    from += pageSize;
+                }
+                return allData;
+            };
+
             if (isActualOwner) {
-                const { data: ownerReports, error } = await supabaseAdmin
+                const query = supabaseAdmin
                     .from('saved_reports')
                     .select('id, name, created_at, record_count, user_id, church_id')
                     .eq('user_id', effectiveUserId)
-                    .order('created_at', { ascending: false })
-                    .limit(limit)
-                    .range(offset, offset + limit - 1);
+                    .order('created_at', { ascending: false });
                 
-                if (error) throw error;
-                reports = ownerReports || [];
+                reports = await fetchAllReports(query);
             } else {
-                const { data: combinedReports, error } = await supabaseAdmin
+                const query = supabaseAdmin
                     .from('saved_reports')
                     .select('id, name, created_at, record_count, user_id, church_id')
                     .or(`user_id.eq.${user.id},and(user_id.eq.${ownerId},name.eq.[SESSÃO_ATIVA])`)
-                    .order('created_at', { ascending: false })
-                    .limit(limit)
-                    .range(offset, offset + limit - 1);
+                    .order('created_at', { ascending: false });
                 
-                if (error) throw error;
-                reports = combinedReports || [];
+                reports = await fetchAllReports(query);
 
                 const { data: profile } = await supabaseAdmin
                     .from('profiles')
