@@ -226,9 +226,55 @@ export const useCloudSync = ({
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             
-                            // 🛡️ CORREÇÃO SEGURA: Ignora se o item não existe localmente no estado de conciliação.
-                            // Isso evita duplicidade visual e garante que respeitamos o contexto de bancos selecionados.
-                            if (idx === -1) return prev;
+                            // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
+                            // Isso garante a sincronização em tempo real entre dispositivos.
+                            if (idx === -1) {
+                                if (status === 'pending') return prev;
+
+                                const t = payload.new;
+                                const normalizedDesc = strictNormalize(t.description);
+                                const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                                const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+
+                                const transaction: Transaction = {
+                                    id: t.id,
+                                    date: t.transaction_date,
+                                    description: t.description,
+                                    rawDescription: t.description,
+                                    amount: t.amount,
+                                    bank_id: t.bank_id,
+                                    isConfirmed: !!t.is_confirmed
+                                };
+
+                                const contributor: Contributor | null = assoc ? {
+                                    id: t.contributor_id || undefined,
+                                    name: assoc.contributorNormalizedName || t.description,
+                                    amount: t.amount,
+                                    cleanedName: assoc.contributorNormalizedName || t.description
+                                } : (t.contributor_id ? {
+                                    id: t.contributor_id,
+                                    name: t.description,
+                                    amount: t.amount
+                                } : null);
+
+                                let matchStatus = ReconciliationStatus.UNIDENTIFIED;
+                                if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
+                                else if (t.status === 'identified') matchStatus = ReconciliationStatus.IDENTIFIED;
+
+                                const newItem: MatchResult = {
+                                    transaction,
+                                    contributor,
+                                    church,
+                                    status: matchStatus,
+                                    isConfirmed: !!t.is_confirmed,
+                                    matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
+                                    similarity: 100,
+                                    updatedAt: t.updated_at
+                                };
+
+                                console.log(`[Realtime:ATOM] Adicionando nova transação via realtime: ${id}`);
+                                return [newItem, ...prev];
+                            }
                             
                             // 🛡️ CORREÇÃO SEGURA: Se o item foi movido para 'pending' remotamente, 
                             // removemos do estado local para evitar inconsistência entre as listas (Trabalho Vivo vs Lista Viva).
