@@ -28,7 +28,9 @@ export const useReconciliation = (props: any) => {
         contributionKeywords,
         learnedAssociations,
         savedReports,
+        overwriteSavedReport,
         showToast,
+        isLoading,
         setIsLoading,
         setActiveView
     } = props;
@@ -72,14 +74,20 @@ export const useReconciliation = (props: any) => {
         launchedResults, setLaunchedResults
     };
 
-    // 1. Hook de Sincronização em Nuvem (CloudSync + Cache Integrity)
+    // 1. Hook de Matching de Transações (Movido para cima para fornecer handleCompare)
+    const matcher = useTransactionMatcher(params);
+
+    // 2. Hook de Sincronização em Nuvem (CloudSync + Cache Integrity)
     const cloud = useCloudSync({
         ...params,
         learnedAssociations,
-        showToast
+        showToast,
+        handleCompare: matcher.handleCompare,
+        isLoading,
+        overwriteSavedReport
     });
 
-    // 2. Hook de Sincronização de Lista (Original)
+    // 3. Hook de Sincronização de Lista (Original)
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
         subscription,
@@ -87,11 +95,8 @@ export const useReconciliation = (props: any) => {
         setSelectedBankIds
     });
 
-    // 3. Hook de Processamento de Arquivos
+    // 4. Hook de Processamento de Arquivos
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
-
-    // 4. Hook de Matching de Transações
-    const matcher = useTransactionMatcher(params);
 
     // ✅ Filtros de segurança unificados (Membros/Secundários)
     const applySecurityFilters = useCallback((results: MatchResult[]) => {

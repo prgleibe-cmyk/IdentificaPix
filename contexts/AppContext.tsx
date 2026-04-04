@@ -46,6 +46,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         savedReports: reportManager.savedReports,
         overwriteSavedReport: reportManager.overwriteSavedReport,
         showToast,
+        isLoading,
         setIsLoading,
         setActiveView
     });

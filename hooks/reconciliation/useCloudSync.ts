@@ -16,6 +16,8 @@ interface UseCloudSyncProps {
     churches: any[];
     learnedAssociations: any[];
     showToast: (msg: string, type: 'success' | 'error') => void;
+    handleCompare?: () => Promise<void>;
+    isLoading?: boolean;
 }
 
 export const useCloudSync = ({
@@ -29,7 +31,9 @@ export const useCloudSync = ({
     overwriteSavedReport,
     churches,
     learnedAssociations,
-    showToast
+    showToast,
+    handleCompare,
+    isLoading
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -37,6 +41,7 @@ export const useCloudSync = ({
     const [triggerSync, setTriggerSync] = useState(0);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
+    const hasAutoProcessedRef = useRef(false);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -233,6 +238,18 @@ export const useCloudSync = ({
                 }
 
                 setHasActiveSession(true);
+
+                // 🆕 Disparo automático do processamento após hidratação
+                if (!activeReportId && reconstructed.length > 0 && !isLoading && !hasAutoProcessedRef.current) {
+                    if (typeof handleCompare === 'function') {
+                        console.log('[AutoProcess:RECONSTRUCT] Disparando processamento automático após hidratação');
+                        hasAutoProcessedRef.current = true;
+                        handleCompare();
+                    } else {
+                        console.log('[ERROR] Função de processamento não encontrada');
+                    }
+                }
+
                 if (reconstructed.length > 0) {
                     showToast("Sessão ativa sincronizada.", "success");
                 }
@@ -250,7 +267,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, triggerSync]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, triggerSync, handleCompare, isLoading]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
