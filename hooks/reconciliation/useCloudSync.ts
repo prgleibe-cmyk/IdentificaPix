@@ -36,6 +36,9 @@ export const useCloudSync = ({
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
 
+    // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
+    const isReady = !!effectiveUserId && churches.length > 0 && learnedAssociations.length > 0;
+
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
     const syncToCloud = useCallback(async (results: MatchResult[]) => {
@@ -51,7 +54,7 @@ export const useCloudSync = ({
 
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
-        if (!effectiveUserId || activeReportId || !churches.length || !learnedAssociations.length) return;
+        if (!isReady || activeReportId) return;
 
         const reconstructSession = async () => {
             // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
@@ -191,7 +194,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, matchResults.length, showToast, triggerSync]);
+    }, [isReady, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, matchResults.length, showToast, triggerSync]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
