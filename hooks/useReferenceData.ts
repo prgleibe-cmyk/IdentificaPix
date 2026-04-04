@@ -159,14 +159,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
-        const effectiveOwnerId = subscription.ownerId || user?.id;
-        if (!effectiveOwnerId) return;
+        const ownerId = subscription.ownerId || user?.owner_id || user?.id;
+        if (!ownerId) return;
 
         const channel = supabase
-            .channel(`reference-realtime-${effectiveOwnerId}`)
+            .channel(`reference-realtime-${ownerId}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${effectiveOwnerId}` },
+                { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
                         setBanks(prev => {
@@ -182,7 +182,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             )
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${effectiveOwnerId}` },
+                { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
                         setChurches(prev => {
@@ -198,7 +198,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             )
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${effectiveOwnerId}` },
+                { event: '*', schema: 'public', table: 'learned_associations', filter: `owner_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                         const d = payload.new;
