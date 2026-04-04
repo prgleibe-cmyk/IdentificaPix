@@ -68,20 +68,35 @@ export const useCloudSync = ({
             needsRetry.current = false;
 
             try {
-                // 1. Busca as transações que não estão pendentes (últimos 30 dias)
+                // 1. Busca as transações que não estão pendentes (últimos 30 dias) - Loop paginado para trazer 100% dos dados
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 const dateThreshold = thirtyDaysAgo.toISOString().split('T')[0];
 
-                const { data: txs, error } = await supabase
-                    .from('consolidated_transactions')
-                    .select('*')
-                    .eq('user_id', effectiveUserId)
-                    .neq('status', 'pending')
-                    .gte('transaction_date', dateThreshold)
-                    .order('transaction_date', { ascending: false });
+                let allTxs: any[] = [];
+                let from = 0;
+                const pageSize = 1000;
 
-                if (error) throw error;
+                while (true) {
+                    const { data, error } = await supabase
+                        .from('consolidated_transactions')
+                        .select('*')
+                        .eq('user_id', effectiveUserId)
+                        .neq('status', 'pending')
+                        .gte('transaction_date', dateThreshold)
+                        .order('transaction_date', { ascending: false })
+                        .range(from, from + pageSize - 1);
+
+                    if (error) throw error;
+                    if (!data || data.length === 0) break;
+
+                    allTxs = [...allTxs, ...data];
+                    if (data.length < pageSize) break;
+                    from += pageSize;
+                }
+
+                const txs = allTxs;
+
                 if (!txs || txs.length === 0) {
                     isHydratingFromCloud.current = false;
                     return;
