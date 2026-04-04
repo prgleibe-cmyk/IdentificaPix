@@ -32,21 +32,24 @@ export const useDataDeletion = ({
         try {
             switch (type) {
                 case 'bank': {
-                    const { error } = await supabase.from('banks').delete().eq('id', id);
+                    console.log(`[WRITE:FIX] Excluindo banco com effectiveUserId: ${effectiveUserId}`);
+                    const { error } = await supabase.from('banks').delete().eq('id', id).eq('user_id', effectiveUserId);
                     if (error) throw error;
                     referenceData.setBanks((prev: any[]) => prev.filter(b => b.id !== id));
                     showToast("Banco excluído.", "success");
                     break;
                 }
                 case 'church': {
-                    const { error } = await supabase.from('churches').delete().eq('id', id);
+                    console.log(`[WRITE:FIX] Excluindo igreja com effectiveUserId: ${effectiveUserId}`);
+                    const { error } = await supabase.from('churches').delete().eq('id', id).eq('user_id', effectiveUserId);
                     if (error) throw error;
                     referenceData.setChurches((prev: any[]) => prev.filter(c => c.id !== id));
                     showToast("Igreja excluída.", "success");
                     break;
                 }
                 case 'report-saved': {
-                    const { error } = await supabase.from('saved_reports').delete().eq('id', id);
+                    console.log(`[WRITE:FIX] Excluindo relatório salvo com effectiveUserId: ${effectiveUserId}`);
+                    const { error } = await supabase.from('saved_reports').delete().eq('id', id).eq('user_id', effectiveUserId);
                     if (error) throw error;
                     reportManager.setSavedReports((prev: any[]) => prev.filter(r => r.id !== id));
                     showToast("Relatório excluído.", "success");

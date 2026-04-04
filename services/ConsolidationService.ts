@@ -132,6 +132,9 @@ export const consolidationService = {
 
     updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user.id;
+
             const updateData: any = { 
                 status,
                 updated_at: new Date().toISOString()
@@ -142,11 +145,22 @@ export const consolidationService = {
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
 
-            console.log(`[WRITE:ALREADY_CORRECT] Atualizando status da transação (ID: ${id})`);
-            const { error } = await (supabase as any)
+            console.log('[WRITE:START]', {
+              userId: userId,
+              transactionId: id,
+              payload: updateData
+            });
+
+            const { data, error } = await (supabase as any)
                 .from('consolidated_transactions')
                 .update(updateData)
-                .eq('id', id);
+                .eq('id', id)
+                .select();
+
+            console.log('[WRITE:RESULT]', {
+              data,
+              error
+            });
 
             if (error) throw error;
 
@@ -166,6 +180,8 @@ export const consolidationService = {
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
 
     try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user.id;
 
         if (!ids || ids.length === 0) return true;
 
@@ -179,14 +195,22 @@ export const consolidationService = {
         if (bankId !== undefined) updateData.bank_id = bankId;
         if (contributorId !== undefined) updateData.contributor_id = contributorId;
 
-        console.log(`[WRITE:ALREADY_CORRECT] Atualizando confirmação para ${ids.length} transações`);
+        console.log('[WRITE:START]', {
+          userId: userId,
+          transactionId: ids,
+          payload: updateData
+        });
+
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')
             .update(updateData)
             .in('id', ids)
             .select();
 
-        console.log("[ConfirmarFinal] Linhas atualizadas:", data);
+        console.log('[WRITE:RESULT]', {
+          data,
+          error
+        });
 
         if (error) throw error;
 
