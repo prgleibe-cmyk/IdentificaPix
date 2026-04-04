@@ -72,6 +72,9 @@ export const consolidationService = {
 
             if (sanitizedPayload.length === 0) return [];
 
+            // Log do primeiro item para amostragem
+            console.log(`[WRITE:FIX] Inserindo transações com user_id: ${sanitizedPayload[0].user_id}`);
+
             const CHUNK_SIZE = 100;
             const results: any[] = [];
 
@@ -139,6 +142,7 @@ export const consolidationService = {
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
 
+            console.log(`[WRITE:ALREADY_CORRECT] Atualizando status da transação (ID: ${id})`);
             const { error } = await (supabase as any)
                 .from('consolidated_transactions')
                 .update(updateData)
@@ -175,6 +179,7 @@ export const consolidationService = {
         if (bankId !== undefined) updateData.bank_id = bankId;
         if (contributorId !== undefined) updateData.contributor_id = contributorId;
 
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando confirmação para ${ids.length} transações`);
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')
             .update(updateData)
@@ -215,6 +220,7 @@ export const consolidationService = {
 
             if (!userId) return false;
 
+            console.log(`[WRITE:ALREADY_CORRECT] Excluindo transações pendentes para user_id: ${userId}`);
             let query = (supabase as any)
                 .from('consolidated_transactions')
                 .delete()
@@ -289,6 +295,7 @@ export const consolidationService = {
 
         try {
 
+            console.log(`[WRITE:ALREADY_CORRECT] Excluindo transação por ID: ${id}`);
             const { error } = await (supabase as any)
                 .from('consolidated_transactions')
                 .delete()

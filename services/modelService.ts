@@ -63,6 +63,9 @@ export const modelService = {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("Sessão expirada.");
 
+            const userId = model.user_id || session.user.id;
+            console.log(`[WRITE:FIX] Salvando modelo com userId: ${userId}`);
+
             if (model.lineage_id) {
                 await (supabase as any).from('file_models')
                     .update({ is_active: false })
@@ -73,7 +76,7 @@ export const modelService = {
                 .from('file_models')
                 .insert([{
                     name: model.name,
-                    user_id: session.user.id,
+                    user_id: userId,
                     version: model.version || 1,
                     lineage_id: model.lineage_id || `mod-${Date.now()}`,
                     is_active: true,

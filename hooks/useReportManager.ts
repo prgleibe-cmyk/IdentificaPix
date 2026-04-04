@@ -249,6 +249,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user?.id || !effectiveUserId) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando nome do relatório com effectiveUserId: ${effectiveUserId}`);
         const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) showToast('Erro ao renomear relatório.', 'error');
         else showToast('Relatório renomeado.', 'success');
@@ -257,6 +258,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const deleteReport = useCallback(async (reportId: string) => {
         if (!user?.id || !effectiveUserId) return;
         
+        console.log(`[WRITE:ALREADY_CORRECT] Excluindo relatório com effectiveUserId: ${effectiveUserId}`);
         const { error } = await supabase.from('saved_reports').delete().eq('id', reportId).eq('user_id', effectiveUserId);
         if (error) {
             showToast('Erro ao excluir relatório.', 'error');
@@ -300,6 +302,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             data: mergedData
         } : r));
 
+        console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId}`);
         const { error } = await (supabase
             .from('saved_reports') as any)
             .update({ 
@@ -378,6 +381,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
         
+        console.log(`[WRITE:ALREADY_CORRECT] Inserindo novo relatório com effectiveUserId: ${effectiveUserId}`);
         const { error } = await (supabase.from('saved_reports') as any).insert({
             id: newReport.id,
             name: newReport.name,
@@ -402,6 +406,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
+        console.log(`[WRITE:ALREADY_CORRECT] Faxina de relatórios antigos com effectiveUserId: ${effectiveUserId}`);
         await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
         showToast(`${reportsToDelete.length} itens removidos.`, "success");
     }, [user, effectiveUserId, savedReports, showToast]);

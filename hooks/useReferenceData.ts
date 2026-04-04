@@ -10,6 +10,7 @@ const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     const { subscription, systemSettings } = useAuth();
+    const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
     const userSuffix = user ? `-${user.id}` : '-guest';
 
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
@@ -239,7 +240,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             contributorNormalizedName: contributorName, 
             churchId: matchResult.church.id, 
             bankId: 'global',
-            user_id: user.id 
+            user_id: effectiveUserId 
         };
 
         setLearnedAssociations(prev => {
@@ -252,17 +253,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 .from('learned_associations')
                 .select('id')
                 .eq('normalized_description', normalizedDesc)
-                .eq('user_id', user.id)
+                .eq('user_id', effectiveUserId)
                 .maybeSingle() as { data: any | null };
 
             if (existing) {
+                console.log(`[WRITE:FIX] Atualizando learned_association com effectiveUserId: ${effectiveUserId}`);
                 await (supabase.from('learned_associations') as any).update({ 
                     contributor_normalized_name: contributorName, 
                     church_id: matchResult.church.id
                 }).eq('id', existing.id);
             } else {
+                console.log(`[WRITE:FIX] Inserindo learned_association com effectiveUserId: ${effectiveUserId}`);
                 await (supabase.from('learned_associations') as any).insert({ 
-                    user_id: user.id, 
+                    user_id: effectiveUserId, 
                     normalized_description: normalizedDesc, 
                     contributor_normalized_name: contributorName, 
                     church_id: matchResult.church.id
@@ -292,24 +295,26 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateBank = useCallback(async (bankId: string, name: string) => {
         setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
         closeEditBank();
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando banco (ID: ${bankId})`);
         await (supabase.from('banks') as any).update({ name }).eq('id', bankId);
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 
     const addBank = useCallback(async (name: string): Promise<boolean> => {
-        if(!user) return false;
+        if(!user || !effectiveUserId) return false;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: user.id }]).select();
+        console.log(`[WRITE:FIX] Adicionando banco com effectiveUserId: ${effectiveUserId}`);
+        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: effectiveUserId }]).select();
         if (data) {
             setBanks(prev => [...prev, data[0]]);
             showToast('Banco adicionado.', 'success');
             return true;
         }
         return false;
-    }, [user, banks, subscription.maxBanks, setBanks, showToast]);
+    }, [user, effectiveUserId, banks, subscription.maxBanks, setBanks, showToast]);
 
     const openEditChurch = useCallback((church: Church) => setEditingChurch(church), []);
     const closeEditChurch = useCallback(() => setEditingChurch(null), []);
@@ -317,24 +322,26 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
         setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
         closeEditChurch();
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando igreja (ID: ${churchId})`);
         await (supabase.from('churches') as any).update(formData).eq('id', churchId);
         showToast('Igreja atualizada.', 'success');
     }, [closeEditChurch, setChurches, showToast]);
 
     const addChurch = useCallback(async (formData: ChurchFormData): Promise<boolean> => {
-        if(!user) return false;
+        if(!user || !effectiveUserId) return false;
         if (churches.length >= (subscription.maxChurches || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: user.id }]).select();
+        console.log(`[WRITE:FIX] Adicionando igreja com effectiveUserId: ${effectiveUserId}`);
+        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: effectiveUserId }]).select();
         if (data) {
             setChurches(prev => [...prev, data[0]]);
             showToast('Igreja adicionada.', 'success');
             return true;
         }
         return false;
-    }, [user, churches, subscription.maxChurches, setChurches, showToast]);
+    }, [user, effectiveUserId, churches, subscription.maxChurches, setChurches, showToast]);
 
     const addContributionKeyword = useCallback((keyword: string) => {
         const upper = keyword.trim().toUpperCase();

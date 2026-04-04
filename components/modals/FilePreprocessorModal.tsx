@@ -89,7 +89,10 @@ export const FilePreprocessorModal: React.FC<{
     const [modelName, setModelName] = useState(initialModel?.name || '');
 
     const handlePersistModel = useCallback(async (approvalStatus: 'draft' | 'approved', finalName: string) => {
-        if (!activeMapping || !detectedFingerprint || !user) return;
+        const { subscription } = useAuth();
+        const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
+
+        if (!activeMapping || !detectedFingerprint || !effectiveUserId) return;
         
         setIsSavingModel(true);
         try {
@@ -102,7 +105,7 @@ export const FilePreprocessorModal: React.FC<{
             
             const modelData: any = { 
                 name: finalName, 
-                user_id: user.id, 
+                user_id: effectiveUserId, 
                 version: initialModel ? (initialModel.version + 1) : 1, 
                 lineage_id: initialModel ? initialModel.lineage_id : `mod-${Date.now()}`, 
                 is_active: true, 
@@ -117,6 +120,7 @@ export const FilePreprocessorModal: React.FC<{
                 status: approvalStatus 
             };
             
+            console.log(`[WRITE:FIX] Persistindo modelo com effectiveUserId: ${effectiveUserId}`);
             const saved = await modelService.saveModel(modelData);
 
             if (saved) {

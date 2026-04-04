@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UseAutomationSyncProps {
     user: any;
@@ -8,16 +9,18 @@ interface UseAutomationSyncProps {
 }
 
 export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomationSyncProps) => {
+    const { subscription } = useAuth();
+    const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
     const [automationMacros, setAutomationMacros] = useState<any[]>([]);
 
     const fetchMacros = useCallback(async (silent = false) => {
-        if (!user) return;
-        if (!silent) console.log("[AutomationSync] Buscando macros no banco para o usuário:", user.id);
+        if (!effectiveUserId) return;
+        if (!silent) console.log("[AutomationSync] Buscando macros no banco para o usuário:", effectiveUserId);
         
         const { data, error } = await supabase
             .from('automation_macros')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', effectiveUserId)
             .order('created_at', { ascending: false });
         
         if (error) {
@@ -40,12 +43,13 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
             const { type, payload } = event.data;
             console.log(`%c[AutomationSync] MENSAGEM RECEBIDA DA EXTENSÃO: ${type}`, "color: #8b5cf6; font-weight: bold;");
 
-            if (type === "SAVE_TRAINING" && user) {
+            if (type === "SAVE_TRAINING" && effectiveUserId) {
                 setIsLoading(true);
                 try {
+                    console.log(`[WRITE:FIX] Salvando macro com effectiveUserId: ${effectiveUserId}`);
                     const { data, error } = await (supabase.from('automation_macros') as any)
                         .insert({
-                            user_id: user.id,
+                            user_id: effectiveUserId,
                             name: `Macro ${payload.bankName || 'Treino'} - ${new Date().toLocaleTimeString()}`,
                             steps: payload.steps,
                             target_url: payload.targetUrl || null

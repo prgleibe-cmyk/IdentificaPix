@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { DeletingItem } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UseDataDeletionProps {
     user: any;
@@ -21,6 +22,8 @@ export const useDataDeletion = ({
     reconciliation,
     showToast
 }: UseDataDeletionProps) => {
+    const { subscription } = useAuth();
+    const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
 
     const confirmDeletion = useCallback(async () => {
         if (!modalController.deletingItem) return;
@@ -87,7 +90,8 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'learned-associations': {
-                    const { error } = await supabase.from('learned_associations').delete().eq('user_id', user.id);
+                    console.log(`[WRITE:FIX] Removendo learned_associations com effectiveUserId: ${effectiveUserId}`);
+                    const { error } = await supabase.from('learned_associations').delete().eq('user_id', effectiveUserId);
                     if (error) throw error;
                     referenceData.setLearnedAssociations([]);
                     showToast("Associações aprendidas removidas.", "success");
