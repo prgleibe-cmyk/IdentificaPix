@@ -264,18 +264,22 @@ export const useCloudSync = ({
      * Escuta mudanças individuais em transações e associações aprendidas
      */
     useEffect(() => {
-        const ownerId = user?.owner_id || user?.id || effectiveUserId;
-        if (!ownerId) return;
+        if (!effectiveUserId) return;
+
+        console.log('[REALTIME:USER]', {
+          userId: user?.id,
+          effectiveUserId
+        });
         
         const channel = supabase
-            .channel(`reconciliation-atom-sync-${ownerId}`)
+            .channel(`reconciliation-atom-sync-${effectiveUserId}`)
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${ownerId}`
+                    filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
                     // DELETE
@@ -413,7 +417,7 @@ export const useCloudSync = ({
                     event: '*',
                     schema: 'public',
                     table: 'learned_associations',
-                    filter: `user_id=eq.${ownerId}`
+                    filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
                     if (payload.eventType === 'DELETE') {
