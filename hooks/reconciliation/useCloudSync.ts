@@ -377,11 +377,8 @@ export const useCloudSync = ({
                                 return [newItem, ...prev];
                             }
                             
-                            // 🛡️ CORREÇÃO SEGURA: Se o item foi movido para 'pending' remotamente, 
-                            // removemos do estado local para evitar inconsistência entre as listas (Trabalho Vivo vs Lista Viva).
                             if (status === 'pending') {
-                                console.log(`[Realtime:ATOM] Removendo transação movida para pendente: ${id}`);
-                                return prev.filter(r => r.transaction.id !== id);
+                                console.log(`[REALTIME:UPDATE_INSTEAD_REMOVE] Transação ${id} movida para pendente, atualizando em vez de remover.`);
                             }
 
                             const current = prev[idx];
@@ -396,7 +393,8 @@ export const useCloudSync = ({
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
-                                'resolved': ReconciliationStatus.RESOLVED
+                                'resolved': ReconciliationStatus.RESOLVED,
+                                'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
                             const newStatus = statusMap[status] || current.status;
