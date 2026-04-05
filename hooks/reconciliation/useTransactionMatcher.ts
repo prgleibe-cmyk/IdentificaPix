@@ -94,12 +94,8 @@ export const useTransactionMatcher = ({
         if (isAuto) {
             console.log('[AutoProcess:START]');
             
-            const hasExistingData = matchResults.length > 0 || 
-                                    hasActiveSession || 
-                                    matchResults.some(r => r.isConfirmed || r.status === ReconciliationStatus.RESOLVED);
-            
-            if (hasExistingData) {
-                console.log('[AutoProcess:BLOCKED_EXISTING_DATA]');
+            if (matchResults.length > 0 || hasActiveSession === true) {
+                console.log('[AutoProcess:BLOCKED_AFTER_RECONSTRUCT]');
                 return;
             }
             console.log('[AutoProcess:ALLOWED]');
