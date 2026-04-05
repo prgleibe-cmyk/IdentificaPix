@@ -32,6 +32,19 @@ export const consolidationService = {
         if (transactions.length === 0) return [];
         
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const currentUserId = session?.user.id;
+            
+            // Busca o owner_id para garantir que usamos o ID do proprietário da conta
+            let effectiveUserId = currentUserId;
+            if (currentUserId) {
+                const { data: profile } = await (supabase as any)
+                    .from('profiles')
+                    .select('owner_id')
+                    .eq('id', currentUserId)
+                    .maybeSingle();
+                if (profile?.owner_id) effectiveUserId = profile.owner_id;
+            }
 
             const sanitizedPayload = transactions
                 .map(t => {
@@ -60,7 +73,7 @@ export const consolidationService = {
                         type: t.type || (amount >= 0 ? 'income' : 'expense'),
                         pix_key: t.pix_key || null,
                         source: t.source || 'file',
-                        user_id: t.user_id,
+                        user_id: effectiveUserId || t.user_id,
                         bank_id: t.bank_id || null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
@@ -73,7 +86,7 @@ export const consolidationService = {
             if (sanitizedPayload.length === 0) return [];
 
             // Log do primeiro item para amostragem
-            console.log(`[WRITE:FIX] Inserindo transações com user_id: ${sanitizedPayload[0].user_id}`);
+            console.log(`[WRITE:FIX] Inserindo transações com effectiveUserId: ${sanitizedPayload[0].user_id}`);
 
             const CHUNK_SIZE = 100;
             const results: any[] = [];
@@ -133,10 +146,22 @@ export const consolidationService = {
     updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            const userId = session?.user.id;
+            const currentUserId = session?.user.id;
+
+            // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
+            let effectiveUserId = currentUserId;
+            if (currentUserId) {
+                const { data: profile } = await (supabase as any)
+                    .from('profiles')
+                    .select('owner_id')
+                    .eq('id', currentUserId)
+                    .maybeSingle();
+                if (profile?.owner_id) effectiveUserId = profile.owner_id;
+            }
 
             const updateData: any = { 
                 status,
+                user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
                 updated_at: new Date().toISOString()
             };
             
@@ -146,7 +171,7 @@ export const consolidationService = {
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
 
             console.log('[WRITE:START]', {
-              userId: userId,
+              userId: effectiveUserId,
               transactionId: id,
               payload: updateData
             });
@@ -181,13 +206,25 @@ export const consolidationService = {
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user.id;
+        const currentUserId = session?.user.id;
+
+        // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
+        let effectiveUserId = currentUserId;
+        if (currentUserId) {
+            const { data: profile } = await (supabase as any)
+                .from('profiles')
+                .select('owner_id')
+                .eq('id', currentUserId)
+                .maybeSingle();
+            if (profile?.owner_id) effectiveUserId = profile.owner_id;
+        }
 
         if (!ids || ids.length === 0) return true;
 
         const updateData: any = {
             is_confirmed,
             status: is_confirmed ? 'resolved' : 'pending',
+            user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
             updated_at: new Date().toISOString()
         };
 
@@ -196,7 +233,7 @@ export const consolidationService = {
         if (contributorId !== undefined) updateData.contributor_id = contributorId;
 
         console.log('[WRITE:START]', {
-          userId: userId,
+          userId: effectiveUserId,
           transactionId: ids,
           payload: updateData
         });
