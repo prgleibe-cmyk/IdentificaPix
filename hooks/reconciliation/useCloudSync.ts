@@ -38,7 +38,6 @@ export const useCloudSync = ({
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
     const needsRetry = useRef<boolean>(false);
-    const [triggerSync, setTriggerSync] = useState(0);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
     const hasAutoProcessedRef = useRef(false);
@@ -285,8 +284,6 @@ export const useCloudSync = ({
             } finally {
                 setTimeout(() => { 
                     isHydratingFromCloud.current = false; 
-                    // Força re-render para o useEffect de disparo automático
-                    setTriggerSync(prev => prev + 1);
                     if (needsRetry.current) {
                         needsRetry.current = false;
                     }
@@ -295,7 +292,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, triggerSync, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
@@ -562,51 +559,47 @@ export const useCloudSync = ({
 
         const timer = setTimeout(cleanStaleCache, 500);
         return () => clearTimeout(timer);
-    }, [effectiveUserId, matchResults, setMatchResults, triggerSync]);
+    }, [effectiveUserId, matchResults, setMatchResults]);
 
     /**
      * 🚀 DISPARO AUTOMÁTICO DO PROCESSAMENTO (Garante dados completos)
      */
     useEffect(() => {
-        if (hasAutoProcessedRef.current) return;
-
-        const canProcess = 
-            matchResults.length > 0 && 
-            churches.length > 0 && 
-            learnedAssociations.length > 0 && 
-            isHydratingFromCloud.current === false && 
-            isLoading === false && 
+        const isReady =
+            matchResults.length > 0 &&
+            churches.length > 0 &&
+            learnedAssociations.length > 0 &&
+            isHydratingFromCloud.current === false &&
+            isLoading === false &&
             activeReportId === null;
 
-        if (!canProcess) {
-            // Log apenas se houver algum progresso mas não estiver pronto
-            if (matchResults.length > 0 || churches.length > 0 || learnedAssociations.length > 0) {
-                console.log('[AutoProcess:WAITING_DATA]', {
-                    results: matchResults.length > 0,
-                    churches: churches.length > 0,
-                    assoc: learnedAssociations.length > 0,
-                    hydrating: isHydratingFromCloud.current,
-                    loading: isLoading,
-                    report: activeReportId
-                });
-            }
+        if (!isReady) {
+            console.log('[AutoProcess:WAITING_DATA]', {
+                matchResults: matchResults.length,
+                churches: churches.length,
+                associations: learnedAssociations.length,
+                hydrating: isHydratingFromCloud.current,
+                loading: isLoading,
+                activeReportId
+            });
             return;
         }
 
+        if (hasAutoProcessedRef.current) return;
+
         console.log('[AutoProcess:READY]');
+        hasAutoProcessedRef.current = true;
+
+        console.log('[AutoProcess:TRIGGERED]');
         if (typeof handleCompare === 'function') {
-            console.log('[AutoProcess:TRIGGERED]');
-            hasAutoProcessedRef.current = true;
             handleCompare(true);
         }
     }, [
-        matchResults.length, 
-        churches.length, 
-        learnedAssociations.length, 
-        isLoading, 
-        activeReportId, 
-        handleCompare,
-        triggerSync
+        matchResults.length,
+        churches.length,
+        learnedAssociations.length,
+        isLoading,
+        activeReportId
     ]);
 
     return {
