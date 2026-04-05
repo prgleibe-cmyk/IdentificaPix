@@ -160,19 +160,14 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
-        const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
-        if (!effectiveUserId) return;
-
-        console.log('[REALTIME:USER]', {
-          userId: user?.id,
-          effectiveUserId
-        });
+        const ownerId = subscription.ownerId || user?.owner_id || user?.id;
+        if (!ownerId) return;
 
         const channel = supabase
-            .channel(`reference-realtime-${effectiveUserId}`)
+            .channel(`reference-realtime-${ownerId}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${effectiveUserId}` },
+                { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
                         setBanks(prev => {
@@ -188,7 +183,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             )
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${effectiveUserId}` },
+                { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
                         setChurches(prev => {
@@ -204,7 +199,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             )
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${effectiveUserId}` },
+                { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${ownerId}` },
                 (payload) => {
                     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                         const d = payload.new;
@@ -230,7 +225,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, subscription?.ownerId, setBanks, setChurches, setLearnedAssociations]);
+    }, [user?.id, subscription.ownerId, setBanks, setChurches, setLearnedAssociations]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;
