@@ -21,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) await calculateSubscription(user.id, true);
   }, [user, calculateSubscription]);
 
-  const authActions = useAuthActions(user, setSubscription, refreshSubscription);
+  const authActions = useAuthActions(user, subscription, setSubscription, refreshSubscription);
 
   const signOut = useCallback(async () => {
     if (isSigningOut.current) return;
