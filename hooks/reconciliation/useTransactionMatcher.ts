@@ -19,6 +19,7 @@ interface UseTransactionMatcherProps {
     setIsLoading: (loading: boolean) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
     setHasActiveSession: (has: boolean) => void;
+    hasActiveSession: boolean;
     setLaunchedResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
     manualIdentificationTx: Transaction | null;
     setManualIdentificationTx: (tx: Transaction | null) => void;
@@ -43,6 +44,7 @@ export const useTransactionMatcher = ({
     setIsLoading,
     showToast,
     setHasActiveSession,
+    hasActiveSession,
     setLaunchedResults,
     manualIdentificationTx,
     setManualIdentificationTx,
@@ -89,7 +91,20 @@ export const useTransactionMatcher = ({
 
     const handleCompare = useCallback(async (isAutoParam: any = false) => {
         const isAuto = isAutoParam === true;
-        if (isAuto) console.log('[AutoProcess:START]');
+        if (isAuto) {
+            console.log('[AutoProcess:START]');
+            
+            const hasExistingData = matchResults.length > 0 || 
+                                    hasActiveSession || 
+                                    matchResults.some(r => r.isConfirmed || r.status === ReconciliationStatus.RESOLVED);
+            
+            if (hasExistingData) {
+                console.log('[AutoProcess:BLOCKED_EXISTING_DATA]');
+                return;
+            }
+            console.log('[AutoProcess:ALLOWED]');
+        }
+
         setIsLoading(true);
         
         // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
@@ -149,7 +164,7 @@ export const useTransactionMatcher = ({
         activeBankFiles, selectedBankIds, matchResults, contributorFiles, 
         similarityLevel, dayTolerance, learnedAssociations, churches, 
         customIgnoreKeywords, setMatchResults, setHasActiveSession, 
-        setIsLoading, showToast, setReportPreviewData
+        setIsLoading, showToast, setReportPreviewData, hasActiveSession
     ]);
 
     const findMatchResult = useCallback((txId: string) => {
