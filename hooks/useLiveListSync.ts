@@ -108,18 +108,23 @@ export const useLiveListSync = ({
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
      */
     useEffect(() => {
-        const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
-        if (!ownerId) return;
+        const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
+        if (!effectiveUserId) return;
+
+        console.log('[REALTIME:USER]', {
+          userId: user?.id,
+          effectiveUserId
+        });
 
         const channel = supabase
-            .channel(`realtime-viva-${ownerId}`)
+            .channel(`realtime-viva-${effectiveUserId}`)
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
                     table: 'consolidated_transactions',
-                    filter: `user_id=eq.${ownerId}`
+                    filter: `user_id=eq.${effectiveUserId}`
                 },
                 () => {
                     hydrate(false);
