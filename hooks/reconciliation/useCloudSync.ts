@@ -127,11 +127,13 @@ export const useCloudSync = ({
                     console.log('[RECONSTRUCT:RAW_DATA]', data);
 
                     allTxs = [...allTxs, ...data];
+                    console.log('[DEBUG:RAW_COUNT]', allTxs.length);
                     if (data.length < pageSize) break;
                     from += pageSize;
                 }
 
                 const txs = allTxs;
+                console.log('[DEBUG:TOTAL_RAW_COUNT]', txs.length);
 
                 // 🆕 BUSCAR RELATÓRIOS SALVOS COMO BASE COMPLETA
                 const reportsMap = new Map<string, MatchResult>();
@@ -153,6 +155,7 @@ export const useCloudSync = ({
                 }
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
+                console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
@@ -195,7 +198,9 @@ export const useCloudSync = ({
                     };
                 });
 
+                console.log('[DEBUG:AFTER_MAP_TXS]', txResults.length);
                 console.log('[RECONSTRUCT:PROCESSED]', txResults);
+                console.log('[DEBUG:PROCESSED_COUNT]', txResults.length);
 
                 // 🆕 COMBINAR COM RELATÓRIOS
                 const reconstructedMap = new Map<string, MatchResult>();
@@ -214,9 +219,11 @@ export const useCloudSync = ({
 
                 const reconstructed = Array.from(reconstructedMap.values());
 
+                console.log('[DEBUG:FINAL_COUNT]', reconstructed.length);
                 console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
 
                 setMatchResults(prev => {
+                    console.log('[DEBUG:PREV_MATCH_RESULTS]', prev.length);
                     console.log('[RECONSTRUCT:PREV_MATCH_RESULTS]', prev);
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
@@ -252,6 +259,7 @@ export const useCloudSync = ({
 
                     const final = Array.from(map.values());
 
+                    console.log('[DEBUG:SET_MATCH_RESULTS]', final.length);
                     console.log('[RECONSTRUCT:SET_MATCH_RESULTS_FINAL]', {
                         hasChanges,
                         total: final.length,
