@@ -27,11 +27,6 @@ export const useLiveListSync = ({
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!effectiveUserId || isCleaning) return;
         
-        console.log('[ID:READ]', {
-          effectiveUserId,
-          queryFilter: 'user_id'
-        });
-
         if (isHydrating.current) {
             pendingHydrate.current = true;
             return;
@@ -109,24 +104,12 @@ export const useLiveListSync = ({
         }
     }, [user, subscription, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
-    const hydrateRef = useRef(hydrate);
-
-    useEffect(() => {
-        hydrateRef.current = hydrate;
-    }, [hydrate]);
-
-    const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
-
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
      */
     useEffect(() => {
+        const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
-
-        console.log('[ID:REALTIME]', {
-          effectiveUserId: ownerId,
-          filter: `user_id=eq.${ownerId}`
-        });
 
         const channel = supabase
             .channel(`realtime-viva-${ownerId}`)
@@ -139,7 +122,7 @@ export const useLiveListSync = ({
                     filter: `user_id=eq.${ownerId}`
                 },
                 () => {
-                    hydrateRef.current(false);
+                    hydrate(false);
                 }
             )
             .subscribe();
@@ -147,7 +130,7 @@ export const useLiveListSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [ownerId]);
+    }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
 
     useEffect(() => {
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;

@@ -37,14 +37,6 @@ export const useCloudSync = ({
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
-    const churchesRef = useRef(churches);
-    const learnedAssociationsRef = useRef(learnedAssociations);
-
-    useEffect(() => {
-        churchesRef.current = churches;
-        learnedAssociationsRef.current = learnedAssociations;
-    }, [churches, learnedAssociations]);
-
     const needsRetry = useRef<boolean>(false);
     const [triggerSync, setTriggerSync] = useState(0);
     const lastValidatedHash = useRef<string>('');
@@ -78,6 +70,16 @@ export const useCloudSync = ({
 
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
+        console.log('[CloudSync:ATOM_EFFECT_TRIGGER]', {
+            isReady,
+            activeReportId,
+            effectiveUserId,
+            churchesCount: churches?.length,
+            assocCount: learnedAssociations?.length,
+            lastDataReadyKey: lastDataReadyKeyRef.current,
+            dataReadyKey
+        });
+
         if (!isReady || activeReportId) return;
 
         // 🛡️ Evita reconstrução com dados incompletos repetidos
@@ -101,6 +103,11 @@ export const useCloudSync = ({
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 const dateThreshold = thirtyDaysAgo.toISOString().split('T')[0];
 
+                console.log('[RECONSTRUCT:FILTER]', {
+                    effectiveUserId,
+                    dateThreshold
+                });
+
                 let allTxs: any[] = [];
                 let from = 0;
                 const pageSize = 1000;
@@ -116,6 +123,8 @@ export const useCloudSync = ({
 
                     if (error) throw error;
                     if (!data || data.length === 0) break;
+
+                    console.log('[RECONSTRUCT:RAW_DATA]', data);
 
                     allTxs = [...allTxs, ...data];
                     if (data.length < pageSize) break;
@@ -135,6 +144,8 @@ export const useCloudSync = ({
                         }
                     });
                 });
+
+                console.log('[RECONSTRUCT:REPORTS_MAP]', Array.from(reportsMap.values()));
 
                 if ((!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
@@ -184,6 +195,8 @@ export const useCloudSync = ({
                     };
                 });
 
+                console.log('[RECONSTRUCT:PROCESSED]', txResults);
+
                 // 🆕 COMBINAR COM RELATÓRIOS
                 const reconstructedMap = new Map<string, MatchResult>();
 
@@ -201,7 +214,10 @@ export const useCloudSync = ({
 
                 const reconstructed = Array.from(reconstructedMap.values());
 
+                console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
+
                 setMatchResults(prev => {
+                    console.log('[RECONSTRUCT:PREV_MATCH_RESULTS]', prev);
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
@@ -235,6 +251,12 @@ export const useCloudSync = ({
                     });
 
                     const final = Array.from(map.values());
+
+                    console.log('[RECONSTRUCT:SET_MATCH_RESULTS_FINAL]', {
+                        hasChanges,
+                        total: final.length,
+                        data: final
+                    });
 
                     return hasChanges ? final : prev;
                 });
@@ -274,11 +296,6 @@ export const useCloudSync = ({
     useEffect(() => {
         if (!effectiveUserId) return;
 
-        console.log('[ID:REALTIME]', {
-          effectiveUserId,
-          filter: `user_id=eq.${effectiveUserId}`
-        });
-
         console.log('[REALTIME:USER]', {
           userId: user?.id,
           effectiveUserId
@@ -317,8 +334,8 @@ export const useCloudSync = ({
 
                                 const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
-                                const assoc = (learnedAssociationsRef.current || []).find((a: any) => a.normalizedDescription === normalizedDesc);
-                                const church = (churchesRef.current || []).find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+                                const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                                const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
                                 const transaction: Transaction = {
                                     id: t.id,
@@ -386,9 +403,9 @@ export const useCloudSync = ({
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
-                            const assoc = (learnedAssociationsRef.current || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                            const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
-                            const newChurch = (churchesRef.current || []).find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
+                            const newChurch = churches.find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
                             
                             const newContributor: Contributor | null = assoc ? {
                                 id: contributor_id || undefined,
@@ -440,7 +457,7 @@ export const useCloudSync = ({
 
                     if (payload.new) {
                         const { normalized_description, church_id, contributor_normalized_name } = payload.new;
-                        const fullChurch = (churchesRef.current || []).find((c: any) => c.id === church_id);
+                        const fullChurch = churches.find((c: any) => c.id === church_id);
                         
                         if (fullChurch) {
                             console.log(`[Realtime:ATOM] Associação aprendida (Event:${payload.eventType}): ${normalized_description} -> ${fullChurch.name}`);
@@ -480,7 +497,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, setMatchResults]);
+    }, [effectiveUserId, churches, setMatchResults, learnedAssociations]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
