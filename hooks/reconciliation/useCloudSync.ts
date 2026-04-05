@@ -37,6 +37,14 @@ export const useCloudSync = ({
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
+    const churchesRef = useRef(churches);
+    const learnedAssociationsRef = useRef(learnedAssociations);
+
+    useEffect(() => {
+        churchesRef.current = churches;
+        learnedAssociationsRef.current = learnedAssociations;
+    }, [churches, learnedAssociations]);
+
     const needsRetry = useRef<boolean>(false);
     const [triggerSync, setTriggerSync] = useState(0);
     const lastValidatedHash = useRef<string>('');
@@ -309,8 +317,8 @@ export const useCloudSync = ({
 
                                 const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
-                                const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
-                                const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+                                const assoc = (learnedAssociationsRef.current || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                                const church = (churchesRef.current || []).find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
                                 const transaction: Transaction = {
                                     id: t.id,
@@ -378,9 +386,9 @@ export const useCloudSync = ({
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
-                            const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                            const assoc = (learnedAssociationsRef.current || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
-                            const newChurch = churches.find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
+                            const newChurch = (churchesRef.current || []).find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
                             
                             const newContributor: Contributor | null = assoc ? {
                                 id: contributor_id || undefined,
@@ -432,7 +440,7 @@ export const useCloudSync = ({
 
                     if (payload.new) {
                         const { normalized_description, church_id, contributor_normalized_name } = payload.new;
-                        const fullChurch = churches.find((c: any) => c.id === church_id);
+                        const fullChurch = (churchesRef.current || []).find((c: any) => c.id === church_id);
                         
                         if (fullChurch) {
                             console.log(`[Realtime:ATOM] Associação aprendida (Event:${payload.eventType}): ${normalized_description} -> ${fullChurch.name}`);
@@ -472,7 +480,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, churches, setMatchResults, learnedAssociations]);
+    }, [effectiveUserId, setMatchResults]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)

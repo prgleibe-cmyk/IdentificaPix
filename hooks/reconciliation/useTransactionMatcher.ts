@@ -99,6 +99,19 @@ export const useTransactionMatcher = ({
             .flatMap(f => f.processedTransactions || []);
 
         if (isAuto) {
+            // 🛡️ PROTEÇÃO DE PERSISTÊNCIA: Se já existem dados confirmados ou identificados, NÃO sobrescrevemos.
+            // Isso evita que o AutoProcess limpe o que já foi salvo no banco após um F5.
+            const hasPersistedData = matchResults.some(r => 
+                r.status === ReconciliationStatus.RESOLVED || 
+                r.status === ReconciliationStatus.IDENTIFIED
+            );
+
+            if (hasPersistedData) {
+                console.log('[AutoProcess:SKIP] Dados persistidos encontrados. Mantendo estado atual.');
+                setIsLoading(false);
+                return;
+            }
+
             console.log('[AutoProcess:CLEAR_REPORTS]');
             // No modo automático, capturamos as transações da Lista Viva se não houver arquivos ativos
             if (allTransactions.length === 0 && matchResults.length > 0) {

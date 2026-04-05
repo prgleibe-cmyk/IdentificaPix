@@ -158,9 +158,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
     }, [user?.id, subscription?.ownerId]);
 
+    const ownerId = subscription.ownerId || user?.owner_id || user?.id;
+
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
-        const ownerId = subscription.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
 
         console.log('[ID:REALTIME]', {
@@ -230,7 +231,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, subscription.ownerId, setBanks, setChurches, setLearnedAssociations]);
+    }, [ownerId]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
         if (!user || !matchResult.church) return;
