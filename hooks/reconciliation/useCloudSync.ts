@@ -266,6 +266,11 @@ export const useCloudSync = ({
     useEffect(() => {
         if (!effectiveUserId) return;
 
+        console.log('[ID:REALTIME]', {
+          effectiveUserId,
+          filter: `user_id=eq.${effectiveUserId}`
+        });
+
         console.log('[REALTIME:USER]', {
           userId: user?.id,
           effectiveUserId

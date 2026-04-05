@@ -85,6 +85,13 @@ export const consolidationService = {
 
             if (sanitizedPayload.length === 0) return [];
 
+            // Log de escrita solicitado para depuração
+            console.log('[ID:WRITE]', {
+              userId: currentUserId,
+              effectiveUserId,
+              payloadUserId: sanitizedPayload[0].user_id
+            });
+
             // Log do primeiro item para amostragem
             console.log(`[WRITE:FIX] Inserindo transações com effectiveUserId: ${sanitizedPayload[0].user_id}`);
 
@@ -170,6 +177,12 @@ export const consolidationService = {
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
 
+            console.log('[ID:WRITE]', {
+              userId: currentUserId,
+              effectiveUserId,
+              payloadUserId: updateData.user_id
+            });
+
             console.log('[WRITE:START]', {
               userId: effectiveUserId,
               transactionId: id,
@@ -231,6 +244,12 @@ export const consolidationService = {
         if (churchId !== undefined) updateData.church_id = churchId;
         if (bankId !== undefined) updateData.bank_id = bankId;
         if (contributorId !== undefined) updateData.contributor_id = contributorId;
+
+        console.log('[ID:WRITE]', {
+          userId: currentUserId,
+          effectiveUserId,
+          payloadUserId: updateData.user_id
+        });
 
         console.log('[WRITE:START]', {
           userId: effectiveUserId,

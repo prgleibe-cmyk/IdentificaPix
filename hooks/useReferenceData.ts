@@ -163,6 +163,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const ownerId = subscription.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
 
+        console.log('[ID:REALTIME]', {
+          effectiveUserId: ownerId,
+          filter: `user_id=eq.${ownerId}`
+        });
+
         const channel = supabase
             .channel(`reference-realtime-${ownerId}`)
             .on(

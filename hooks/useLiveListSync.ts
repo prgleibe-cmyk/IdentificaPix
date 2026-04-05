@@ -27,6 +27,11 @@ export const useLiveListSync = ({
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!effectiveUserId || isCleaning) return;
         
+        console.log('[ID:READ]', {
+          effectiveUserId,
+          queryFilter: 'user_id'
+        });
+
         if (isHydrating.current) {
             pendingHydrate.current = true;
             return;
@@ -110,6 +115,11 @@ export const useLiveListSync = ({
     useEffect(() => {
         const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
+
+        console.log('[ID:REALTIME]', {
+          effectiveUserId: ownerId,
+          filter: `user_id=eq.${ownerId}`
+        });
 
         const channel = supabase
             .channel(`realtime-viva-${ownerId}`)
