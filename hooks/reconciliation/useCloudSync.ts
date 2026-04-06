@@ -282,12 +282,13 @@ export const useCloudSync = ({
             } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
             } finally {
-                setTimeout(() => { 
-                    isHydratingFromCloud.current = false; 
-                    if (needsRetry.current) {
-                        needsRetry.current = false;
-                    }
-                }, 500);
+                isHydratingFromCloud.current = false;
+                setTimeout(() => {
+                    console.log('[Hydration:FINISHED]');
+                }, 0);
+                if (needsRetry.current) {
+                    needsRetry.current = false;
+                }
             }
         };
 
@@ -567,7 +568,6 @@ export const useCloudSync = ({
     useEffect(() => {
         if (
             matchResults.length > 0 &&
-            !isHydratingFromCloud.current &&
             !isLoading &&
             !hasPostReconstructProcessed.current
         ) {
