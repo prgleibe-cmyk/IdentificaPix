@@ -92,10 +92,6 @@ export const useTransactionMatcher = ({
     const handleCompare = useCallback(async (isAutoParam: any = false) => {
         const isAuto = isAutoParam === true;
         if (isAuto) {
-            if (isAuto && matchResults.length > 0) {
-                console.log('[AutoProcess:BLOCKED_AFTER_RECONSTRUCT]');
-                return;
-            }
             console.log('[AutoProcess:START]');
             console.log('[AutoProcess:ALLOWED]');
         }
