@@ -40,7 +40,7 @@ export const useCloudSync = ({
     const needsRetry = useRef<boolean>(false);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
-    const hasAutoProcessedRef = useRef(false);
+    const hasPostReconstructProcessed = useRef(false);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -562,45 +562,25 @@ export const useCloudSync = ({
     }, [effectiveUserId, matchResults, setMatchResults]);
 
     /**
-     * 🚀 DISPARO AUTOMÁTICO DO PROCESSAMENTO (Garante dados completos)
+     * 🚀 GATILHO PÓS-RECONSTRUÇÃO (Executa processamento após carregar dados do banco)
      */
     useEffect(() => {
-        const isReady =
+        if (
             matchResults.length > 0 &&
-            churches.length > 0 &&
-            learnedAssociations.length > 0 &&
-            isHydratingFromCloud.current === false &&
-            isLoading === false &&
-            activeReportId === null;
+            !isHydratingFromCloud.current &&
+            !isLoading &&
+            !hasPostReconstructProcessed.current
+        ) {
+            console.log('[PostReconstruct:READY]');
+            
+            hasPostReconstructProcessed.current = true;
 
-        if (!isReady) {
-            console.log('[AutoProcess:WAITING_DATA]', {
-                matchResults: matchResults.length,
-                churches: churches.length,
-                associations: learnedAssociations.length,
-                hydrating: isHydratingFromCloud.current,
-                loading: isLoading,
-                activeReportId
-            });
-            return;
+            console.log('[PostReconstruct:TRIGGER]');
+            if (typeof handleCompare === 'function') {
+                handleCompare(true);
+            }
         }
-
-        if (hasAutoProcessedRef.current) return;
-
-        console.log('[AutoProcess:READY]');
-        hasAutoProcessedRef.current = true;
-
-        console.log('[AutoProcess:TRIGGERED]');
-        if (typeof handleCompare === 'function') {
-            handleCompare(true);
-        }
-    }, [
-        matchResults.length,
-        churches.length,
-        learnedAssociations.length,
-        isLoading,
-        activeReportId
-    ]);
+    }, [matchResults.length, isLoading, handleCompare]);
 
     return {
         syncToCloud,
