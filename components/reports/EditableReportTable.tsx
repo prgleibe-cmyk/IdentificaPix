@@ -271,6 +271,12 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     }, [data, selectedIds]);
 
     const [currentPage, setCurrentPage] = useState(1);
+    
+    useEffect(() => {
+        console.log('[Pagination:RESET_PAGE]', data.length);
+        setCurrentPage(1);
+    }, [data.length]);
+
     const paginatedData = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return data.slice(start, start + ITEMS_PER_PAGE);
