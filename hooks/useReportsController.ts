@@ -164,10 +164,8 @@ export const useReportsController = () => {
                     data = reportPreviewData.income?.[subscription.congregationIds[0]] || [];
                 }
             } else if (activeCategory === 'general') {
-                const income = (Object.values(reportPreviewData.income || {}) as MatchResult[][]).flat();
-                const expenses = reportPreviewData.expenses?.['all_expenses_group'] || [];
-                data = [...income, ...expenses];
-                console.log("[Report:GENERAL_FULL_DATA]", { income: income.length, expenses: expenses.length, total: data.length });
+                const incomeGroups = reportPreviewData.income || {};
+                data = (Object.values(incomeGroups) as MatchResult[][]).flat();
             } else if (activeCategory === 'expenses') {
                 data = reportPreviewData.expenses?.['all_expenses_group'] || [];
             } else if (selectedReportId) {
