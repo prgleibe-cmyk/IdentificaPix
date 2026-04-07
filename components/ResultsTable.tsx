@@ -101,7 +101,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
 />
 
             <div className="overflow-x-auto custom-scrollbar relative">
-                <table className="w-full min-w-[1000px] text-left border-collapse">
+                <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
                         <tr>
                             <th className="px-4 py-2.5 w-10 text-center">
@@ -196,31 +196,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                     </tbody>
                 </table>
             </div>
-
-            {/* Pagination Controls */}
-            {totalPages && totalPages > 1 && onPageChange && (
-                <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Página {currentPage} de {totalPages}
-                    </div>
-                    <div className="flex gap-1">
-                        <button
-                            onClick={() => onPageChange(Math.max(1, (currentPage || 1) - 1))}
-                            disabled={currentPage === 1}
-                            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-[10px] font-bold disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                        >
-                            Anterior
-                        </button>
-                        <button
-                            onClick={() => onPageChange(Math.min(totalPages, (currentPage || 1) + 1))}
-                            disabled={currentPage === totalPages}
-                            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-[10px] font-bold disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                        >
-                            Próxima
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 });
