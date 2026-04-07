@@ -443,8 +443,6 @@ export const useCloudSync = ({
                             };
                             return updated;
                         });
-                        // Gatilho automático após sincronização de mudança
-                        setTimeout(() => handleCompare && handleCompare(true), 500);
                     }
                 }
             )
@@ -495,8 +493,6 @@ export const useCloudSync = ({
                                 });
                                 return hasChanges ? updated : prev;
                             });
-                            // Gatilho automático após aprendizado
-                            setTimeout(() => handleCompare && handleCompare(true), 500);
                         }
                     }
                 }
