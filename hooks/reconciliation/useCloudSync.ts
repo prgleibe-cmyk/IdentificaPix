@@ -577,7 +577,12 @@ export const useCloudSync = ({
 
             console.log('[PostReconstruct:TRIGGER]');
             if (typeof handleCompare === 'function') {
-                handleCompare(true);
+                setTimeout(() => {
+                    setTimeout(() => {
+                        console.log('[AutoProcess:DOUBLE_DELAY_EXECUTION]');
+                        handleCompare(true);
+                    }, 0);
+                }, 0);
             }
         }
     }, [matchResults.length, isLoading, handleCompare]);
