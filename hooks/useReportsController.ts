@@ -119,34 +119,59 @@ export const useReportsController = () => {
         }
 
         return entries.map(([id, results]) => {
-                const res = Array.isArray(results) ? results : [];
+                let res = Array.isArray(results) ? results : [];
+                
+                // 🛡️ FILTRO DE SEGURANÇA E CONTEXTO: Garante que o contador reflita os filtros ativos
+                if (isSecondary && subscription.bankIds && (subscription.bankIds || []).length > 0) {
+                    res = res.filter(r => (subscription.bankIds || []).includes(String(r.transaction?.bank_id)));
+                }
+                
+                if (selectedBankId && selectedBankId !== 'all') {
+                    res = res.filter(r => String(r.transaction?.bank_id) === selectedBankId);
+                }
+
+                // Aplicar filtros avançados e de data para consistência total com a tabela
+                if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
+                    const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
+                    const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
+                    
+                    res = res.filter(r => {
+                        const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                        if (!dateStr) return true;
+                        const parsed = new Date(dateStr.split('T')[0]).getTime();
+                        if (start && parsed < start) return false;
+                        if (end && parsed >= end) return false;
+                        return true;
+                    });
+                }
+
+                if (searchFilters) {
+                    res = applyAdvancedFilters(res, searchFilters);
+                }
+
                 return {
                     id,
                     name: res[0]?.church?.name || 'Igreja Desconhecida',
-                    count: (res || []).length,
+                    count: res.length,
                     total: res.reduce((sum, r) => sum + (r.transaction?.amount || 0), 0)
                 };
             })
+            .filter(c => c.count > 0) // Remove igrejas sem dados nos filtros atuais
             .sort((a, b) => a.name.localeCompare(b.name));
-    }, [reportPreviewData, subscription]);
+    }, [reportPreviewData, subscription, selectedBankId, searchFilters.dateRange]);
 
     const counts = useMemo(() => {
         const incomeGroups = reportPreviewData?.income || {};
-        
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-            return { 
-                general: 0, 
-                churches: (subscription.congregationIds || []).length, 
-                pending: 0, 
-                expenses: 0 
-            };
-        }
-
-        const general = (Object.values(incomeGroups).flat() || []).length;
+        
         const churchesCount = (churchList || []).length;
+        
+        // Calculamos o total geral baseado na soma das igrejas filtradas
+        const general = (churchList || []).reduce((sum, c) => sum + c.count, 0);
+        
         const pending = (incomeGroups['unidentified'] || []).length;
         const expenses = (reportPreviewData?.expenses?.['all_expenses_group'] || []).length;
+        
         return { general, churches: churchesCount, pending, expenses };
     }, [churchList, reportPreviewData, subscription]);
 
