@@ -112,7 +112,6 @@ export const useTransactionMatcher = ({
                 allTransactions = matchResults.map(r => r.transaction);
             }
             // Limpamos o estado para garantir reconstrução do zero
-            setMatchResults(() => []);
             setReportPreviewData(null);
         }
 
