@@ -100,9 +100,16 @@ export const useTransactionMatcher = ({
         
         // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
         // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
-        let allTransactions = activeBankFiles
-            .filter(f => selectedBankIds.includes(String(f.bankId)))
-            .flatMap(f => f.processedTransactions || []);
+        const confirmedTransactions = matchResults
+            .filter(r => r.isConfirmed)
+            .map(r => r.transaction);
+
+        let allTransactions = [
+            ...activeBankFiles
+                .filter(f => selectedBankIds.includes(String(f.bankId)))
+                .flatMap(f => f.processedTransactions || []),
+            ...confirmedTransactions
+        ];
 
         if (isAuto) {
             console.log('[AutoProcess:CLEAR_REPORTS]');
