@@ -256,6 +256,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     
     useEffect(() => {
         setSelectedIds([]);
+        setCurrentPage(1);
     }, [data.length]);
 
     const toggleSelection = useCallback((id: string) => {

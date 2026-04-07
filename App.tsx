@@ -36,7 +36,7 @@ const MainLayout: React.FC = () => {
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 lg:pt-0">
-                <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
+                <div className="flex-1 overflow-hidden p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
                     <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
                         <div className={`h-full transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                             <AppRouter />
