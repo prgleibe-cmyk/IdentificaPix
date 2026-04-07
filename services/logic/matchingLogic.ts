@@ -65,7 +65,7 @@ export const matchTransactions = (
 
     transactions.forEach(tx => {
         const existingMatch = existingResults.find(r => r.transaction.id === tx.id);
-        if (existingMatch && existingMatch.status === ReconciliationStatus.IDENTIFIED) {
+        if (existingMatch && (existingMatch.status === ReconciliationStatus.IDENTIFIED || existingMatch.status === ReconciliationStatus.RESOLVED)) {
             finalResults.push(existingMatch);
             if (existingMatch.contributor?._internalId) {
                 usedContributors.add(existingMatch.contributor._internalId);
