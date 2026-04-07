@@ -127,7 +127,7 @@ export const useTransactionMatcher = ({
 
         // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
         // No modo automático, NÃO usamos resultados existentes para forçar re-identificação total
-        const filteredExistingResults = isAuto ? [] : matchResults.filter(r => 
+        const filteredExistingResults = isAuto ? matchResults.filter(r => r.isConfirmed) : matchResults.filter(r => 
             selectedBankIds.includes(String(r.transaction.bank_id))
         );
 
