@@ -40,7 +40,8 @@ export const useCloudSync = ({
     const needsRetry = useRef<boolean>(false);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
-    const hasPostReconstructProcessed = useRef(false);
+    const stableTimeoutRef = useRef<any>(null);
+    const lastProcessedLength = useRef<number>(0);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -564,27 +565,34 @@ export const useCloudSync = ({
 
     /**
      * 🚀 GATILHO PÓS-RECONSTRUÇÃO (Executa processamento após carregar dados do banco)
+     * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        if (
-            matchResults.length > 0 &&
-            !isLoading &&
-            !hasPostReconstructProcessed.current
-        ) {
-            console.log('[PostReconstruct:READY]');
-            
-            hasPostReconstructProcessed.current = true;
-
-            console.log('[PostReconstruct:TRIGGER]');
-            if (typeof handleCompare === 'function') {
-                setTimeout(() => {
-                    setTimeout(() => {
-                        console.log('[AutoProcess:DOUBLE_DELAY_EXECUTION]');
-                        handleCompare(true);
-                    }, 0);
-                }, 0);
-            }
+        if (matchResults.length === 0 || isLoading) {
+            if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
+            return;
         }
+
+        // Se o tamanho mudou, resetamos o timer de estabilidade
+        if (matchResults.length !== lastProcessedLength.current) {
+            console.log('[PostReconstruct:WAIT_STABLE]', { current: matchResults.length, last: lastProcessedLength.current });
+            
+            if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
+            
+            stableTimeoutRef.current = setTimeout(() => {
+                console.log('[PostReconstruct:STABLE]', matchResults.length);
+                lastProcessedLength.current = matchResults.length;
+                
+                if (typeof handleCompare === 'function') {
+                    console.log('[AutoProcess:FINAL_TRIGGER]');
+                    handleCompare(true);
+                }
+            }, 200);
+        }
+
+        return () => {
+            if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
+        };
     }, [matchResults.length, isLoading, handleCompare]);
 
     return {
