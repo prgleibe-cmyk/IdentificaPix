@@ -20,6 +20,8 @@ interface UseCloudSyncProps {
     isLoading?: boolean;
 }
 
+export const batchState = { isBatchUpdating: false };
+
 export const useCloudSync = ({
     user,
     effectiveUserId,
@@ -319,6 +321,7 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    if (batchState.isBatchUpdating) return;
                     // DELETE
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
+import { batchState } from './reconciliation/useCloudSync';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -79,48 +80,52 @@ export const useReconciliationActions = ({
     const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
 
-    for (const id of txIds) {
+    batchState.isBatchUpdating = true;
+    try {
+      for (const id of txIds) {
+        const idx = currentResults.findIndex(r => r.transaction.id === id);
+        if (idx === -1) continue;
 
-      const idx = currentResults.findIndex(r => r.transaction.id === id);
-      if (idx === -1) continue;
+        const original = currentResults[idx];
+        if (original.isConfirmed) continue;
 
-      const original = currentResults[idx];
-      if (original.isConfirmed) continue;
+        const contributor: Contributor = original.contributor || {
+          name: original.transaction.cleanedDescription || original.transaction.description,
+          amount: original.transaction.amount,
+          cleanedName: original.transaction.cleanedDescription || original.transaction.description
+        };
 
-      const contributor: Contributor = original.contributor || {
-        name: original.transaction.cleanedDescription || original.transaction.description,
-        amount: original.transaction.amount,
-        cleanedName: original.transaction.cleanedDescription || original.transaction.description
-      };
+        const updated: MatchResult = {
+          ...original,
+          status: ReconciliationStatus.IDENTIFIED,
+          contributor,
+          church,
+          matchMethod: MatchMethod.MANUAL,
+          similarity: 100,
+          contributorAmount: contributor.amount,
+          divergence: undefined,
+          updatedAt: new Date().toISOString()
+        };
 
-      const updated: MatchResult = {
-        ...original,
-        status: ReconciliationStatus.IDENTIFIED,
-        contributor,
-        church,
-        matchMethod: MatchMethod.MANUAL,
-        similarity: 100,
-        contributorAmount: contributor.amount,
-        divergence: undefined,
-        updatedAt: new Date().toISOString()
-      };
+        currentResults[idx] = updated;
 
-      currentResults[idx] = updated;
+        referenceData.learnAssociation(updated);
 
-      referenceData.learnAssociation(updated);
+        if (!id.includes('ghost') && !id.includes('sim')) {
+          await consolidationService.updateTransactionStatus(
+            id, 
+            'identified', 
+            churchId, 
+            original.transaction.bank_id,
+            contributor.id,
+            false
+          );
+        }
 
-      if (!id.includes('ghost') && !id.includes('sim')) {
-        await consolidationService.updateTransactionStatus(
-          id, 
-          'identified', 
-          churchId, 
-          original.transaction.bank_id,
-          contributor.id,
-          false
-        );
+        affectedCount++;
       }
-
-      affectedCount++;
+    } finally {
+      batchState.isBatchUpdating = false;
     }
 
     reconciliation.setMatchResults(currentResults);
@@ -146,14 +151,19 @@ export const useReconciliationActions = ({
 
     if (idsToUpdate.length > 0) {
       // Sincronização atômica: Garante que cada transação persista sua igreja e banco ao confirmar
-      for (const id of idsToUpdate) {
-        const result = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
-        if (result) {
-          const churchId = result.church?.id || result._churchId;
-          const bankId = result.transaction.bank_id;
-          const contributorId = result.contributor?.id;
-          await consolidationService.updateConfirmationStatus([id], confirmed, churchId, bankId, contributorId);
+      batchState.isBatchUpdating = true;
+      try {
+        for (const id of idsToUpdate) {
+          const result = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
+          if (result) {
+            const churchId = result.church?.id || result._churchId;
+            const bankId = result.transaction.bank_id;
+            const contributorId = result.contributor?.id;
+            await consolidationService.updateConfirmationStatus([id], confirmed, churchId, bankId, contributorId);
+          }
         }
+      } finally {
+        batchState.isBatchUpdating = false;
       }
     }
 
