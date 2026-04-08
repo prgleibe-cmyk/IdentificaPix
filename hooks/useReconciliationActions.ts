@@ -174,7 +174,6 @@ export const useReconciliationActions = ({
       return r;
     });
 
-    reconciliation.setMatchResults(currentResults);
     if (onAfterAction) onAfterAction(currentResults);
 
     showToast(
