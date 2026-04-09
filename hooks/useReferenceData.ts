@@ -5,6 +5,7 @@ import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { modelService } from '../services/modelService';
+import { batchState } from './reconciliation/useCloudSync';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
@@ -235,6 +236,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
         
+        if (batchState.isBatchUpdating) return;
+
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 
