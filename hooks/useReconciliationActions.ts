@@ -153,13 +153,36 @@ export const useReconciliationActions = ({
       // Sincronização atômica: Garante que cada transação persista sua igreja e banco ao confirmar
       batchState.isBatchUpdating = true;
       try {
-        for (const id of idsToUpdate) {
-          const result = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
-          if (result) {
-            const churchId = result.church?.id || result._churchId;
-            const bankId = result.transaction.bank_id;
-            const contributorId = result.contributor?.id;
-            await consolidationService.updateConfirmationStatus([id], confirmed, churchId, bankId, contributorId);
+        const resultsToUpdate = idsToUpdate
+          .map(id => reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id))
+          .filter(Boolean);
+
+        if (resultsToUpdate.length > 0) {
+          const first = resultsToUpdate[0];
+          const firstChurchId = first.church?.id || first._churchId;
+          const firstBankId = first.transaction.bank_id;
+          const firstContributorId = first.contributor?.id;
+
+          // Verificamos se todos os itens compartilham os mesmos metadados para aplicar Bulk Update
+          const isUniform = resultsToUpdate.every(r => {
+            const cId = r.church?.id || r._churchId;
+            const bId = r.transaction.bank_id;
+            const ctId = r.contributor?.id;
+            return cId === firstChurchId && bId === firstBankId && ctId === firstContributorId;
+          });
+
+          if (isUniform) {
+            // Otimização: Chamada única em lote
+            const allIds = resultsToUpdate.map(r => r.transaction.id);
+            await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId);
+          } else {
+            // Fallback: Mantém o comportamento original sequencial se houver variações
+            for (const result of resultsToUpdate) {
+              const churchId = result.church?.id || result._churchId;
+              const bankId = result.transaction.bank_id;
+              const contributorId = result.contributor?.id;
+              await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId);
+            }
           }
         }
       } finally {
