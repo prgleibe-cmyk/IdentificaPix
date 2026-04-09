@@ -279,6 +279,41 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         }
     }, [user]);
 
+    const learnAssociationBatch = useCallback(async (dataArray: any[]) => {
+        if (!user || dataArray.length === 0) return;
+
+        const newAssociations: LearnedAssociation[] = dataArray.map(d => ({
+            id: d.id || Math.random().toString(36).substr(2, 9),
+            normalizedDescription: d.normalized_description,
+            contributorNormalizedName: d.contributor_normalized_name,
+            churchId: d.church_id,
+            bankId: 'global',
+            user_id: effectiveUserId
+        }));
+
+        setLearnedAssociations(prev => {
+            const descs = new Set(newAssociations.map(a => a.normalizedDescription));
+            const filtered = prev.filter(la => !descs.has(la.normalizedDescription));
+            return [...newAssociations, ...filtered];
+        });
+
+        try {
+            console.log(`[WRITE:BATCH] Upserting ${dataArray.length} learned_associations`);
+            const { error } = await (supabase.from('learned_associations') as any).upsert(
+                dataArray.map(d => ({
+                    user_id: effectiveUserId,
+                    normalized_description: d.normalized_description,
+                    contributor_normalized_name: d.contributor_normalized_name,
+                    church_id: d.church_id
+                })),
+                { onConflict: 'user_id,normalized_description' }
+            );
+            if (error) throw error;
+        } catch (err) {
+            console.error("Erro ao persistir aprendizado em lote:", err);
+        }
+    }, [user, effectiveUserId]);
+
     const fetchModels = useCallback(async () => {
         if (!user) return;
         // Se for membro, os modelos já vêm via API consolidada no syncData
@@ -376,13 +411,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         banks, churches, reports, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         customIgnoreKeywords, contributionKeywords, addContributionKeyword, removeContributionKeyword,
         paymentMethods, addPaymentMethod, removePaymentMethod,
-        learnedAssociations, learnAssociation,
+        learnedAssociations, learnAssociation, learnAssociationBatch,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, reports, fileModels, fetchModels, similarityLevel, dayTolerance, 
-        customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
+        customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, learnAssociationBatch,
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
