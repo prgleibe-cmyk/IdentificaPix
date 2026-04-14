@@ -3,7 +3,6 @@ import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } f
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
 import { batchState } from './reconciliation/useCloudSync';
-import { strictNormalize } from '../services/utils/parsingUtils';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -80,12 +79,10 @@ export const useReconciliationActions = ({
 
     const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
-    const batchLearningData: any[] = [];
 
     batchState.isBatchUpdating = true;
     try {
       for (const id of txIds) {
-
         const idx = currentResults.findIndex(r => r.transaction.id === id);
         if (idx === -1) continue;
 
@@ -112,11 +109,7 @@ export const useReconciliationActions = ({
 
         currentResults[idx] = updated;
 
-        batchLearningData.push({
-          normalized_description: strictNormalize(original.transaction.description),
-          contributor_normalized_name: contributor.cleanedName || contributor.name,
-          church_id: church.id
-        });
+        referenceData.learnAssociation(updated);
 
         if (!id.includes('ghost') && !id.includes('sim')) {
           await consolidationService.updateTransactionStatus(
@@ -133,10 +126,6 @@ export const useReconciliationActions = ({
       }
     } finally {
       batchState.isBatchUpdating = false;
-    }
-
-    if (batchLearningData.length > 0) {
-      await referenceData.learnAssociationBatch(batchLearningData);
     }
 
     reconciliation.setMatchResults(currentResults);

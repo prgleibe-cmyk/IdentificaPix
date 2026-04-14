@@ -44,7 +44,6 @@ export const useCloudSync = ({
     const isValidating = useRef<boolean>(false);
     const stableTimeoutRef = useRef<any>(null);
     const lastProcessedLength = useRef<number>(0);
-    const hasProcessedRef = useRef<boolean>(false);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -57,10 +56,6 @@ export const useCloudSync = ({
     const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
-
-    useEffect(() => {
-        hasProcessedRef.current = false;
-    }, [dataReadyKey]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -592,9 +587,8 @@ export const useCloudSync = ({
                 console.log('[PostReconstruct:STABLE]', matchResults.length);
                 lastProcessedLength.current = matchResults.length;
                 
-                if (typeof handleCompare === 'function' && !hasProcessedRef.current) {
+                if (typeof handleCompare === 'function') {
                     console.log('[AutoProcess:FINAL_TRIGGER]');
-                    hasProcessedRef.current = true;
                     handleCompare(true);
                 }
             }, 200);
