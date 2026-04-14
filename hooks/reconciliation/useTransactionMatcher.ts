@@ -137,10 +137,10 @@ export const useTransactionMatcher = ({
         if (isAuto) console.log('[AutoProcess:PROCESSING]');
 
         // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
-        // No modo automático, NÃO usamos resultados existentes para forçar re-identificação total
-        const filteredExistingResults = isAuto ? matchResults.filter(r => r.isConfirmed) : matchResults.filter(r => 
-            selectedBankIds.includes(String(r.transaction.bank_id))
-        );
+        // No modo automático, preservamos o que já foi identificado para evitar loops de re-processamento
+        const filteredExistingResults = isAuto 
+            ? matchResults.filter(r => r.isConfirmed || r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED) 
+            : matchResults.filter(r => selectedBankIds.includes(String(r.transaction.bank_id)));
 
         // 🧬 FUSÃO INTELIGENTE: Executa o matching apenas no escopo selecionado
         const results = matchTransactions(
