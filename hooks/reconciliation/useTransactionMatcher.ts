@@ -104,11 +104,16 @@ export const useTransactionMatcher = ({
             .filter(r => r.isConfirmed)
             .map(r => r.transaction);
 
+        const identifiedTransactions = matchResults
+            .filter(r => !r.isConfirmed && (r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED))
+            .map(r => r.transaction);
+
         let allTransactions = [
             ...activeBankFiles
                 .filter(f => selectedBankIds.includes(String(f.bankId)))
                 .flatMap(f => f.processedTransactions || []),
-            ...confirmedTransactions
+            ...confirmedTransactions,
+            ...identifiedTransactions
         ];
 
         if (isAuto) {
