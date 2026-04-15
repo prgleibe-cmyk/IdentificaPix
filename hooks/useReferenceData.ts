@@ -28,6 +28,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
+    const isBatchUpdating = batchState.isBatchUpdating;
 
     // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
     const lastOwnerIdRef = useRef<string | null>(null);
@@ -229,6 +230,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [user?.id, subscription.ownerId, setBanks, setChurches, setLearnedAssociations]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {
+        console.log('[IA-LEARN] Chamou função de aprendizado', {
+            entrada: matchResult
+        });
+
         if (!user || !matchResult.church) return;
 
         const contributorObj = matchResult.contributor;
@@ -236,7 +241,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
         
-        if (batchState.isBatchUpdating) return;
+        if (isBatchUpdating) return;
 
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
@@ -249,6 +254,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         setLearnedAssociations(prev => {
             const filtered = prev.filter(la => la.normalizedDescription !== normalizedDesc);
             return [newAssociation, ...filtered];
+        });
+
+        console.log('[IA-LEARN] Salvando aprendizado', {
+            dados: newAssociation
         });
 
         try {
@@ -277,7 +286,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error("Erro ao persistir aprendizado:", err);
         }
-    }, [user]);
+    }, [user, effectiveUserId, isBatchUpdating]);
 
     const fetchModels = useCallback(async () => {
         if (!user) return;

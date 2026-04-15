@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useContext, useCallback } from 'react';
+import { useState, useMemo, useEffect, useContext, useCallback, useRef } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
@@ -35,6 +35,7 @@ export const useReportsController = () => {
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const syncHashRef = useRef<string>('');
 
     // 🔄 SINCRONIZAÇÃO DO PREVIEW: Sempre que os resultados mudarem, o preview deve ser atualizado
     // Isso garante que ações de "Identificar" e "Confirmar" reflitam imediatamente no relatório
@@ -47,23 +48,16 @@ export const useReportsController = () => {
             const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
             const currentWithChurch = (matchResults || []).filter(r => r.church?.id && r.church.id !== 'unidentified').length;
             
-            const previewTotal = reportPreviewData ? (Object.values(reportPreviewData.income || {}).flat().length + (reportPreviewData.expenses?.['all_expenses_group']?.length || 0)) : 0;
-            
-            // Se houver mudança na contagem ou nos estados, regenera o preview
             // Adicionamos um hash do estado para detectar mudanças internas (status, confirmação, igreja)
             const currentStateHash = `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
-            const lastStateHash = (reportPreviewData as any)?._stateHash;
 
-            if (!reportPreviewData || currentTotal !== previewTotal || currentStateHash !== lastStateHash) {
+            if (currentStateHash !== syncHashRef.current) {
                 console.log("[useReportsController] Sincronizando preview de relatório...");
+                syncHashRef.current = currentStateHash;
                 regenerateReportPreview(matchResults);
-                // Injetamos o hash no preview para controle futuro
-                if (reportPreviewData) {
-                    (reportPreviewData as any)._stateHash = currentStateHash;
-                }
             }
         }
-    }, [matchResults, regenerateReportPreview, reportPreviewData]);
+    }, [matchResults, regenerateReportPreview]);
 
     // Forçar categoria para membros
     useEffect(() => {
