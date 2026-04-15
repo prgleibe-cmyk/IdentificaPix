@@ -36,28 +36,34 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const syncHashRef = useRef<string>('');
+    const isUpdatingRef = useRef(false);
+
+    const stableKey = useMemo(() => {
+        const currentTotal = (matchResults || []).length;
+        const currentIdentified = (matchResults || []).filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
+        const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
+        const currentWithChurch = (matchResults || []).filter(r => r.church?.id && r.church.id !== 'unidentified').length;
+        return `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
+    }, [matchResults]);
 
     // 🔄 SINCRONIZAÇÃO DO PREVIEW: Sempre que os resultados mudarem, o preview deve ser atualizado
     // Isso garante que ações de "Identificar" e "Confirmar" reflitam imediatamente no relatório
     useEffect(() => {
         if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
-            // Se não houver preview OU se o preview estiver desatualizado em relação aos resultados
-            // (usamos uma comparação simples de contagem e status para evitar loops infinitos)
-            const currentTotal = (matchResults || []).length;
-            const currentIdentified = (matchResults || []).filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
-            const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
-            const currentWithChurch = (matchResults || []).filter(r => r.church?.id && r.church.id !== 'unidentified').length;
-            
-            // Adicionamos um hash do estado para detectar mudanças internas (status, confirmação, igreja)
-            const currentStateHash = `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
+            if (isUpdatingRef.current) return;
 
-            if (currentStateHash !== syncHashRef.current) {
+            if (stableKey !== syncHashRef.current) {
+                isUpdatingRef.current = true;
                 console.log("[useReportsController] Sincronizando preview de relatório...");
-                syncHashRef.current = currentStateHash;
+                syncHashRef.current = stableKey;
                 regenerateReportPreview(matchResults);
+
+                setTimeout(() => {
+                    isUpdatingRef.current = false;
+                }, 0);
             }
         }
-    }, [matchResults, regenerateReportPreview]);
+    }, [stableKey, regenerateReportPreview]);
 
     // Forçar categoria para membros
     useEffect(() => {
