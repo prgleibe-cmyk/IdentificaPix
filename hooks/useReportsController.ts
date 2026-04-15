@@ -36,7 +36,8 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const syncHashRef = useRef<string>('');
-    const isUpdatingRef = useRef(false);
+    const isProcessingRef = useRef(false);
+    const debounceRef = useRef<any>(null);
 
     const stableKey = useMemo(() => {
         const currentTotal = (matchResults || []).length;
@@ -50,20 +51,23 @@ export const useReportsController = () => {
     // Isso garante que ações de "Identificar" e "Confirmar" reflitam imediatamente no relatório
     useEffect(() => {
         if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
-            if (isUpdatingRef.current) return;
-
             if (stableKey !== syncHashRef.current) {
-                isUpdatingRef.current = true;
-                console.log("[useReportsController] Sincronizando preview de relatório...");
-                syncHashRef.current = stableKey;
-                regenerateReportPreview(matchResults);
+                if (debounceRef.current) {
+                    clearTimeout(debounceRef.current);
+                }
 
-                setTimeout(() => {
-                    isUpdatingRef.current = false;
-                }, 0);
+                debounceRef.current = setTimeout(() => {
+                    if (isProcessingRef.current) return;
+
+                    isProcessingRef.current = true;
+                    console.log("[useReportsController] Sincronizando preview de relatório...");
+                    syncHashRef.current = stableKey;
+                    regenerateReportPreview(matchResults);
+                    isProcessingRef.current = false;
+                }, 50);
             }
         }
-    }, [stableKey, regenerateReportPreview]);
+    }, [stableKey, regenerateReportPreview, matchResults]);
 
     // Forçar categoria para membros
     useEffect(() => {
