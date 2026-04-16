@@ -32,16 +32,16 @@ export const LaunchService = {
         return { finalDate, cleanName, finalValue };
     },
 
-    computeBaseHash: (t: any, userId: string, bankId: string, lineIndex: number = 0) => {
+    computeBaseHash: (t: any, userId: string) => {
         const { finalDate, cleanName, finalValue } = LaunchService.normalizeTriplet(t);
         
         /**
-         * 🛡️ IDENTIDADE ESTENDIDA (V7 - BANK CONTEXT)
-         * Incluímos o bankId, rawDescription e o índice da linha no Hash.
-         * Isso evita colisões entre contas diferentes e permite linhas idênticas.
+         * 🛡️ IDENTIDADE ESTENDIDA (V5)
+         * Incluímos o rawDescription (linha bruta) no Hash.
+         * Isso garante que se o Saldo ou qualquer outra coluna for diferente, o Hash muda.
          */
         const rawContent = String(t.rawDescription || t.description || '').trim().toUpperCase();
-        const rawKey = `U${userId}|B${bankId}|D${finalDate}|N${cleanName}|V${finalValue}|R${rawContent}|I${lineIndex}`;
+        const rawKey = `U${userId}|D${finalDate}|N${cleanName}|V${finalValue}|R${rawContent}`;
         
         let hash = 5381;
         for (let i = 0; i < rawKey.length; i++) {
@@ -73,12 +73,11 @@ export const LaunchService = {
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
             const toPersist = transactions
-                .map((item, idx) => {
-                    const baseRowHash = this.computeBaseHash(item, userId, bankId);
-                    const finalRowHash = this.computeBaseHash(item, userId, bankId, idx);
+                .map((item) => {
+                    const finalRowHash = this.computeBaseHash(item, userId);
                     
-                    // Bloqueia se o conteúdo base já existe no banco OU se esta linha específica já está em processamento
-                    if (existingHashes.has(baseRowHash) || hashesInFlight.has(finalRowHash)) {
+                    // Bloqueia se já existe no banco ou se está sendo processado agora (inFlight)
+                    if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {
                         return null; 
                     }
 
@@ -94,7 +93,7 @@ export const LaunchService = {
                         source: source,
                         user_id: userId,
                         bank_id: currentBankId,
-                        row_hash: baseRowHash,
+                        row_hash: finalRowHash,
                         status: 'pending' as const
                     };
                 })
