@@ -26,21 +26,26 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
         }
     }
 
-    const displayDesc = (tx.cleanedDescription || tx.description || '').toLowerCase();
-    const typeStr = (tx.contributionType || '').toLowerCase();
-    
     const amount = Math.abs(tx.amount || 0);
     const amountStrFixed = amount.toFixed(2);
     const amountStrComma = amountStrFixed.replace('.', ',');
 
+    // 🧬 DNA Search Scope (Prioridade ao Raw)
+    const searchableContent = [
+        (tx as any).rawContent || tx.rawDescription || '',
+        tx.cleanedDescription || '',
+        tx.description || '',
+        tx.contributionType || '',
+        amountStrFixed,
+        amountStrComma,
+        dateBr,
+        dateShort,
+        rawDate
+    ].join(' ').toLowerCase().trim();
+
     return terms.every(term => {
-        if (displayDesc.includes(term)) return true;
-        if (typeStr.includes(term)) return true;
-        if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term)) return true;
         const dateTerm = term.replace(/[-.]/g, '/');
-        if (dateBr.includes(dateTerm) || dateShort.includes(dateTerm)) return true;
-        return false;
+        return searchableContent.includes(term) || searchableContent.includes(dateTerm);
     });
 };
 
@@ -54,21 +59,10 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
     const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
     const tx = result.transaction;
     
-    // 1. Dados identificados (Soberania do MatchResult)
-    const contribName = (result.contributor?.cleanedName || result.contributor?.name || '').toLowerCase();
-    const churchName = (result.church?.name || '').toLowerCase();
-    const typeStr = (result.contributionType || result.contributor?.contributionType || tx?.contributionType || '').toLowerCase();
-    
-    // 2. Dados bancários (Transaction)
-    const bankDesc = (tx?.description || '').toLowerCase();
-    const cleanedDesc = (tx?.cleanedDescription || '').toLowerCase();
-    
-    // 3. Valor (Ponto e Vírgula)
     const amount = Math.abs(tx?.amount || 0);
     const amountStrFixed = amount.toFixed(2);
     const amountStrComma = amountStrFixed.replace('.', ',');
     
-    // 4. Lógica de Data (BR e ISO)
     const rawDate = tx?.date || '';
     const dateNormalized = rawDate.replace(/-/g, '/');
     const dateParts = dateNormalized.split('/');
@@ -84,21 +78,24 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         }
     }
 
+    // 🧬 DNA Search Scope (Prioridade ao Raw e Identificação)
+    const searchableContent = [
+        (tx as any)?.rawContent || tx?.rawDescription || '',
+        result.contributor?.cleanedName || result.contributor?.name || '',
+        result.church?.name || '',
+        result.contributionType || result.contributor?.contributionType || tx?.contributionType || '',
+        tx?.description || '',
+        tx?.cleanedDescription || '',
+        amountStrFixed,
+        amountStrComma,
+        dateBr,
+        dateShort,
+        rawDate
+    ].join(' ').toLowerCase().trim();
+
     return terms.every(term => {
-        // Busca em todos os campos disponíveis
-        if (contribName.includes(term)) return true;
-        if (churchName.includes(term)) return true;
-        if (bankDesc.includes(term)) return true;
-        if (cleanedDesc.includes(term)) return true;
-        if (typeStr.includes(term)) return true;
-        if (amountStrFixed.includes(term)) return true;
-        if (amountStrComma.includes(term)) return true;
-        
-        // Busca em formatos de data
         const dateTerm = term.replace(/[-.]/g, '/');
-        if (dateBr.includes(dateTerm) || dateShort.includes(dateTerm)) return true;
-        
-        return false;
+        return searchableContent.includes(term) || searchableContent.includes(dateTerm);
     });
 };
 
