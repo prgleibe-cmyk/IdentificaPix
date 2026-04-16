@@ -32,14 +32,11 @@ export const LaunchService = {
         return { finalDate, cleanName, finalValue };
     },
 
-    computeBaseHash: (t: any, userId: string, bankId: string, lineIndex: number) => {
-        // 🧬 DNA Real da linha (sem normalizações)
-        const originalRawContent = t.rawDescription || t.description || '';
-        const rawKey = `U${userId}|B${bankId}|R${originalRawContent}|I${lineIndex}`;
-        
+    computeBaseHash: (key: string) => {
         let hash = 5381;
-        for (let i = 0; i < rawKey.length; i++) {
-            hash = ((hash << 5) + hash) + rawKey.charCodeAt(i);
+        const s = key || '';
+        for (let i = 0; i < s.length; i++) {
+            hash = ((hash << 5) + hash) + s.charCodeAt(i);
         }
         return `viva_${Math.abs(hash).toString(36)}`;
     },
@@ -68,14 +65,23 @@ export const LaunchService = {
             
             const toPersist = transactions
                 .map((item, idx) => {
-                    const finalRowHash = this.computeBaseHash(item, userId, bankId, idx);
+                    const originalRawContent = item.rawDescription || item.description || '';
+                    const stableRaw = (originalRawContent || '').replace(/\r\n/g, '\n').trim();
+
+                    // Hash GLOBAL (deduplicação entre arquivos e histórico)
+                    const globalHashKey = `U${userId}|B${bankId}|R${stableRaw}`;
+                    const globalHash = this.computeBaseHash(globalHashKey);
+
+                    // Hash LOCAL (controle apenas durante o processamento atual)
+                    const localHashKey = `${globalHashKey}|I${idx}`;
+                    const localHash = this.computeBaseHash(localHashKey);
                     
                     // Bloqueia se já existe no banco ou se está sendo processado agora (inFlight)
-                    if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {
+                    if (existingHashes.has(globalHash) || hashesInFlight.has(localHash)) {
                         return null; 
                     }
 
-                    hashesInFlight.add(finalRowHash);
+                    hashesInFlight.add(localHash);
                     const { finalDate } = this.normalizeTriplet(item);
 
                     return {
@@ -87,20 +93,23 @@ export const LaunchService = {
                         source: source,
                         user_id: userId,
                         bank_id: currentBankId,
-                        row_hash: finalRowHash,
-                        status: 'pending' as const
+                        row_hash: globalHash,
+                        status: 'pending' as const,
+                        _localHash: localHash // Ephemeral para cleanup
                     };
                 })
                 .filter((item): item is NonNullable<typeof item> => item !== null);
 
             const novosCount = toPersist.length;
             if (novosCount > 0) {
-                await consolidationService.addTransactions(toPersist as any);
+                // Remove o campo temporário antes de enviar para o banco
+                const dataToInsert = toPersist.map(({ _localHash, ...rest }) => rest);
+                await consolidationService.addTransactions(dataToInsert as any);
             }
             
-            // Limpa o cache de voo após o processamento
+            // Limpa o cache de voo após o processamento usando o hash local
             setTimeout(() => {
-                toPersist.forEach(t => { if(t.row_hash) hashesInFlight.delete(t.row_hash); });
+                toPersist.forEach(t => { if(t._localHash) hashesInFlight.delete(t._localHash); });
             }, 5000);
 
             return { added: novosCount, skipped: totalReceived - novosCount, total: totalReceived };
