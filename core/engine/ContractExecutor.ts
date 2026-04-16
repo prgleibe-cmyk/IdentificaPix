@@ -78,14 +78,45 @@ export const ContractExecutor = {
 
         // 🚀 MODO COLUNAS (DETERMINÍSTICO - EXCEL/CSV)
         const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
+
+        // 🛡️ DETECÇÃO ÚNICA DE DELIMITADOR (V100)
+        const firstLine = lines[0] || "";
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+
+        let delimiter = ',';
+        if (tabCount > semicolonCount && tabCount > commaCount) delimiter = '\t';
+        else if (semicolonCount >= commaCount && semicolonCount > 0) delimiter = ';';
+        else delimiter = ',';
+
+        // 🛡️ PARSER ROBUSTO DE CÉLULAS (V100 - SUPORTE A ASPAS)
+        const parseCSVLine = (text: string, delim: string): string[] => {
+            const columns: string[] = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === delim && !inQuotes) {
+                    columns.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            columns.push(current.trim());
+            return columns;
+        };
+
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
 
         lines.forEach((line, idx) => {
             if (idx < (mapping.skipRowsStart || 0)) return;
 
-            const delimiter = line.includes(';') ? ';' : (line.includes('\t') ? '\t' : ',');
-            const cells = line.split(delimiter).map(c => c.trim());
+            const cells = parseCSVLine(line, delimiter);
             
             const rawDate = cells[mapping.dateColumnIndex] || "";
             const rawDesc = cells[mapping.descriptionColumnIndex] || "";
