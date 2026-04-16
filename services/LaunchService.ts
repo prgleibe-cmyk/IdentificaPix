@@ -32,16 +32,10 @@ export const LaunchService = {
         return { finalDate, cleanName, finalValue };
     },
 
-    computeBaseHash: (t: any, userId: string) => {
-        const { finalDate, cleanName, finalValue } = LaunchService.normalizeTriplet(t);
-        
-        /**
-         * 🛡️ IDENTIDADE ESTENDIDA (V5)
-         * Incluímos o rawDescription (linha bruta) no Hash.
-         * Isso garante que se o Saldo ou qualquer outra coluna for diferente, o Hash muda.
-         */
-        const rawContent = String(t.rawDescription || t.description || '').trim().toUpperCase();
-        const rawKey = `U${userId}|D${finalDate}|N${cleanName}|V${finalValue}|R${rawContent}`;
+    computeBaseHash: (t: any, userId: string, bankId: string, lineIndex: number) => {
+        // 🧬 DNA Real da linha (sem normalizações)
+        const originalRawContent = t.rawDescription || t.description || '';
+        const rawKey = `U${userId}|B${bankId}|R${originalRawContent}|I${lineIndex}`;
         
         let hash = 5381;
         for (let i = 0; i < rawKey.length; i++) {
@@ -73,8 +67,8 @@ export const LaunchService = {
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
             const toPersist = transactions
-                .map((item) => {
-                    const finalRowHash = this.computeBaseHash(item, userId);
+                .map((item, idx) => {
+                    const finalRowHash = this.computeBaseHash(item, userId, bankId, idx);
                     
                     // Bloqueia se já existe no banco ou se está sendo processado agora (inFlight)
                     if (existingHashes.has(finalRowHash) || hashesInFlight.has(finalRowHash)) {
