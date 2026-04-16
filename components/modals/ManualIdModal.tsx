@@ -20,6 +20,8 @@ export const ManualIdModal: React.FC = () => {
     const { t, language } = useTranslation();
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
+    const [selectedType, setSelectedType] = useState<string>('DÍZIMO');
+    const [selectedMethod, setSelectedMethod] = useState<string>('PIX');
     const [isSaving, setIsSaving] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
 
@@ -82,8 +84,17 @@ export const ManualIdModal: React.FC = () => {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
                 await confirmBulkManualIdentification(ids, selectedChurchId);
             } else if (targetTx) {
-                // ✅ Chamada simplificada e robusta conforme solicitado
-                await confirmManualIdentification(targetTx.id, selectedChurchId);
+                const payload = {
+                    ...targetTx,
+                    churchId: selectedChurchId,
+                    type: selectedType,
+                    method: selectedMethod
+                };
+                
+                console.log('PAYLOAD IDENTIFICACAO:', payload);
+                
+                // Chamada via bulk enviando o payload conforme solicitado
+                await confirmBulkManualIdentification([payload]);
             }
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);

@@ -22,7 +22,7 @@ export const useReconciliationActions = ({
 }: UseReconciliationActionsProps) => {
   const { subscription } = useAuth();
 
-  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
+  const confirmBulkManualIdentification = useCallback(async (txsOrIds: (string | any)[], churchId?: string) => {
     const canIdentify = subscription?.permissions?.identificar ?? true;
 
     if (!canIdentify) {
@@ -30,25 +30,33 @@ export const useReconciliationActions = ({
       return;
     }
 
-    const church = referenceData.churches.find((c: Church) => c.id === churchId);
-    if (!church) return;
-
     const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
 
     batchState.isBatchUpdating = true;
     try {
-      for (const id of txIds) {
+      for (const item of txsOrIds) {
+        const id = typeof item === 'string' ? item : item.id;
+        const effectiveChurchId = typeof item === 'object' ? item.churchId : churchId;
+
+        const church = referenceData.churches.find((c: Church) => c.id === effectiveChurchId);
+        if (!church) continue;
+
         const idx = currentResults.findIndex(r => r.transaction.id === id);
         if (idx === -1) continue;
 
         const original = currentResults[idx];
         if (original.isConfirmed) continue;
 
+        const payloadType = typeof item === 'object' ? item.type : undefined;
+        const payloadMethod = typeof item === 'object' ? item.method : undefined;
+
         const contributor: Contributor = original.contributor || {
           name: original.transaction.cleanedDescription || original.transaction.description,
           amount: original.transaction.amount,
-          cleanedName: original.transaction.cleanedDescription || original.transaction.description
+          cleanedName: original.transaction.cleanedDescription || original.transaction.description,
+          contributionType: payloadType,
+          paymentMethod: payloadMethod
         };
 
         const updated: MatchResult = {
@@ -59,6 +67,8 @@ export const useReconciliationActions = ({
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
           contributorAmount: contributor.amount,
+          contributionType: payloadType || original.contributionType,
+          paymentMethod: payloadMethod || original.paymentMethod,
           divergence: undefined,
           updatedAt: new Date().toISOString()
         };
@@ -71,7 +81,7 @@ export const useReconciliationActions = ({
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
-            churchId, 
+            effectiveChurchId!, 
             original.transaction.bank_id,
             contributor.id,
             false
@@ -85,9 +95,7 @@ export const useReconciliationActions = ({
     }
 
     reconciliation.setMatchResults(currentResults);
-
     reconciliation.closeManualIdentify();
-
     showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
 
     if (onAfterAction) onAfterAction(currentResults);
