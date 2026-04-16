@@ -3,6 +3,7 @@ import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
     PencilIcon, 
     ChevronUpIcon, 
@@ -76,6 +77,8 @@ const MobileCard = memo(({
     isSelected,
     onToggleSelection
 }: any) => {
+    const { subscription } = useAuth();
+    const canDelete = subscription?.permissions?.excluir_registros !== false;
     const row = result as MatchResult;
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
@@ -142,7 +145,9 @@ const MobileCard = memo(({
                     </button>
                 ) : (
                     <>
-                        <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50"><TrashIcon className="w-4 h-4" /></button>
+                        {canDelete && (
+                            <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50"><TrashIcon className="w-4 h-4" /></button>
+                        )}
                         {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
                         <button onClick={() => onEdit(row)} className="flex-1 py-2.5 rounded-xl bg-brand-blue text-white font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
                             {isIdentified || isGhost ? <><PencilIcon className="w-3.5 h-3.5" /> Editar</> : <><UserPlusIcon className="w-3.5 h-3.5" /> Identificar</>}
@@ -164,6 +169,8 @@ const IncomeRow = memo(({
     isSelected,
     onToggleSelection
 }: any) => {
+    const { subscription } = useAuth();
+    const canDelete = subscription?.permissions?.excluir_registros !== false;
     const row = result as MatchResult;
     // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
@@ -239,7 +246,9 @@ const IncomeRow = memo(({
                                     {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
                                 </>
                             )}
-                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
+                            {canDelete && (
+                                <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
+                            )}
                         </>
                     )}
                 </div>

@@ -24,6 +24,7 @@ export const useDataDeletion = ({
 }: UseDataDeletionProps) => {
     const { subscription } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
+    const canDelete = subscription?.permissions?.excluir_registros !== false;
 
     const confirmDeletion = useCallback(async () => {
         if (!modalController.deletingItem) return;
@@ -56,6 +57,12 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'report-row': {
+                    if (!canDelete) {
+                        console.warn('Usuário sem permissão para excluir registros');
+                        showToast("Você não possui permissão para excluir registros.", "error");
+                        return;
+                    }
+
                     // Se não for um registro fantasma, remove permanentemente do banco de dados
                     if (!id.startsWith('ghost-')) {
                         await consolidationService.deleteTransactionById(id);
