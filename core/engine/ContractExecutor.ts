@@ -100,7 +100,7 @@ export const ContractExecutor = {
             const stdAmount = AmountResolver.clean(rawAmount);
             const numAmount = parseFloat(stdAmount);
 
-            if (isoDate && !isNaN(numAmount)) {
+            if ((isoDate || rawDate) && !isNaN(numAmount)) {
                 // Aplica a limpeza de palavras-chave ignoradas
                 const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
                 
