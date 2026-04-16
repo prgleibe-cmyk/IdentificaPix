@@ -62,7 +62,11 @@ export const SmartEditForm: React.FC<SmartEditFormProps> = ({
                 </div>
             </div>
         </div>
-        <button onClick={(e) => { e.preventDefault(); onSave(); }} disabled={!manualChurchId} className={`w-full mt-3 py-2 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${isAiProposed ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-purple-500/20' : 'bg-brand-blue hover:bg-blue-600'}`}>
+        <button 
+            type="button"
+            onClick={onSave} 
+            disabled={!manualChurchId} 
+            className={`w-full mt-3 py-2 text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${isAiProposed ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-purple-500/20' : 'bg-brand-blue hover:bg-blue-600'}`}>
             <CheckCircleIcon className="w-3.5 h-3.5" /> Confirmar Identidade
         </button>
     </div>
