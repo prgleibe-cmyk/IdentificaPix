@@ -112,6 +112,7 @@ export const ContractExecutor = {
 
         const results: Transaction[] = [];
         const currentYear = new Date().getFullYear();
+        const isModelAuthoritative = true;
 
         lines.forEach((line, idx) => {
             if (idx < (mapping.skipRowsStart || 0)) return;
@@ -125,7 +126,7 @@ export const ContractExecutor = {
                 ? cells[mapping.paymentMethodColumnIndex] 
                 : "";
 
-            if (!rawDate && !rawDesc && !rawAmount) return;
+            if (!isModelAuthoritative && !rawDate && !rawDesc && !rawAmount) return;
 
             const isoDate = DateResolver.resolveToISO(rawDate, currentYear);
             const stdAmount = AmountResolver.clean(rawAmount);
