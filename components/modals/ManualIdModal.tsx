@@ -78,35 +78,8 @@ export const ManualIdModal: React.FC = () => {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
                 await confirmBulkManualIdentification(ids, selectedChurchId);
             } else if (targetTx) {
-                const originalResult = findMatchResult(targetTx.id);
-                const church = churches.find(c => c.id === selectedChurchId);
-            
-                if (!originalResult || !church) {
-                    await confirmManualIdentification(targetTx.id, selectedChurchId);
-                } else {
-                    let finalContributorName = originalResult.transaction.cleanedDescription || originalResult.transaction.description;
-                    if (aiSuggestion && selectedChurchId === aiSuggestion.churchId) {
-                        finalContributorName = aiSuggestion.contributorName;
-                    }
-
-                    const newContributor: Contributor = {
-                        id: `manual-${targetTx.id}`,
-                        name: finalContributorName,
-                        originalAmount: originalResult.transaction.originalAmount,
-                        amount: originalResult.transaction.amount,
-                    };
-                    const updatedRow: MatchResult = {
-                        ...originalResult,
-                        status: ReconciliationStatus.IDENTIFIED,
-                        church,
-                        contributor: newContributor,
-                        matchMethod: MatchMethod.MANUAL,
-                        similarity: 100,
-                        contributorAmount: originalResult.transaction.amount,
-                    };
-                    learnAssociation(updatedRow);
-                    await confirmManualIdentification(targetTx.id, selectedChurchId);
-                }
+                // ✅ Chamada simplificada e robusta conforme solicitado
+                await confirmManualIdentification(targetTx.id, selectedChurchId);
             }
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);

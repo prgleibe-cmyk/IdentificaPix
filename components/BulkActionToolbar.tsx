@@ -1,5 +1,6 @@
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
@@ -12,7 +13,10 @@ interface BulkActionToolbarProps {
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
     const { setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
+    const { subscription } = useAuth();
     const { language } = useTranslation();
+
+    const canIdentify = subscription?.permissions?.identificar ?? true;
 
     // ✅ PROTEÇÃO TOTAL contra undefined
     const safeResults = Array.isArray(results) ? results : [];
@@ -69,13 +73,15 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                    <button
-                        onClick={handleBulkIdentify}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-[8px] font-black uppercase tracking-widest transition-all border border-white/10"
-                    >
-                        <UserPlusIcon className="w-2.5 h-2.5" />
-                        Identificar
-                    </button>
+                    {canIdentify && (
+                        <button
+                            onClick={handleBulkIdentify}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-full text-[8px] font-black uppercase tracking-widest transition-all border border-white/10"
+                        >
+                            <UserPlusIcon className="w-2.5 h-2.5" />
+                            Identificar
+                        </button>
+                    )}
 
                     {canConfirm && (
                         <button

@@ -22,66 +22,6 @@ export const useReconciliationActions = ({
 }: UseReconciliationActionsProps) => {
   const { subscription } = useAuth();
 
-  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
-    const canIdentify = subscription?.permissions?.identificar ?? true;
-
-    if (!canIdentify) {
-      console.warn('Permissão negada: identificar');
-      return;
-    }
-
-    const church = referenceData.churches.find((c: Church) => c.id === churchId);
-    if (!church) return;
-
-    const currentResults = [...reconciliation.fullMatchResults];
-    const idx = currentResults.findIndex(r => r.transaction.id === txId);
-    if (idx === -1) return;
-
-    const originalResult = currentResults[idx];
-
-    const contributor: Contributor = originalResult.contributor || {
-      name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
-      amount: originalResult.transaction.amount,
-      cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description
-    };
-
-    const updatedResult: MatchResult = {
-      ...originalResult,
-      status: ReconciliationStatus.IDENTIFIED,
-      contributor,
-      church,
-      matchMethod: MatchMethod.MANUAL,
-      similarity: 100,
-      contributorAmount: contributor.amount,
-      divergence: undefined,
-      updatedAt: new Date().toISOString()
-    };
-
-    currentResults[idx] = updatedResult;
-
-    if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(
-        txId, 
-        'identified', 
-        churchId, 
-        originalResult.transaction.bank_id,
-        contributor.id,
-        false
-      );
-    }
-
-    reconciliation.setMatchResults(currentResults);
-    if (onAfterAction) onAfterAction(currentResults);
-
-    referenceData.learnAssociation(updatedResult);
-
-    reconciliation.closeManualIdentify();
-    showToast("Identificado e aprendido pela IA.", "success");
-
-  }, [reconciliation, referenceData, showToast, onAfterAction]);
-
-
-
   const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
     const canIdentify = subscription?.permissions?.identificar ?? true;
 
@@ -152,7 +92,12 @@ export const useReconciliationActions = ({
 
     if (onAfterAction) onAfterAction(currentResults);
 
-  }, [reconciliation, referenceData, showToast, onAfterAction]);
+  }, [reconciliation, referenceData, showToast, onAfterAction, subscription]);
+
+  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+    console.log('IDENTIFICAR INDIVIDUAL:', txId);
+    return confirmBulkManualIdentification([txId], churchId);
+  }, [confirmBulkManualIdentification]);
 
 
 
