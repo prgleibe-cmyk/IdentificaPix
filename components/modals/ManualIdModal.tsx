@@ -70,7 +70,11 @@ export const ManualIdModal: React.FC = () => {
     if (!targetTx && !isBulk) return null;
     
     const handleConfirm = async () => {
-        if (!selectedChurchId) return;
+        console.log('CLICK CONFIRMAR MODAL');
+        if (!selectedChurchId) {
+            console.warn('handleConfirm abortado: nenhuma igreja selecionada');
+            return;
+        }
         setIsSaving(true);
 
         try {
