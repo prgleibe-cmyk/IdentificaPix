@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
@@ -19,8 +20,16 @@ export const useReconciliationActions = ({
   showToast,
   onAfterAction
 }: UseReconciliationActionsProps) => {
+  const { subscription } = useAuth();
 
   const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+    const canIdentify = subscription?.permissions?.identificar ?? true;
+
+    if (!canIdentify) {
+      console.warn('Permissão negada: identificar');
+      return;
+    }
+
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -74,6 +83,13 @@ export const useReconciliationActions = ({
 
 
   const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
+    const canIdentify = subscription?.permissions?.identificar ?? true;
+
+    if (!canIdentify) {
+      console.warn('Permissão negada: identificar');
+      return;
+    }
+
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
