@@ -19,7 +19,7 @@ export const LaunchService = {
             const resolved = DateResolver.resolveToISO(rawDate, new Date().getFullYear());
             if (resolved) isoDate = resolved;
         }
-        const finalDate = isoDate || rawDate || '0000-00-00';
+        const finalDate = isoDate || rawDate || new Date().toISOString().split('T')[0];
 
         /**
          * 🎯 REATIVAÇÃO: Priorizamos o texto BRUTO (Literal) para o Hash.
