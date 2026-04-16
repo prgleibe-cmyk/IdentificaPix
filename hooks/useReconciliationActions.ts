@@ -23,17 +23,20 @@ export const useReconciliationActions = ({
   const { subscription } = useAuth();
 
   const confirmBulkManualIdentification = useCallback(async (txsOrIds: (string | any)[], churchId?: string) => {
+    console.log('[AUDIT] BULK INICIO:', txsOrIds);
     const canIdentify = subscription?.permissions?.identificar ?? true;
 
     if (!canIdentify) {
       console.warn('Permissão negada: identificar');
       return;
     }
+    console.log('[AUDIT] BULK VALIDACAO OK');
 
     const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
 
     batchState.isBatchUpdating = true;
+    console.log('[AUDIT] ANTES DE SALVAR');
     try {
       for (const item of txsOrIds) {
         const id = typeof item === 'string' ? item : item.id;
@@ -92,6 +95,7 @@ export const useReconciliationActions = ({
       }
     } finally {
       batchState.isBatchUpdating = false;
+      console.log('[AUDIT] DEPOIS DE SALVAR');
     }
 
     reconciliation.setMatchResults(currentResults);

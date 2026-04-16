@@ -72,7 +72,9 @@ export const ManualIdModal: React.FC = () => {
     if (!targetTx && !isBulk) return null;
     
     const handleConfirm = async () => {
-        console.log('CLICK CONFIRMAR MODAL');
+        console.log('[AUDIT] CLICK CONFIRMAR');
+        console.log('[AUDIT] transaction:', targetTx);
+        
         if (!selectedChurchId) {
             console.warn('handleConfirm abortado: nenhuma igreja selecionada');
             return;
@@ -80,6 +82,7 @@ export const ManualIdModal: React.FC = () => {
         setIsSaving(true);
 
         try {
+            console.log('[AUDIT] ANTES DE CHAMAR BULK');
             if (isBulk) {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
                 await confirmBulkManualIdentification(ids, selectedChurchId);
@@ -96,6 +99,7 @@ export const ManualIdModal: React.FC = () => {
                 // Chamada via bulk enviando o payload conforme solicitado
                 await confirmBulkManualIdentification([payload]);
             }
+            console.log('[AUDIT] DEPOIS DE CHAMAR BULK');
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);
         } finally {
