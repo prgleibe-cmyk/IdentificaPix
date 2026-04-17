@@ -122,8 +122,8 @@ export const useTransactionMatcher = ({
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
                 allTransactions = matchResults.map(r => r.transaction);
             }
-            // Limpamos o estado para garantir reconstrução do zero
-            setReportPreviewData(null);
+            // MANTEMOS o estado para evitar salvamento de relatório vazio durante re-processamento
+            // setReportPreviewData(null);
         }
 
         if (allTransactions.length === 0) { 
