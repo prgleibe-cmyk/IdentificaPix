@@ -68,6 +68,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         console.log('[AUDIT][LOAD_REPORT_START]', { reportId: activeId });
         const report = reportManager.savedReports.find(r => r.id === activeId);
+        
+        console.log('[AUDIT][RAW_REPORT_FROM_DB]', report);
+        console.log('[AUDIT][REPORT_FIELDS]', {
+            id: report?.id,
+            hasData: !!report?.data,
+            dataType: typeof report?.data,
+            dataKeys: report?.data ? Object.keys(report.data) : null,
+            full: report
+        });
+
         if (!report || !report.data?.results) return;
 
         console.log("[AppContext] Carregando dados do relatório ativo:", activeId);
@@ -87,6 +97,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             );
         }
 
+        console.log('[AUDIT][DATA_BEFORE_SET]', hydrated);
+        console.log('[AUDIT][DATA_LENGTH]', Array.isArray(hydrated) ? hydrated.length : 'not-array');
         console.log('[AUDIT][LOAD_REPORT_DATA]', hydrated);
         reconciliation.setMatchResults(hydrated);
         lastLoadedReportId.current = activeId;
