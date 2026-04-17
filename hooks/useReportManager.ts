@@ -274,6 +274,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
+        console.log('[AUDIT][SAVE_REPORT_INPUT] (Overwrite)', {
+            reportId,
+            resultsCount: (results || []).length,
+            spreadsheet: !!spreadsheetData,
+            existingData: currentData
+        });
+
         if ((!results || (results || []).length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
         const currentPayload = JSON.stringify({ 
@@ -303,12 +310,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         } : r));
 
         console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId}`);
+        const payload = { 
+            data: mergedData as any,
+            record_count: recordCount 
+        };
+        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (Overwrite)', payload);
         const { error } = await (supabase
             .from('saved_reports') as any)
-            .update({ 
-                data: mergedData as any,
-                record_count: recordCount 
-            })
+            .update(payload)
             .eq('id', reportId)
             .eq('user_id', effectiveUserId);
 
@@ -316,6 +325,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
             showToast("Falha ao salvar alterações no servidor.", "error");
         } else {
+            console.log('[AUDIT][SAVE_REPORT_DONE] (Overwrite)', { reportId });
             showToast("Alterações salvas no servidor.", "success");
         }
     }, [user, showToast, savedReports]);
@@ -334,6 +344,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
+        console.log('[AUDIT][SAVE_REPORT_INPUT] (New)', {
+            name,
+            savingReportState
+        });
+
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
             closeSaveReportModal();
@@ -382,20 +397,23 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         closeSaveReportModal();
         
         console.log(`[WRITE:ALREADY_CORRECT] Inserindo novo relatório com effectiveUserId: ${effectiveUserId}`);
-        const { error } = await (supabase.from('saved_reports') as any).insert({
+        const payload = {
             id: newReport.id,
             name: newReport.name,
             record_count: newReport.recordCount,
             user_id: newReport.user_id,
             church_id: newReport.church_id,
             data: newReport.data as any
-        });
+        };
+        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (New)', payload);
+        const { error } = await (supabase.from('saved_reports') as any).insert(payload);
 
         if (error) {
             setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
             showToast('Erro ao salvar relatório.', 'error');
             return null;
         } else {
+            console.log('[AUDIT][SAVE_REPORT_DONE] (New)', newReport);
             showToast('Relatório criado!', 'success');
             return newReportId;
         }
