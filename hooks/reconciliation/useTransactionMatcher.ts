@@ -23,6 +23,7 @@ interface UseTransactionMatcherProps {
     setLaunchedResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
     bulkIdentificationTxs: Transaction[];
     setBulkIdentificationTxs: (txs: Transaction[]) => void;
+    activeReportId?: string | null;
 }
 
 export const useTransactionMatcher = ({
@@ -45,7 +46,8 @@ export const useTransactionMatcher = ({
     hasActiveSession,
     setLaunchedResults,
     bulkIdentificationTxs,
-    setBulkIdentificationTxs
+    setBulkIdentificationTxs,
+    activeReportId
 }: UseTransactionMatcherProps) => {
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
@@ -89,6 +91,12 @@ export const useTransactionMatcher = ({
         const isAuto = isAutoParam === true;
         if (isAuto) {
             console.log('[AutoProcess:START]');
+            
+            if (activeReportId) {
+                console.log('[AutoProcess:BLOCKED_BY_ACTIVE_REPORT]', activeReportId);
+                return;
+            }
+
             console.log('[AutoProcess:ALLOWED]');
         }
 
