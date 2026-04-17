@@ -78,11 +78,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             full: report
         });
 
-        if (!report || !report.data?.results) return;
+        const data = report.data as any;
+        if (!report || (!Array.isArray(data) && !data?.transactions && !data?.results)) return;
 
         console.log("[AppContext] Carregando dados do relatório ativo:", activeId);
         
-        let hydrated = report.data.results.map((r: any) => ({
+        const rawData = Array.isArray(data)
+            ? data
+            : data?.transactions
+            || data?.results
+            || [];
+
+        let hydrated = rawData.map((r: any) => ({
             ...r,
             church:
                 referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -148,7 +155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     };
                 }
 
-                results = parsedData?.results;
+                results = Array.isArray(parsedData) ? parsedData : parsedData?.transactions || parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             } else {
                 const { data: { session } } = await supabase.auth.getSession();
@@ -174,7 +181,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         };
                     }
 
-                    results = parsedData?.results;
+                    results = Array.isArray(parsedData) ? parsedData : parsedData?.transactions || parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;
                 } else {
                     throw new Error("Falha ao buscar detalhes do relatório via API.");
