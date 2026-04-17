@@ -8,7 +8,7 @@ import { BulkActionToolbar } from './BulkActionToolbar';
 
 interface ResultsTableProps {
   results: MatchResult[];
-  onManualIdentify?: (transactionId: string) => void;
+  onManualIdentify: (transactionId: string) => void;
   loadingAiId: string | null;
   currentPage?: number;
   totalPages?: number;
@@ -170,7 +170,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
-                                            {confirmed && (
+                                            {confirmed ? (
                                                 <button 
                                                     onClick={() => toggleConfirmation([transaction.id], false)}
                                                     className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
@@ -178,6 +178,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManu
                                                 >
                                                     <LockOpenIcon className="w-3.5 h-3.5" />
                                                 </button>
+                                            ) : (
+                                                status === 'NÃO IDENTIFICADO' && (
+                                                    <button 
+                                                        onClick={() => onManualIdentify(transaction.id)} 
+                                                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-brand-blue hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                                                    >
+                                                        <UserPlusIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )
                                             )}
                                         </div>
                                     </td>

@@ -21,9 +21,10 @@ interface UseTransactionMatcherProps {
     setHasActiveSession: (has: boolean) => void;
     hasActiveSession: boolean;
     setLaunchedResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
+    manualIdentificationTx: Transaction | null;
+    setManualIdentificationTx: (tx: Transaction | null) => void;
     bulkIdentificationTxs: Transaction[];
     setBulkIdentificationTxs: (txs: Transaction[]) => void;
-    activeReportId?: string | null;
 }
 
 export const useTransactionMatcher = ({
@@ -45,9 +46,10 @@ export const useTransactionMatcher = ({
     setHasActiveSession,
     hasActiveSession,
     setLaunchedResults,
+    manualIdentificationTx,
+    setManualIdentificationTx,
     bulkIdentificationTxs,
-    setBulkIdentificationTxs,
-    activeReportId
+    setBulkIdentificationTxs
 }: UseTransactionMatcherProps) => {
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
@@ -91,12 +93,6 @@ export const useTransactionMatcher = ({
         const isAuto = isAutoParam === true;
         if (isAuto) {
             console.log('[AutoProcess:START]');
-            
-            if (activeReportId) {
-                console.log('[AutoProcess:BLOCKED_BY_ACTIVE_REPORT]', activeReportId);
-                return;
-            }
-
             console.log('[AutoProcess:ALLOWED]');
         }
 
@@ -122,8 +118,8 @@ export const useTransactionMatcher = ({
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
                 allTransactions = matchResults.map(r => r.transaction);
             }
-            // MANTEMOS o estado para evitar salvamento de relatório vazio durante re-processamento
-            // setReportPreviewData(null);
+            // Limpamos o estado para garantir reconstrução do zero
+            setReportPreviewData(null);
         }
 
         if (allTransactions.length === 0) { 
@@ -217,8 +213,9 @@ export const useTransactionMatcher = ({
     }, [setMatchResults]);
 
     const closeManualIdentify = useCallback(() => { 
+        setManualIdentificationTx(null); 
         setBulkIdentificationTxs([]); 
-    }, [setBulkIdentificationTxs]);
+    }, [setManualIdentificationTx, setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         setMatchResults(prev => prev.filter(r => r.transaction.id !== id));

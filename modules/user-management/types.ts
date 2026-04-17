@@ -10,7 +10,6 @@ export interface UserPermissions {
     can_upload_files: boolean;
     can_manage_settings: boolean;
     read_only: boolean;
-    excluir_registros?: boolean;
 }
 
 export interface UserProfile {

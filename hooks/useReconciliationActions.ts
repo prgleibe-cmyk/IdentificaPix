@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
@@ -20,47 +19,81 @@ export const useReconciliationActions = ({
   showToast,
   onAfterAction
 }: UseReconciliationActionsProps) => {
-  const { subscription } = useAuth();
 
-  const confirmBulkManualIdentification = useCallback(async (txsOrIds: (string | any)[], churchId?: string) => {
-    console.log('[AUDIT] BULK INICIO:', txsOrIds);
-    const canIdentify = subscription?.permissions?.identificar ?? true;
+  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+    const church = referenceData.churches.find((c: Church) => c.id === churchId);
+    if (!church) return;
 
-    if (!canIdentify) {
-      console.warn('Permissão negada: identificar');
-      return;
+    const currentResults = [...reconciliation.fullMatchResults];
+    const idx = currentResults.findIndex(r => r.transaction.id === txId);
+    if (idx === -1) return;
+
+    const originalResult = currentResults[idx];
+
+    const contributor: Contributor = originalResult.contributor || {
+      name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
+      amount: originalResult.transaction.amount,
+      cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description
+    };
+
+    const updatedResult: MatchResult = {
+      ...originalResult,
+      status: ReconciliationStatus.IDENTIFIED,
+      contributor,
+      church,
+      matchMethod: MatchMethod.MANUAL,
+      similarity: 100,
+      contributorAmount: contributor.amount,
+      divergence: undefined,
+      updatedAt: new Date().toISOString()
+    };
+
+    currentResults[idx] = updatedResult;
+
+    if (!txId.includes('ghost') && !txId.includes('sim')) {
+      await consolidationService.updateTransactionStatus(
+        txId, 
+        'identified', 
+        churchId, 
+        originalResult.transaction.bank_id,
+        contributor.id,
+        false
+      );
     }
-    console.log('[AUDIT] BULK VALIDACAO OK');
+
+    reconciliation.setMatchResults(currentResults);
+    if (onAfterAction) onAfterAction(currentResults);
+
+    referenceData.learnAssociation(updatedResult);
+
+    reconciliation.closeManualIdentify();
+    showToast("Identificado e aprendido pela IA.", "success");
+
+  }, [reconciliation, referenceData, showToast, onAfterAction]);
+
+
+
+  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
+    const church = referenceData.churches.find((c: Church) => c.id === churchId);
+    if (!church) return;
 
     const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
 
     batchState.isBatchUpdating = true;
-    console.log('[AUDIT] ANTES DE SALVAR');
     try {
-      for (const item of txsOrIds) {
-        const id = typeof item === 'string' ? item : (item.id || item.transaction?.id);
-        const effectiveChurchId = typeof item === 'object' ? (item.churchId || item._churchId || item.church?.id) : churchId;
-
-        const church = referenceData.churches.find((c: Church) => c.id === effectiveChurchId);
-        if (!church) continue;
-
+      for (const id of txIds) {
         const idx = currentResults.findIndex(r => r.transaction.id === id);
         if (idx === -1) continue;
 
         const original = currentResults[idx];
         if (original.isConfirmed) continue;
 
-        const payloadType = typeof item === 'object' ? (item.type || item.contributionType) : undefined;
-        const payloadMethod = typeof item === 'object' ? (item.paymentMethod || item.method) : undefined;
-
-        const contributor: Contributor = (typeof item === 'object' && item.contributor) ? item.contributor : (original.contributor || {
+        const contributor: Contributor = original.contributor || {
           name: original.transaction.cleanedDescription || original.transaction.description,
           amount: original.transaction.amount,
-          cleanedName: original.transaction.cleanedDescription || original.transaction.description,
-          contributionType: payloadType,
-          paymentMethod: payloadMethod
-        });
+          cleanedName: original.transaction.cleanedDescription || original.transaction.description
+        };
 
         const updated: MatchResult = {
           ...original,
@@ -70,8 +103,6 @@ export const useReconciliationActions = ({
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
           contributorAmount: contributor.amount,
-          contributionType: payloadType || original.contributionType,
-          paymentMethod: payloadMethod || original.paymentMethod,
           divergence: undefined,
           updatedAt: new Date().toISOString()
         };
@@ -84,7 +115,7 @@ export const useReconciliationActions = ({
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
-            effectiveChurchId!, 
+            churchId, 
             original.transaction.bank_id,
             contributor.id,
             false
@@ -95,24 +126,17 @@ export const useReconciliationActions = ({
       }
     } finally {
       batchState.isBatchUpdating = false;
-      console.log('[AUDIT] DEPOIS DE SALVAR');
     }
 
     reconciliation.setMatchResults(currentResults);
+
     reconciliation.closeManualIdentify();
+
     showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
 
     if (onAfterAction) onAfterAction(currentResults);
 
-  }, [reconciliation, referenceData, showToast, onAfterAction, subscription]);
-
-  const confirmManualAssociation = useCallback(async (result: MatchResult) => {
-    return confirmBulkManualIdentification([result]);
-  }, [confirmBulkManualIdentification]);
-
-  const saveSmartEdit = useCallback(async (result: MatchResult) => {
-    return confirmBulkManualIdentification([result]);
-  }, [confirmBulkManualIdentification]);
+  }, [reconciliation, referenceData, showToast, onAfterAction]);
 
 
 
@@ -233,9 +257,8 @@ export const useReconciliationActions = ({
 
 
   return {
+    confirmManualIdentification,
     confirmBulkManualIdentification,
-    confirmManualAssociation,
-    saveSmartEdit,
     undoIdentification,
     toggleConfirmation
   };

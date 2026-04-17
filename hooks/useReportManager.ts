@@ -274,13 +274,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-        console.log('[AUDIT][SAVE_REPORT_INPUT] (Overwrite)', {
-            reportId,
-            resultsCount: (results || []).length,
-            spreadsheet: !!spreadsheetData,
-            existingData: currentData
-        });
-
         if ((!results || (results || []).length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
 
         const currentPayload = JSON.stringify({ 
@@ -295,34 +288,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
-        if ((!results || results.length === 0) && currentData?.results?.length > 0) {
-            console.warn('[SAFEGUARD] Bloqueado overwrite com dados vazios');
-            return;
-        }
-
         const mergedData = {
             ...currentData,
             results: (results && results.length > 0) ? results : currentData.results,
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
-
-        console.log('[AUDIT:SAVE_REPORT_INPUT] (Overwrite)', {
-            resultsLength: mergedData?.results?.length,
-            hasSpreadsheet: !!mergedData?.spreadsheet,
-            fullData: mergedData
-        });
-
-        console.log('[AUDIT:SAVE_SOURCE] (Overwrite)', {
-            matchResultsLength: results?.length,
-            currentStateLength: currentData?.results?.length
-        });
-
-        console.log('[AUDIT:SAVE_REPORT:INPUT] (Overwrite)', {
-            reportId,
-            resultsLength: results?.length,
-            resultsSample: results?.slice(0, 3),
-            fullData: mergedData
-        });
 
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
 
@@ -333,45 +303,19 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         } : r));
 
         console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId}`);
-        const payload = { 
-            data: mergedData as any,
-            record_count: recordCount 
-        };
-        console.log('[AUDIT:SAVE_REPORT:PAYLOAD] (Overwrite)', payload);
-        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (Overwrite)', {
-            reportId: reportId,
-            data: payload.data,
-            dataLength: Array.isArray(payload.data)
-                ? (payload.data as any).length
-                : (payload.data as any)?.results?.length ?? null,
-            full: payload
-        });
-        
-        console.log('[AUDIT][SAVE_BEFORE_DB] (Overwrite)', {
-            resultsLength: (payload.data as any)?.results?.length,
-            payload
-        });
-
-        const { data: responseData, error } = await (supabase
+        const { error } = await (supabase
             .from('saved_reports') as any)
-            .update(payload)
+            .update({ 
+                data: mergedData as any,
+                record_count: recordCount 
+            })
             .eq('id', reportId)
-            .eq('user_id', effectiveUserId)
-            .select();
-
-        console.log('[AUDIT:SAVE_REPORT:DB_RESPONSE] (Overwrite)', { responseData, error });
+            .eq('user_id', effectiveUserId);
 
         if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
             showToast("Falha ao salvar alterações no servidor.", "error");
         } else {
-            console.log('[AUDIT][SAVE_AFTER_DB] (Overwrite)', { id: reportId, user_id: effectiveUserId });
-            
-            // Verificação imediata
-            const { data: check } = await supabase.from('saved_reports').select('data').eq('id', reportId).single();
-            console.log('[AUDIT][SAVE_VERIFY_DB] (Overwrite)', (check as any)?.data);
-
-            console.log('[AUDIT][SAVE_REPORT_DONE] (Overwrite)', { reportId });
             showToast("Alterações salvas no servidor.", "success");
         }
     }, [user, showToast, savedReports]);
@@ -387,17 +331,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    const confirmSaveReport = useCallback(async (name: string, reconciliation?: any, spreadsheetData?: any): Promise<string | null> => {
-        console.log('[AUDIT:INSIDE_SAVE_RESULTS]', {
-            savingStateLength: savingReportState?.results?.length,
-            reconciliationLength: reconciliation?.fullMatchResults?.length
-        });
-
+    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
-        console.log('[AUDIT:CONFIRM_SAVE] (Internal useReportManager)');
-        console.log('[AUDIT:SAVING_STATE_RESULTS]', savingReportState?.results?.length);
-
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
             closeSaveReportModal();
@@ -405,34 +341,22 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const isSpreadsheet = savingReportState.type === 'spreadsheet';
-        
-        const finalResults =
-            (savingReportState?.results && savingReportState.results.length > 0)
-                ? savingReportState.results
-                : (reconciliation?.fullMatchResults && reconciliation.fullMatchResults.length > 0)
-                    ? reconciliation.fullMatchResults
-                    : [];
-
-        const finalSpreadsheet =
-            savingReportState?.spreadsheetData ||
-            spreadsheetData ||
-            null;
-
-        const recordCount = isSpreadsheet && finalSpreadsheet?.rows
-            ? finalSpreadsheet.rows.length 
-            : finalResults.length;
+        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
+            ? savingReportState.spreadsheetData.rows.length 
+            : savingReportState.results.length;
 
         const newReportId = `rep-${Date.now()}`;
+        const results = savingReportState.results || [];
         
         // Tenta pegar o ID da igreja de várias formas
-        const firstChurchId = finalResults[0]?.church?.id || finalResults[0]?._churchId || (finalResults[0]?.transaction as any)?.church_id;
-        const allSameChurch = finalResults.length > 0 && finalResults.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
+        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
+        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
         
         // Lógica de atribuição de Igreja
         let churchId = null;
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
-             churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
+            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
         } else if (allSameChurch && firstChurchId) {
             churchId = firstChurchId;
         } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
@@ -447,75 +371,31 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             user_id: effectiveUserId,
             church_id: churchId,
             data: {
-                results: finalResults,
+                results: savingReportState.results || [],
                 sourceFiles: [],
                 bankStatementFile: null,
-                spreadsheet: finalSpreadsheet || undefined
+                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
             }
         };
-
-        console.log('[AUDIT:SAVE_REPORT_INPUT] (New)', {
-            resultsLength: newReport.data?.results?.length,
-            hasSpreadsheet: !!newReport.data?.spreadsheet,
-            fullData: newReport.data
-        });
-
-        console.log('[AUDIT:SAVE_SOURCE] (New)', {
-            savingReportStateResultsLength: savingReportState.results?.length,
-            reconciliationResultsLength: reconciliation?.fullMatchResults?.length,
-            savingReportStateType: savingReportState.type
-        });
-
-        console.log('[AUDIT:SAVE_REPORT:INPUT] (New)', {
-            reportId: newReportId,
-            resultsLength: finalResults.length,
-            resultsSample: finalResults.slice(0, 3),
-            fullData: newReport.data
-        });
 
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
         
         console.log(`[WRITE:ALREADY_CORRECT] Inserindo novo relatório com effectiveUserId: ${effectiveUserId}`);
-        const payload = {
+        const { error } = await (supabase.from('saved_reports') as any).insert({
             id: newReport.id,
             name: newReport.name,
             record_count: newReport.recordCount,
             user_id: newReport.user_id,
             church_id: newReport.church_id,
             data: newReport.data as any
-        };
-        console.log('[AUDIT:SAVE_REPORT:PAYLOAD] (New)', payload);
-        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (New)', {
-            reportId: newReport.id,
-            data: payload.data,
-            dataLength: Array.isArray(payload.data)
-                ? (payload.data as any).length
-                : (payload.data as any)?.results?.length ?? null,
-            full: payload
         });
-        
-        console.log('[AUDIT][SAVE_BEFORE_DB] (New)', {
-            resultsLength: (payload.data as any)?.results?.length,
-            payload
-        });
-
-        const { data: responseData, error } = await (supabase.from('saved_reports') as any).insert(payload).select();
-
-        console.log('[AUDIT:SAVE_REPORT:DB_RESPONSE] (New)', { responseData, error });
 
         if (error) {
             setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
             showToast('Erro ao salvar relatório.', 'error');
             return null;
         } else {
-            console.log('[AUDIT][SAVE_AFTER_DB] (New)', newReport);
-            
-            // Verificação imediata
-            const { data: check } = await supabase.from('saved_reports').select('data').eq('id', newReport.id).single();
-            console.log('[AUDIT][SAVE_VERIFY_DB] (New)', (check as any)?.data);
-
-            console.log('[AUDIT][SAVE_REPORT_DONE] (New)', newReport);
             showToast('Relatório criado!', 'success');
             return newReportId;
         }

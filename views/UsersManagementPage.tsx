@@ -29,8 +29,7 @@ export const UsersManagementPage: React.FC = () => {
             identifyPayments: false,
             undoIdentification: false,
             downloadFile: false,
-            printReport: false,
-            excluirRegistros: false
+            printReport: false
         }
     });
 
@@ -43,8 +42,8 @@ export const UsersManagementPage: React.FC = () => {
     const fetchUsers = useCallback(async () => {
         if (!authUser?.id) return;
         
-        const effectiveOwnerId = subscription?.ownerId || authUser.id;
-        console.log("[UsersManagement] Buscando usuários para owner:", effectiveOwnerId, "authUser.id:", authUser.id, "subscription.ownerId:", subscription?.ownerId);
+        const effectiveOwnerId = authUser.owner_id || authUser.id;
+        console.log("[UsersManagement] Buscando usuários para owner:", effectiveOwnerId, "authUser.id:", authUser.id, "authUser.owner_id:", authUser.owner_id);
 
         setIsLoadingUsers(true);
         try {
@@ -97,13 +96,12 @@ export const UsersManagementPage: React.FC = () => {
             "desfazer_identificacao": formData.permissions.undoIdentification,
             "baixar_arquivo": formData.permissions.downloadFile,
             "imprimir": formData.permissions.printReport,
-            "excluir_registros": formData.permissions.excluirRegistros,
             "bankIds": formData.bankIds,
             "congregationIds": formData.churchIds
         };
 
         try {
-            const effectiveOwnerId = subscription?.ownerId || authUser?.id;
+            const effectiveOwnerId = authUser?.owner_id || authUser?.id;
             const url = editingUser ? `/api/users/update/${editingUser.id}` : '/api/users/create';
             const body = {
                 name: formData.name,
@@ -191,8 +189,7 @@ export const UsersManagementPage: React.FC = () => {
                 identifyPayments: !!perms.identificar,
                 undoIdentification: !!perms.desfazer_identificacao,
                 downloadFile: !!perms.baixar_arquivo,
-                printReport: !!perms.imprimir,
-                excluirRegistros: !!perms.excluir_registros
+                printReport: !!perms.imprimir
             }
         });
         setIsModalOpen(true);
@@ -213,8 +210,7 @@ export const UsersManagementPage: React.FC = () => {
                 identifyPayments: false,
                 undoIdentification: false,
                 downloadFile: false,
-                printReport: false,
-                excluirRegistros: false
+                printReport: false
             }
         });
     };
@@ -225,7 +221,7 @@ export const UsersManagementPage: React.FC = () => {
         }
 
         try {
-            const effectiveOwnerId = subscription?.ownerId || authUser?.id;
+            const effectiveOwnerId = authUser?.owner_id || authUser?.id;
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
@@ -604,8 +600,7 @@ export const UsersManagementPage: React.FC = () => {
                                             { key: 'identifyPayments', label: 'Identificar pagamentos' },
                                             { key: 'undoIdentification', label: 'Desfazer identificação' },
                                             { key: 'downloadFile', label: 'Baixar arquivo' },
-                                            { key: 'printReport', label: 'Imprimir relatório' },
-                                            { key: 'excluirRegistros', label: 'Excluir registros' }
+                                            { key: 'printReport', label: 'Imprimir relatório' }
                                         ].map(perm => (
                                             <label 
                                                 key={perm.key}
