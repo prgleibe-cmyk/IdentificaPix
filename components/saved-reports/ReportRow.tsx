@@ -109,7 +109,10 @@ export const ReportRow: React.FC<ReportRowProps> = ({
             <td className="px-6 py-2.5">
                 <div className="flex items-center justify-center gap-2">
                     <button
-                        onClick={() => onView(report.id)}
+                        onClick={() => {
+                            console.log('[AUDIT][CLICK_VISUALIZAR]', report);
+                            onView(report.id);
+                        }}
                         className="flex items-center gap-1.5 px-4 py-1.5 text-[9px] font-bold text-white bg-gradient-to-r from-sky-700 to-cyan-500 hover:from-sky-600 hover:to-cyan-400 rounded-full shadow-lg shadow-sky-500/30 hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide border border-white/10"
                     >
                         <EyeIcon className="w-3.5 h-3.5" />

@@ -57,6 +57,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) {
+            console.warn('[AUDIT][NO_REPORT_ID]');
             lastLoadedReportId.current = null;
             return;
         }
@@ -65,6 +66,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const shouldLoad = activeId !== lastLoadedReportId.current;
         if (!shouldLoad) return;
 
+        console.log('[AUDIT][LOAD_REPORT_START]', { reportId: activeId });
         const report = reportManager.savedReports.find(r => r.id === activeId);
         if (!report || !report.data?.results) return;
 
@@ -85,6 +87,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             );
         }
 
+        console.log('[AUDIT][LOAD_REPORT_DATA]', hydrated);
         reconciliation.setMatchResults(hydrated);
         lastLoadedReportId.current = activeId;
     }, [
@@ -99,6 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
+        console.log('[AUDIT][OPEN_REPORT_TRIGGER]', { reportId: report?.id, report });
         if (!report) return;
 
         setIsLoading(true);
@@ -166,6 +170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if (((results || []).length > 0) || spreadsheet) {
+                console.log('[AUDIT][BEFORE_NAVIGATION]', { reportId });
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
@@ -193,12 +198,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setActiveView('smart_analysis');
                 }
 
+                console.log('[AUDIT][AFTER_NAVIGATION]', { reportId });
                 showToast(`Relatório "${report.name}" carregado.`, "success");
             } else {
                 showToast("Este relatório está vazio.", "error");
             }
 
         } catch (error: any) {
+            console.error('[AUDIT][LOAD_REPORT_ERROR]', error);
             console.error("[AppContext] Erro ao abrir relatório:", error);
             showToast("Erro ao carregar os dados do relatório.", "error");
         } finally {
