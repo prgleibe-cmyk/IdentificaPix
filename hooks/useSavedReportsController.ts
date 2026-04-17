@@ -104,19 +104,12 @@ export const useSavedReportsController = () => {
     const handleDuplicate = useCallback(async (report: SavedReport) => {
         if (!report?.data?.spreadsheet) return;
 
-        const newReport: SavedReport = {
-            ...report,
-            id: `rep-${Date.now()}`,
-            name: `${report.name} (cópia)`,
-            createdAt: new Date().toISOString(),
-            data: {
-                ...report.data,
-                spreadsheet: report.data.spreadsheet,
-                results: [] // Garantindo a remoção de results conforme regra
-            }
-        };
+        const duplicatedSpreadsheet = report.data.spreadsheet;
 
-        await confirmSaveReport(newReport);
+        await confirmSaveReport({
+            name: `${report.name} (cópia)`,
+            spreadsheetData: duplicatedSpreadsheet
+        });
     }, [confirmSaveReport]);
 
     return {

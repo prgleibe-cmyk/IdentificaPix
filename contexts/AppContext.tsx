@@ -354,8 +354,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [reportManager.savedReports, reconciliation.activeReportId, isSyncing, isLoading, referenceData.churches, reconciliation.fullMatchResults.length]);
 
-    const wrappedConfirmSaveReport = useCallback(async (nameOrReport: string | SavedReport) => {
-        const newId = await reportManager.confirmSaveReport(nameOrReport);
+    const wrappedConfirmSaveReport = useCallback(async (nameOrData: string | { name: string, spreadsheetData: any }) => {
+        const newId = await reportManager.confirmSaveReport(nameOrData);
         if (newId) {
             reconciliation.setActiveReportId(newId);
             reconciliation.setHasActiveSession(true);
