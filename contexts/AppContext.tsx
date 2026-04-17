@@ -217,6 +217,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
+                // Carrega dados da planilha se existirem
+                if (spreadsheet) {
+                    reconciliation.setActiveSpreadsheetData(spreadsheet);
+                }
+
                 if ((results || []).length > 0) {
                     let hydrated = (results || []).map((r: any) => ({
                         ...r,
@@ -400,12 +405,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
     }, [referenceData.banks, subscription, user?.id]);
 
-    const activeSpreadsheetData = useMemo(() => {
-        if (!reconciliation.activeReportId) return undefined;
-        const report = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
-        return report?.data?.spreadsheet;
-    }, [reconciliation.activeReportId, reportManager.savedReports]);
-
     useEffect(() => {
         if (user !== undefined) setInitialDataLoaded(true);
     }, [user]);
@@ -420,7 +419,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...modalController,
         initialDataLoaded,
         summary,
-        activeSpreadsheetData,
         isSyncing,
         selectedBankId,
         setSelectedBankId,
@@ -441,7 +439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         modalController,
         initialDataLoaded,
         summary,
-        activeSpreadsheetData,
         isSyncing,
         persistActiveReport,
         confirmDeletion,
