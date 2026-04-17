@@ -356,7 +356,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const wrappedConfirmSaveReport = useCallback(async (nameOrData: string | { name: string, spreadsheetData: any }) => {
         const newId = await reportManager.confirmSaveReport(nameOrData);
-        if (newId) {
+        // NÃO ativar automaticamente ao duplicar (objetos são duplicações ou salvamento direto de dados)
+        // apenas ativar se for string (salvamento via modal de criação normal)
+        if (newId && typeof nameOrData === 'string') {
             reconciliation.setActiveReportId(newId);
             reconciliation.setHasActiveSession(true);
         }
