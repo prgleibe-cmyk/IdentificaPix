@@ -315,6 +315,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             record_count: recordCount 
         };
         console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (Overwrite)', payload);
+        
+        console.log('[AUDIT][SAVE_BEFORE_DB] (Overwrite)', {
+            resultsLength: (payload.data as any)?.results?.length,
+            payload
+        });
+
         const { error } = await (supabase
             .from('saved_reports') as any)
             .update(payload)
@@ -325,6 +331,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
             showToast("Falha ao salvar alterações no servidor.", "error");
         } else {
+            console.log('[AUDIT][SAVE_AFTER_DB] (Overwrite)', { id: reportId, user_id: effectiveUserId });
+            
+            // Verificação imediata
+            const { data: check } = await supabase.from('saved_reports').select('data').eq('id', reportId).single();
+            console.log('[AUDIT][SAVE_VERIFY_DB] (Overwrite)', (check as any)?.data);
+
             console.log('[AUDIT][SAVE_REPORT_DONE] (Overwrite)', { reportId });
             showToast("Alterações salvas no servidor.", "success");
         }
@@ -406,6 +418,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             data: newReport.data as any
         };
         console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (New)', payload);
+        
+        console.log('[AUDIT][SAVE_BEFORE_DB] (New)', {
+            resultsLength: (payload.data as any)?.results?.length,
+            payload
+        });
+
         const { error } = await (supabase.from('saved_reports') as any).insert(payload);
 
         if (error) {
@@ -413,6 +431,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             showToast('Erro ao salvar relatório.', 'error');
             return null;
         } else {
+            console.log('[AUDIT][SAVE_AFTER_DB] (New)', newReport);
+            
+            // Verificação imediata
+            const { data: check } = await supabase.from('saved_reports').select('data').eq('id', newReport.id).single();
+            console.log('[AUDIT][SAVE_VERIFY_DB] (New)', (check as any)?.data);
+
             console.log('[AUDIT][SAVE_REPORT_DONE] (New)', newReport);
             showToast('Relatório criado!', 'success');
             return newReportId;
