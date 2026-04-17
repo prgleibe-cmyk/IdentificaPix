@@ -331,39 +331,26 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    const confirmSaveReport = useCallback(async (name: string, reconciliation?: any, activeSpreadsheetData?: any): Promise<string | null> => {
+    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
         if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
-        console.log('[AUDIT:INSIDE_SAVE_RESULTS]', {
-          savingStateLength: savingReportState?.results?.length,
-          reconciliationLength: reconciliation?.fullMatchResults?.length
-        });
-
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
             closeSaveReportModal();
             return null;
         }
 
-        const isSpreadsheet = savingReportState.type === 'spreadsheet';
-        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
-            ? savingReportState.spreadsheetData.rows.length 
-            : savingReportState.results.length;
+        // Planilhas usam dados próprios de spreadsheetData
+        const spreadsheetData = savingReportState.spreadsheetData || null;
+        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
 
         const newReportId = `rep-${Date.now()}`;
-        const results = savingReportState.results || [];
         
-        // Tenta pegar o ID da igreja de várias formas
-        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
-        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
-        
-        // Lógica de atribuição de Igreja
+        // Lógica simplificada de atribuição de Igreja sem dependência de results
         let churchId = null;
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
             churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
-        } else if (allSameChurch && firstChurchId) {
-            churchId = firstChurchId;
         } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
             churchId = searchFilters.churchIds[0];
         }
@@ -376,17 +363,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             user_id: effectiveUserId,
             church_id: churchId,
             data: {
-                results: savingReportState.results || [],
+                // SALVAMENTO INDEPENDENTE: apenas dados de planilha
                 sourceFiles: [],
                 bankStatementFile: null,
-                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
+                spreadsheet: spreadsheetData
             }
         };
 
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
         
-        console.log(`[WRITE:ALREADY_CORRECT] Inserindo novo relatório com effectiveUserId: ${effectiveUserId}`);
+        console.log(`[WRITE:ALREADY_CORRECT] Inserindo nova planilha com effectiveUserId: ${effectiveUserId}`);
         const { error } = await (supabase.from('saved_reports') as any).insert({
             id: newReport.id,
             name: newReport.name,
