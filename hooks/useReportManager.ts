@@ -314,7 +314,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             data: mergedData as any,
             record_count: recordCount 
         };
-        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (Overwrite)', payload);
+        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (Overwrite)', {
+            reportId: reportId,
+            data: payload.data,
+            dataLength: Array.isArray(payload.data)
+                ? (payload.data as any).length
+                : (payload.data as any)?.results?.length ?? null,
+            full: payload
+        });
         
         console.log('[AUDIT][SAVE_BEFORE_DB] (Overwrite)', {
             resultsLength: (payload.data as any)?.results?.length,
@@ -417,7 +424,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             church_id: newReport.church_id,
             data: newReport.data as any
         };
-        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (New)', payload);
+        console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (New)', {
+            reportId: newReport.id,
+            data: payload.data,
+            dataLength: Array.isArray(payload.data)
+                ? (payload.data as any).length
+                : (payload.data as any)?.results?.length ?? null,
+            full: payload
+        });
         
         console.log('[AUDIT][SAVE_BEFORE_DB] (New)', {
             resultsLength: (payload.data as any)?.results?.length,
