@@ -51,7 +51,7 @@ export const useReconciliationActions = ({
         const original = currentResults[idx];
         if (original.isConfirmed) continue;
 
-        const payloadType = typeof item === 'object' ? item.type : undefined;
+        const payloadType = typeof item === 'object' ? (item.type || item.contributionType) : undefined;
         const payloadMethod = typeof item === 'object' ? (item.paymentMethod || item.method) : undefined;
 
         const contributor: Contributor = (typeof item === 'object' && item.contributor) ? item.contributor : (original.contributor || {

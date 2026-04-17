@@ -3,7 +3,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
-import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon } from '../Icons';
+import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon, TagIcon, CreditCardIcon } from '../Icons';
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 
 export const ManualIdModal: React.FC = () => {
@@ -15,12 +15,14 @@ export const ManualIdModal: React.FC = () => {
         confirmBulkManualIdentification,
         closeManualIdentify,
         findMatchResult,
-        learnAssociation
+        learnAssociation,
+        contributionKeywords,
+        paymentMethods
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
-    const [selectedType, setSelectedType] = useState<string>('DÍZIMO');
+    const [selectedType, setSelectedType] = useState<string>('DIZIMO');
     const [selectedMethod, setSelectedMethod] = useState<string>('PIX');
     const [isSaving, setIsSaving] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
@@ -84,14 +86,20 @@ export const ManualIdModal: React.FC = () => {
         try {
             console.log('[AUDIT] ANTES DE CHAMAR BULK');
             if (isBulk) {
-                const ids = bulkIdentificationTxs.map(tx => tx.id);
-                await confirmBulkManualIdentification(ids, selectedChurchId);
+                const payloads = bulkIdentificationTxs.map(tx => ({
+                    id: tx.id,
+                    churchId: selectedChurchId,
+                    contributionType: selectedType,
+                    paymentMethod: selectedMethod
+                }));
+                console.log('[AUDIT] PAYLOAD BULK:', payloads);
+                await confirmBulkManualIdentification(payloads);
             } else if (targetTx) {
                 const payload = {
                     ...targetTx,
                     churchId: selectedChurchId,
-                    type: selectedType,
-                    method: selectedMethod
+                    contributionType: selectedType,
+                    paymentMethod: selectedMethod
                 };
                 
                 console.log('PAYLOAD IDENTIFICACAO:', payload);
@@ -202,6 +210,48 @@ export const ManualIdModal: React.FC = () => {
                             </select>
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                 <ChevronDownIcon className="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1 flex items-center gap-1.5">
+                                <TagIcon className="w-3.5 h-3.5" /> Tipo
+                            </label>
+                            <div className="relative group">
+                                <select 
+                                    value={selectedType} 
+                                    onChange={(e) => setSelectedType(e.target.value)} 
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-5 transition-all outline-none text-sm font-bold appearance-none"
+                                >
+                                    <option value="">Sem categoria</option>
+                                    {contributionKeywords.map((k: string) => <option key={k} value={k}>{k}</option>)}
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1 flex items-center gap-1.5">
+                                <CreditCardIcon className="w-3.5 h-3.5" /> Forma
+                            </label>
+                            <div className="relative group">
+                                <select 
+                                    value={selectedMethod} 
+                                    onChange={(e) => setSelectedMethod(e.target.value)} 
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-5 transition-all outline-none text-sm font-bold appearance-none"
+                                >
+                                    <option value="">Sem forma</option>
+                                    {paymentMethods.map((m: string) => <option key={m} value={m}>{m}</option>)}
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </div>
                             </div>
                         </div>
                     </div>
