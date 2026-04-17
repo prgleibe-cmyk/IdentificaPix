@@ -388,6 +388,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
     const confirmSaveReport = useCallback(async (name: string, reconciliation?: any, spreadsheetData?: any): Promise<string | null> => {
+        console.log('[AUDIT:INSIDE_SAVE_RESULTS]', {
+            savingStateLength: savingReportState?.results?.length,
+            reconciliationLength: reconciliation?.fullMatchResults?.length
+        });
+
         if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
         console.log('[AUDIT:CONFIRM_SAVE] (Internal useReportManager)');
