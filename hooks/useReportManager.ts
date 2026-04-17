@@ -442,10 +442,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             user_id: effectiveUserId,
             church_id: churchId,
             data: {
-                results: [{ test: 'OK' }] as any,
+                results: finalResults,
                 sourceFiles: [],
                 bankStatementFile: null,
-                spreadsheet: { test: 'OK' } as any
+                spreadsheet: finalSpreadsheet || undefined
             }
         };
 
