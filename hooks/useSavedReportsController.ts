@@ -102,7 +102,10 @@ export const useSavedReportsController = () => {
     }, []);
 
     const handleDuplicate = useCallback(async (report: SavedReport) => {
-        if (!report?.data?.spreadsheet) return;
+        if (!report?.data?.spreadsheet) {
+            console.error("Planilha sem dados para duplicação", report);
+            return;
+        }
 
         const duplicatedSpreadsheet = report.data.spreadsheet;
 
