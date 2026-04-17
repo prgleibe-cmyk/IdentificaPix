@@ -331,9 +331,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
+    const confirmSaveReport = useCallback(async (name: string, reconciliation?: any, activeSpreadsheetData?: any): Promise<string | null> => {
         if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
+        console.log('[AUDIT:INSIDE_SAVE_RESULTS]', {
+          savingStateLength: savingReportState?.results?.length,
+          reconciliationLength: reconciliation?.fullMatchResults?.length
+        });
+
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
             closeSaveReportModal();

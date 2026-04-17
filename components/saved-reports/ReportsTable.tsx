@@ -66,7 +66,7 @@ export const ReportsTable: React.FC<ReportsTableProps> = ({
             <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-50/80 dark:bg-slate-900/50 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-100 dark:border-slate-700">
                     <tr>
-                        <SortHeader label="Nome do Relatório" sortKey="name" currentSort={sortConfig} onSort={onSort} className="w-[45%]" />
+                        <SortHeader label="Nome da Planilha" sortKey="name" currentSort={sortConfig} onSort={onSort} className="w-[45%]" />
                         <SortHeader label="Criado em" sortKey="createdAt" currentSort={sortConfig} onSort={onSort} className="w-[20%]" />
                         <SortHeader label="Registros" sortKey="recordCount" currentSort={sortConfig} onSort={onSort} className="w-[15%]" />
                         <th className="px-6 py-3 w-[20%] text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">

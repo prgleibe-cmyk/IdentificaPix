@@ -54,12 +54,7 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
                 <button onClick={onPrint} className="p-1.5 rounded-full text-slate-400 hover:text-brand-blue hover:bg-white dark:hover:bg-slate-700 transition-all" title="Imprimir"><PrinterIcon className="w-3.5 h-3.5" /></button>
             </div>
 
-            {isOwner && (
-                <button onClick={onSaveReport} className="relative flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md transition-all border border-white/10">
-                    <DocumentDuplicateIcon className="w-3.5 h-3.5" />
-                    <span>{hasActiveReport ? 'Salvar Novo' : 'Salvar Relatório'}</span>
-                </button>
-            )}
+
         </div>
     );
 };
