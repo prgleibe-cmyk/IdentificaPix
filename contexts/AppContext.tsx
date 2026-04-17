@@ -377,10 +377,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bankList,
         saveCurrentReportChanges: persistActiveReport,
         confirmDeletion,
-        openManualIdentify: (txId: string) => {
-            const tx = reconciliation.matchResults.find((r: any) => r.transaction.id === txId)?.transaction;
-            if (tx) reconciliation.setManualIdentificationTx(tx);
-        },
         runAiAutoIdentification,
         findMatchResult: reconciliation.findMatchResult,
         loadingAiId: reconciliation.loadingAiId,

@@ -21,8 +21,6 @@ interface UseTransactionMatcherProps {
     setHasActiveSession: (has: boolean) => void;
     hasActiveSession: boolean;
     setLaunchedResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
-    manualIdentificationTx: Transaction | null;
-    setManualIdentificationTx: (tx: Transaction | null) => void;
     bulkIdentificationTxs: Transaction[];
     setBulkIdentificationTxs: (txs: Transaction[]) => void;
 }
@@ -46,8 +44,6 @@ export const useTransactionMatcher = ({
     setHasActiveSession,
     hasActiveSession,
     setLaunchedResults,
-    manualIdentificationTx,
-    setManualIdentificationTx,
     bulkIdentificationTxs,
     setBulkIdentificationTxs
 }: UseTransactionMatcherProps) => {
@@ -213,9 +209,8 @@ export const useTransactionMatcher = ({
     }, [setMatchResults]);
 
     const closeManualIdentify = useCallback(() => { 
-        setManualIdentificationTx(null); 
         setBulkIdentificationTxs([]); 
-    }, [setManualIdentificationTx, setBulkIdentificationTxs]);
+    }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         setMatchResults(prev => prev.filter(r => r.transaction.id !== id));

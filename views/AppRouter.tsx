@@ -62,7 +62,6 @@ export const ModalsRenderer: React.FC = () => {
     const {
         editingBank, 
         editingChurch, 
-        manualIdentificationTx, 
         bulkIdentificationTxs,
         deletingItem, 
         manualMatchState, 
@@ -81,7 +80,7 @@ export const ModalsRenderer: React.FC = () => {
         <>
             {editingBank && <EditBankModal />}
             {editingChurch && <EditChurchModal />}
-            {(manualIdentificationTx || bulkIdentificationTxs) && <ManualIdModal />}
+            {bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && <ManualIdModal />}
             {deletingItem && <ConfirmDeleteModal />}
             {manualMatchState && <ManualMatchModal />}
             {savingReportState && <SaveReportModal />}

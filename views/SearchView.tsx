@@ -74,7 +74,6 @@ export const SearchView: React.FC = () => {
                 {ctrl.filteredResults.length > 0 ? (
                      <ResultsTable 
                         results={ctrl.paginatedResults} 
-                        onManualIdentify={ctrl.openManualIdentify} 
                         loadingAiId={ctrl.loadingAiId} 
                         currentPage={ctrl.currentPage} 
                         totalPages={ctrl.totalPages} 

@@ -106,10 +106,6 @@ export const useReconciliationActions = ({
 
   }, [reconciliation, referenceData, showToast, onAfterAction, subscription]);
 
-  const confirmManualIdentification = useCallback(async (payload: any) => {
-    return confirmBulkManualIdentification([payload]);
-  }, [confirmBulkManualIdentification]);
-
   const confirmManualAssociation = useCallback(async (result: MatchResult) => {
     return confirmBulkManualIdentification([result]);
   }, [confirmBulkManualIdentification]);
@@ -237,7 +233,6 @@ export const useReconciliationActions = ({
 
 
   return {
-    confirmManualIdentification,
     confirmBulkManualIdentification,
     confirmManualAssociation,
     saveSmartEdit,

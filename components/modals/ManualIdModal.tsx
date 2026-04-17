@@ -3,19 +3,15 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
-import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon, TagIcon, CreditCardIcon } from '../Icons';
-import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
+import { XMarkIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon, TagIcon, CreditCardIcon } from '../Icons';
+import { ReconciliationStatus, MatchMethod } from '../../types';
 
 export const ManualIdModal: React.FC = () => {
     const { 
-        manualIdentificationTx, 
         bulkIdentificationTxs,
         churches,
-        confirmManualIdentification, 
         confirmBulkManualIdentification,
         closeManualIdentify,
-        findMatchResult,
-        learnAssociation,
         contributionKeywords,
         paymentMethods
     } = useContext(AppContext);
@@ -28,7 +24,6 @@ export const ManualIdModal: React.FC = () => {
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
 
     const isBulk = !!bulkIdentificationTxs && bulkIdentificationTxs.length > 0;
-    const targetTx = manualIdentificationTx;
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -42,40 +37,18 @@ export const ManualIdModal: React.FC = () => {
 
     useEffect(() => {
         setAiSuggestion(null);
-        let preSelectedId = '';
-
-        if (targetTx) {
-            const result = findMatchResult(targetTx.id);
-            if (result?.suggestion) {
-                const s = result.suggestion as any;
-                const suggestedChurch = churches.find(c => c.id === s.church?.id || c.id === s._churchId);
-
-                if (suggestedChurch) {
-                    preSelectedId = suggestedChurch.id;
-                    setAiSuggestion({
-                        churchName: suggestedChurch.name,
-                        churchId: suggestedChurch.id,
-                        contributorName: s.cleanedName || s.name
-                    });
-                }
-            }
-        }
-
-        if (preSelectedId) {
-            setSelectedChurchId(preSelectedId);
-        } else if (churches.length === 1) {
+        
+        if (churches.length === 1) {
             setSelectedChurchId(churches[0].id);
         } else {
             setSelectedChurchId('');
         }
-        
-    }, [churches, targetTx, isBulk]);
+    }, [churches, isBulk]);
 
-    if (!targetTx && !isBulk) return null;
+    if (!isBulk) return null;
     
     const handleConfirm = async () => {
-        console.log('[AUDIT] CLICK CONFIRMAR');
-        console.log('[AUDIT] transaction:', targetTx);
+        console.log('[AUDIT] CLICK CONFIRMAR BULK');
         
         if (!selectedChurchId) {
             console.warn('handleConfirm abortado: nenhuma igreja selecionada');
@@ -85,28 +58,14 @@ export const ManualIdModal: React.FC = () => {
 
         try {
             console.log('[AUDIT] ANTES DE CHAMAR BULK');
-            if (isBulk) {
-                const payloads = bulkIdentificationTxs.map(tx => ({
-                    id: tx.id,
-                    churchId: selectedChurchId,
-                    contributionType: selectedType,
-                    paymentMethod: selectedMethod
-                }));
-                console.log('[AUDIT] PAYLOAD BULK:', payloads);
-                await confirmBulkManualIdentification(payloads);
-            } else if (targetTx) {
-                const payload = {
-                    ...targetTx,
-                    churchId: selectedChurchId,
-                    contributionType: selectedType,
-                    paymentMethod: selectedMethod
-                };
-                
-                console.log('PAYLOAD IDENTIFICACAO:', payload);
-                
-                // Chamada unificada conforme solicitado: confirmManualIdentification agora chama o bulk internamente
-                await confirmManualIdentification(payload);
-            }
+            const payloads = bulkIdentificationTxs.map(tx => ({
+                id: tx.id,
+                churchId: selectedChurchId,
+                contributionType: selectedType,
+                paymentMethod: selectedMethod
+            }));
+            console.log('[AUDIT] PAYLOAD BULK:', payloads);
+            await confirmBulkManualIdentification(payloads);
             console.log('[AUDIT] DEPOIS DE CHAMAR BULK');
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);
@@ -144,48 +103,17 @@ export const ManualIdModal: React.FC = () => {
 
                 <div className="p-8 space-y-8">
                     <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
-                        {isBulk ? (
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros Selecionados</span>
-                                    <span className="text-2xl font-black text-slate-800 dark:text-white leading-none">{count} <span className="text-xs font-medium text-slate-400">ítens</span></span>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Montante do Lote</span>
-                                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAmount, language)}</span>
-                                </div>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros Selecionados</span>
+                                <span className="text-2xl font-black text-slate-800 dark:text-white leading-none">{count} <span className="text-xs font-medium text-slate-400">ítens</span></span>
                             </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div>
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Descrição do Extrato</span>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-tight">
-                                        {targetTx?.cleanedDescription || targetTx?.description}
-                                    </p>
-                                </div>
-                                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Valor</span>
-                                    <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-                                        {formatCurrency(targetTx?.amount || 0, language)}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {!isBulk && aiSuggestion && (
-                        <div className="p-4 bg-gradient-to-r from-purple-500/10 to-indigo-600/10 border border-purple-500/20 rounded-2xl flex items-center gap-4 animate-fade-in-up">
-                            <div className="p-2.5 bg-white dark:bg-purple-900/40 rounded-xl shadow-sm text-purple-600 dark:text-purple-300">
-                                <SparklesIcon className="w-5 h-5 animate-pulse" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[9px] font-black text-purple-600 dark:text-purple-300 uppercase tracking-widest mb-0.5">Sugestão Inteligente</p>
-                                <p className="text-xs text-slate-700 dark:text-slate-300 leading-snug">
-                                    Parece pertencer à <span className="font-bold text-purple-700 dark:text-purple-400">{aiSuggestion.churchName}</span>.
-                                </p>
+                            <div className="text-right">
+                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Montante do Lote</span>
+                                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAmount, language)}</span>
                             </div>
                         </div>
-                    )}
+                    </div>
 
                     <div className="space-y-3">
                         <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
@@ -271,7 +199,7 @@ export const ManualIdModal: React.FC = () => {
                         disabled={!selectedChurchId || isSaving} 
                         className="px-10 py-3 text-[10px] font-black text-white rounded-full shadow-xl shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] flex items-center gap-2"
                     >
-                         {isSaving ? 'Processando...' : (isBulk ? 'Confirmar Lote' : 'Confirmar Identidade')}
+                         {isSaving ? 'Processando...' : 'Confirmar Lote'}
                          {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                     </button>
                 </div>
