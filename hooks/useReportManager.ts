@@ -295,6 +295,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;
 
+        if ((!results || results.length === 0) && currentData?.results?.length > 0) {
+            console.warn('[SAFEGUARD] Bloqueado overwrite com dados vazios');
+            return;
+        }
+
         const mergedData = {
             ...currentData,
             results: (results && results.length > 0) ? results : currentData.results,
