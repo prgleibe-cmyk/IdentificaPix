@@ -96,8 +96,8 @@ export const ManualIdModal: React.FC = () => {
                 
                 console.log('PAYLOAD IDENTIFICACAO:', payload);
                 
-                // Chamada via bulk enviando o payload conforme solicitado
-                await confirmBulkManualIdentification([payload]);
+                // Chamada unificada conforme solicitado: confirmManualIdentification agora chama o bulk internamente
+                await confirmManualIdentification(payload);
             }
             console.log('[AUDIT] DEPOIS DE CHAMAR BULK');
         } catch (error) {

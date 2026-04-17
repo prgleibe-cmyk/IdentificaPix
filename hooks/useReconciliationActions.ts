@@ -39,8 +39,8 @@ export const useReconciliationActions = ({
     console.log('[AUDIT] ANTES DE SALVAR');
     try {
       for (const item of txsOrIds) {
-        const id = typeof item === 'string' ? item : item.id;
-        const effectiveChurchId = typeof item === 'object' ? item.churchId : churchId;
+        const id = typeof item === 'string' ? item : (item.id || item.transaction?.id);
+        const effectiveChurchId = typeof item === 'object' ? (item.churchId || item._churchId || item.church?.id) : churchId;
 
         const church = referenceData.churches.find((c: Church) => c.id === effectiveChurchId);
         if (!church) continue;
@@ -52,15 +52,15 @@ export const useReconciliationActions = ({
         if (original.isConfirmed) continue;
 
         const payloadType = typeof item === 'object' ? item.type : undefined;
-        const payloadMethod = typeof item === 'object' ? item.method : undefined;
+        const payloadMethod = typeof item === 'object' ? (item.paymentMethod || item.method) : undefined;
 
-        const contributor: Contributor = original.contributor || {
+        const contributor: Contributor = (typeof item === 'object' && item.contributor) ? item.contributor : (original.contributor || {
           name: original.transaction.cleanedDescription || original.transaction.description,
           amount: original.transaction.amount,
           cleanedName: original.transaction.cleanedDescription || original.transaction.description,
           contributionType: payloadType,
           paymentMethod: payloadMethod
-        };
+        });
 
         const updated: MatchResult = {
           ...original,
@@ -106,9 +106,16 @@ export const useReconciliationActions = ({
 
   }, [reconciliation, referenceData, showToast, onAfterAction, subscription]);
 
-  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
-    console.log('IDENTIFICAR INDIVIDUAL:', txId);
-    return confirmBulkManualIdentification([txId], churchId);
+  const confirmManualIdentification = useCallback(async (payload: any) => {
+    return confirmBulkManualIdentification([payload]);
+  }, [confirmBulkManualIdentification]);
+
+  const confirmManualAssociation = useCallback(async (result: MatchResult) => {
+    return confirmBulkManualIdentification([result]);
+  }, [confirmBulkManualIdentification]);
+
+  const saveSmartEdit = useCallback(async (result: MatchResult) => {
+    return confirmBulkManualIdentification([result]);
   }, [confirmBulkManualIdentification]);
 
 
@@ -232,6 +239,8 @@ export const useReconciliationActions = ({
   return {
     confirmManualIdentification,
     confirmBulkManualIdentification,
+    confirmManualAssociation,
+    saveSmartEdit,
     undoIdentification,
     toggleConfirmation
   };
