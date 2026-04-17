@@ -1,4 +1,4 @@
-import { MatchResult, Transaction } from '../types';
+import { MatchResult, Transaction, SavedReport } from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -354,8 +354,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [reportManager.savedReports, reconciliation.activeReportId, isSyncing, isLoading, referenceData.churches, reconciliation.fullMatchResults.length]);
 
-    const wrappedConfirmSaveReport = useCallback(async (name: string) => {
-        const newId = await reportManager.confirmSaveReport(name);
+    const wrappedConfirmSaveReport = useCallback(async (nameOrReport: string | SavedReport) => {
+        const newId = await reportManager.confirmSaveReport(nameOrReport);
         if (newId) {
             reconciliation.setActiveReportId(newId);
             reconciliation.setHasActiveSession(true);

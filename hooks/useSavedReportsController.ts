@@ -12,7 +12,8 @@ export const useSavedReportsController = () => {
         viewSavedReport, 
         openDeleteConfirmation, 
         updateSavedReportName, 
-        maxSavedReports 
+        maxSavedReports,
+        confirmSaveReport
     } = useContext(AppContext);
     
     const { t, language } = useTranslation();
@@ -100,10 +101,23 @@ export const useSavedReportsController = () => {
         });
     }, []);
 
-    const handleDuplicate = useCallback((report: SavedReport) => {
-        console.log('[DUPLICATE_TRIGGER]', report.id);
-        // Lógica será implementada em breve
-    }, []);
+    const handleDuplicate = useCallback(async (report: SavedReport) => {
+        if (!report?.data?.spreadsheet) return;
+
+        const newReport: SavedReport = {
+            ...report,
+            id: `rep-${Date.now()}`,
+            name: `${report.name} (cópia)`,
+            createdAt: new Date().toISOString(),
+            data: {
+                ...report.data,
+                spreadsheet: report.data.spreadsheet,
+                results: [] // Garantindo a remoção de results conforme regra
+            }
+        };
+
+        await confirmSaveReport(newReport);
+    }, [confirmSaveReport]);
 
     return {
         savedReports,

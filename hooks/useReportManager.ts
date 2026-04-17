@@ -331,44 +331,52 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
-        if (!savingReportState || !user?.id || !effectiveUserId) return null;
-        
-        if (savedReports.length >= MAX_REPORTS_PER_USER) {
-            showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
-            closeSaveReportModal();
-            return null;
-        }
+    const confirmSaveReport = useCallback(async (nameOrReport: string | SavedReport): Promise<string | null> => {
+        if (!user?.id || !effectiveUserId) return null;
 
-        // Planilhas usam dados próprios de spreadsheetData
-        const spreadsheetData = savingReportState.spreadsheetData || null;
-        const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
+        let newReport: SavedReport;
 
-        const newReportId = `rep-${Date.now()}`;
-        
-        // Lógica simplificada de atribuição de Igreja sem dependência de results
-        let churchId = null;
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary) {
-            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
-        } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
-            churchId = searchFilters.churchIds[0];
-        }
-
-        const newReport: SavedReport = {
-            id: newReportId,
-            name: name,
-            createdAt: new Date().toISOString(),
-            recordCount: recordCount,
-            user_id: effectiveUserId,
-            church_id: churchId,
-            data: {
-                // SALVAMENTO INDEPENDENTE: apenas dados de planilha
-                sourceFiles: [],
-                bankStatementFile: null,
-                spreadsheet: spreadsheetData
+        if (typeof nameOrReport === 'object') {
+            newReport = nameOrReport;
+        } else {
+            if (!savingReportState) return null;
+            
+            if (savedReports.length >= MAX_REPORTS_PER_USER) {
+                showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
+                closeSaveReportModal();
+                return null;
             }
-        };
+
+            // Planilhas usam dados próprios de spreadsheetData
+            const spreadsheetData = savingReportState.spreadsheetData || null;
+            const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
+
+            const newReportId = `rep-${Date.now()}`;
+            
+            // Lógica simplificada de atribuição de Igreja sem dependência de results
+            let churchId = null;
+            const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+            if (isSecondary) {
+                churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
+            } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
+                churchId = searchFilters.churchIds[0];
+            }
+
+            newReport = {
+                id: newReportId,
+                name: nameOrReport,
+                createdAt: new Date().toISOString(),
+                recordCount: recordCount,
+                user_id: effectiveUserId,
+                church_id: churchId,
+                data: {
+                    // SALVAMENTO INDEPENDENTE: apenas dados de planilha
+                    sourceFiles: [],
+                    bankStatementFile: null,
+                    spreadsheet: spreadsheetData
+                }
+            };
+        }
 
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
@@ -389,7 +397,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             return null;
         } else {
             showToast('Relatório criado!', 'success');
-            return newReportId;
+            return newReport.id;
         }
     }, [savingReportState, user, effectiveUserId, showToast, closeSaveReportModal, savedReports.length, subscription, searchFilters]);
 
