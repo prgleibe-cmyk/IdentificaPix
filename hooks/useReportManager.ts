@@ -387,16 +387,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
+    const confirmSaveReport = useCallback(async (name: string, reconciliation?: any, spreadsheetData?: any): Promise<string | null> => {
         if (!savingReportState || !user?.id || !effectiveUserId) return null;
         
         console.log('[AUDIT:CONFIRM_SAVE] (Internal useReportManager)');
         console.log('[AUDIT:SAVING_STATE_RESULTS]', savingReportState?.results?.length);
-
-        console.log('[AUDIT][SAVE_REPORT_INPUT] (New)', {
-            name,
-            savingReportState
-        });
 
         if (savedReports.length >= MAX_REPORTS_PER_USER) {
             showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
@@ -405,22 +400,34 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const isSpreadsheet = savingReportState.type === 'spreadsheet';
-        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
-            ? savingReportState.spreadsheetData.rows.length 
-            : savingReportState.results.length;
+        
+        const finalResults =
+            (savingReportState?.results && savingReportState.results.length > 0)
+                ? savingReportState.results
+                : (reconciliation?.fullMatchResults && reconciliation.fullMatchResults.length > 0)
+                    ? reconciliation.fullMatchResults
+                    : [];
+
+        const finalSpreadsheet =
+            savingReportState?.spreadsheetData ||
+            spreadsheetData ||
+            null;
+
+        const recordCount = isSpreadsheet && finalSpreadsheet?.rows
+            ? finalSpreadsheet.rows.length 
+            : finalResults.length;
 
         const newReportId = `rep-${Date.now()}`;
-        const results = savingReportState.results || [];
         
         // Tenta pegar o ID da igreja de várias formas
-        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
-        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
+        const firstChurchId = finalResults[0]?.church?.id || finalResults[0]?._churchId || (finalResults[0]?.transaction as any)?.church_id;
+        const allSameChurch = finalResults.length > 0 && finalResults.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
         
         // Lógica de atribuição de Igreja
         let churchId = null;
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
-            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
+             churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
         } else if (allSameChurch && firstChurchId) {
             churchId = firstChurchId;
         } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
@@ -435,10 +442,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             user_id: effectiveUserId,
             church_id: churchId,
             data: {
-                results: savingReportState.results || [],
+                results: finalResults,
                 sourceFiles: [],
                 bankStatementFile: null,
-                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
+                spreadsheet: finalSpreadsheet || undefined
             }
         };
 
@@ -450,13 +457,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         console.log('[AUDIT:SAVE_SOURCE] (New)', {
             savingReportStateResultsLength: savingReportState.results?.length,
+            reconciliationResultsLength: reconciliation?.fullMatchResults?.length,
             savingReportStateType: savingReportState.type
         });
 
         console.log('[AUDIT:SAVE_REPORT:INPUT] (New)', {
             reportId: newReportId,
-            resultsLength: results?.length,
-            resultsSample: results?.slice(0, 3),
+            resultsLength: finalResults.length,
+            resultsSample: finalResults.slice(0, 3),
             fullData: newReport.data
         });
 

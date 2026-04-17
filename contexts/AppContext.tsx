@@ -355,7 +355,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[AUDIT:FULL_MATCH_RESULTS]', reconciliation?.fullMatchResults?.length);
         console.log('[AUDIT:CURRENT_MATCH_RESULTS]', reconciliation?.matchResults?.length);
 
-        const newId = await reportManager.confirmSaveReport(name);
+        const newId = await reportManager.confirmSaveReport(name, reconciliation, activeSpreadsheetData);
         if (newId) {
             reconciliation.setActiveReportId(newId);
             reconciliation.setHasActiveSession(true);
