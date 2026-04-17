@@ -350,6 +350,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, [reportManager.savedReports, reconciliation.activeReportId, isSyncing, isLoading, referenceData.churches, reconciliation.fullMatchResults.length]);
 
     const wrappedConfirmSaveReport = useCallback(async (name: string) => {
+        console.log('[AUDIT:CONFIRM_SAVE]');
+        console.log('[AUDIT:SAVING_STATE_RESULTS]', reportManager.savingReportState?.results?.length);
+        console.log('[AUDIT:FULL_MATCH_RESULTS]', reconciliation?.fullMatchResults?.length);
+        console.log('[AUDIT:CURRENT_MATCH_RESULTS]', reconciliation?.matchResults?.length);
+
         const newId = await reportManager.confirmSaveReport(name);
         if (newId) {
             reconciliation.setActiveReportId(newId);
