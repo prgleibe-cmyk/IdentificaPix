@@ -301,6 +301,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
 
+        console.log('[AUDIT:SAVE_REPORT_INPUT] (Overwrite)', {
+            resultsLength: mergedData?.results?.length,
+            hasSpreadsheet: !!mergedData?.spreadsheet,
+            fullData: mergedData
+        });
+
+        console.log('[AUDIT:SAVE_SOURCE] (Overwrite)', {
+            matchResultsLength: results?.length,
+            currentStateLength: currentData?.results?.length
+        });
+
         console.log('[AUDIT:SAVE_REPORT:INPUT] (Overwrite)', {
             reportId,
             resultsLength: results?.length,
@@ -422,6 +433,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
             }
         };
+
+        console.log('[AUDIT:SAVE_REPORT_INPUT] (New)', {
+            resultsLength: newReport.data?.results?.length,
+            hasSpreadsheet: !!newReport.data?.spreadsheet,
+            fullData: newReport.data
+        });
+
+        console.log('[AUDIT:SAVE_SOURCE] (New)', {
+            savingReportStateResultsLength: savingReportState.results?.length,
+            savingReportStateType: savingReportState.type
+        });
 
         console.log('[AUDIT:SAVE_REPORT:INPUT] (New)', {
             reportId: newReportId,
