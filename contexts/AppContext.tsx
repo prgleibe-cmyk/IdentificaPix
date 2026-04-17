@@ -70,6 +70,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const report = reportManager.savedReports.find(r => r.id === activeId);
         
         console.log('[AUDIT][RAW_REPORT_FROM_DB]', report);
+
+        console.log('[AUDIT][DATA_FULL]', report?.data);
+
+        if (report?.data && typeof report.data === 'object') {
+            const rData = report.data as any;
+            Object.keys(rData).forEach((key) => {
+                console.log(`[AUDIT][DATA_KEY:${key}]`, rData[key]);
+
+                if (Array.isArray(rData[key])) {
+                    console.log(`[AUDIT][FOUND_ARRAY_IN:${key}] LENGTH:`, rData[key].length);
+                }
+
+                if (rData[key] && typeof rData[key] === 'object') {
+                    Object.keys(rData[key]).forEach((subKey) => {
+                        console.log(`[AUDIT][SUB_KEY:${key}.${subKey}]`, rData[key][subKey]);
+
+                        if (Array.isArray(rData[key][subKey])) {
+                            console.log(`[AUDIT][FOUND_ARRAY_IN:${key}.${subKey}] LENGTH:`, rData[key][subKey].length);
+                        }
+                    });
+                }
+            });
+        }
+
         console.log('[AUDIT][REPORT_FIELDS]', {
             id: report?.id,
             hasData: !!report?.data,
