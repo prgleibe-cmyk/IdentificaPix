@@ -100,6 +100,11 @@ export const useSavedReportsController = () => {
         });
     }, []);
 
+    const handleDuplicate = useCallback((report: SavedReport) => {
+        console.log('[DUPLICATE_TRIGGER]', report.id);
+        // Lógica será implementada em breve
+    }, []);
+
     return {
         savedReports,
         processedReports,
@@ -118,6 +123,7 @@ export const useSavedReportsController = () => {
         handleStartEdit,
         handleCancelEdit,
         handleSaveEdit,
+        handleDuplicate,
         formatDate,
         viewSavedReport,
         openDeleteConfirmation

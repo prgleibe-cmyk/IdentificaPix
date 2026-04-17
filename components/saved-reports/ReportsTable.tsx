@@ -15,6 +15,7 @@ interface ReportsTableProps {
     onCancelEdit: () => void;
     onStartEdit: (report: SavedReport) => void;
     onView: (id: string) => void;
+    onDuplicate: (report: SavedReport) => void;
     onDelete: (id: string, name: string) => void;
     formatDate: (iso: string, lang: Language) => string;
     language: Language;
@@ -56,6 +57,7 @@ export const ReportsTable: React.FC<ReportsTableProps> = ({
     onCancelEdit,
     onStartEdit,
     onView,
+    onDuplicate,
     onDelete,
     formatDate,
     language,
@@ -87,6 +89,7 @@ export const ReportsTable: React.FC<ReportsTableProps> = ({
                                 onCancelEdit={onCancelEdit}
                                 onStartEdit={onStartEdit}
                                 onView={onView}
+                                onDuplicate={onDuplicate}
                                 onDelete={onDelete}
                                 formatDate={formatDate}
                                 language={language}

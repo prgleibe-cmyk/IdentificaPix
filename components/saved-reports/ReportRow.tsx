@@ -20,6 +20,7 @@ interface ReportRowProps {
     onCancelEdit: () => void;
     onStartEdit: (report: SavedReport) => void;
     onView: (id: string) => void;
+    onDuplicate: (report: SavedReport) => void;
     onDelete: (id: string, name: string) => void;
     formatDate: (iso: string, lang: Language) => string;
     language: Language;
@@ -34,6 +35,7 @@ export const ReportRow: React.FC<ReportRowProps> = ({
     onCancelEdit,
     onStartEdit,
     onView,
+    onDuplicate,
     onDelete,
     formatDate,
     language
@@ -114,6 +116,14 @@ export const ReportRow: React.FC<ReportRowProps> = ({
                     >
                         <EyeIcon className="w-3.5 h-3.5" />
                         Visualizar
+                    </button>
+                    <button
+                        onClick={() => onDuplicate(report)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 hover:border-slate-300 dark:hover:border-slate-600 rounded-full shadow-sm hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide"
+                        title="Duplicar"
+                    >
+                        <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-blue" />
+                        Duplicar
                     </button>
                     <button
                         onClick={() => onDelete(report.id, report.name)}
