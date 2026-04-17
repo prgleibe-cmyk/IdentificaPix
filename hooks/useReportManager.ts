@@ -301,6 +301,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             spreadsheet: spreadsheetData || currentData.spreadsheet
         };
 
+        console.log('[AUDIT:SAVE_REPORT:INPUT] (Overwrite)', {
+            reportId,
+            resultsLength: results?.length,
+            resultsSample: results?.slice(0, 3),
+            fullData: mergedData
+        });
+
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);
 
         setSavedReports(prev => prev.map(r => r.id === reportId ? {
@@ -314,6 +321,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             data: mergedData as any,
             record_count: recordCount 
         };
+        console.log('[AUDIT:SAVE_REPORT:PAYLOAD] (Overwrite)', payload);
         console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (Overwrite)', {
             reportId: reportId,
             data: payload.data,
@@ -328,11 +336,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             payload
         });
 
-        const { error } = await (supabase
+        const { data: responseData, error } = await (supabase
             .from('saved_reports') as any)
             .update(payload)
             .eq('id', reportId)
-            .eq('user_id', effectiveUserId);
+            .eq('user_id', effectiveUserId)
+            .select();
+
+        console.log('[AUDIT:SAVE_REPORT:DB_RESPONSE] (Overwrite)', { responseData, error });
 
         if (error) {
             console.error("[AutoSave] Erro ao persistir no Supabase:", error);
@@ -412,6 +423,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             }
         };
 
+        console.log('[AUDIT:SAVE_REPORT:INPUT] (New)', {
+            reportId: newReportId,
+            resultsLength: results?.length,
+            resultsSample: results?.slice(0, 3),
+            fullData: newReport.data
+        });
+
         setSavedReports(prev => [newReport, ...prev]);
         closeSaveReportModal();
         
@@ -424,6 +442,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             church_id: newReport.church_id,
             data: newReport.data as any
         };
+        console.log('[AUDIT:SAVE_REPORT:PAYLOAD] (New)', payload);
         console.log('[AUDIT][SAVE_REPORT_PAYLOAD] (New)', {
             reportId: newReport.id,
             data: payload.data,
@@ -438,7 +457,9 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             payload
         });
 
-        const { error } = await (supabase.from('saved_reports') as any).insert(payload);
+        const { data: responseData, error } = await (supabase.from('saved_reports') as any).insert(payload).select();
+
+        console.log('[AUDIT:SAVE_REPORT:DB_RESPONSE] (New)', { responseData, error });
 
         if (error) {
             setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
