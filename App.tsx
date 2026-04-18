@@ -17,9 +17,10 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
-    const { isLoading, initialDataLoaded, toast } = useContentController();
+    const { isLoading, initialDataLoaded, toast, savedReports } = useContentController();
+    const hasCachedData = !!savedReports?.length;
 
-    if (!initialDataLoaded) {
+    if (!initialDataLoaded && !hasCachedData) {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#051024]">
                 <div className="flex flex-col items-center">
