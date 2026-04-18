@@ -8,7 +8,7 @@ interface UseAiAutoIdentifyProps {
     reconciliation: any;
     referenceData: any;
     effectiveIgnoreKeywords: string[];
-    setIsLoading: (loading: boolean) => void;
+    setIsLoading: (loading: boolean, silent?: boolean) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
     onAfterIdentification?: (results: MatchResult[]) => void;
 }

@@ -15,7 +15,8 @@ interface UIContextType {
     activeView: ViewType;
     setActiveView: React.Dispatch<React.SetStateAction<ViewType>>;
     isLoading: boolean;
-    setIsLoading: (loading: boolean) => void;
+    isSilentLoading: boolean;
+    setIsLoading: (loading: boolean, silent?: boolean) => void;
     parsingProgress: ParsingProgress | null;
     setParsingProgress: (progress: ParsingProgress | null) => void;
     toast: { message: string; type: 'success' | 'error' } | null;
@@ -28,6 +29,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     const [theme, setTheme] = usePersistentState<Theme>('identificapix-theme', 'light');
     const [activeView, setActiveView] = useState<ViewType>('dashboard');
     const [isLoading, setIsLoadingState] = useState<boolean>(false);
+    const [isSilentLoading, setIsSilentLoading] = useState<boolean>(false);
     const [parsingProgress, setParsingProgress] = useState<ParsingProgress | null>(null);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     
@@ -43,14 +45,16 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
     const toggleTheme = useCallback(() => setTheme(prev => (prev === 'light' ? 'dark' : 'light')), [setTheme]);
 
-    const setIsLoading = useCallback((loading: boolean) => {
+    const setIsLoading = useCallback((loading: boolean, silent: boolean = false) => {
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
         
         if (loading) {
+            setIsSilentLoading(silent);
             setIsLoadingState(true);
         } else {
             loadingTimeoutRef.current = setTimeout(() => {
                 setIsLoadingState(false);
+                setIsSilentLoading(false);
             }, 300);
         }
     }, []);
@@ -66,12 +70,13 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         activeView,
         setActiveView,
         isLoading,
+        isSilentLoading,
         setIsLoading,
         parsingProgress,
         setParsingProgress,
         toast,
         showToast
-    }), [theme, toggleTheme, activeView, isLoading, setIsLoading, parsingProgress, setParsingProgress, toast, showToast]);
+    }), [theme, toggleTheme, activeView, isLoading, isSilentLoading, setIsLoading, parsingProgress, setParsingProgress, toast, showToast]);
 
     return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 };

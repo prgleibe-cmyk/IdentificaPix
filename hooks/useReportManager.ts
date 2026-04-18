@@ -37,15 +37,37 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const effectiveUserId = subscription?.ownerId || user?.id;
     const executionId = useRef(Math.random().toString(36).substring(7));
     const userSuffix = user ? `-${user.id}` : '-guest';
-    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+    // 🗃️ INICIALIZAÇÃO SÍNCRONA DO CACHE (Zero Flicker)
+    const [savedReports, setSavedReports] = useState<SavedReport[]>(() => {
+        if (!ENABLE_REPORTS_CACHE || !user?.id || typeof window === 'undefined') return [];
+        try {
+            const cacheKey = `${CACHE_KEY}-${user.id}`;
+            const cachedBody = localStorage.getItem(cacheKey);
+            if (cachedBody) {
+                const { data, timestamp } = JSON.parse(cachedBody);
+                const isFresh = (Date.now() - timestamp) < CACHE_TTL;
+                if (isFresh && Array.isArray(data)) return data;
+            }
+        } catch (e) {
+            console.warn("[ReportManager] Erro na pré-inicialização do cache:", e);
+        }
+        return [];
+    });
+    
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     
     // 🚩 Controle de hidratação: permite carregar do cache primeiro e depois atualizar via API
     const hasHydratedRef = useRef<'cache' | 'api' | null>(null);
 
-    // 🗃️ RECUPERAÇÃO INICIAL DO CACHE
+    // 🗃️ RECUPERAÇÃO DE CACHE (Fallback e Re-hidratação)
     useEffect(() => {
         if (!ENABLE_REPORTS_CACHE || !user?.id) return;
+        
+        // Se já temos dados (inicializados no useState), só marcamos como cache
+        if (savedReports.length > 0 && !hasHydratedRef.current) {
+            hasHydratedRef.current = 'cache';
+            return;
+        }
 
         try {
             const cacheKey = `${CACHE_KEY}-${user.id}`;
@@ -59,7 +81,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     console.log("[ReportManager] Cache válido encontrado. Carregando dados na UI.");
                     setSavedReports(data);
                     
-                    // Só marca como cache se a API ainda não tiver respondido
                     if (!hasHydratedRef.current) {
                         hasHydratedRef.current = 'cache';
                     }

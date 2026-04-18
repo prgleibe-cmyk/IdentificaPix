@@ -16,7 +16,7 @@ interface UseTransactionMatcherProps {
     learnedAssociations: any;
     churches: any[];
     customIgnoreKeywords: string[];
-    setIsLoading: (loading: boolean) => void;
+    setIsLoading: (loading: boolean, silent?: boolean) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
     setHasActiveSession: (has: boolean) => void;
     hasActiveSession: boolean;
@@ -96,7 +96,7 @@ export const useTransactionMatcher = ({
             console.log('[AutoProcess:ALLOWED]');
         }
 
-        setIsLoading(true);
+        setIsLoading(true, isAuto);
         
         // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
         // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching

@@ -17,7 +17,7 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
-    const { isLoading, initialDataLoaded, toast } = useContentController();
+    const { isLoading, isSilentLoading, initialDataLoaded, toast } = useContentController();
 
     if (!initialDataLoaded) {
         return (
@@ -36,13 +36,23 @@ const MainLayout: React.FC = () => {
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 lg:pt-0">
+                {/* 🌟 Indicador Discreto de Carregamento em Background */}
+                {isLoading && isSilentLoading && (
+                    <div className="absolute top-4 right-4 z-[110] animate-fade-in">
+                        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg border border-blue-500/20 flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-500 border-t-transparent"></div>
+                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-tighter">Sincronizando...</span>
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
                     <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
-                        <div className={`h-full transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                        <div className={`h-full transition-opacity duration-300 ${(isLoading && !isSilentLoading) ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                             <AppRouter />
                         </div>
 
-                        {isLoading && (
+                        {isLoading && !isSilentLoading && (
                             <div className="absolute inset-0 z-[100] flex items-center justify-center backdrop-blur-[1px]">
                                 <div className="bg-white/80 dark:bg-slate-900/80 p-8 rounded-[2.5rem] shadow-2xl border border-white/20">
                                     <LoadingSpinner />
