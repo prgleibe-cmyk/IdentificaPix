@@ -89,14 +89,16 @@ export const useTransactionMatcher = ({
         }
     }, [matchResults, regenerateReportPreview]);
 
-    const handleCompare = useCallback(async (isAutoParam: any = false) => {
-        const isAuto = isAutoParam === true;
+    const handleCompare = useCallback(async (showLoading: any = true) => {
+        const isAuto = showLoading === false;
         if (isAuto) {
             console.log('[AutoProcess:START]');
             console.log('[AutoProcess:ALLOWED]');
         }
 
-        setIsLoading(true);
+        if (showLoading) {
+            setIsLoading(true);
+        }
         
         // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
         // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
@@ -125,7 +127,9 @@ export const useTransactionMatcher = ({
 
         if (allTransactions.length === 0) { 
             if (!isAuto) showToast("Selecione pelo menos um extrato com dados.", "error"); 
-            setIsLoading(false); 
+            if (showLoading) {
+                setIsLoading(false); 
+            }
             if (isAuto) console.log('[AutoProcess:DONE] No transactions found');
             return; 
         }
@@ -151,7 +155,10 @@ export const useTransactionMatcher = ({
 
         setMatchResults(() => results);
         setHasActiveSession(true);
-        setIsLoading(false);
+        
+        if (showLoading) {
+            setIsLoading(false);
+        }
         
         if (isAuto) {
             console.log('[AutoProcess:DONE]');
