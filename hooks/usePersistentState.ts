@@ -4,16 +4,23 @@ import { get, set } from 'idb-keyval';
 
 export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
     const [state, setState] = useState<T>(() => {
-        if (isHeavy) return initialValue;
         try {
-            if (typeof window !== 'undefined') {
-                const item = window.localStorage.getItem(key);
-                return item ? JSON.parse(item) : initialValue;
+            if (typeof window === 'undefined') return initialValue;
+            const cached = window.localStorage.getItem(key);
+            if (!cached) return initialValue;
+            
+            const parsed = JSON.parse(cached);
+            
+            // Suporte ao formato de cache versionado { data: ... } solicitado em auditoria
+            if (parsed && typeof parsed === 'object' && 'data' in parsed) {
+                return parsed.data;
             }
+            
+            // Fallback para o formato padrão (dado puro) para compatibilidade
+            return parsed;
         } catch (error) {
-            console.warn(`Erro ao ler ${key} do localStorage:`, error);
+            return initialValue;
         }
-        return initialValue;
     });
 
     const isHydrated = useRef(false);
