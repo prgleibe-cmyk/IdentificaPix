@@ -18,7 +18,6 @@ export const useContentController = () => {
 
     return { 
         isLoading, 
-        isSilentLoading: context?.isSilentLoading ?? false,
         initialDataLoaded,
         toast
     };
