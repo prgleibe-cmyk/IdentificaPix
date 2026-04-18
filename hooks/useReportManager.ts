@@ -27,6 +27,11 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 
 const MAX_REPORTS_PER_USER = 60;
 
+// 🗃️ CONFIGURAÇÃO DE CACHE
+const ENABLE_REPORTS_CACHE = true;
+const CACHE_KEY = "reports_cache_v1";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
 export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[]) => {
     const { subscription } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.id;
@@ -34,7 +39,36 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const userSuffix = user ? `-${user.id}` : '-guest';
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
-    const hasHydratedRef = useRef(false);
+    
+    // 🚩 Controle de hidratação: permite carregar do cache primeiro e depois atualizar via API
+    const hasHydratedRef = useRef<'cache' | 'api' | null>(null);
+
+    // 🗃️ RECUPERAÇÃO INICIAL DO CACHE
+    useEffect(() => {
+        if (!ENABLE_REPORTS_CACHE || !user?.id) return;
+
+        try {
+            const cacheKey = `${CACHE_KEY}-${user.id}`;
+            const cachedBody = localStorage.getItem(cacheKey);
+            
+            if (cachedBody) {
+                const { data, timestamp } = JSON.parse(cachedBody);
+                const isFresh = (Date.now() - timestamp) < CACHE_TTL;
+
+                if (isFresh && Array.isArray(data) && data.length > 0) {
+                    console.log("[ReportManager] Cache válido encontrado. Carregando dados na UI.");
+                    setSavedReports(data);
+                    
+                    // Só marca como cache se a API ainda não tiver respondido
+                    if (!hasHydratedRef.current) {
+                        hasHydratedRef.current = 'cache';
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("[ReportManager] Falha ao carregar cache local:", e);
+        }
+    }, [user?.id]);
 
     // 🛡️ RESET DE FILTROS NO LOGIN: Garante que cada nova sessão comece com o padrão de 30 dias
     useEffect(() => {
@@ -88,11 +122,21 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 timestamp: Date.now()
             });
 
-            if (!hasHydratedRef.current) {
+            if (hasHydratedRef.current !== 'api') {
                 setSavedReports(hydrated);
-                hasHydratedRef.current = true;
+                hasHydratedRef.current = 'api';
+
+                // 🗃️ Atualiza cache em background
+                if (ENABLE_REPORTS_CACHE && user?.id && hydrated.length > 0) {
+                    try {
+                        localStorage.setItem(`${CACHE_KEY}-${user.id}`, JSON.stringify({
+                            data: hydrated,
+                            timestamp: Date.now()
+                        }));
+                    } catch (e) { /* ignore */ }
+                }
             } else {
-                console.log('[ReportManager] Ignorando sobrescrita de relatórios já hidratados (initialReports)');
+                console.log('[ReportManager] Ignorando sobrescrita de relatórios já atualizados (initialReports)');
             }
             return;
         }
@@ -158,11 +202,21 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         timestamp: Date.now()
                     });
 
-                    if (!hasHydratedRef.current) {
+                    if (hasHydratedRef.current !== 'api') {
                         setSavedReports(hydrated);
-                        hasHydratedRef.current = true;
+                        hasHydratedRef.current = 'api';
+
+                        // 🗃️ Atualiza cache em background
+                        if (ENABLE_REPORTS_CACHE && user?.id && hydrated.length > 0) {
+                            try {
+                                localStorage.setItem(`${CACHE_KEY}-${user.id}`, JSON.stringify({
+                                    data: hydrated,
+                                    timestamp: Date.now()
+                                }));
+                            } catch (e) { /* ignore */ }
+                        }
                     } else {
-                        console.log('[ReportManager] Ignorando sobrescrita de relatórios já hidratados (fetchReports)');
+                        console.log('[ReportManager] Ignorando sobrescrita de relatórios já atualizados (fetchReports)');
                     }
                 }
             } catch (err) {
