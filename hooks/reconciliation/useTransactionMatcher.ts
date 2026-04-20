@@ -153,7 +153,12 @@ export const useTransactionMatcher = ({
             filteredExistingResults 
         );
 
-        setMatchResults(() => results);
+        const filteredResults = results.filter(item => {
+            const value = Number(item.transaction?.amount || 0);
+            return value !== 0;
+        });
+
+        setMatchResults(() => filteredResults);
         setHasActiveSession(true);
         
         if (showLoading) {
