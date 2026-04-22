@@ -9,7 +9,7 @@ const router = express.Router();
 export default () => {
     // Rota de diagnóstico para verificar as chaves (sem mostrá-las inteiras)
     router.get('/debug-env', (req, res) => {
-        const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
+        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
         const srk = process.env.SUPABASE_SERVICE_ROLE_KEY || 
                     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
                     process.env.SERVICE_ROLE_KEY ||
@@ -20,16 +20,10 @@ export default () => {
                    process.env.ANON_KEY;
         
         res.json({
-            supabaseUrl: supabaseUrl,
+            supabaseUrl: supabaseUrl ? 'CONFIGURED' : 'MISSING',
             hasServiceRoleKey: !!srk,
-            serviceRoleKeyLength: srk ? srk.length : 0,
-            serviceRoleKeyStart: srk ? `${srk.substring(0, 10)}...` : 'N/A',
             hasAnonKey: !!ak,
-            detectedKeys: Object.keys(process.env).filter(k => 
-                k.includes('SUPABASE') || k.includes('API_KEY') || k.includes('VITE_') || k.includes('SERVICE')
-            ),
             envFileExists: fs.existsSync(path.join(process.cwd(), '.env')),
-            cwd: process.cwd(),
             nodeVersion: process.version
         });
     });
