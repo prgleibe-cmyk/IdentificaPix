@@ -22,6 +22,23 @@ export const supabase = createClient<Database>(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+    },
+    global: {
+      fetch: async (url, options) => {
+        const headers = options?.headers as Record<string, string>;
+        const requestUrl = url.toString();
+        
+        // Log para auditoria sugerida pelo usuário
+        if (requestUrl.includes('supabase.co')) {
+          console.log('[SUPABASE_REQUEST_AUDIT]', {
+            url: requestUrl.split('?')[0], // Remove query para log limpo
+            hasApiKey: !!(headers?.apikey),
+            hasAuth: !!(headers?.Authorization)
+          });
+        }
+        
+        return fetch(url, options);
+      }
     }
   }
 );
