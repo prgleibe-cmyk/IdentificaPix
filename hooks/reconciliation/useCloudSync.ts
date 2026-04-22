@@ -219,16 +219,10 @@ export const useCloudSync = ({
                     }
                 });
 
-                const finalCombined = Array.from(reconstructedMap.values());
+                const reconstructed = Array.from(reconstructedMap.values());
 
-                const filteredData = finalCombined.filter(item => {
-                    const anyItem = item as any;
-                    const value = Number(anyItem.transaction?.amount || anyItem.amount || anyItem.value || 0);
-                    return value !== 0;
-                });
-
-                console.log('[DEBUG:FINAL_COUNT]', filteredData.length);
-                console.log('[RECONSTRUCT:FINAL_COMBINED]', filteredData);
+                console.log('[DEBUG:FINAL_COUNT]', reconstructed.length);
+                console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
 
                 setMatchResults(prev => {
                     console.log('[DEBUG:PREV_MATCH_RESULTS]', prev.length);
@@ -236,7 +230,7 @@ export const useCloudSync = ({
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
-                    filteredData.forEach(r => {
+                    reconstructed.forEach(r => {
                         const existing = map.get(r.transaction.id);
 
                         if (!existing) {
@@ -278,14 +272,14 @@ export const useCloudSync = ({
                 });
 
                 // 🆕 Persistência automática após reconstrução inicial
-                if (activeReportId && filteredData.length > 0) {
+                if (activeReportId && reconstructed.length > 0) {
                     console.log('[AutoSave:RECONSTRUCT] Atualizando relatório automaticamente após hidratação');
-                    overwriteSavedReport(activeReportId, filteredData);
+                    overwriteSavedReport(activeReportId, reconstructed);
                 }
 
                 setHasActiveSession(true);
 
-                if (filteredData.length > 0) {
+                if (reconstructed.length > 0) {
                     showToast("Sessão ativa sincronizada.", "success");
                 }
             } catch (e) {
