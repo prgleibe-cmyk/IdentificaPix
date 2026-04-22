@@ -36,8 +36,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorar requisições do Supabase (pass-through para o navegador)
-  if (event.request.url.includes('supabase.co')) {
+  const url = new URL(event.request.url);
+
+  // ✅ REGRA DEFINITIVA:
+  // Ignorar qualquer requisição que NÃO seja do próprio domínio
+  if (url.origin !== self.location.origin) {
     return;
   }
 
