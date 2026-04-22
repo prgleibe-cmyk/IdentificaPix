@@ -26,11 +26,23 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     fetch: (url, options) => {
-      const headers = options?.headers as Record<string, string>;
+      const headers = options?.headers;
+      let hasApiKey = false;
+      let hasAuth = false;
+
+      if (headers instanceof Headers) {
+        hasApiKey = !!(headers.get('apikey') || headers.get('apiKey'));
+        hasAuth = !!headers.get('Authorization');
+      } else if (headers) {
+        const h = headers as Record<string, string>;
+        hasApiKey = !!(h.apikey || h['apiKey']);
+        hasAuth = !!h.Authorization;
+      }
+
       console.log('[SUPABASE_REQUEST_DEBUG]', {
         url: url.toString(),
-        hasApiKey: !!(headers?.apikey || headers?.['apiKey']),
-        hasAuth: !!headers?.Authorization
+        hasApiKey,
+        hasAuth
       });
       return fetch(url, options);
     }
