@@ -36,6 +36,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Ignorar requisições do Supabase (pass-through para o navegador)
+  if (event.request.url.includes('supabase.co')) {
+    return;
+  }
+
   // Estratégia: Cache First, falling back to Network
   // Exceto para chamadas de API ou recursos dinâmicos
   if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
