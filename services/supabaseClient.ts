@@ -1,22 +1,22 @@
-
 /// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
-// URL Real do Banco
+// URL e KEY obrigatórias
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-
-// Chave Pública (Anon) - Segura para expor no frontend
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// 🚨 BLOQUEIO TOTAL se estiver errado
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[SUPABASE_ERROR] Faltam variáveis de ambiente críticas (URL ou Anon Key).');
+  throw new Error(
+    '[SUPABASE_FATAL] Variáveis de ambiente não definidas. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.'
+  );
 }
 
 // Create and export the Supabase client
 export const supabase = createClient<Database>(
-  supabaseUrl || '', 
-  supabaseAnonKey || '', 
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,
