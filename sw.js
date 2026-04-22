@@ -36,14 +36,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  // ✅ REGRA DEFINITIVA:
-  // Ignorar qualquer requisição que NÃO seja do próprio domínio
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
   // Estratégia: Cache First, falling back to Network
   // Exceto para chamadas de API ou recursos dinâmicos
   if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
