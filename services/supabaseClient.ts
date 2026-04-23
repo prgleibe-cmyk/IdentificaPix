@@ -1,27 +1,20 @@
+
 /// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
-// URL e KEY obrigatórias (com fallbacks para evitar erro fatal de validação no browser)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder-identificapix.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'no-key-provided';
+// URL Real do Banco
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://uflheoknbopcgmzyjbft.supabase.co';
 
-// 🔍 LOG CIRÚRGICO PARA DEBUG (NOVO)
-console.log('[SUPABASE_URL_RUNTIME]', supabaseUrl);
-console.log('[SUPABASE_KEY_RUNTIME]', supabaseAnonKey);
+// Chave Pública (Anon) - Segura para expor no frontend
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGhlb2tuYm9wY2dtenlqYmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwODEzNjgsImV4cCI6MjA3NjY1NzM2OH0.6VIcQnx9GQ8WGr7E8SMvqF4Aiyz2FSPNxmXqwgbGRGA';
 
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-  console.warn('[SUPABASE_WARNING] Variáveis VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não encontradas no ambiente local.');
-}
-
-export const supabase = createClient<Database>(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    }
-  }
-);
+// Create and export the Supabase client
+// Usamos conexão direta HTTPS. O Supabase gerencia o CORS nativamente.
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true, // Mantém o usuário logado
+    autoRefreshToken: true, // Renova token
+    detectSessionInUrl: true, // Necessário para OAuth (Google)
+  },
+});
