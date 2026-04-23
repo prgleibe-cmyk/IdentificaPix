@@ -6,6 +6,10 @@ import { Database } from '../types/supabase';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder-identificapix.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'no-key-provided';
 
+// 🔍 LOG CIRÚRGICO PARA DEBUG (NOVO)
+console.log('[SUPABASE_URL_RUNTIME]', supabaseUrl);
+console.log('[SUPABASE_KEY_RUNTIME]', supabaseAnonKey);
+
 if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
   console.warn('[SUPABASE_WARNING] Variáveis VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY não encontradas no ambiente local.');
 }
