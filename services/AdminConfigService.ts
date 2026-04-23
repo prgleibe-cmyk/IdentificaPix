@@ -13,17 +13,15 @@ export const AdminConfigService = {
         }
 
         try {
-            const { data, error } = await (supabase as any)
-                .from('admin_config')
-                .select('value')
-                .eq('key', key)
-                .order('updated_at', { ascending: false })
-                .limit(1);
-
-            if (error) {
-                console.warn(`[AdminConfig] Erro na consulta de '${key}':`, error);
+            // Chamada movida para o backend para evitar CORS/522
+            const response = await fetch('/api/admin-config');
+            
+            if (!response.ok) {
+                console.warn(`[AdminConfig] Erro na consulta via API: ${response.statusText}`);
                 return null;
             }
+
+            const data = await response.json();
 
             if (!data || data.length === 0) {
                 return null;
@@ -33,7 +31,7 @@ export const AdminConfigService = {
             this.cache.set(key, value);
             return value;
         } catch (e) {
-            console.warn(`[AdminConfig] Exceção ao ler chave '${key}'`, e);
+            console.warn(`[AdminConfig] Exceção ao ler chave '${key}' via API`, e);
             return null;
         }
     },

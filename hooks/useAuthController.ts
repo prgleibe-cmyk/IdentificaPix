@@ -63,6 +63,37 @@ export const useAuthController = () => {
             try {
                 if (isLogin) {
                     const { error } = await (supabase.auth as any).signInWithPassword({ email, password });
+                    
+                    // Fallback para Backend se falhar por rede ou CORS
+                    if (error && (error.message === 'Failed to fetch' || error.message.includes('CORS') || error.message.includes('FetchEvent'))) {
+                        console.warn('[AUTH] Falha direta, tentando fallback via API...');
+                        try {
+                            const response = await fetch('/api/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email, password })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok && result.session) {
+                                // Define a sessão recebida do backend no cliente local
+                                await (supabase.auth as any).setSession({
+                                    access_token: result.session.access_token,
+                                    refresh_token: result.session.refresh_token
+                                });
+                                console.log('[AUTH] Login via Proxy realizado com sucesso');
+                                success = true;
+                                continue;
+                            } else if (result.error) {
+                                throw new Error(result.error);
+                            }
+                        } catch (proxyErr: any) {
+                            console.error('[AUTH] Fallback via Proxy falhou:', proxyErr);
+                            // Mantém o erro original se o proxy também falhar
+                        }
+                    }
+
                     if (error) throw error;
                 } else {
                     const { error } = await (supabase.auth as any).signUp({

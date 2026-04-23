@@ -28,6 +28,7 @@ import inboxRoutes from './backend/routes/inbox.js';
 import usersRoutes from './backend/routes/users.js';
 import referenceRoutes from './backend/routes/reference.js';
 import { authMiddleware } from './backend/middleware/auth.js';
+import { getSupabaseAdmin } from './backend/lib/supabase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,56 @@ app.use(express.json({ limit: '50mb' }));
 
 // Health check
 app.get('/health', (req, res) => res.status(200).send('OK'));
+
+// Rota para admin_config (Movida para o backend para evitar CORS)
+app.get('/api/admin-config', async (req, res) => {
+    try {
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase
+            .from('admin_config')
+            .select('value')
+            .eq('key', 'system_settings')
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+        if (error) {
+            console.error('[AdminConfig API] Erro:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        console.error('[AdminConfig API] Exceção:', err);
+        res.status(500).json({ error: 'Erro interno no servidor' });
+    }
+});
+
+// Proxy de Login (Resiliência contra erro 522/CORS)
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    }
+
+    try {
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            console.error('[Login API] Falha na autenticação:', error.message);
+            return res.status(error.status || 401).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        console.error('[Login API] Exceção crítica:', err);
+        res.status(500).json({ error: 'Erro interno no servidor de autenticação' });
+    }
+});
 
 // Inicialização da IA Gemini
 let ai = null;
