@@ -36,14 +36,13 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         let ignore = false;
 
-        // ✅ Evita execução com estado de usuário ou assinatura incompleto
-        if (!user?.id || !subscription?.ownerId) {
+        if (!user?.id) {
             lastOwnerIdRef.current = null;
             return;
         }
 
-        // ✅ Evita múltiplas execuções desnecessárias (bloqueia apenas se o ownerId já estiver resolvido para este usuário)
-        if (lastOwnerIdRef.current === user.id && subscription.ownerId === user.id) return;
+        // ✅ evita múltiplas execuções desnecessárias
+        if (lastOwnerIdRef.current === user.id) return;
 
         const syncData = async () => {
             const isOwner = subscription.ownerId === user?.id;

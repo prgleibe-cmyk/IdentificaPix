@@ -49,9 +49,11 @@ export const useCloudSync = ({
     const isReady =
         !!effectiveUserId &&
         Array.isArray(churches) &&
-        churches.length > 0;
+        Array.isArray(learnedAssociations) &&
+        churches.length > 0 &&
+        learnedAssociations.length > 0;
 
-    const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations?.length || 0}`;
+    const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
@@ -80,7 +82,7 @@ export const useCloudSync = ({
             dataReadyKey
         });
 
-        if (!isReady) return;
+        if (!isReady || activeReportId) return;
 
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
@@ -570,8 +572,7 @@ export const useCloudSync = ({
      * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        // Bloqueia execução se a lista estiver vazia, se estiver carregando algo ou se estiver em meio a uma hidratação da nuvem
-        if (matchResults.length === 0 || isLoading || isHydratingFromCloud.current) {
+        if (matchResults.length === 0 || isLoading) {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             return;
         }
@@ -583,12 +584,6 @@ export const useCloudSync = ({
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             
             stableTimeoutRef.current = setTimeout(() => {
-                // Verificação final de segurança: não processar se a hidratação começou durante a espera
-                if (isHydratingFromCloud.current) {
-                    console.log('[PostReconstruct:ABORTED] Hydration in progress');
-                    return;
-                }
-
                 console.log('[PostReconstruct:STABLE]', matchResults.length);
                 lastProcessedLength.current = matchResults.length;
                 
@@ -596,7 +591,7 @@ export const useCloudSync = ({
                     console.log('[AutoProcess:FINAL_TRIGGER]');
                     handleCompare(false);
                 }
-            }, 350); // Aumentado de 200ms para 350ms para melhor resiliência em redes lentas
+            }, 200);
         }
 
         return () => {
