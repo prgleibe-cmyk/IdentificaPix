@@ -39,14 +39,20 @@ export const useLiveListSync = ({
         try {
             const dbTransactions = await consolidationService.getPendingTransactions(effectiveUserId);
             
-            if (!dbTransactions || dbTransactions.length === 0) {
+            // AJUSTE CIRÚRGICO: Remover rigorosamente qualquer linha com valor 0,00 (independente da descrição)
+            const filteredDbTransactions = (dbTransactions || []).filter((t: any) => {
+                const amount = Math.abs(Number(t.amount || 0));
+                return amount >= 0.01;
+            });
+
+            if (!filteredDbTransactions || filteredDbTransactions.length === 0) {
                 setBankStatementFile([]);
                 if (forceClearUI) setSelectedBankIds([]);
                 return;
             }
 
             const groupedByBank: Record<string, Transaction[]> = {};
-            dbTransactions.forEach((t: any) => {
+            filteredDbTransactions.forEach((t: any) => {
                 let bankId = t.bank_id;
                 if (!bankId && t.pix_key && t.pix_key.includes('-')) {
                     bankId = t.pix_key;
