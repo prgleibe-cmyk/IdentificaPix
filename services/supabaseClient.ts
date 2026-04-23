@@ -14,19 +14,6 @@ export const supabase = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey,
   {
-    global: {
-      fetch: async (url, options: any = {}) => {
-        const urlStr = url.toString();
-        const isSupabaseRequest = urlStr.includes('supabase.co');
-
-        if (isSupabaseRequest) {
-          // Log para depuração (mantido)
-          console.log('[FORCE_SUPABASE]', urlStr);
-        }
-
-        return fetch(url, options);
-      }
-    },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
