@@ -19,18 +19,25 @@ export const supabase = createClient<Database>(
         const urlStr = url.toString();
         const isSupabaseRequest = urlStr.includes('supabase.co');
 
-        // Só tenta injetar se tivermos a chave real e for uma requisição para o Supabase
         if (isSupabaseRequest && import.meta.env.VITE_SUPABASE_ANON_KEY) {
           const actualKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          // Log para depuração
           console.log('[FORCE_SUPABASE]', urlStr);
           
+          // Garante que headers seja um objeto manipulável
+          const headers = options.headers instanceof Headers 
+            ? Object.fromEntries(options.headers.entries())
+            : (options.headers || {});
+
           options.headers = {
-            ...(options.headers || {}),
-            apikey: actualKey,
+            ...headers,
+            'apikey': actualKey,
           };
 
-          if (!options.headers.Authorization) {
-            options.headers.Authorization = `Bearer ${actualKey}`;
+          // Só força Authorization se não houver um token JWT de usuário presente
+          if (!options.headers['Authorization'] && !options.headers['authorization']) {
+            options.headers['Authorization'] = `Bearer ${actualKey}`;
           }
         }
 
