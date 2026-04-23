@@ -589,7 +589,7 @@ export const useCloudSync = ({
                 
                 if (typeof handleCompare === 'function') {
                     console.log('[AutoProcess:FINAL_TRIGGER]');
-                    handleCompare(true);
+                    handleCompare(false);
                 }
             }, 200);
         }

@@ -12,7 +12,8 @@ export const useSavedReportsController = () => {
         viewSavedReport, 
         openDeleteConfirmation, 
         updateSavedReportName, 
-        maxSavedReports 
+        maxSavedReports,
+        confirmSaveReport
     } = useContext(AppContext);
     
     const { t, language } = useTranslation();
@@ -27,7 +28,7 @@ export const useSavedReportsController = () => {
 
     // Filtro e Ordenação
     const processedReports = useMemo(() => {
-        let result = (savedReports || []).filter(r => r.name !== '[SESSÃO_ATIVA]');
+        let result = (savedReports || []).filter(r => r && r.name && r.name !== '[SESSÃO_ATIVA]');
 
         if (searchQuery) {
             const lowerQ = searchQuery.toLowerCase();
@@ -100,6 +101,20 @@ export const useSavedReportsController = () => {
         });
     }, []);
 
+    const handleDuplicate = useCallback(async (report: SavedReport) => {
+        if (!report?.data?.spreadsheet) {
+            console.error("Planilha sem dados para duplicação", report);
+            return;
+        }
+
+        const duplicatedSpreadsheet = report.data.spreadsheet;
+
+        await confirmSaveReport({
+            name: `${report.name} (cópia)`,
+            spreadsheetData: duplicatedSpreadsheet
+        });
+    }, [confirmSaveReport]);
+
     return {
         savedReports,
         processedReports,
@@ -118,6 +133,7 @@ export const useSavedReportsController = () => {
         handleStartEdit,
         handleCancelEdit,
         handleSaveEdit,
+        handleDuplicate,
         formatDate,
         viewSavedReport,
         openDeleteConfirmation

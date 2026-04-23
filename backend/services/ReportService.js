@@ -42,7 +42,7 @@ export const ReportService = {
             if (isActualOwner) {
                 const query = supabaseAdmin
                     .from('saved_reports')
-                    .select('id, name, created_at, record_count, user_id, church_id')
+                    .select('id, name, created_at, record_count, user_id, church_id, data')
                     .eq('user_id', effectiveUserId)
                     .order('created_at', { ascending: false });
                 
@@ -50,7 +50,7 @@ export const ReportService = {
             } else {
                 const query = supabaseAdmin
                     .from('saved_reports')
-                    .select('id, name, created_at, record_count, user_id, church_id')
+                    .select('id, name, created_at, record_count, user_id, church_id, data')
                     .or(`user_id.eq.${user.id},and(user_id.eq.${ownerId},name.eq.[SESSÃO_ATIVA])`)
                     .order('created_at', { ascending: false });
                 

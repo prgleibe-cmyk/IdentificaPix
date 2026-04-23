@@ -1,4 +1,4 @@
-import { MatchResult, Transaction } from '../types';
+import { MatchResult, Transaction, SavedReport } from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -57,6 +57,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) {
+            console.warn('[AUDIT][NO_REPORT_ID]');
             lastLoadedReportId.current = null;
             return;
         }
@@ -65,12 +66,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const shouldLoad = activeId !== lastLoadedReportId.current;
         if (!shouldLoad) return;
 
+        console.log('[AUDIT][LOAD_REPORT_START]', { reportId: activeId });
         const report = reportManager.savedReports.find(r => r.id === activeId);
-        if (!report || !report.data?.results) return;
+        
+        console.log('[AUDIT][RAW_REPORT_FROM_DB]', report);
+
+        console.log('[AUDIT][DATA_FULL]', report?.data);
+
+        if (report?.data && typeof report.data === 'object') {
+            const rData = report.data as any;
+            Object.keys(rData).forEach((key) => {
+                console.log(`[AUDIT][DATA_KEY:${key}]`, rData[key]);
+
+                if (Array.isArray(rData[key])) {
+                    console.log(`[AUDIT][FOUND_ARRAY_IN:${key}] LENGTH:`, rData[key].length);
+                }
+
+                if (rData[key] && typeof rData[key] === 'object') {
+                    Object.keys(rData[key]).forEach((subKey) => {
+                        console.log(`[AUDIT][SUB_KEY:${key}.${subKey}]`, rData[key][subKey]);
+
+                        if (Array.isArray(rData[key][subKey])) {
+                            console.log(`[AUDIT][FOUND_ARRAY_IN:${key}.${subKey}] LENGTH:`, rData[key][subKey].length);
+                        }
+                    });
+                }
+            });
+        }
+
+        console.log('[AUDIT][REPORT_FIELDS]', {
+            id: report?.id,
+            hasData: !!report?.data,
+            dataType: typeof report?.data,
+            dataKeys: report?.data ? Object.keys(report.data) : null,
+            full: report
+        });
+
+        const data = report.data as any;
+        if (!report || (!Array.isArray(data) && !data?.transactions && !data?.results)) return;
 
         console.log("[AppContext] Carregando dados do relatório ativo:", activeId);
         
-        let hydrated = report.data.results.map((r: any) => ({
+        const rawData = Array.isArray(data)
+            ? data
+            : data?.transactions
+            || data?.results
+            || [];
+
+        let hydrated = rawData.map((r: any) => ({
             ...r,
             church:
                 referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
@@ -85,6 +128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             );
         }
 
+        console.log('[AUDIT][DATA_BEFORE_SET]', hydrated);
+        console.log('[AUDIT][DATA_LENGTH]', Array.isArray(hydrated) ? hydrated.length : 'not-array');
+        console.log('[AUDIT][LOAD_REPORT_DATA]', hydrated);
         reconciliation.setMatchResults(hydrated);
         lastLoadedReportId.current = activeId;
     }, [
@@ -99,6 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
+        console.log('[AUDIT][OPEN_REPORT_TRIGGER]', { reportId: report?.id, report });
         if (!report) return;
 
         setIsLoading(true);
@@ -132,7 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     };
                 }
 
-                results = parsedData?.results;
+                results = Array.isArray(parsedData) ? parsedData : parsedData?.transactions || parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             } else {
                 const { data: { session } } = await supabase.auth.getSession();
@@ -158,7 +205,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         };
                     }
 
-                    results = parsedData?.results;
+                    results = Array.isArray(parsedData) ? parsedData : parsedData?.transactions || parsedData?.results;
                     spreadsheet = parsedData?.spreadsheet;
                 } else {
                     throw new Error("Falha ao buscar detalhes do relatório via API.");
@@ -166,8 +213,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if (((results || []).length > 0) || spreadsheet) {
+                console.log('[AUDIT][BEFORE_NAVIGATION]', { reportId });
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
+
+                // Carrega dados da planilha se existirem
+                if (spreadsheet) {
+                    reconciliation.setActiveSpreadsheetData(spreadsheet);
+                }
 
                 if ((results || []).length > 0) {
                     let hydrated = (results || []).map((r: any) => ({
@@ -193,12 +246,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setActiveView('smart_analysis');
                 }
 
+                console.log('[AUDIT][AFTER_NAVIGATION]', { reportId });
                 showToast(`Relatório "${report.name}" carregado.`, "success");
             } else {
                 showToast("Este relatório está vazio.", "error");
             }
 
         } catch (error: any) {
+            console.error('[AUDIT][LOAD_REPORT_ERROR]', error);
             console.error("[AppContext] Erro ao abrir relatório:", error);
             showToast("Erro ao carregar os dados do relatório.", "error");
         } finally {
@@ -299,9 +354,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [reportManager.savedReports, reconciliation.activeReportId, isSyncing, isLoading, referenceData.churches, reconciliation.fullMatchResults.length]);
 
-    const wrappedConfirmSaveReport = useCallback(async (name: string) => {
-        const newId = await reportManager.confirmSaveReport(name);
-        if (newId) {
+    const wrappedConfirmSaveReport = useCallback(async (nameOrData: string | { name: string, spreadsheetData: any }) => {
+        const newId = await reportManager.confirmSaveReport(nameOrData);
+        // NÃO ativar automaticamente ao duplicar (objetos são duplicações ou salvamento direto de dados)
+        // apenas ativar se for string (salvamento via modal de criação normal)
+        if (newId && typeof nameOrData === 'string') {
             reconciliation.setActiveReportId(newId);
             reconciliation.setHasActiveSession(true);
         }
@@ -350,12 +407,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return list.sort((a: any, b: any) => a.name.localeCompare(b.name));
     }, [referenceData.banks, subscription, user?.id]);
 
-    const activeSpreadsheetData = useMemo(() => {
-        if (!reconciliation.activeReportId) return undefined;
-        const report = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
-        return report?.data?.spreadsheet;
-    }, [reconciliation.activeReportId, reportManager.savedReports]);
-
     useEffect(() => {
         if (user !== undefined) setInitialDataLoaded(true);
     }, [user]);
@@ -370,17 +421,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...modalController,
         initialDataLoaded,
         summary,
-        activeSpreadsheetData,
         isSyncing,
         selectedBankId,
         setSelectedBankId,
         bankList,
         saveCurrentReportChanges: persistActiveReport,
         confirmDeletion,
-        openManualIdentify: (txId: string) => {
-            const tx = reconciliation.matchResults.find((r: any) => r.transaction.id === txId)?.transaction;
-            if (tx) reconciliation.setManualIdentificationTx(tx);
-        },
         runAiAutoIdentification,
         findMatchResult: reconciliation.findMatchResult,
         loadingAiId: reconciliation.loadingAiId,
@@ -395,7 +441,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         modalController,
         initialDataLoaded,
         summary,
-        activeSpreadsheetData,
         isSyncing,
         persistActiveReport,
         confirmDeletion,

@@ -4,7 +4,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Registro do Service Worker com versionamento para forçar atualização de ícones no PWA
+/* 
+// Registro do Service Worker desativado para evitar problemas de CORS/Fetch
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     // Adicionado v=9 para garantir que o Chrome/Windows detecte a nova versão do Service Worker e atualize ícones
@@ -13,6 +14,7 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+*/
 
 const rootElement = document.getElementById('root');
 if (rootElement) {

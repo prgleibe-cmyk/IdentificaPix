@@ -54,6 +54,7 @@ export const SavedReportsView: React.FC = () => {
                 onCancelEdit={ctrl.handleCancelEdit}
                 onStartEdit={ctrl.handleStartEdit}
                 onView={ctrl.viewSavedReport}
+                onDuplicate={ctrl.handleDuplicate}
                 onDelete={(id, name) => ctrl.openDeleteConfirmation({ type: 'report-saved', id, name })}
                 formatDate={ctrl.formatDate}
                 language={ctrl.language}

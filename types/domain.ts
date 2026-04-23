@@ -154,7 +154,7 @@ export interface SavedReport {
   user_id: string;
   church_id?: string;
   data: {
-    results: MatchResult[];
+    results?: MatchResult[];
     sourceFiles: any[];
     bankStatementFile: any;
     spreadsheet?: SpreadsheetData;
