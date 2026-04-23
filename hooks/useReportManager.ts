@@ -331,102 +331,73 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const openSaveReportModal = useCallback((state: SavingReportState) => setSavingReportState(state), []);
     const closeSaveReportModal = useCallback(() => setSavingReportState(null), []);
     
-    const confirmSaveReport = useCallback(async (nameOrData: string | { name: string, spreadsheetData: any }): Promise<string | null> => {
-        if (!user?.id || !effectiveUserId) {
-            console.warn("Usuário ou ID efetivo não disponível para salvar relatório", { userId: user?.id, effectiveUserId });
+    const confirmSaveReport = useCallback(async (name: string): Promise<string | null> => {
+        if (!savingReportState || !user?.id || !effectiveUserId) return null;
+        
+        if (savedReports.length >= MAX_REPORTS_PER_USER) {
+            showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
+            closeSaveReportModal();
             return null;
         }
 
-        try {
-            let newReport: SavedReport;
+        const isSpreadsheet = savingReportState.type === 'spreadsheet';
+        const recordCount = isSpreadsheet && savingReportState.spreadsheetData?.rows
+            ? savingReportState.spreadsheetData.rows.length 
+            : savingReportState.results.length;
 
-            if (typeof nameOrData === 'object') {
-                const spreadsheetData = nameOrData.spreadsheetData;
-                const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
-                const newReportId = `rep-${Date.now()}`;
-                
-                let churchId = null;
-                const isSecondary = subscription?.ownerId && subscription?.ownerId !== user?.id;
-                if (isSecondary) {
-                    churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
-                } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
-                    churchId = searchFilters.churchIds[0];
-                }
+        const newReportId = `rep-${Date.now()}`;
+        const results = savingReportState.results || [];
+        
+        // Tenta pegar o ID da igreja de várias formas
+        const firstChurchId = results[0]?.church?.id || results[0]?._churchId || (results[0]?.transaction as any)?.church_id;
+        const allSameChurch = results.length > 0 && results.every(r => (r.church?.id || r._churchId || (r.transaction as any)?.church_id) === firstChurchId);
+        
+        // Lógica de atribuição de Igreja
+        let churchId = null;
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary) {
+            churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
+        } else if (allSameChurch && firstChurchId) {
+            churchId = firstChurchId;
+        } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
+            churchId = searchFilters.churchIds[0];
+        }
 
-                newReport = {
-                    id: newReportId,
-                    name: nameOrData.name,
-                    createdAt: new Date().toISOString(),
-                    recordCount: recordCount,
-                    user_id: effectiveUserId,
-                    church_id: churchId,
-                    data: {
-                        sourceFiles: [],
-                        bankStatementFile: null,
-                        spreadsheet: spreadsheetData
-                    }
-                };
-            } else {
-                if (!savingReportState) return null;
-                
-                if (savedReports.length >= MAX_REPORTS_PER_USER) {
-                    showToast(`Limite de ${MAX_REPORTS_PER_USER} relatórios atingido.`, 'error');
-                    closeSaveReportModal();
-                    return null;
-                }
-
-                const spreadsheetData = savingReportState.spreadsheetData || null;
-                const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
-
-                const newReportId = `rep-${Date.now()}`;
-                
-                let churchId = null;
-                const isSecondary = subscription?.ownerId && subscription?.ownerId !== user?.id;
-                if (isSecondary) {
-                    churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
-                } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
-                    churchId = searchFilters.churchIds[0];
-                }
-
-                newReport = {
-                    id: newReportId,
-                    name: nameOrData,
-                    createdAt: new Date().toISOString(),
-                    recordCount: recordCount,
-                    user_id: effectiveUserId,
-                    church_id: churchId,
-                    data: {
-                        sourceFiles: [],
-                        bankStatementFile: null,
-                        spreadsheet: spreadsheetData
-                    }
-                };
+        const newReport: SavedReport = {
+            id: newReportId,
+            name: name,
+            createdAt: new Date().toISOString(),
+            recordCount: recordCount,
+            user_id: effectiveUserId,
+            church_id: churchId,
+            data: {
+                results: savingReportState.results || [],
+                sourceFiles: [],
+                bankStatementFile: null,
+                spreadsheet: isSpreadsheet ? savingReportState.spreadsheetData : undefined
             }
+        };
 
-            console.log(`[WRITE:ALREADY_CORRECT] Inserindo nova planilha com effectiveUserId: ${effectiveUserId}`);
-            const { error } = await (supabase.from('saved_reports') as any).insert({
-                id: newReport.id,
-                name: newReport.name,
-                record_count: newReport.recordCount,
-                user_id: newReport.user_id,
-                church_id: newReport.church_id,
-                data: newReport.data as any
-            });
+        setSavedReports(prev => [newReport, ...prev]);
+        closeSaveReportModal();
+        
+        console.log(`[WRITE:ALREADY_CORRECT] Inserindo novo relatório com effectiveUserId: ${effectiveUserId}`);
+        const { error } = await (supabase.from('saved_reports') as any).insert({
+            id: newReport.id,
+            name: newReport.name,
+            record_count: newReport.recordCount,
+            user_id: newReport.user_id,
+            church_id: newReport.church_id,
+            data: newReport.data as any
+        });
 
-            if (error) {
-                console.error("Erro ao salvar no banco:", error);
-                showToast('Erro ao salvar relatório.', 'error');
-                return null;
-            } else {
-                setSavedReports(prev => [newReport, ...prev]);
-                closeSaveReportModal();
-                showToast('Relatório criado!', 'success');
-                return newReport.id;
-            }
-        } catch (error) {
-            console.error("Erro capturado ao salvar relatório:", error);
-            showToast('Ocorreu um erro inesperado.', 'error');
+        if (error) {
+            setSavedReports(prev => prev.filter(r => r.id !== newReport.id));
+            showToast('Erro ao salvar relatório.', 'error');
             return null;
+        } else {
+            showToast('Relatório criado!', 'success');
+            return newReportId;
         }
     }, [savingReportState, user, effectiveUserId, showToast, closeSaveReportModal, savedReports.length, subscription, searchFilters]);
 

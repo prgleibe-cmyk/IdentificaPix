@@ -41,7 +41,6 @@ export const useReconciliation = (props: any) => {
     // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
-    const [activeSpreadsheetData, setActiveSpreadsheetData] = usePersistentState<any | null>(`identificapix-spreadsheet-data${userSuffix}`, null, true);
     const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
@@ -62,7 +61,6 @@ export const useReconciliation = (props: any) => {
         effectiveUserId,
         activeReportId, setActiveReportId,
         matchResults, setMatchResults,
-        activeSpreadsheetData, setActiveSpreadsheetData,
         hasActiveSession, setHasActiveSession,
         activeBankFiles, setBankStatementFile,
         contributorFiles, setContributorFiles,
@@ -126,7 +124,6 @@ export const useReconciliation = (props: any) => {
         try {
             await clearRemoteList('all');
             setMatchResults([]);
-            setActiveSpreadsheetData(null);
             setReportPreviewData(null);
             setContributorFiles([]);
             setHasActiveSession(false);
@@ -167,8 +164,6 @@ export const useReconciliation = (props: any) => {
         resetReconciliation,
         hydrate,
         setMatchResults,
-        setReportPreviewData,
-        activeSpreadsheetData,
-        setActiveSpreadsheetData
+        setReportPreviewData
     };
 };

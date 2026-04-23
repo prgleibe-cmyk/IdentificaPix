@@ -89,16 +89,14 @@ export const useTransactionMatcher = ({
         }
     }, [matchResults, regenerateReportPreview]);
 
-    const handleCompare = useCallback(async (showLoading: any = true) => {
-        const isAuto = showLoading === false;
+    const handleCompare = useCallback(async (isAutoParam: any = false) => {
+        const isAuto = isAutoParam === true;
         if (isAuto) {
             console.log('[AutoProcess:START]');
             console.log('[AutoProcess:ALLOWED]');
         }
 
-        if (showLoading) {
-            setIsLoading(true);
-        }
+        setIsLoading(true);
         
         // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
         // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
@@ -120,16 +118,13 @@ export const useTransactionMatcher = ({
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
                 allTransactions = matchResults.map(r => r.transaction);
             }
-            // NÃO limpar dados persistentes
-            // apenas resetar estados auxiliares se existirem
-            // setReportPreviewData(null);
+            // Limpamos o estado para garantir reconstrução do zero
+            setReportPreviewData(null);
         }
 
         if (allTransactions.length === 0) { 
             if (!isAuto) showToast("Selecione pelo menos um extrato com dados.", "error"); 
-            if (showLoading) {
-                setIsLoading(false); 
-            }
+            setIsLoading(false); 
             if (isAuto) console.log('[AutoProcess:DONE] No transactions found');
             return; 
         }
@@ -153,17 +148,9 @@ export const useTransactionMatcher = ({
             filteredExistingResults 
         );
 
-        const filteredResults = results.filter(item => {
-            const value = Number(item.transaction?.amount || 0);
-            return value !== 0;
-        });
-
-        setMatchResults(() => filteredResults);
+        setMatchResults(() => results);
         setHasActiveSession(true);
-        
-        if (showLoading) {
-            setIsLoading(false);
-        }
+        setIsLoading(false);
         
         if (isAuto) {
             console.log('[AutoProcess:DONE]');
