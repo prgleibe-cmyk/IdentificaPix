@@ -45,8 +45,8 @@ export const useReconciliationActions = ({
       similarity: 100,
       contributorAmount: contributor.amount,
       divergence: undefined,
-      contributionType: contributionType || contributor.contributionType,
-      paymentMethod: paymentMethod || contributor.paymentMethod,
+      contributionType: contributionType !== undefined ? contributionType : originalResult.contributionType,
+      paymentMethod: paymentMethod !== undefined ? paymentMethod : originalResult.paymentMethod,
       updatedAt: new Date().toISOString()
     };
 
@@ -60,8 +60,8 @@ export const useReconciliationActions = ({
         originalResult.transaction.bank_id,
         contributor.id,
         false,
-        contributionType || originalResult.contributionType,
-        paymentMethod || originalResult.paymentMethod
+        contributionType !== undefined ? contributionType : originalResult.contributionType,
+        paymentMethod !== undefined ? paymentMethod : originalResult.paymentMethod
       );
     }
 
@@ -108,8 +108,8 @@ export const useReconciliationActions = ({
           similarity: 100,
           contributorAmount: contributor.amount,
           divergence: undefined,
-          contributionType: contributionType || contributor.contributionType,
-          paymentMethod: paymentMethod || contributor.paymentMethod,
+          contributionType: contributionType !== undefined ? contributionType : original.contributionType,
+          paymentMethod: paymentMethod !== undefined ? paymentMethod : original.paymentMethod,
           updatedAt: new Date().toISOString()
         };
 
@@ -125,8 +125,8 @@ export const useReconciliationActions = ({
             original.transaction.bank_id,
             contributor.id,
             false,
-            contributionType || original.contributionType,
-            paymentMethod || original.paymentMethod
+            contributionType !== undefined ? contributionType : original.contributionType,
+            paymentMethod !== undefined ? paymentMethod : original.paymentMethod
           );
         }
 

@@ -170,16 +170,15 @@ export const consolidationService = {
             const updateData: any = { 
                 status,
                 user_id: effectiveUserId,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                ...(churchId !== undefined && { church_id: churchId }),
+                ...(bankId !== undefined && { bank_id: bankId }),
+                ...(contributorId !== undefined && { contributor_id: contributorId }),
+                ...(isConfirmed !== undefined && { is_confirmed: isConfirmed }),
+                ...(contributionType && { type: contributionType }),
+                ...(paymentMethod && { payment_method: paymentMethod })
             };
             
-            if (churchId !== undefined) updateData.church_id = churchId;
-            if (bankId !== undefined) updateData.bank_id = bankId;
-            if (contributorId !== undefined) updateData.contributor_id = contributorId;
-            if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
-            if (contributionType !== undefined) updateData.type = contributionType;
-            if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
-
             console.log('UPDATE PAYLOAD (Single):', updateData);
 
             const { data, error } = await (supabase as any)
@@ -231,14 +230,13 @@ export const consolidationService = {
             is_confirmed,
             status: is_confirmed ? 'resolved' : 'pending',
             user_id: effectiveUserId,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            ...(churchId !== undefined && { church_id: churchId }),
+            ...(bankId !== undefined && { bank_id: bankId }),
+            ...(contributorId !== undefined && { contributor_id: contributorId }),
+            ...(contributionType && { type: contributionType }),
+            ...(paymentMethod && { payment_method: paymentMethod })
         };
-
-        if (churchId !== undefined) updateData.church_id = churchId;
-        if (bankId !== undefined) updateData.bank_id = bankId;
-        if (contributorId !== undefined) updateData.contributor_id = contributorId;
-        if (contributionType !== undefined) updateData.type = contributionType;
-        if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
         console.log('UPDATE PAYLOAD (Bulk):', updateData);
 
