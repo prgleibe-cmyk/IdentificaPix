@@ -39,7 +39,7 @@ export const useReconciliation = (props: any) => {
     const effectiveUserId = subscription?.ownerId || user?.id;
     const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
     
-    // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
+    // ESTADOS PERSISTENTES
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [activeSpreadsheetData, setActiveSpreadsheetData] = usePersistentState<any | null>(`identificapix-spreadsheet-data${userSuffix}`, null, true);
@@ -57,36 +57,40 @@ export const useReconciliation = (props: any) => {
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
-    // 📡 GATILHO DE SINCRONIZAÇÃO GLOBAL (BROADCAST)
+    // ✅ NORMALIZAÇÃO TOTAL (MESMO PADRÃO DA CONFIRMAÇÃO FINAL)
+    const buildCanonicalPayload = useCallback((row: MatchResult) => {
+        return {
+            transaction: {
+                ...row.transaction,
+                id: row.transaction.id
+            },
+            status: row.status || 'identified',
+            contributionType: row.contributionType || null,
+            paymentMethod: row.paymentMethod || null,
+            isConfirmed: !!row.isConfirmed,
+            contributor: row.contributor || null,
+            church: row.church || PLACEHOLDER_CHURCH
+        };
+    }, []);
+
+    // 📡 GATILHO DE SINCRONIZAÇÃO GLOBAL
     const triggerSync = useCallback((updatedRow: MatchResult) => {
         const ownerId = subscription.ownerId || user?.id;
         if (!ownerId) return;
 
-        console.log("[Sync:Trigger] Disparando evento global de sincronização:", updatedRow.transaction.id);
+        const payload = buildCanonicalPayload(updatedRow);
+
+        console.log("[Sync:Trigger] Payload CANÔNICO:", payload);
         
         supabase
             .channel(`sync-granular-${ownerId}`)
             .send({
                 type: 'broadcast',
                 event: 'transaction_updated',
-                payload: {
-                    // ✅ ENVIAR A LINHA COMPLETA (igual confirmação final)
-                    ...updatedRow,
-
-                    // 🔒 Garantia de integridade mínima obrigatória
-                    transaction: {
-                        ...updatedRow.transaction
-                    },
-
-                    contributionType: updatedRow.contributionType ?? null,
-                    paymentMethod: updatedRow.paymentMethod ?? null,
-                    status: updatedRow.status,
-                    isConfirmed: updatedRow.isConfirmed ?? false
-                }
+                payload
             });
-    }, [user?.id, subscription.ownerId]);
+    }, [user?.id, subscription.ownerId, buildCanonicalPayload]);
 
-    // Agrupamento de parâmetros para os sub-hooks
     const params = {
         ...props,
         effectiveUserId,
@@ -107,10 +111,8 @@ export const useReconciliation = (props: any) => {
         triggerSync
     };
 
-    // 1. Hook de Matching de Transações (Movido para cima para fornecer handleCompare)
     const matcher = useTransactionMatcher(params);
 
-    // 2. Hook de Sincronização em Nuvem (CloudSync + Cache Integrity)
     const cloud = useCloudSync({
         ...params,
         learnedAssociations,
@@ -120,7 +122,6 @@ export const useReconciliation = (props: any) => {
         overwriteSavedReport
     });
 
-    // 3. Hook de Sincronização de Lista (Original)
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
         subscription,
@@ -128,24 +129,27 @@ export const useReconciliation = (props: any) => {
         setSelectedBankIds
     });
 
-    // 4. Hook de Processamento de Arquivos
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
 
-    // ✅ Filtros de segurança unificados (Membros/Secundários)
     const applySecurityFilters = useCallback((results: MatchResult[]) => {
         const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
         if (!isSecondary) return results;
 
         let filtered = results;
-        if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+
+        if (subscription.congregationIds?.length > 0) {
             filtered = filtered.filter(r => {
                 const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
                 return subscription.congregationIds.includes(churchId);
             });
         }
-        if (subscription.bankIds && subscription.bankIds.length > 0) {
-            filtered = filtered.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
+
+        if (subscription.bankIds?.length > 0) {
+            filtered = filtered.filter(r =>
+                subscription.bankIds.includes(String(r.transaction.bank_id))
+            );
         }
+
         return filtered;
     }, [subscription, user?.id]);
 
