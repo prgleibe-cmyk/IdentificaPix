@@ -179,7 +179,12 @@ export const consolidationService = {
                 ...(paymentMethod && { payment_method: paymentMethod })
             };
             
-            console.log('UPDATE PAYLOAD (Single):', updateData);
+            console.log("🔥 [UPDATE DISPARADO]", {
+                id,
+                type: updateData?.type,
+                payment_method: updateData?.payment_method,
+                payload: updateData
+            });
 
             const { data, error } = await (supabase as any)
                 .from('consolidated_transactions')
@@ -187,9 +192,9 @@ export const consolidationService = {
                 .eq('id', id)
                 .select();
 
-            console.log('[WRITE:RESULT]', {
-              data,
-              error
+            console.log("✅ [UPDATE RESPONSE]", {
+                data,
+                error
             });
 
             if (error) throw error;
@@ -238,7 +243,12 @@ export const consolidationService = {
             ...(paymentMethod && { payment_method: paymentMethod })
         };
 
-        console.log('UPDATE PAYLOAD (Bulk):', updateData);
+        console.log("🔥 [UPDATE DISPARADO] (Bulk)", {
+            ids,
+            type: updateData?.type,
+            payment_method: updateData?.payment_method,
+            payload: updateData
+        });
 
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')
@@ -246,9 +256,9 @@ export const consolidationService = {
             .in('id', ids)
             .select();
 
-        console.log('[WRITE:RESULT]', {
-          data,
-          error
+        console.log("✅ [UPDATE RESPONSE] (Bulk)", {
+            data,
+            error
         });
 
         if (error) throw error;
@@ -345,6 +355,8 @@ export const consolidationService = {
             if (allTransactions.length >= maxRecords) {
                 console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
             }
+
+            console.log("📦 [FETCH DATA] (Pending)", allTransactions);
 
             return allTransactions;
 

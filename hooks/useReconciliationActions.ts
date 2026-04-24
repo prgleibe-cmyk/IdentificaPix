@@ -53,6 +53,11 @@ export const useReconciliationActions = ({
     currentResults[idx] = updatedResult;
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
+      console.log("🧩 [HOOK -> UPDATE]", {
+        id: txId,
+        contributionType,
+        paymentMethod
+      });
       await consolidationService.updateTransactionStatus(
         txId, 
         'identified', 
@@ -118,6 +123,11 @@ export const useReconciliationActions = ({
         referenceData.learnAssociation(updated);
 
         if (!id.includes('ghost') && !id.includes('sim')) {
+          console.log("🧩 [HOOK -> UPDATE] (BulkItem)", {
+            id,
+            contributionType,
+            paymentMethod
+          });
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
@@ -186,6 +196,11 @@ export const useReconciliationActions = ({
           if (isUniform) {
             // Otimização: Chamada única em lote
             const allIds = resultsToUpdate.map(r => r.transaction.id);
+            console.log("🧩 [HOOK -> UPDATE] (Toggle-Bulk)", {
+              ids: allIds,
+              contributionType: firstContributionType,
+              paymentMethod: firstPaymentMethod
+            });
             await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId, firstContributionType, firstPaymentMethod);
           } else {
             // Fallback: Mantém o comportamento original sequencial se houver variações
@@ -195,6 +210,11 @@ export const useReconciliationActions = ({
               const contributorId = result.contributor?.id;
               const cType = result.contributionType;
               const pMethod = result.paymentMethod;
+              console.log("🧩 [HOOK -> UPDATE] (Toggle-Sequential)", {
+                id: result.transaction.id,
+                contributionType: cType,
+                paymentMethod: pMethod
+              });
               await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId, cType, pMethod);
             }
           }

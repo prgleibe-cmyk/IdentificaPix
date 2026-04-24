@@ -190,6 +190,13 @@ export const useCloudSync = ({
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
                     else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
 
+                    console.log("🧠 [RECONSTRUCT ITEM]", {
+                        id: t.id,
+                        type: t.type,
+                        payment_method: t.payment_method,
+                        full: t
+                    });
+
                     return {
                         transaction,
                         contributor,
@@ -378,6 +385,13 @@ export const useCloudSync = ({
                                 if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
                                 else if (t.status === 'identified') matchStatus = ReconciliationStatus.IDENTIFIED;
 
+                                console.log("🧠 [REALTIME ITEM] (New)", {
+                                    id: t.id,
+                                    type: t.type,
+                                    payment_method: t.payment_method,
+                                    full: t
+                                });
+
                                 const newItem: MatchResult = {
                                     transaction,
                                     contributor,
@@ -442,6 +456,13 @@ export const useCloudSync = ({
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
+                            console.log("🧠 [REALTIME ITEM] (Update)", {
+                                id: id,
+                                type: type,
+                                payment_method: payment_method,
+                                full: payload.new
+                            });
+
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
