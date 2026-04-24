@@ -126,6 +126,8 @@ export const useCloudSync = ({
                     if (error) throw error;
                     if (!data || data.length === 0) break;
 
+                    console.log('📦 MATCH VINDO DO BANCO', data);
+
                     console.log('[RECONSTRUCT:RAW_DATA]', data);
 
                     allTxs = [...allTxs, ...data];

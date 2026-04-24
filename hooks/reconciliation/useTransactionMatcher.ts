@@ -142,6 +142,12 @@ export const useTransactionMatcher = ({
             selectedBankIds.includes(String(r.transaction.bank_id))
         );
 
+        console.log('[DEBUG] handleCompare filteredExistingResults', { isAuto, count: filteredExistingResults.length, total: matchResults.length });
+        if (isAuto && matchResults.length > filteredExistingResults.length) {
+            const ignored = matchResults.filter(r => !r.isConfirmed && r.status !== ReconciliationStatus.UNIDENTIFIED);
+            console.log('[DEBUG] handleCompare ignoring identified results (not confirmed)', ignored);
+        }
+
         // 🧬 FUSÃO INTELIGENTE: Executa o matching apenas no escopo selecionado
         const results = matchTransactions(
             allTransactions, 
