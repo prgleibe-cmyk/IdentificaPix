@@ -70,10 +70,9 @@ export const consolidationService = {
                         transaction_date: finalDate,
                         amount: isNaN(amount) ? 0 : amount,
                         description: t.description,
-                        type: t.type || (amount >= 0 ? 'income' : 'expense'),
+                        type: (t as any).contributionType || (t as any).contribution_type || t.type || (amount >= 0 ? 'income' : 'expense'),
                         pix_key: t.pix_key || null,
-                        contribution_type: (t as any).contribution_type || (t as any).contributionType || null,
-                        payment_method: (t as any).payment_method || (t as any).paymentMethod || null,
+                        payment_method: (t as any).paymentMethod || (t as any).payment_method || null,
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
                         bank_id: t.bank_id || null,
@@ -178,7 +177,7 @@ export const consolidationService = {
             if (bankId !== undefined) updateData.bank_id = bankId;
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
-            if (contributionType !== undefined) updateData.contribution_type = contributionType;
+            if (contributionType !== undefined) updateData.type = contributionType;
             if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
             console.log('[ID:WRITE]', {
@@ -248,7 +247,7 @@ export const consolidationService = {
         if (churchId !== undefined) updateData.church_id = churchId;
         if (bankId !== undefined) updateData.bank_id = bankId;
         if (contributorId !== undefined) updateData.contributor_id = contributorId;
-        if (contributionType !== undefined) updateData.contribution_type = contributionType;
+        if (contributionType !== undefined) updateData.type = contributionType;
         if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
         console.log('[ID:WRITE]', {
@@ -355,7 +354,7 @@ export const consolidationService = {
             const maxRecords = 5000;
             const allTransactions = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed, contribution_type, payment_method')
+                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed, payment_method')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)
