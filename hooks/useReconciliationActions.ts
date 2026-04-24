@@ -41,6 +41,7 @@ export const useReconciliationActions = ({
     const updatedResult: MatchResult = {
       ...originalResult,
       status: ReconciliationStatus.IDENTIFIED,
+      isConfirmed: false,
       contributor: {
         ...contributor,
         contributionType: contributionType || contributor.contributionType,
@@ -53,6 +54,10 @@ export const useReconciliationActions = ({
       divergence: undefined,
       contributionType: contributionType || originalResult.contributionType,
       paymentMethod: paymentMethod || originalResult.paymentMethod,
+      transaction: { 
+        ...originalResult.transaction,
+        isConfirmed: false 
+      },
       updatedAt: new Date().toISOString()
     };
 
@@ -113,6 +118,7 @@ export const useReconciliationActions = ({
         const updated: MatchResult = {
           ...original,
           status: ReconciliationStatus.IDENTIFIED,
+          isConfirmed: false,
           contributor: {
             ...contributor,
             contributionType: contributionType || contributor.contributionType,
@@ -125,6 +131,10 @@ export const useReconciliationActions = ({
           divergence: undefined,
           contributionType: contributionType || original.contributionType,
           paymentMethod: paymentMethod || original.paymentMethod,
+          transaction: {
+            ...original.transaction,
+            isConfirmed: false
+          },
           updatedAt: new Date().toISOString()
         };
 
@@ -282,6 +292,8 @@ export const useReconciliationActions = ({
         contributor: null,
         church: referenceData.PLACEHOLDER_CHURCH || r.church,
         isConfirmed: false,
+        contributionType: null,
+        paymentMethod: null,
         transaction: { ...r.transaction, isConfirmed: false },
         updatedAt: new Date().toISOString()
       } : r

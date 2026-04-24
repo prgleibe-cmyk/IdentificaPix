@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
     Transaction, 
@@ -73,7 +74,9 @@ export const useReconciliation = (props: any) => {
                     status: updatedRow.status,
                     contributionType: updatedRow.contributionType,
                     paymentMethod: updatedRow.paymentMethod,
-                    isConfirmed: updatedRow.isConfirmed
+                    isConfirmed: updatedRow.isConfirmed,
+                    contributor: updatedRow.contributor,
+                    church: updatedRow.church
                 }
             });
     }, [user?.id, subscription.ownerId]);
