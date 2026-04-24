@@ -30,6 +30,18 @@ export const useReconciliationActions = ({
 
     const originalResult = currentResults[idx];
 
+    const finalContributionType = contributionType !== undefined ? contributionType : originalResult.contributionType;
+    const finalPaymentMethod = paymentMethod !== undefined ? paymentMethod : originalResult.paymentMethod;
+
+    console.log('📥 INPUT ANTES DO UPDATE', {
+      selectedType: contributionType,
+      selectedPaymentMethod: paymentMethod,
+      originalType: originalResult.contributionType,
+      originalPaymentMethod: originalResult.paymentMethod,
+      finalType: finalContributionType,
+      finalPaymentMethod: finalPaymentMethod
+    });
+
     const contributor: Contributor = originalResult.contributor || {
       name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
       amount: originalResult.transaction.amount,
@@ -45,8 +57,8 @@ export const useReconciliationActions = ({
       similarity: 100,
       contributorAmount: contributor.amount,
       divergence: undefined,
-      contributionType: contributionType !== undefined ? contributionType : originalResult.contributionType,
-      paymentMethod: paymentMethod !== undefined ? paymentMethod : originalResult.paymentMethod,
+      contributionType: finalContributionType,
+      paymentMethod: finalPaymentMethod,
       updatedAt: new Date().toISOString()
     };
 
@@ -65,8 +77,8 @@ export const useReconciliationActions = ({
         originalResult.transaction.bank_id,
         contributor.id,
         false,
-        contributionType !== undefined ? contributionType : originalResult.contributionType,
-        paymentMethod !== undefined ? paymentMethod : originalResult.paymentMethod
+        finalContributionType,
+        finalPaymentMethod
       );
     }
 
@@ -98,6 +110,19 @@ export const useReconciliationActions = ({
         const original = currentResults[idx];
         if (original.isConfirmed) continue;
 
+        const finalContributionType = contributionType !== undefined ? contributionType : original.contributionType;
+        const finalPaymentMethod = paymentMethod !== undefined ? paymentMethod : original.paymentMethod;
+
+        console.log('📥 INPUT ANTES DO UPDATE (BulkItem)', {
+          id,
+          selectedType: contributionType,
+          selectedPaymentMethod: paymentMethod,
+          originalType: original.contributionType,
+          originalPaymentMethod: original.paymentMethod,
+          finalType: finalContributionType,
+          finalPaymentMethod: finalPaymentMethod
+        });
+
         const contributor: Contributor = original.contributor || {
           name: original.transaction.cleanedDescription || original.transaction.description,
           amount: original.transaction.amount,
@@ -113,8 +138,8 @@ export const useReconciliationActions = ({
           similarity: 100,
           contributorAmount: contributor.amount,
           divergence: undefined,
-          contributionType: contributionType !== undefined ? contributionType : original.contributionType,
-          paymentMethod: paymentMethod !== undefined ? paymentMethod : original.paymentMethod,
+          contributionType: finalContributionType,
+          paymentMethod: finalPaymentMethod,
           updatedAt: new Date().toISOString()
         };
 
@@ -135,8 +160,8 @@ export const useReconciliationActions = ({
             original.transaction.bank_id,
             contributor.id,
             false,
-            contributionType !== undefined ? contributionType : original.contributionType,
-            paymentMethod !== undefined ? paymentMethod : original.paymentMethod
+            finalContributionType,
+            finalPaymentMethod
           );
         }
 

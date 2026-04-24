@@ -171,13 +171,19 @@ export const consolidationService = {
                 status,
                 user_id: effectiveUserId,
                 updated_at: new Date().toISOString(),
-                ...(churchId !== undefined && { church_id: churchId }),
-                ...(bankId !== undefined && { bank_id: bankId }),
-                ...(contributorId !== undefined && { contributor_id: contributorId }),
-                ...(isConfirmed !== undefined && { is_confirmed: isConfirmed }),
-                ...(contributionType && { type: contributionType }),
-                ...(paymentMethod && { payment_method: paymentMethod })
+                church_id: churchId,
+                bank_id: bankId,
+                contributor_id: contributorId,
+                is_confirmed: isConfirmed,
+                type: contributionType,
+                payment_method: paymentMethod ?? null
             };
+            
+            console.log('🚀 UPDATE FINAL PAYLOAD', {
+                id,
+                type: contributionType,
+                payment_method: paymentMethod
+            });
             
             console.log("🔥 [UPDATE DISPARADO]", {
                 id,
@@ -236,11 +242,11 @@ export const consolidationService = {
             status: is_confirmed ? 'resolved' : 'pending',
             user_id: effectiveUserId,
             updated_at: new Date().toISOString(),
-            ...(churchId !== undefined && { church_id: churchId }),
-            ...(bankId !== undefined && { bank_id: bankId }),
-            ...(contributorId !== undefined && { contributor_id: contributorId }),
-            ...(contributionType && { type: contributionType }),
-            ...(paymentMethod && { payment_method: paymentMethod })
+            church_id: churchId,
+            bank_id: bankId,
+            contributor_id: contributorId,
+            type: contributionType,
+            payment_method: paymentMethod ?? null
         };
 
         console.log("🔥 [UPDATE DISPARADO] (Bulk)", {
