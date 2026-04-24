@@ -359,8 +359,6 @@ export const consolidationService = {
                 maxRecords
             );
 
-            console.log('🔥 RAW DB RESPONSE (getPendingTransactions)', allTransactions);
-
             if (allTransactions.length >= maxRecords) {
                 console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
             }
@@ -456,8 +454,6 @@ export const consolidationService = {
                     .eq('user_id', userId)
                     .range(from, to)
             );
-
-            console.log('🔥 RAW DB RESPONSE (runGlobalDeduplication)', allRecords);
 
             // 2. Identifica duplicatas baseadas no row_hash OU no conteúdo exato
             const seenHashes = new Set<string>();

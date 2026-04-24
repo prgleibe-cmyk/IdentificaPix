@@ -123,8 +123,6 @@ export const useCloudSync = ({
                         .order('transaction_date', { ascending: false })
                         .range(from, from + pageSize - 1);
 
-                    console.log('🔥 RAW DB RESPONSE (useCloudSync)', data);
-
                     if (error) throw error;
                     if (!data || data.length === 0) break;
 
