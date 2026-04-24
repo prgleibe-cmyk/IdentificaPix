@@ -20,6 +20,20 @@ export const useReconciliationActions = ({
   onAfterAction
 }: UseReconciliationActionsProps) => {
 
+  // ✅ GARANTE CONTRIBUTOR SEMPRE VÁLIDO
+  const buildSafeContributor = (original: MatchResult, contributionType?: string, paymentMethod?: string): Contributor => {
+    const base = original.contributor;
+
+    return {
+      id: base?.id || `temp-${original.transaction.id}`, // 🔥 CORREÇÃO CRÍTICA
+      name: base?.name || original.transaction.cleanedDescription || original.transaction.description,
+      amount: base?.amount || original.transaction.amount,
+      cleanedName: base?.cleanedName || original.transaction.cleanedDescription || original.transaction.description,
+      contributionType: contributionType ?? base?.contributionType ?? null,
+      paymentMethod: paymentMethod ?? base?.paymentMethod ?? null
+    };
+  };
+
   const confirmManualIdentification = useCallback(async (txId: string, churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
@@ -30,30 +44,23 @@ export const useReconciliationActions = ({
 
     const originalResult = currentResults[idx];
 
-    const contributor: Contributor = originalResult.contributor || {
-      name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
-      amount: originalResult.transaction.amount,
-      cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
-      contributionType,
-      paymentMethod
-    };
+    // ✅ USANDO BUILDER SEGURO
+    const contributor: Contributor = buildSafeContributor(originalResult, contributionType, paymentMethod);
 
     const updatedResult: MatchResult = {
       ...originalResult,
       status: ReconciliationStatus.IDENTIFIED,
       isConfirmed: false,
       contributor: {
-        ...contributor,
-        contributionType: contributionType || contributor.contributionType,
-        paymentMethod: paymentMethod || contributor.paymentMethod
+        ...contributor
       },
       church,
       matchMethod: MatchMethod.MANUAL,
       similarity: 100,
       contributorAmount: contributor.amount,
       divergence: undefined,
-      contributionType: contributionType || originalResult.contributionType,
-      paymentMethod: paymentMethod || originalResult.paymentMethod,
+      contributionType: contributor.contributionType,
+      paymentMethod: contributor.paymentMethod,
       transaction: { 
         ...originalResult.transaction,
         isConfirmed: false 
@@ -69,17 +76,19 @@ export const useReconciliationActions = ({
         'identified', 
         churchId, 
         originalResult.transaction.bank_id,
-        contributor.id,
+        contributor.id, // 🔥 AGORA SEMPRE VÁLIDO
         false
       );
     }
 
     reconciliation.setMatchResults(currentResults);
+
     if (onAfterAction) onAfterAction(currentResults);
     
-    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
-    if (reconciliation.triggerSync) {
-      reconciliation.triggerSync(updatedResult);
+    // 🔥 CORREÇÃO: usar estado FINAL
+    const final = currentResults.find(r => r.transaction.id === txId);
+    if (final && reconciliation.triggerSync) {
+      reconciliation.triggerSync(final);
     }
 
     referenceData.learnAssociation(updatedResult);
@@ -107,30 +116,23 @@ export const useReconciliationActions = ({
         const original = currentResults[idx];
         if (original.isConfirmed) continue;
 
-        const contributor: Contributor = original.contributor || {
-          name: original.transaction.cleanedDescription || original.transaction.description,
-          amount: original.transaction.amount,
-          cleanedName: original.transaction.cleanedDescription || original.transaction.description,
-          contributionType,
-          paymentMethod
-        };
+        // ✅ BUILDER SEGURO
+        const contributor: Contributor = buildSafeContributor(original, contributionType, paymentMethod);
 
         const updated: MatchResult = {
           ...original,
           status: ReconciliationStatus.IDENTIFIED,
           isConfirmed: false,
           contributor: {
-            ...contributor,
-            contributionType: contributionType || contributor.contributionType,
-            paymentMethod: paymentMethod || contributor.paymentMethod
+            ...contributor
           },
           church,
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
           contributorAmount: contributor.amount,
           divergence: undefined,
-          contributionType: contributionType || original.contributionType,
-          paymentMethod: paymentMethod || original.paymentMethod,
+          contributionType: contributor.contributionType,
+          paymentMethod: contributor.paymentMethod,
           transaction: {
             ...original.transaction,
             isConfirmed: false
@@ -148,7 +150,7 @@ export const useReconciliationActions = ({
             'identified', 
             churchId, 
             original.transaction.bank_id,
-            contributor.id,
+            contributor.id, // 🔥 GARANTIDO
             false
           );
         }
@@ -161,20 +163,19 @@ export const useReconciliationActions = ({
 
     reconciliation.setMatchResults(currentResults);
 
-    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+    if (onAfterAction) onAfterAction(currentResults);
+
+    // 🔥 CORREÇÃO: sync com estado final
     if (reconciliation.triggerSync) {
-      currentResults.forEach(r => {
-        if (txIds.includes(r.transaction.id)) {
-          reconciliation.triggerSync(r);
-        }
+      txIds.forEach(id => {
+        const final = currentResults.find(r => r.transaction.id === id);
+        if (final) reconciliation.triggerSync(final);
       });
     }
 
     reconciliation.closeManualIdentify();
 
     showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
-
-    if (onAfterAction) onAfterAction(currentResults);
 
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
@@ -190,7 +191,6 @@ export const useReconciliationActions = ({
     );
 
     if (idsToUpdate.length > 0) {
-      // Sincronização atômica: Garante que cada transação persista sua igreja e banco ao confirmar
       batchState.isBatchUpdating = true;
       try {
         const resultsToUpdate = idsToUpdate
@@ -203,7 +203,6 @@ export const useReconciliationActions = ({
           const firstBankId = first.transaction.bank_id;
           const firstContributorId = first.contributor?.id;
 
-          // Verificamos se todos os itens compartilham os mesmos metadados para aplicar Bulk Update
           const isUniform = resultsToUpdate.every(r => {
             const cId = r.church?.id || r._churchId;
             const bId = r.transaction.bank_id;
@@ -212,11 +211,9 @@ export const useReconciliationActions = ({
           });
 
           if (isUniform) {
-            // Otimização: Chamada única em lote
             const allIds = resultsToUpdate.map(r => r.transaction.id);
             await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId);
           } else {
-            // Fallback: Mantém o comportamento original sequencial se houver variações
             for (const result of resultsToUpdate) {
               const churchId = result.church?.id || result._churchId;
               const bankId = result.transaction.bank_id;
@@ -247,14 +244,15 @@ export const useReconciliationActions = ({
       return r;
     });
 
+    reconciliation.setMatchResults(currentResults);
+
     if (onAfterAction) onAfterAction(currentResults);
 
-    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+    // 🔥 CORREÇÃO: sync correto
     if (reconciliation.triggerSync) {
-      currentResults.forEach(r => {
-        if (txIds.includes(r.transaction.id)) {
-          reconciliation.triggerSync(r);
-        }
+      txIds.forEach(id => {
+        const final = currentResults.find(r => r.transaction.id === id);
+        if (final) reconciliation.triggerSync(final);
       });
     }
 
@@ -300,12 +298,13 @@ export const useReconciliationActions = ({
     );
 
     reconciliation.setMatchResults(updatedResults);
+
     if (onAfterAction) onAfterAction(updatedResults);
 
-    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
-    if (reconciliation.triggerSync) {
-      const undone = updatedResults.find(r => r.transaction.id === txId);
-      if (undone) reconciliation.triggerSync(undone);
+    const undone = updatedResults.find(r => r.transaction.id === txId);
+
+    if (undone && reconciliation.triggerSync) {
+      reconciliation.triggerSync(undone);
     }
 
     showToast("Identificação desfeita.", "success");
