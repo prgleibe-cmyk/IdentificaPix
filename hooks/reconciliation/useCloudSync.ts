@@ -124,6 +124,10 @@ export const useCloudSync = ({
                         .range(from, from + pageSize - 1);
 
                     if (error) throw error;
+                    
+                    console.log('🟢 FETCH COM PAYMENT_METHOD (Reconstruct)', data);
+                    console.log('🟣 PAYMENT_METHOD DB (Reconstruct)', (data || []).map((i: any) => i.payment_method));
+
                     if (!data || data.length === 0) break;
 
                     console.log('[RECONSTRUCT:RAW_DATA]', data);
@@ -158,24 +162,26 @@ export const useCloudSync = ({
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
-                const txResults: MatchResult[] = txs.map((t: any) => {
-                    const normalizedDesc = strictNormalize(t.description);
-                    const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
-                    const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+                    const txResults: MatchResult[] = txs.map((t: any) => {
+                        const normalizedDesc = strictNormalize(t.description);
+                        const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                        const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+    
+                        const transaction: Transaction = {
+                            id: t.id,
+                            date: t.transaction_date,
+                            description: t.description,
+                            rawDescription: t.description,
+                            amount: t.amount,
+                            bank_id: t.bank_id,
+                            isConfirmed: t.is_confirmed,
+                            contributionType: t.type,
+                            paymentMethod: t.payment_method ?? null
+                        };
 
-                    const transaction: Transaction = {
-                        id: t.id,
-                        date: t.transaction_date,
-                        description: t.description,
-                        rawDescription: t.description,
-                        amount: t.amount,
-                        bank_id: t.bank_id,
-                        isConfirmed: t.is_confirmed,
-                        contributionType: t.type,
-                        paymentMethod: t.payment_method
-                    };
-
-                    const contributor: Contributor | null = assoc ? {
+                        console.log('🟡 AFTER MAP', t.payment_method);
+    
+                        const contributor: Contributor | null = assoc ? {
                         id: t.contributor_id || undefined,
                         name: assoc.contributorNormalizedName || t.description,
                         amount: t.amount,
@@ -197,18 +203,18 @@ export const useCloudSync = ({
                         full: t
                     });
 
-                    return {
-                        transaction,
-                        contributor,
-                        church,
-                        status,
-                        isConfirmed: t.is_confirmed,
-                        contributionType: t.type,
-                        paymentMethod: t.payment_method,
-                        matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
-                        similarity: 100,
-                        updatedAt: t.updated_at
-                    };
+                        return {
+                            transaction,
+                            contributor,
+                            church,
+                            status,
+                            isConfirmed: t.is_confirmed,
+                            contributionType: t.type,
+                            paymentMethod: t.payment_method ?? null,
+                            matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
+                            similarity: 100,
+                            updatedAt: t.updated_at
+                        };
                 });
 
                 console.log('[DEBUG:AFTER_MAP_TXS]', txResults.length);
@@ -345,6 +351,9 @@ export const useCloudSync = ({
                     if (payload.new) {
                         const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at, type, payment_method } = payload.new;
                         
+                        console.log('🟣 RAW FROM REALTIME', payload.new);
+                        console.log('🟣 PAYMENT_METHOD REALTIME', payload.new.payment_method);
+
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             

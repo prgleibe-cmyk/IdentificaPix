@@ -348,7 +348,7 @@ export const consolidationService = {
             const maxRecords = 5000;
             const allTransactions = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed, payment_method')
+                    .select('*')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)
@@ -357,6 +357,9 @@ export const consolidationService = {
                 1000,
                 maxRecords
             );
+
+            console.log('🟢 FETCH COM PAYMENT_METHOD (GetPending)', allTransactions);
+            console.log('🟣 PAYMENT_METHOD DB (GetPending)', (allTransactions || []).map((i: any) => i.payment_method));
 
             if (allTransactions.length >= maxRecords) {
                 console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
@@ -451,7 +454,7 @@ export const consolidationService = {
             // 1. Busca exaustiva de todos os registros para comparação
             allRecords = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
+                    .select('*')
                     .eq('user_id', userId)
                     .range(from, to)
             );

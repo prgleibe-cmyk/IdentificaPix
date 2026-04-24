@@ -66,11 +66,10 @@ export const useLiveListSync = ({
                     rawDescription: t.description,
                     amount: t.amount,
                     originalAmount: String(t.amount.toFixed(2)),
-                    contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
-                    paymentMethod: t.pix_key || 'OUTROS',
+                    contributionType: t.type, // Preserva o tipo original do banco (ex: 'income', 'expense' ou tipos customizados)
+                    paymentMethod: t.payment_method || t.pix_key || 'OUTROS',
                     cleanedDescription: t.description,
                     bank_id: t.bank_id,
-                    // Fix: isConfirmed is now a valid property of Transaction
                     isConfirmed: !!t.is_confirmed
                 };
                 
