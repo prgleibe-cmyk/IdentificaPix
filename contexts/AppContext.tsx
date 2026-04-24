@@ -321,26 +321,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Canal de Broadcast para sincronização granular em tempo real
         const channel = supabase
             .channel(`sync-granular-${ownerId}`)
-            .on('broadcast', { event: 'transaction_updated' }, ({ payload: data }) => {
-                console.log("[Sync:Broadcast] Recebendo atualização granular:", data);
+            .on('broadcast', { event: 'transaction_updated' }, ({ payload }) => {
+                console.log("[Sync:Broadcast] Recebendo atualização granular:", payload);
                 
-                // IMPLEMENTAÇÃO OBRIGATÓRIA: Sincronização Global via Map (Realtime)
-                reconciliation.setMatchResults((prev: MatchResult[]) => {
-                    return prev.map(r => {
-                        if (r.transaction.id !== data.transaction.id) {
-                            return r;
-                        }
-
-                        console.log(`[Sync:Broadcast] Refletindo mudança em ${r.transaction.id}`);
-                        return {
-                            ...r,
-                            status: data.status !== undefined ? data.status : r.status,
-                            contributionType: data.contributionType !== undefined ? data.contributionType : r.contributionType,
-                            paymentMethod: data.paymentMethod !== undefined ? data.paymentMethod : r.paymentMethod,
-                            isConfirmed: data.isConfirmed !== undefined ? data.isConfirmed : r.isConfirmed
-                        };
-                    });
-                });
+                // Atualização direta do estado conforme solicitado
+                reconciliation.setMatchResults(prev =>
+                    prev.map(item =>
+                        item.transaction.id === payload.transaction.id
+                            ? {
+                                ...item,
+                                ...payload,
+                                transaction: {
+                                    ...item.transaction,
+                                    ...payload.transaction
+                                }
+                            }
+                            : item
+                    )
+                );
             })
             .subscribe();
 
