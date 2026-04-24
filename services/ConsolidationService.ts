@@ -70,9 +70,8 @@ export const consolidationService = {
                         transaction_date: finalDate,
                         amount: isNaN(amount) ? 0 : amount,
                         description: t.description,
-                        type: (t as any).contributionType || (t as any).contribution_type || t.type || (amount >= 0 ? 'income' : 'expense'),
+                        type: t.type || (amount >= 0 ? 'income' : 'expense'),
                         pix_key: t.pix_key || null,
-                        payment_method: (t as any).paymentMethod || (t as any).payment_method || null,
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
                         bank_id: t.bank_id || null,
@@ -151,7 +150,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, contributionType?: string, paymentMethod?: string) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -169,27 +168,25 @@ export const consolidationService = {
 
             const updateData: any = { 
                 status,
-                user_id: effectiveUserId,
-                updated_at: new Date().toISOString(),
-                church_id: churchId,
-                bank_id: bankId,
-                contributor_id: contributorId,
-                is_confirmed: isConfirmed,
-                type: contributionType,
-                payment_method: paymentMethod ?? null
+                user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
+                updated_at: new Date().toISOString()
             };
             
-            console.log('🚀 UPDATE FINAL PAYLOAD', {
-                id,
-                type: contributionType,
-                payment_method: paymentMethod
+            if (churchId !== undefined) updateData.church_id = churchId;
+            if (bankId !== undefined) updateData.bank_id = bankId;
+            if (contributorId !== undefined) updateData.contributor_id = contributorId;
+            if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
+
+            console.log('[ID:WRITE]', {
+              userId: currentUserId,
+              effectiveUserId,
+              payloadUserId: updateData.user_id
             });
-            
-            console.log("🔥 [UPDATE DISPARADO]", {
-                id,
-                type: updateData?.type,
-                payment_method: updateData?.payment_method,
-                payload: updateData
+
+            console.log('[WRITE:START]', {
+              userId: effectiveUserId,
+              transactionId: id,
+              payload: updateData
             });
 
             const { data, error } = await (supabase as any)
@@ -198,9 +195,9 @@ export const consolidationService = {
                 .eq('id', id)
                 .select();
 
-            console.log("✅ [UPDATE RESPONSE]", {
-                data,
-                error
+            console.log('[WRITE:RESULT]', {
+              data,
+              error
             });
 
             if (error) throw error;
@@ -218,7 +215,7 @@ export const consolidationService = {
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null, contributionType?: string, paymentMethod?: string) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -240,20 +237,24 @@ export const consolidationService = {
         const updateData: any = {
             is_confirmed,
             status: is_confirmed ? 'resolved' : 'pending',
-            user_id: effectiveUserId,
-            updated_at: new Date().toISOString(),
-            church_id: churchId,
-            bank_id: bankId,
-            contributor_id: contributorId,
-            type: contributionType,
-            payment_method: paymentMethod ?? null
+            user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
+            updated_at: new Date().toISOString()
         };
 
-        console.log("🔥 [UPDATE DISPARADO] (Bulk)", {
-            ids,
-            type: updateData?.type,
-            payment_method: updateData?.payment_method,
-            payload: updateData
+        if (churchId !== undefined) updateData.church_id = churchId;
+        if (bankId !== undefined) updateData.bank_id = bankId;
+        if (contributorId !== undefined) updateData.contributor_id = contributorId;
+
+        console.log('[ID:WRITE]', {
+          userId: currentUserId,
+          effectiveUserId,
+          payloadUserId: updateData.user_id
+        });
+
+        console.log('[WRITE:START]', {
+          userId: effectiveUserId,
+          transactionId: ids,
+          payload: updateData
         });
 
         const { data, error } = await (supabase as any)
@@ -262,9 +263,9 @@ export const consolidationService = {
             .in('id', ids)
             .select();
 
-        console.log("✅ [UPDATE RESPONSE] (Bulk)", {
-            data,
-            error
+        console.log('[WRITE:RESULT]', {
+          data,
+          error
         });
 
         if (error) throw error;
@@ -348,7 +349,7 @@ export const consolidationService = {
             const maxRecords = 5000;
             const allTransactions = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('*')
+                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)
@@ -358,14 +359,9 @@ export const consolidationService = {
                 maxRecords
             );
 
-            console.log('🟢 FETCH COM PAYMENT_METHOD (GetPending)', allTransactions);
-            console.log('🟣 PAYMENT_METHOD DB (GetPending)', (allTransactions || []).map((i: any) => i.payment_method));
-
             if (allTransactions.length >= maxRecords) {
                 console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
             }
-
-            console.log("📦 [FETCH DATA] (Pending)", allTransactions);
 
             return allTransactions;
 
@@ -454,7 +450,7 @@ export const consolidationService = {
             // 1. Busca exaustiva de todos os registros para comparação
             allRecords = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('*')
+                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
                     .eq('user_id', userId)
                     .range(from, to)
             );

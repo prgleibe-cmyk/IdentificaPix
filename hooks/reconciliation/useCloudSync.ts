@@ -124,10 +124,6 @@ export const useCloudSync = ({
                         .range(from, from + pageSize - 1);
 
                     if (error) throw error;
-                    
-                    console.log('🟢 FETCH COM PAYMENT_METHOD (Reconstruct)', data);
-                    console.log('🟣 PAYMENT_METHOD DB (Reconstruct)', (data || []).map((i: any) => i.payment_method));
-
                     if (!data || data.length === 0) break;
 
                     console.log('[RECONSTRUCT:RAW_DATA]', data);
@@ -162,26 +158,22 @@ export const useCloudSync = ({
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
-                    const txResults: MatchResult[] = txs.map((t: any) => {
-                        const normalizedDesc = strictNormalize(t.description);
-                        const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
-                        const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
-    
-                        const transaction: Transaction = {
-                            id: t.id,
-                            date: t.transaction_date,
-                            description: t.description,
-                            rawDescription: t.description,
-                            amount: t.amount,
-                            bank_id: t.bank_id,
-                            isConfirmed: t.is_confirmed,
-                            contributionType: t.type,
-                            paymentMethod: t.payment_method ?? null
-                        };
+                const txResults: MatchResult[] = txs.map((t: any) => {
+                    const normalizedDesc = strictNormalize(t.description);
+                    const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                    const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
-                        console.log('🟡 AFTER MAP', t.payment_method);
-    
-                        const contributor: Contributor | null = assoc ? {
+                    const transaction: Transaction = {
+                        id: t.id,
+                        date: t.transaction_date,
+                        description: t.description,
+                        rawDescription: t.description,
+                        amount: t.amount,
+                        bank_id: t.bank_id,
+                        isConfirmed: t.is_confirmed
+                    };
+
+                    const contributor: Contributor | null = assoc ? {
                         id: t.contributor_id || undefined,
                         name: assoc.contributorNormalizedName || t.description,
                         amount: t.amount,
@@ -196,25 +188,16 @@ export const useCloudSync = ({
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
                     else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
 
-                    console.log("🧠 [RECONSTRUCT ITEM]", {
-                        id: t.id,
-                        type: t.type,
-                        payment_method: t.payment_method,
-                        full: t
-                    });
-
-                        return {
-                            transaction,
-                            contributor,
-                            church,
-                            status,
-                            isConfirmed: t.is_confirmed,
-                            contributionType: t.type,
-                            paymentMethod: t.payment_method ?? null,
-                            matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
-                            similarity: 100,
-                            updatedAt: t.updated_at
-                        };
+                    return {
+                        transaction,
+                        contributor,
+                        church,
+                        status,
+                        isConfirmed: t.is_confirmed,
+                        matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
+                        similarity: 100,
+                        updatedAt: t.updated_at
+                    };
                 });
 
                 console.log('[DEBUG:AFTER_MAP_TXS]', txResults.length);
@@ -349,11 +332,8 @@ export const useCloudSync = ({
                     }
 
                     if (payload.new) {
-                        const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at, type, payment_method } = payload.new;
+                        const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
                         
-                        console.log('🟣 RAW FROM REALTIME', payload.new);
-                        console.log('🟣 PAYMENT_METHOD REALTIME', payload.new.payment_method);
-
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             
@@ -374,9 +354,7 @@ export const useCloudSync = ({
                                     rawDescription: t.description,
                                     amount: t.amount,
                                     bank_id: t.bank_id,
-                                    isConfirmed: !!t.is_confirmed,
-                                    contributionType: t.type,
-                                    paymentMethod: t.payment_method
+                                    isConfirmed: !!t.is_confirmed
                                 };
 
                                 const contributor: Contributor | null = assoc ? {
@@ -394,21 +372,12 @@ export const useCloudSync = ({
                                 if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
                                 else if (t.status === 'identified') matchStatus = ReconciliationStatus.IDENTIFIED;
 
-                                console.log("🧠 [REALTIME ITEM] (New)", {
-                                    id: t.id,
-                                    type: t.type,
-                                    payment_method: t.payment_method,
-                                    full: t
-                                });
-
                                 const newItem: MatchResult = {
                                     transaction,
                                     contributor,
                                     church,
                                     status: matchStatus,
                                     isConfirmed: !!t.is_confirmed,
-                                    contributionType: t.type,
-                                    paymentMethod: t.payment_method,
                                     matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                                     similarity: 100,
                                     updatedAt: t.updated_at
@@ -465,13 +434,6 @@ export const useCloudSync = ({
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
-                            console.log("🧠 [REALTIME ITEM] (Update)", {
-                                id: id,
-                                type: type,
-                                payment_method: payment_method,
-                                full: payload.new
-                            });
-
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
@@ -479,9 +441,7 @@ export const useCloudSync = ({
                                 church: newChurch,
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
-                                contributionType: type,
-                                paymentMethod: payment_method,
-                                transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id, contributionType: type, paymentMethod: payment_method },
+                                transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
                                 updatedAt: cloudUpdatedAt
                             };
                             return updated;
