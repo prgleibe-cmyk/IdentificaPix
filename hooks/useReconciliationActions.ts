@@ -20,7 +20,7 @@ export const useReconciliationActions = ({
   onAfterAction
 }: UseReconciliationActionsProps) => {
 
-  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+  const confirmManualIdentification = useCallback(async (txId: string, churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -33,18 +33,26 @@ export const useReconciliationActions = ({
     const contributor: Contributor = originalResult.contributor || {
       name: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
       amount: originalResult.transaction.amount,
-      cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description
+      cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description,
+      contributionType,
+      paymentMethod
     };
 
     const updatedResult: MatchResult = {
       ...originalResult,
       status: ReconciliationStatus.IDENTIFIED,
-      contributor,
+      contributor: {
+        ...contributor,
+        contributionType: contributionType || contributor.contributionType,
+        paymentMethod: paymentMethod || contributor.paymentMethod
+      },
       church,
       matchMethod: MatchMethod.MANUAL,
       similarity: 100,
       contributorAmount: contributor.amount,
       divergence: undefined,
+      contributionType: contributionType || originalResult.contributionType,
+      paymentMethod: paymentMethod || originalResult.paymentMethod,
       updatedAt: new Date().toISOString()
     };
 
@@ -73,7 +81,7 @@ export const useReconciliationActions = ({
 
 
 
-  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
+  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -92,18 +100,26 @@ export const useReconciliationActions = ({
         const contributor: Contributor = original.contributor || {
           name: original.transaction.cleanedDescription || original.transaction.description,
           amount: original.transaction.amount,
-          cleanedName: original.transaction.cleanedDescription || original.transaction.description
+          cleanedName: original.transaction.cleanedDescription || original.transaction.description,
+          contributionType,
+          paymentMethod
         };
 
         const updated: MatchResult = {
           ...original,
           status: ReconciliationStatus.IDENTIFIED,
-          contributor,
+          contributor: {
+            ...contributor,
+            contributionType: contributionType || contributor.contributionType,
+            paymentMethod: paymentMethod || contributor.paymentMethod
+          },
           church,
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
           contributorAmount: contributor.amount,
           divergence: undefined,
+          contributionType: contributionType || original.contributionType,
+          paymentMethod: paymentMethod || original.paymentMethod,
           updatedAt: new Date().toISOString()
         };
 
