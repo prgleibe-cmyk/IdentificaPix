@@ -189,7 +189,6 @@ export const consolidationService = {
               payload: updateData
             });
 
-            console.log('💾 SALVANDO MATCH (TransactionStatus)', updateData);
             const { data, error } = await (supabase as any)
                 .from('consolidated_transactions')
                 .update(updateData)
@@ -258,7 +257,6 @@ export const consolidationService = {
           payload: updateData
         });
 
-        console.log('💾 SALVANDO MATCH (ConfirmationStatus)', updateData);
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')
             .update(updateData)

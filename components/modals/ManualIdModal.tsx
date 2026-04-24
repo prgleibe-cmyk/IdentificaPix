@@ -20,8 +20,6 @@ export const ManualIdModal: React.FC = () => {
     const { t, language } = useTranslation();
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
-    const [selectedType, setSelectedType] = useState<string>('');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
 
@@ -78,13 +76,13 @@ export const ManualIdModal: React.FC = () => {
         try {
             if (isBulk) {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
-                await confirmBulkManualIdentification(ids, selectedChurchId, selectedType, selectedPaymentMethod);
+                await confirmBulkManualIdentification(ids, selectedChurchId);
             } else if (targetTx) {
                 const originalResult = findMatchResult(targetTx.id);
                 const church = churches.find(c => c.id === selectedChurchId);
             
                 if (!originalResult || !church) {
-                    await confirmManualIdentification(targetTx.id, selectedChurchId, selectedType, selectedPaymentMethod);
+                    await confirmManualIdentification(targetTx.id, selectedChurchId);
                 } else {
                     let finalContributorName = originalResult.transaction.cleanedDescription || originalResult.transaction.description;
                     if (aiSuggestion && selectedChurchId === aiSuggestion.churchId) {
@@ -96,8 +94,6 @@ export const ManualIdModal: React.FC = () => {
                         name: finalContributorName,
                         originalAmount: originalResult.transaction.originalAmount,
                         amount: originalResult.transaction.amount,
-                        contributionType: selectedType || originalResult.contributionType,
-                        paymentMethod: selectedPaymentMethod || originalResult.paymentMethod
                     };
                     const updatedRow: MatchResult = {
                         ...originalResult,
@@ -107,11 +103,9 @@ export const ManualIdModal: React.FC = () => {
                         matchMethod: MatchMethod.MANUAL,
                         similarity: 100,
                         contributorAmount: originalResult.transaction.amount,
-                        contributionType: selectedType || originalResult.contributionType,
-                        paymentMethod: selectedPaymentMethod || originalResult.paymentMethod
                     };
                     learnAssociation(updatedRow);
-                    await confirmManualIdentification(targetTx.id, selectedChurchId, selectedType, selectedPaymentMethod);
+                    await confirmManualIdentification(targetTx.id, selectedChurchId);
                 }
             }
         } catch (error) {
@@ -216,53 +210,6 @@ export const ManualIdModal: React.FC = () => {
                             </select>
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                 <ChevronDownIcon className="w-4 h-4" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                Tipo
-                            </label>
-                            <div className="relative group">
-                                <select
-                                    value={selectedType}
-                                    onChange={e => setSelectedType(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
-                                >
-                                    <option value="">Selecione...</option>
-                                    <option value="TITHES">Dízimo</option>
-                                    <option value="OFFERING">Oferta</option>
-                                    <option value="DONATION">Doação</option>
-                                    <option value="OTHER">Outro</option>
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                Forma
-                            </label>
-                            <div className="relative group">
-                                <select
-                                    value={selectedPaymentMethod}
-                                    onChange={e => setSelectedPaymentMethod(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
-                                >
-                                    <option value="">Selecione...</option>
-                                    <option value="PIX">PIX</option>
-                                    <option value="CREDIT_CARD">Cartão de Crédito</option>
-                                    <option value="DEBIT_CARD">Cartão de Débito</option>
-                                    <option value="CASH">Dinheiro</option>
-                                    <option value="BANK_TRANSFER">Transferência</option>
-                                    <option value="BOLETO">Boleto</option>
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
-                                </div>
                             </div>
                         </div>
                     </div>
