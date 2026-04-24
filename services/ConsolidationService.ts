@@ -169,7 +169,7 @@ export const consolidationService = {
 
             const updateData: any = { 
                 status,
-                user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
+                user_id: effectiveUserId,
                 updated_at: new Date().toISOString()
             };
             
@@ -180,17 +180,7 @@ export const consolidationService = {
             if (contributionType !== undefined) updateData.type = contributionType;
             if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
-            console.log('[ID:WRITE]', {
-              userId: currentUserId,
-              effectiveUserId,
-              payloadUserId: updateData.user_id
-            });
-
-            console.log('[WRITE:START]', {
-              userId: effectiveUserId,
-              transactionId: id,
-              payload: updateData
-            });
+            console.log('UPDATE PAYLOAD (Single):', updateData);
 
             const { data, error } = await (supabase as any)
                 .from('consolidated_transactions')
@@ -240,7 +230,7 @@ export const consolidationService = {
         const updateData: any = {
             is_confirmed,
             status: is_confirmed ? 'resolved' : 'pending',
-            user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
+            user_id: effectiveUserId,
             updated_at: new Date().toISOString()
         };
 
@@ -250,17 +240,7 @@ export const consolidationService = {
         if (contributionType !== undefined) updateData.type = contributionType;
         if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
-        console.log('[ID:WRITE]', {
-          userId: currentUserId,
-          effectiveUserId,
-          payloadUserId: updateData.user_id
-        });
-
-        console.log('[WRITE:START]', {
-          userId: effectiveUserId,
-          transactionId: ids,
-          payload: updateData
-        });
+        console.log('UPDATE PAYLOAD (Bulk):', updateData);
 
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')
