@@ -95,6 +95,11 @@ export const useTransactionMatcher = ({
     const handleCompare = useCallback(async (showLoading: any = true) => {
         const isAuto = showLoading === false;
 
+        if (isAuto && manualIdentificationTx) {
+            console.log('[AutoProcess:BLOCKED_BY_MANUAL]');
+            return;
+        }
+
         if (isAuto) {
             console.log('[AutoProcess:START]');
         }
@@ -151,7 +156,27 @@ export const useTransactionMatcher = ({
             filteredExistingResults
         );
 
-        setMatchResults(() => results);
+        setMatchResults(prev => {
+            const map = new Map<string, MatchResult>();
+
+            // Preserva estado atual
+            prev.forEach(r => {
+                map.set(r.transaction.id, r);
+            });
+
+            // Aplica novos resultados com proteção
+            results.forEach(r => {
+                const existing = map.get(r.transaction.id);
+
+                if (existing && existing.status !== ReconciliationStatus.UNIDENTIFIED) {
+                    return;
+                }
+
+                map.set(r.transaction.id, r);
+            });
+
+            return Array.from(map.values());
+        });
         setHasActiveSession(true);
 
         if (showLoading) {
