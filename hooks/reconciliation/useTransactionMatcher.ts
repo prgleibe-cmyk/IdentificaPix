@@ -53,25 +53,29 @@ export const useTransactionMatcher = ({
 }: UseTransactionMatcherProps) => {
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
-        // Filtro de segurança para membros no preview
         let filteredResults = results;
+
         const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r => subscription.congregationIds.includes(r.church?.id || r._churchId));
+            filteredResults = results.filter(r =>
+                subscription.congregationIds.includes(r.church?.id || r._churchId)
+            );
         }
 
-        const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
-        
+        const uniqueResults = Array.from(
+            new Map(filteredResults.map(r => [r.transaction.id, r])).values()
+        );
+
         const incomeResults = uniqueResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING 
-                ? (r.contributorAmount || r.contributor?.amount || 0) 
+            const val = r.status === ReconciliationStatus.PENDING
+                ? (r.contributorAmount || r.contributor?.amount || 0)
                 : r.transaction.amount;
-            return val >= 0; 
+            return val >= 0;
         });
-        
+
         const expenseResults = uniqueResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING 
-                ? (r.contributorAmount || r.contributor?.amount || 0) 
+            const val = r.status === ReconciliationStatus.PENDING
+                ? (r.contributorAmount || r.contributor?.amount || 0)
                 : r.transaction.amount;
             return val < 0;
         });
@@ -82,7 +86,6 @@ export const useTransactionMatcher = ({
         });
     }, [subscription, user?.id, setReportPreviewData]);
 
-    // Sincroniza o Preview sempre que os resultados persistentes mudarem
     useEffect(() => {
         if (matchResults && matchResults.length > 0) {
             regenerateReportPreview(matchResults);
@@ -91,17 +94,16 @@ export const useTransactionMatcher = ({
 
     const handleCompare = useCallback(async (showLoading: any = true) => {
         const isAuto = showLoading === false;
+
         if (isAuto) {
             console.log('[AutoProcess:START]');
-            console.log('[AutoProcess:ALLOWED]');
         }
 
         if (showLoading) {
             setIsLoading(true);
         }
-        
-        // 🔍 FILTRAGEM RIGOROSA DE TRANSAÇÕES
-        // Garante que apenas as transações dos bancos selecionados entrem no pipeline de matching
+
+        // 🔒 PRESERVA TRANSAÇÕES CONFIRMADAS
         const confirmedTransactions = matchResults
             .filter(r => r.isConfirmed)
             .map(r => r.transaction);
@@ -114,62 +116,68 @@ export const useTransactionMatcher = ({
         ];
 
         if (isAuto) {
-            console.log('[AutoProcess:CLEAR_REPORTS]');
-            // No modo automático, capturamos as transações da Lista Viva se não houver arquivos ativos
             if (allTransactions.length === 0 && matchResults.length > 0) {
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
                 allTransactions = matchResults.map(r => r.transaction);
             }
-            // NÃO limpar dados persistentes
-            // apenas resetar estados auxiliares se existirem
-            // setReportPreviewData(null);
         }
 
-        if (allTransactions.length === 0) { 
-            if (!isAuto) showToast("Selecione pelo menos um extrato com dados.", "error"); 
-            if (showLoading) {
-                setIsLoading(false); 
-            }
-            if (isAuto) console.log('[AutoProcess:DONE] No transactions found');
-            return; 
+        if (allTransactions.length === 0) {
+            if (!isAuto) showToast("Selecione pelo menos um extrato com dados.", "error");
+            if (showLoading) setIsLoading(false);
+            return;
         }
 
         if (isAuto) console.log('[AutoProcess:PROCESSING]');
 
-        // 🔍 FILTRAGEM RIGOROSA DE RESULTADOS EXISTENTES
-        // No modo automático, NÃO usamos resultados existentes para forçar re-identificação total
-        const filteredExistingResults = isAuto ? matchResults.filter(r => r.isConfirmed) : matchResults.filter(r => 
-            selectedBankIds.includes(String(r.transaction.bank_id))
-        );
+        // ✅ CORREÇÃO PRINCIPAL
+        // Preserva IDENTIFIED e CONFIRMED no modo automático
+        const filteredExistingResults = isAuto
+            ? matchResults.filter(r =>
+                r.isConfirmed ||
+                r.status === ReconciliationStatus.IDENTIFIED
+            )
+            : matchResults.filter(r =>
+                selectedBankIds.includes(String(r.transaction.bank_id))
+            );
 
-        // 🧬 FUSÃO INTELIGENTE: Executa o matching apenas no escopo selecionado
         const results = matchTransactions(
-            allTransactions, 
-            contributorFiles, 
-            { similarityThreshold: similarityLevel, dayTolerance: dayTolerance }, 
-            learnedAssociations, 
-            churches, 
+            allTransactions,
+            contributorFiles,
+            { similarityThreshold: similarityLevel, dayTolerance: dayTolerance },
+            learnedAssociations,
+            churches,
             customIgnoreKeywords,
-            filteredExistingResults 
+            filteredExistingResults
         );
 
         setMatchResults(() => results);
         setHasActiveSession(true);
-        
+
         if (showLoading) {
             setIsLoading(false);
         }
-        
+
         if (isAuto) {
             console.log('[AutoProcess:DONE]');
         } else {
             showToast("Conciliação concluída para os itens selecionados!", "success");
         }
+
     }, [
-        activeBankFiles, selectedBankIds, matchResults, contributorFiles, 
-        similarityLevel, dayTolerance, learnedAssociations, churches, 
-        customIgnoreKeywords, setMatchResults, setHasActiveSession, 
-        setIsLoading, showToast, setReportPreviewData, hasActiveSession
+        activeBankFiles,
+        selectedBankIds,
+        matchResults,
+        contributorFiles,
+        similarityLevel,
+        dayTolerance,
+        learnedAssociations,
+        churches,
+        customIgnoreKeywords,
+        setMatchResults,
+        setHasActiveSession,
+        setIsLoading,
+        showToast
     ]);
 
     const findMatchResult = useCallback((txId: string) => {
@@ -180,10 +188,15 @@ export const useTransactionMatcher = ({
         setMatchResults(prev => {
             const itemIndex = prev.findIndex(r => r.transaction.id === txId);
             if (itemIndex === -1) return prev;
+
             const item = prev[itemIndex];
-            setLaunchedResults(launched => [{ ...item, launchedAt: new Date().toISOString() }, ...launched]);
-            const next = prev.filter(r => r.transaction.id !== txId);
-            return next;
+
+            setLaunchedResults(launched => [
+                { ...item, launchedAt: new Date().toISOString() },
+                ...launched
+            ]);
+
+            return prev.filter(r => r.transaction.id !== txId);
         });
     }, [setMatchResults, setLaunchedResults]);
 
@@ -191,13 +204,17 @@ export const useTransactionMatcher = ({
         setLaunchedResults(prevLaunched => {
             const item = prevLaunched.find(r => r.transaction.id === txId);
             if (!item) return prevLaunched;
+
             const nextLaunched = prevLaunched.filter(r => r.transaction.id !== txId);
+
             setMatchResults(prevResults => {
                 if (prevResults.some(r => r.transaction.id === txId)) return prevResults;
                 return [...prevResults, item];
             });
+
             return nextLaunched;
         });
+
         showToast("Lançamento desfeito.", "success");
     }, [setMatchResults, setLaunchedResults, showToast]);
 
@@ -217,12 +234,23 @@ export const useTransactionMatcher = ({
     }, [setMatchResults]);
 
     const revertMatch = useCallback((txId: string) => {
-        setMatchResults(prev => prev.map(r => r.transaction.id === txId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED, contributor: null, church: PLACEHOLDER_CHURCH } : r));
+        setMatchResults(prev =>
+            prev.map(r =>
+                r.transaction.id === txId
+                    ? {
+                        ...r,
+                        status: ReconciliationStatus.UNIDENTIFIED,
+                        contributor: null,
+                        church: PLACEHOLDER_CHURCH
+                    }
+                    : r
+            )
+        );
     }, [setMatchResults]);
 
-    const closeManualIdentify = useCallback(() => { 
-        setManualIdentificationTx(null); 
-        setBulkIdentificationTxs([]); 
+    const closeManualIdentify = useCallback(() => {
+        setManualIdentificationTx(null);
+        setBulkIdentificationTxs([]);
     }, [setManualIdentificationTx, setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
