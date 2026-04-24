@@ -20,7 +20,7 @@ export const useReconciliationActions = ({
   onAfterAction
 }: UseReconciliationActionsProps) => {
 
-  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+  const confirmManualIdentification = useCallback(async (txId: string, churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -36,6 +36,10 @@ export const useReconciliationActions = ({
       cleanedName: originalResult.transaction.cleanedDescription || originalResult.transaction.description
     };
 
+    // Atualiza metadados no contribuinte se fornecidos
+    if (contributionType) contributor.contributionType = contributionType;
+    if (paymentMethod) contributor.paymentMethod = paymentMethod;
+
     const updatedResult: MatchResult = {
       ...originalResult,
       status: ReconciliationStatus.IDENTIFIED,
@@ -44,6 +48,8 @@ export const useReconciliationActions = ({
       matchMethod: MatchMethod.MANUAL,
       similarity: 100,
       contributorAmount: contributor.amount,
+      contributionType: contributionType || originalResult.contributionType,
+      paymentMethod: paymentMethod || originalResult.paymentMethod,
       divergence: undefined,
       updatedAt: new Date().toISOString()
     };
@@ -73,7 +79,7 @@ export const useReconciliationActions = ({
 
 
 
-  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
+  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -95,6 +101,10 @@ export const useReconciliationActions = ({
           cleanedName: original.transaction.cleanedDescription || original.transaction.description
         };
 
+        // Atualiza metadados no contribuinte se fornecidos
+        if (contributionType) contributor.contributionType = contributionType;
+        if (paymentMethod) contributor.paymentMethod = paymentMethod;
+
         const updated: MatchResult = {
           ...original,
           status: ReconciliationStatus.IDENTIFIED,
@@ -103,6 +113,8 @@ export const useReconciliationActions = ({
           matchMethod: MatchMethod.MANUAL,
           similarity: 100,
           contributorAmount: contributor.amount,
+          contributionType: contributionType || original.contributionType,
+          paymentMethod: paymentMethod || original.paymentMethod,
           divergence: undefined,
           updatedAt: new Date().toISOString()
         };
