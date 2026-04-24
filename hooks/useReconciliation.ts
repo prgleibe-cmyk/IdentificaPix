@@ -70,13 +70,18 @@ export const useReconciliation = (props: any) => {
                 type: 'broadcast',
                 event: 'transaction_updated',
                 payload: {
-                    transaction: { id: updatedRow.transaction.id },
+                    // ✅ ENVIAR A LINHA COMPLETA (igual confirmação final)
+                    ...updatedRow,
+
+                    // 🔒 Garantia de integridade mínima obrigatória
+                    transaction: {
+                        ...updatedRow.transaction
+                    },
+
+                    contributionType: updatedRow.contributionType ?? null,
+                    paymentMethod: updatedRow.paymentMethod ?? null,
                     status: updatedRow.status,
-                    contributionType: updatedRow.contributionType,
-                    paymentMethod: updatedRow.paymentMethod,
-                    isConfirmed: updatedRow.isConfirmed,
-                    contributor: updatedRow.contributor,
-                    church: updatedRow.church
+                    isConfirmed: updatedRow.isConfirmed ?? false
                 }
             });
     }, [user?.id, subscription.ownerId]);
