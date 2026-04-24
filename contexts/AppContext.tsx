@@ -326,19 +326,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 
                 // Atualização direta do estado conforme solicitado
                 reconciliation.setMatchResults(prev =>
-                    prev.map(item =>
-                        item.transaction.id === payload.transaction.id
-                            ? {
-                                ...item,
-                                ...payload,
-                                transaction: {
-                                    ...item.transaction,
-                                    ...payload.transaction
-                                }
-                            }
-                            : item
-                    )
-                );
+    prev.map(item => {
+        if (item.transaction.id !== payload.transaction?.id) return item;
+
+        return {
+            ...item,
+
+            // 🔥 ATUALIZAÇÃO EXPLÍCITA (ESSENCIAL)
+            status: payload.status ?? item.status,
+            isConfirmed: payload.isConfirmed ?? item.isConfirmed,
+            contributionType: payload.contributionType ?? item.contributionType,
+            paymentMethod: payload.paymentMethod ?? item.paymentMethod,
+            contributor: payload.contributor ?? item.contributor,
+            church: payload.church ?? item.church,
+
+            // 🔒 transaction NÃO deve sobrescrever tudo
+            transaction: {
+                ...item.transaction,
+                ...(payload.transaction || {})
+            }
+        };
+    })
+);
             })
             .subscribe();
 
