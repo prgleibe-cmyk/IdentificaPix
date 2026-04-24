@@ -32,11 +32,14 @@ export const useCloudSync = ({
         if (!user?.id || !effectiveUserId || isHydratingFromCloud.current) return;
         
         // Payload simplificado para comparação de mudanças reais
+        // Incluindo Tipo e Forma para garantir que alterações manuais disparem a sincronização
         const payload = JSON.stringify(results.map(r => ({
             id: r.transaction.id,
             status: r.status,
             churchId: r.church?.id || r._churchId,
-            contributorId: r.contributor?.id
+            contributorId: r.contributor?.id,
+            type: r.contributionType,
+            form: r.paymentMethod
         })));
 
         if (payload === lastCloudSyncRef.current) return;

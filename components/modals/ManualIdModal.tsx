@@ -15,13 +15,15 @@ export const ManualIdModal: React.FC = () => {
         confirmBulkManualIdentification,
         closeManualIdentify,
         findMatchResult,
-        learnAssociation
+        learnAssociation,
+        contributionKeywords,
+        paymentMethods
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
-    const [selectedType, setSelectedType] = useState<string>('Dízimo');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('Transferência');
+    const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(paymentMethods?.[0] || 'Transferência');
     const [isSaving, setIsSaving] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
 
@@ -231,9 +233,9 @@ export const ManualIdModal: React.FC = () => {
                                     onChange={e => setSelectedType(e.target.value)}
                                     className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
                                 >
-                                    <option value="Dízimo">Dízimo</option>
-                                    <option value="Oferta">Oferta</option>
-                                    <option value="Outros">Outros</option>
+                                    {contributionKeywords.map((type: string) => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
                                 </select>
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                     <ChevronDownIcon className="w-4 h-4" />
@@ -251,10 +253,9 @@ export const ManualIdModal: React.FC = () => {
                                     onChange={e => setSelectedPaymentMethod(e.target.value)}
                                     className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
                                 >
-                                    <option value="Dinheiro">Dinheiro</option>
-                                    <option value="PIX">PIX</option>
-                                    <option value="Cartão">Cartão</option>
-                                    <option value="Transferência">Transferência</option>
+                                    {paymentMethods.map((method: string) => (
+                                        <option key={method} value={method}>{method}</option>
+                                    ))}
                                 </select>
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                     <ChevronDownIcon className="w-4 h-4" />

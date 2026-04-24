@@ -339,10 +339,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        // Se o tamanho é igual, checamos uma amostragem de hashes de confirmação/status
-        // Aumentamos a amostragem para 250 itens para maior precisão
-        const cloudSample = cloudResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
-        const localSample = localResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.church?.id || r._churchId}`).join('|');
+        // Se o tamanho é igual, checamos uma amostragem de hashes de confirmação/status/tipo/forma
+        // Incluímos contributionType e paymentMethod para garantir que mudanças manuais sincronizem entre usuários
+        const cloudSample = cloudResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
+        const localSample = localResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
 
         if (cloudSample !== localSample && localTotal > 0) {
             console.log("[AppContext] Sincronizando mudança remota (conteúdo) no relatório ativo.");

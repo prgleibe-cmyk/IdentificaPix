@@ -25,6 +25,8 @@ interface UseTransactionMatcherProps {
     setManualIdentificationTx: (tx: Transaction | null) => void;
     bulkIdentificationTxs: Transaction[];
     setBulkIdentificationTxs: (txs: Transaction[]) => void;
+    activeReportId: string | null;
+    overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
 }
 
 export const useTransactionMatcher = ({
@@ -49,7 +51,9 @@ export const useTransactionMatcher = ({
     manualIdentificationTx,
     setManualIdentificationTx,
     bulkIdentificationTxs,
-    setBulkIdentificationTxs
+    setBulkIdentificationTxs,
+    activeReportId,
+    overwriteSavedReport
 }: UseTransactionMatcherProps) => {
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
@@ -66,14 +70,21 @@ export const useTransactionMatcher = ({
             new Map(filteredResults.map(r => [r.transaction.id, r])).values()
         );
 
-        const incomeResults = uniqueResults.filter(r => {
+        const cleanedResults = uniqueResults.filter(r => {
+            const val = r.status === ReconciliationStatus.PENDING
+                ? (r.contributorAmount || r.contributor?.amount || 0)
+                : r.transaction.amount;
+            return Number(val) !== 0;
+        });
+
+        const incomeResults = cleanedResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING
                 ? (r.contributorAmount || r.contributor?.amount || 0)
                 : r.transaction.amount;
             return val >= 0;
         });
 
-        const expenseResults = uniqueResults.filter(r => {
+        const expenseResults = cleanedResults.filter(r => {
             const val = r.status === ReconciliationStatus.PENDING
                 ? (r.contributorAmount || r.contributor?.amount || 0)
                 : r.transaction.amount;
@@ -118,7 +129,7 @@ export const useTransactionMatcher = ({
                 .filter(f => selectedBankIds.includes(String(f.bankId)))
                 .flatMap(f => f.processedTransactions || []),
             ...confirmedTransactions
-        ];
+        ].filter(tx => Number(tx.amount) !== 0);
 
         if (isAuto) {
             if (allTransactions.length === 0 && matchResults.length > 0) {
@@ -154,7 +165,7 @@ export const useTransactionMatcher = ({
             churches,
             customIgnoreKeywords,
             filteredExistingResults
-        );
+        ).filter(r => Number(r.transaction.amount) !== 0);
 
         setMatchResults(prev => {
             const map = new Map<string, MatchResult>();
@@ -175,7 +186,7 @@ export const useTransactionMatcher = ({
                 map.set(r.transaction.id, r);
             });
 
-            return Array.from(map.values());
+            return Array.from(map.values()).filter(r => Number(r.transaction.amount) !== 0);
         });
         setHasActiveSession(true);
 
@@ -248,15 +259,29 @@ export const useTransactionMatcher = ({
         showToast("Item removido.", "success");
     }, [setLaunchedResults, showToast]);
 
-    const updateReportData = useCallback((updatedRow: MatchResult) => {
+    const updateReportData = useCallback(async (updatedRow: MatchResult) => {
+        let nextResults: MatchResult[] = [];
         setMatchResults(prev => {
             const next = [...prev];
             const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
             if (idx !== -1) next[idx] = updatedRow;
             else next.push(updatedRow);
+            nextResults = next;
             return next;
         });
-    }, [setMatchResults]);
+
+        // 🛡️ PERSISTÊNCIA EXPLÍCITA (AJUSTE CIRÚRGICO)
+        if (!activeReportId) {
+            console.error('SEM REPORT_ID — NÃO É POSSÍVEL PERSISTIR');
+            return;
+        }
+
+        try {
+            await overwriteSavedReport(activeReportId, nextResults);
+        } catch (error) {
+            console.error("[updateReportData] Erro ao persistir:", error);
+        }
+    }, [setMatchResults, activeReportId, overwriteSavedReport]);
 
     const revertMatch = useCallback((txId: string) => {
         setMatchResults(prev =>
