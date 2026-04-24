@@ -20,7 +20,7 @@ export const useReconciliationActions = ({
   onAfterAction
 }: UseReconciliationActionsProps) => {
 
-  const confirmManualIdentification = useCallback(async (txId: string, churchId: string) => {
+  const confirmManualIdentification = useCallback(async (txId: string, churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -45,6 +45,8 @@ export const useReconciliationActions = ({
       similarity: 100,
       contributorAmount: contributor.amount,
       divergence: undefined,
+      contributionType: contributionType || contributor.contributionType,
+      paymentMethod: paymentMethod || contributor.paymentMethod,
       updatedAt: new Date().toISOString()
     };
 
@@ -57,7 +59,9 @@ export const useReconciliationActions = ({
         churchId, 
         originalResult.transaction.bank_id,
         contributor.id,
-        false
+        false,
+        contributionType || originalResult.contributionType,
+        paymentMethod || originalResult.paymentMethod
       );
     }
 
@@ -73,7 +77,7 @@ export const useReconciliationActions = ({
 
 
 
-  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string) => {
+  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -104,6 +108,8 @@ export const useReconciliationActions = ({
           similarity: 100,
           contributorAmount: contributor.amount,
           divergence: undefined,
+          contributionType: contributionType || contributor.contributionType,
+          paymentMethod: paymentMethod || contributor.paymentMethod,
           updatedAt: new Date().toISOString()
         };
 
@@ -118,7 +124,9 @@ export const useReconciliationActions = ({
             churchId, 
             original.transaction.bank_id,
             contributor.id,
-            false
+            false,
+            contributionType || original.contributionType,
+            paymentMethod || original.paymentMethod
           );
         }
 
@@ -162,26 +170,32 @@ export const useReconciliationActions = ({
           const firstChurchId = first.church?.id || first._churchId;
           const firstBankId = first.transaction.bank_id;
           const firstContributorId = first.contributor?.id;
+          const firstContributionType = first.contributionType;
+          const firstPaymentMethod = first.paymentMethod;
 
           // Verificamos se todos os itens compartilham os mesmos metadados para aplicar Bulk Update
           const isUniform = resultsToUpdate.every(r => {
             const cId = r.church?.id || r._churchId;
             const bId = r.transaction.bank_id;
             const ctId = r.contributor?.id;
-            return cId === firstChurchId && bId === firstBankId && ctId === firstContributorId;
+            const cType = r.contributionType;
+            const pMethod = r.paymentMethod;
+            return cId === firstChurchId && bId === firstBankId && ctId === firstContributorId && cType === firstContributionType && pMethod === firstPaymentMethod;
           });
 
           if (isUniform) {
             // Otimização: Chamada única em lote
             const allIds = resultsToUpdate.map(r => r.transaction.id);
-            await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId);
+            await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId, firstContributionType, firstPaymentMethod);
           } else {
             // Fallback: Mantém o comportamento original sequencial se houver variações
             for (const result of resultsToUpdate) {
               const churchId = result.church?.id || result._churchId;
               const bankId = result.transaction.bank_id;
               const contributorId = result.contributor?.id;
-              await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId);
+              const cType = result.contributionType;
+              const pMethod = result.paymentMethod;
+              await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId, cType, pMethod);
             }
           }
         }

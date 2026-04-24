@@ -3,7 +3,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
-import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon } from '../Icons';
+import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon, TagIcon, CreditCardIcon } from '../Icons';
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 
 export const ManualIdModal: React.FC = () => {
@@ -11,6 +11,8 @@ export const ManualIdModal: React.FC = () => {
         manualIdentificationTx, 
         bulkIdentificationTxs,
         churches,
+        contributionKeywords,
+        paymentMethods,
         confirmManualIdentification, 
         confirmBulkManualIdentification,
         closeManualIdentify,
@@ -20,6 +22,8 @@ export const ManualIdModal: React.FC = () => {
     const { t, language } = useTranslation();
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
+    const [selectedType, setSelectedType] = useState<string>('');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<{ churchName: string; contributorName: string; churchId: string } | null>(null);
 
@@ -76,13 +80,13 @@ export const ManualIdModal: React.FC = () => {
         try {
             if (isBulk) {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
-                await confirmBulkManualIdentification(ids, selectedChurchId);
+                await confirmBulkManualIdentification(ids, selectedChurchId, selectedType, selectedPaymentMethod);
             } else if (targetTx) {
                 const originalResult = findMatchResult(targetTx.id);
                 const church = churches.find(c => c.id === selectedChurchId);
             
                 if (!originalResult || !church) {
-                    await confirmManualIdentification(targetTx.id, selectedChurchId);
+                    await confirmManualIdentification(targetTx.id, selectedChurchId, selectedType, selectedPaymentMethod);
                 } else {
                     let finalContributorName = originalResult.transaction.cleanedDescription || originalResult.transaction.description;
                     if (aiSuggestion && selectedChurchId === aiSuggestion.churchId) {
@@ -103,9 +107,11 @@ export const ManualIdModal: React.FC = () => {
                         matchMethod: MatchMethod.MANUAL,
                         similarity: 100,
                         contributorAmount: originalResult.transaction.amount,
+                        contributionType: selectedType || originalResult.contributionType,
+                        paymentMethod: selectedPaymentMethod || originalResult.paymentMethod,
                     };
                     learnAssociation(updatedRow);
-                    await confirmManualIdentification(targetTx.id, selectedChurchId);
+                    await confirmManualIdentification(targetTx.id, selectedChurchId, selectedType, selectedPaymentMethod);
                 }
             }
         } catch (error) {
@@ -210,6 +216,54 @@ export const ManualIdModal: React.FC = () => {
                             </select>
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                 <ChevronDownIcon className="w-4 h-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                Tipo
+                            </label>
+                            <div className="relative group">
+                                <TagIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <select
+                                    value={selectedType}
+                                    onChange={e => setSelectedType(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none focus:border-brand-blue"
+                                >
+                                    <option value="">Sem categoria</option>
+                                    {contributionKeywords?.map((keyword: string) => (
+                                        <option key={keyword} value={keyword}>{keyword}</option>
+                                    ))}
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                Forma
+                            </label>
+                            <div className="relative group">
+                                <CreditCardIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <select
+                                    value={selectedPaymentMethod}
+                                    onChange={e => setSelectedPaymentMethod(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none focus:border-brand-blue"
+                                >
+                                    <option value="">Sem forma</option>
+                                    {paymentMethods?.map((method: string) => (
+                                        <option key={method} value={method}>{method}</option>
+                                    ))}
+                                    <option value="OUTROS">OUTROS</option>
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </div>
                             </div>
                         </div>
                     </div>

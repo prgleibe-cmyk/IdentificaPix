@@ -72,6 +72,8 @@ export const consolidationService = {
                         description: t.description,
                         type: t.type || (amount >= 0 ? 'income' : 'expense'),
                         pix_key: t.pix_key || null,
+                        contribution_type: (t as any).contribution_type || (t as any).contributionType || null,
+                        payment_method: (t as any).payment_method || (t as any).paymentMethod || null,
                         source: t.source || 'file',
                         user_id: effectiveUserId || t.user_id,
                         bank_id: t.bank_id || null,
@@ -150,7 +152,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, contributionType?: string, paymentMethod?: string) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -176,6 +178,8 @@ export const consolidationService = {
             if (bankId !== undefined) updateData.bank_id = bankId;
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
+            if (contributionType !== undefined) updateData.contribution_type = contributionType;
+            if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,
@@ -215,7 +219,7 @@ export const consolidationService = {
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null, contributionType?: string, paymentMethod?: string) => {
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -244,6 +248,8 @@ export const consolidationService = {
         if (churchId !== undefined) updateData.church_id = churchId;
         if (bankId !== undefined) updateData.bank_id = bankId;
         if (contributorId !== undefined) updateData.contributor_id = contributorId;
+        if (contributionType !== undefined) updateData.contribution_type = contributionType;
+        if (paymentMethod !== undefined) updateData.payment_method = paymentMethod;
 
         console.log('[ID:WRITE]', {
           userId: currentUserId,
@@ -349,7 +355,7 @@ export const consolidationService = {
             const maxRecords = 5000;
             const allTransactions = await consolidationService._fetchPaginated((from, to) => 
                 (supabase as any).from('consolidated_transactions')
-                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
+                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed, contribution_type, payment_method')
                     .eq('user_id', userId)
                     .eq('status', 'pending')
                     .eq('is_confirmed', false)

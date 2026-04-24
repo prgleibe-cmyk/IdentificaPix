@@ -170,7 +170,9 @@ export const useCloudSync = ({
                         rawDescription: t.description,
                         amount: t.amount,
                         bank_id: t.bank_id,
-                        isConfirmed: t.is_confirmed
+                        isConfirmed: t.is_confirmed,
+                        contributionType: t.contribution_type,
+                        paymentMethod: t.payment_method
                     };
 
                     const contributor: Contributor | null = assoc ? {
@@ -194,6 +196,8 @@ export const useCloudSync = ({
                         church,
                         status,
                         isConfirmed: t.is_confirmed,
+                        contributionType: t.contribution_type,
+                        paymentMethod: t.payment_method,
                         matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                         similarity: 100,
                         updatedAt: t.updated_at
@@ -332,7 +336,7 @@ export const useCloudSync = ({
                     }
 
                     if (payload.new) {
-                        const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
+                        const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at, contribution_type, payment_method } = payload.new;
                         
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
@@ -354,7 +358,9 @@ export const useCloudSync = ({
                                     rawDescription: t.description,
                                     amount: t.amount,
                                     bank_id: t.bank_id,
-                                    isConfirmed: !!t.is_confirmed
+                                    isConfirmed: !!t.is_confirmed,
+                                    contributionType: t.contribution_type,
+                                    paymentMethod: t.payment_method
                                 };
 
                                 const contributor: Contributor | null = assoc ? {
@@ -378,6 +384,8 @@ export const useCloudSync = ({
                                     church,
                                     status: matchStatus,
                                     isConfirmed: !!t.is_confirmed,
+                                    contributionType: t.contribution_type,
+                                    paymentMethod: t.payment_method,
                                     matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                                     similarity: 100,
                                     updatedAt: t.updated_at
@@ -441,7 +449,9 @@ export const useCloudSync = ({
                                 church: newChurch,
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
-                                transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
+                                contributionType: contribution_type,
+                                paymentMethod: payment_method,
+                                transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id, contributionType: contribution_type, paymentMethod: payment_method },
                                 updatedAt: cloudUpdatedAt
                             };
                             return updated;
