@@ -71,6 +71,11 @@ export const useReconciliationActions = ({
 
     reconciliation.setMatchResults(currentResults);
     if (onAfterAction) onAfterAction(currentResults);
+    
+    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+    if (reconciliation.triggerSync) {
+      reconciliation.triggerSync(updatedResult);
+    }
 
     referenceData.learnAssociation(updatedResult);
 
@@ -145,6 +150,15 @@ export const useReconciliationActions = ({
     }
 
     reconciliation.setMatchResults(currentResults);
+
+    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+    if (reconciliation.triggerSync) {
+      currentResults.forEach(r => {
+        if (txIds.includes(r.transaction.id)) {
+          reconciliation.triggerSync(r);
+        }
+      });
+    }
 
     reconciliation.closeManualIdentify();
 
@@ -225,6 +239,15 @@ export const useReconciliationActions = ({
 
     if (onAfterAction) onAfterAction(currentResults);
 
+    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+    if (reconciliation.triggerSync) {
+      currentResults.forEach(r => {
+        if (txIds.includes(r.transaction.id)) {
+          reconciliation.triggerSync(r);
+        }
+      });
+    }
+
     showToast(
       confirmed
         ? "Registros confirmados e bloqueados."
@@ -266,6 +289,12 @@ export const useReconciliationActions = ({
 
     reconciliation.setMatchResults(updatedResults);
     if (onAfterAction) onAfterAction(updatedResults);
+
+    // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+    if (reconciliation.triggerSync) {
+      const undone = updatedResults.find(r => r.transaction.id === txId);
+      if (undone) reconciliation.triggerSync(undone);
+    }
 
     showToast("Identificação desfeita.", "success");
 

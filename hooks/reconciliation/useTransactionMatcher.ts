@@ -27,6 +27,7 @@ interface UseTransactionMatcherProps {
     setBulkIdentificationTxs: (txs: Transaction[]) => void;
     activeReportId: string | null;
     overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
+    triggerSync?: (updatedRow: MatchResult) => void;
 }
 
 export const useTransactionMatcher = ({
@@ -53,7 +54,8 @@ export const useTransactionMatcher = ({
     bulkIdentificationTxs,
     setBulkIdentificationTxs,
     activeReportId,
-    overwriteSavedReport
+    overwriteSavedReport,
+    triggerSync
 }: UseTransactionMatcherProps) => {
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
@@ -269,6 +271,11 @@ export const useTransactionMatcher = ({
             nextResults = next;
             return next;
         });
+
+        // 📡 SINCRONIZAÇÃO GLOBAL EM TEMPO REAL
+        if (triggerSync) {
+            triggerSync(updatedRow);
+        }
 
         // 🛡️ PERSISTÊNCIA EXPLÍCITA (AJUSTE CIRÚRGICO)
         if (!activeReportId) {

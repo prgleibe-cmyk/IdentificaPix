@@ -56,6 +56,28 @@ export const useReconciliation = (props: any) => {
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
+    // 📡 GATILHO DE SINCRONIZAÇÃO GLOBAL (BROADCAST)
+    const triggerSync = useCallback((updatedRow: MatchResult) => {
+        const ownerId = subscription.ownerId || user?.id;
+        if (!ownerId) return;
+
+        console.log("[Sync:Trigger] Disparando evento global de sincronização:", updatedRow.transaction.id);
+        
+        supabase
+            .channel(`sync-granular-${ownerId}`)
+            .send({
+                type: 'broadcast',
+                event: 'transaction_updated',
+                payload: {
+                    transaction: { id: updatedRow.transaction.id },
+                    status: updatedRow.status,
+                    contributionType: updatedRow.contributionType,
+                    paymentMethod: updatedRow.paymentMethod,
+                    isConfirmed: updatedRow.isConfirmed
+                }
+            });
+    }, [user?.id, subscription.ownerId]);
+
     // Agrupamento de parâmetros para os sub-hooks
     const params = {
         ...props,
@@ -73,7 +95,8 @@ export const useReconciliation = (props: any) => {
         bulkIdentificationTxs, setBulkIdentificationTxs,
         modelRequiredData, setModelRequiredData,
         loadingAiId, setLoadingAiId,
-        launchedResults, setLaunchedResults
+        launchedResults, setLaunchedResults,
+        triggerSync
     };
 
     // 1. Hook de Matching de Transações (Movido para cima para fornecer handleCompare)

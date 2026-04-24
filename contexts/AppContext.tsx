@@ -315,20 +315,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 📡 REAL-TIME SYNC: Sincroniza o relatório ativo se houver mudanças remotas
     useEffect(() => {
+        const ownerId = subscription.ownerId || user?.id;
+        if (!ownerId) return;
+
+        // Canal de Broadcast para sincronização granular em tempo real
+        const channel = supabase
+            .channel(`sync-granular-${ownerId}`)
+            .on('broadcast', { event: 'transaction_updated' }, ({ payload: data }) => {
+                console.log("[Sync:Broadcast] Recebendo atualização granular:", data);
+                
+                // IMPLEMENTAÇÃO OBRIGATÓRIA: Sincronização Global via Map (Realtime)
+                reconciliation.setMatchResults((prev: MatchResult[]) => {
+                    return prev.map(r => {
+                        if (r.transaction.id !== data.transaction.id) {
+                            return r;
+                        }
+
+                        console.log(`[Sync:Broadcast] Refletindo mudança em ${r.transaction.id}`);
+                        return {
+                            ...r,
+                            status: data.status !== undefined ? data.status : r.status,
+                            contributionType: data.contributionType !== undefined ? data.contributionType : r.contributionType,
+                            paymentMethod: data.paymentMethod !== undefined ? data.paymentMethod : r.paymentMethod,
+                            isConfirmed: data.isConfirmed !== undefined ? data.isConfirmed : r.isConfirmed
+                        };
+                    });
+                });
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user?.id, subscription.ownerId]);
+
+    // 🔄 SYNC DO RELATÓRIO SALVO (Via Tabelas)
+    useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId || isSyncing || isLoading) return;
 
         const savedReport = reportManager.savedReports.find(r => r.id === activeId);
         if (!savedReport || !savedReport.data?.results) return;
 
-        // Compara se o que está na nuvem é diferente do que temos localmente
-        // Usamos uma amostragem de dados para detectar mudanças sem pesar no processamento
-        const cloudResults = savedReport.data.results || [];
+        const cloudResults = (savedReport.data.results || []) as MatchResult[];
         const localResults = reconciliation.fullMatchResults || [];
         
         const cloudTotal = cloudResults.length;
         const localTotal = localResults.length;
 
+        // Se o tamanho é diferente, sincronizamos a lista toda
         if (cloudTotal !== localTotal && localTotal > 0) {
             console.log("[AppContext] Sincronizando mudança remota (tamanho) no relatório ativo.");
             const hydrated = cloudResults.map((r: any) => ({
@@ -339,13 +374,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
         }
 
-        // Se o tamanho é igual, checamos uma amostragem de hashes de confirmação/status/tipo/forma
-        // Incluímos contributionType e paymentMethod para garantir que mudanças manuais sincronizem entre usuários
-        const cloudSample = cloudResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
-        const localSample = localResults.slice(0, 250).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
+        // Se o tamanho é igual, checamos diferenças de conteúdo (Tipo, Forma, Status, Confirmação)
+        const cloudSample = cloudResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
+        const localSample = localResults.slice(0, 500).map((r: any) => `${r.status}-${r.isConfirmed}-${r.contributionType || ''}-${r.paymentMethod || ''}-${r.church?.id || r._churchId}`).join('|');
 
         if (cloudSample !== localSample && localTotal > 0) {
-            console.log("[AppContext] Sincronizando mudança remota (conteúdo) no relatório ativo.");
+            console.log("[AppContext] Aplicando sincronização passiva de banco.");
             const hydrated = cloudResults.map((r: any) => ({
                 ...r,
                 church: referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) || r.church || PLACEHOLDER_CHURCH
