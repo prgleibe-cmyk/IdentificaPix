@@ -56,7 +56,7 @@ export const useCloudSync = ({
         churches.length > 0 &&
         learnedAssociations.length > 0;
 
-    const isContextReady = isReady && activeReportId !== null;
+    const isContextReady = isReady && matchResults.length > 0;
 
     const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
