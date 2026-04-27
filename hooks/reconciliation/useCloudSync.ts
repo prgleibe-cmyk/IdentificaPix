@@ -56,7 +56,7 @@ export const useCloudSync = ({
         churches.length > 0 &&
         learnedAssociations.length > 0;
 
-    const isContextReady = isReady && matchResults.length > 0;
+    const isContextReady = isReady && activeReportId !== null;
 
     const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
@@ -387,7 +387,12 @@ export const useCloudSync = ({
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                            const newStatus = statusMap[status] || current.status;
+                            // 🛡️ Proteção contra regressão de estado (pending não pode sobrescrever identified/resolved)
+let newStatus = statusMap[status] || current.status;
+
+if (status === 'pending' && current.status !== ReconciliationStatus.UNIDENTIFIED) {
+    newStatus = current.status;
+}
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
