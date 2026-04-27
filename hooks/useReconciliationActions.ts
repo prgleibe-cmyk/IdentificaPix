@@ -38,78 +38,76 @@ export const useReconciliationActions = ({
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
-    const currentResults = [...reconciliation.fullMatchResults];
     let affectedCount = 0;
-
     batchState.isBatchUpdating = true;
+
     try {
+      // 1. Persistência Assíncrona (Processamento em Lote)
       for (const id of txIds) {
-        const idx = currentResults.findIndex(r => r.transaction.id === id);
-        if (idx === -1) continue;
+        const original = reconciliation.fullMatchResults.find(r => r.transaction.id === id);
+        if (!original || original.isConfirmed) continue;
 
-        const original = currentResults[idx];
-        if (original.isConfirmed) continue;
+        const contributor = buildSafeContributor(original, contributionType, paymentMethod);
 
-        // ✅ BUILDER SEGURO
-        const contributor: Contributor = buildSafeContributor(original, contributionType, paymentMethod);
-
-        const updated: MatchResult = {
-          ...original,
-          status: ReconciliationStatus.IDENTIFIED,
-          isConfirmed: false,
-          contributor: {
-            ...contributor
-          },
-          church,
-          matchMethod: MatchMethod.MANUAL,
-          similarity: 100,
-          contributorAmount: contributor.amount,
-          divergence: undefined,
-          contributionType: contributor.contributionType,
-          paymentMethod: contributor.paymentMethod,
-          transaction: {
-            ...original.transaction,
-            isConfirmed: false
-          },
-          updatedAt: new Date().toISOString()
-        };
-
-        currentResults[idx] = updated;
-
-        referenceData.learnAssociation(updated);
-
-        if (!id.includes('ghost') && !id.includes('sim')) {
+        if (!id.includes('ghost') && !id.startsWith('sim')) {
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
             churchId, 
             original.transaction.bank_id,
-            contributor.id, // 🔥 GARANTIDO
+            contributor.id,
             false
           );
         }
-
         affectedCount++;
       }
+
+      // 2. Atualização Atômica de Estado (Padrão idêntico ao toggleConfirmation com consistência total)
+      reconciliation.setMatchResults(prev => {
+        const finalResults = prev.map(r => {
+          if (!txIds.includes(r.transaction.id) || r.isConfirmed) return r;
+
+          const contributor = buildSafeContributor(r, contributionType, paymentMethod);
+
+          const updated: MatchResult = {
+            ...r,
+            status: ReconciliationStatus.IDENTIFIED,
+            isConfirmed: false,
+            contributor: { ...contributor },
+            church,
+            matchMethod: MatchMethod.MANUAL,
+            similarity: 100,
+            contributorAmount: contributor.amount,
+            contributionType: contributor.contributionType, // Proteção contra sobrescrita
+            paymentMethod: contributor.paymentMethod,       // Proteção contra sobrescrita
+            transaction: { 
+              ...r.transaction,
+              isConfirmed: false 
+            },
+            updatedAt: new Date().toISOString()
+          };
+
+          // Aprender a associação para IA
+          referenceData.learnAssociation(updated);
+
+          // 3. Sincronização Realtime (Padrão de Propagação Imediata)
+          if (reconciliation.triggerSync) {
+            reconciliation.triggerSync(updated);
+          }
+
+          return updated;
+        });
+
+        if (onAfterAction) onAfterAction(finalResults);
+        return finalResults;
+      });
+
     } finally {
       batchState.isBatchUpdating = false;
     }
 
-    reconciliation.setMatchResults(currentResults);
-
-    if (onAfterAction) onAfterAction(currentResults);
-
-    // 🔥 CORREÇÃO: sync com estado final
-    if (reconciliation.triggerSync) {
-      txIds.forEach(id => {
-        const final = currentResults.find(r => r.transaction.id === id);
-        if (final) reconciliation.triggerSync(final);
-      });
-    }
-
     reconciliation.closeManualIdentify();
-
-    showToast(`${affectedCount} registros identificados e aprendidos.`, "success");
+    showToast(`${affectedCount} registros identificados.`, "success");
 
   }, [reconciliation, referenceData, showToast, onAfterAction]);
 
