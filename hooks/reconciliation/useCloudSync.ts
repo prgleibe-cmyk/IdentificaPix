@@ -326,10 +326,10 @@ export const useCloudSync = ({
                             
                             // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
                             // Isso garante a sincronização em tempo real entre dispositivos.
-                            if (idx === -1) {
-    // 🛡️ NÃO criar item via realtime (evita estado inconsistente entre dispositivos)
-    return prev;
-}
+                           if (idx === -1) {
+    if (status === 'pending') return prev;
+
+                                const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
                                 const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                                 const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
