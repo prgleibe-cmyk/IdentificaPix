@@ -321,6 +321,11 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    console.log('[REALTIME RECEIVED]', {
+                      eventType: payload.eventType,
+                      new: payload.new,
+                      old: payload.old
+                    });
                     // DELETE
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
