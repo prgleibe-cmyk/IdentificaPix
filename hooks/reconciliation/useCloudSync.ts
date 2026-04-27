@@ -327,9 +327,9 @@ export const useCloudSync = ({
                             // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
                             // Isso garante a sincronização em tempo real entre dispositivos.
                             if (idx === -1) {
-                                if (status === 'pending') return prev;
-
-                                const t = payload.new;
+    // 🛡️ NÃO criar item via realtime (evita estado inconsistente entre dispositivos)
+    return prev;
+}
                                 const normalizedDesc = strictNormalize(t.description);
                                 const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                                 const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
@@ -387,12 +387,7 @@ export const useCloudSync = ({
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                            // 🛡️ Proteção contra regressão de estado (pending não pode sobrescrever identified/resolved)
-let newStatus = statusMap[status] || current.status;
-
-if (status === 'pending' && current.status !== ReconciliationStatus.UNIDENTIFIED) {
-    newStatus = current.status;
-}
+                           const newStatus = statusMap[status] || current.status;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
