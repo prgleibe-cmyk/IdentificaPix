@@ -50,7 +50,6 @@ export const useReconciliation = (props: any) => {
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
     const [reportPreviewData, setReportPreviewData] = useState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(null);
     const [comparisonType, setComparisonType] = useState<any>('income');
-    const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
@@ -103,7 +102,6 @@ export const useReconciliation = (props: any) => {
         selectedBankIds, setSelectedBankIds,
         reportPreviewData, setReportPreviewData,
         comparisonType, setComparisonType,
-        manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
         modelRequiredData, setModelRequiredData,
         loadingAiId, setLoadingAiId,
@@ -189,8 +187,6 @@ export const useReconciliation = (props: any) => {
         comparisonType, 
         setComparisonType, 
         selectedBankIds,
-        manualIdentificationTx, 
-        setManualIdentificationTx,
         bulkIdentificationTxs, 
         setBulkIdentificationTxs,
         modelRequiredData, 

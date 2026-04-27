@@ -21,8 +21,6 @@ interface UseTransactionMatcherProps {
     setHasActiveSession: (has: boolean) => void;
     hasActiveSession: boolean;
     setLaunchedResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
-    manualIdentificationTx: Transaction | null;
-    setManualIdentificationTx: (tx: Transaction | null) => void;
     bulkIdentificationTxs: Transaction[];
     setBulkIdentificationTxs: (txs: Transaction[]) => void;
     activeReportId: string | null;
@@ -49,8 +47,6 @@ export const useTransactionMatcher = ({
     setHasActiveSession,
     hasActiveSession,
     setLaunchedResults,
-    manualIdentificationTx,
-    setManualIdentificationTx,
     bulkIdentificationTxs,
     setBulkIdentificationTxs,
     activeReportId,
@@ -107,11 +103,6 @@ export const useTransactionMatcher = ({
 
     const handleCompare = useCallback(async (showLoading: any = true) => {
         const isAuto = showLoading === false;
-
-        if (isAuto && manualIdentificationTx) {
-            console.log('[AutoProcess:BLOCKED_BY_MANUAL]');
-            return;
-        }
 
         if (isAuto) {
             console.log('[AutoProcess:START]');
@@ -306,9 +297,8 @@ export const useTransactionMatcher = ({
     }, [setMatchResults]);
 
     const closeManualIdentify = useCallback(() => {
-        setManualIdentificationTx(null);
         setBulkIdentificationTxs([]);
-    }, [setManualIdentificationTx, setBulkIdentificationTxs]);
+    }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
         setMatchResults(prev => prev.filter(r => r.transaction.id !== id));

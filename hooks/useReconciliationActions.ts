@@ -34,72 +34,6 @@ export const useReconciliationActions = ({
     };
   };
 
-  const confirmManualIdentification = useCallback(async (txId: string, churchId: string, contributionType?: string, paymentMethod?: string) => {
-    const church = referenceData.churches.find((c: Church) => c.id === churchId);
-    if (!church) return;
-
-    const currentResults = [...reconciliation.fullMatchResults];
-    const idx = currentResults.findIndex(r => r.transaction.id === txId);
-    if (idx === -1) return;
-
-    const originalResult = currentResults[idx];
-
-    // ✅ USANDO BUILDER SEGURO
-    const contributor: Contributor = buildSafeContributor(originalResult, contributionType, paymentMethod);
-
-    const updatedResult: MatchResult = {
-      ...originalResult,
-      status: ReconciliationStatus.IDENTIFIED,
-      isConfirmed: false,
-      contributor: {
-        ...contributor
-      },
-      church,
-      matchMethod: MatchMethod.MANUAL,
-      similarity: 100,
-      contributorAmount: contributor.amount,
-      divergence: undefined,
-      contributionType: contributor.contributionType,
-      paymentMethod: contributor.paymentMethod,
-      transaction: { 
-        ...originalResult.transaction,
-        isConfirmed: false 
-      },
-      updatedAt: new Date().toISOString()
-    };
-
-    currentResults[idx] = updatedResult;
-
-    if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(
-        txId, 
-        'identified', 
-        churchId, 
-        originalResult.transaction.bank_id,
-        contributor.id, // 🔥 AGORA SEMPRE VÁLIDO
-        false
-      );
-    }
-
-    reconciliation.setMatchResults(currentResults);
-
-    if (onAfterAction) onAfterAction(currentResults);
-    
-    // 🔥 CORREÇÃO: usar estado FINAL
-    const final = currentResults.find(r => r.transaction.id === txId);
-    if (final && reconciliation.triggerSync) {
-      reconciliation.triggerSync(final);
-    }
-
-    referenceData.learnAssociation(updatedResult);
-
-    reconciliation.closeManualIdentify();
-    showToast("Identificado e aprendido pela IA.", "success");
-
-  }, [reconciliation, referenceData, showToast, onAfterAction]);
-
-
-
   const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string, contributionType?: string, paymentMethod?: string) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
@@ -313,7 +247,6 @@ export const useReconciliationActions = ({
 
 
   return {
-    confirmManualIdentification,
     confirmBulkManualIdentification,
     undoIdentification,
     toggleConfirmation

@@ -12,7 +12,6 @@ export const useSearchController = () => {
     const { 
         allHistoricalResults, 
         savedReports,
-        openManualIdentify, 
         loadingAiId, 
         searchFilters,
         openSearchFilters,
@@ -205,7 +204,6 @@ export const useSearchController = () => {
         openSearchFilters,
         saveFilteredReport,
         handlePrint,
-        openManualIdentify,
         loadingAiId,
         setActiveView,
         filteredResults,
