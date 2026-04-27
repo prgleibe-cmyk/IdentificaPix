@@ -321,7 +321,6 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    if (batchState.isBatchUpdating) return;
                     // DELETE
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
@@ -458,7 +457,6 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    if (batchState.isBatchUpdating) return;
                     if (payload.eventType === 'DELETE') {
                         // Se uma associação for deletada, não removemos o resultado, mas ele perde o vínculo "learned"
                         return;
