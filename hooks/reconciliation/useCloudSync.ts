@@ -396,7 +396,6 @@ export const useCloudSync = ({
                             // 🛡️ Regra de Realtime: Se o local é mais novo, ignoramos o evento
                             if (current.updatedAt && cloudUpdatedAt) {
                                 if (new Date(cloudUpdatedAt) <= new Date(current.updatedAt)) {
-                                    return prev;
                                 }
                             }
                             
