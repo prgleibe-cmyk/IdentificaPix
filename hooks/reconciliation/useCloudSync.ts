@@ -44,6 +44,7 @@ export const useCloudSync = ({
     const isValidating = useRef<boolean>(false);
     const stableTimeoutRef = useRef<any>(null);
     const lastProcessedLength = useRef<number>(0);
+    const lastSignatureRef = useRef<string>('');
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -528,14 +529,17 @@ export const useCloudSync = ({
             return;
         }
 
-        // Se o tamanho mudou, resetamos o timer de estabilidade
-        if (matchResults.length !== lastProcessedLength.current) {
-            console.log('[PostReconstruct:WAIT_STABLE]', { current: matchResults.length, last: lastProcessedLength.current });
+        // Se o conteúdo mudou, resetamos o timer de estabilidade
+        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
+
+        if (currentSignature !== lastSignatureRef.current) {
+            console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
             
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             
             stableTimeoutRef.current = setTimeout(() => {
                 console.log('[PostReconstruct:STABLE]', matchResults.length);
+                lastSignatureRef.current = currentSignature;
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompare === 'function') {
@@ -548,7 +552,7 @@ export const useCloudSync = ({
         return () => {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
-    }, [matchResults.length, isLoading, handleCompare]);
+    }, [matchResults, isLoading, handleCompare]);
 
     return {
         syncToCloud,
