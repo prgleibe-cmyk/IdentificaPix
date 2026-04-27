@@ -225,49 +225,15 @@ export const useCloudSync = ({
                 console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
 
                 setMatchResults(prev => {
-                    console.log('[DEBUG:PREV_MATCH_RESULTS]', prev.length);
-                    console.log('[RECONSTRUCT:PREV_MATCH_RESULTS]', prev);
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
-                        const existing = map.get(r.transaction.id);
-
-                        if (!existing) {
-                            map.set(r.transaction.id, r);
-                            hasChanges = true;
-                            return;
-                        }
-
-                        // lógica atual de prioridade (mantida)
-                        const localIsStrong = existing.isConfirmed || existing.status === ReconciliationStatus.RESOLVED;
-                        const cloudIsWeak = !r.isConfirmed && r.status !== ReconciliationStatus.RESOLVED;
-
-                        if (localIsStrong && cloudIsWeak) {
-                            if (!r.updatedAt || !existing.updatedAt || new Date(r.updatedAt) <= new Date(existing.updatedAt)) {
-                                return;
-                            }
-                        }
-
-                        if (existing.updatedAt && r.updatedAt) {
-                            if (new Date(existing.updatedAt) >= new Date(r.updatedAt)) {
-                                return;
-                            }
-                        }
-
-                        map.set(r.transaction.id, { ...existing, ...r });
+                        map.set(r.transaction.id, r);
                         hasChanges = true;
                     });
 
                     const final = Array.from(map.values());
-
-                    console.log('[DEBUG:SET_MATCH_RESULTS]', final.length);
-                    console.log('[RECONSTRUCT:SET_MATCH_RESULTS_FINAL]', {
-                        hasChanges,
-                        total: final.length,
-                        data: final
-                    });
-
                     return hasChanges ? final : prev;
                 });
 
@@ -321,18 +287,6 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    console.log('[REALTIME RECEIVED]', {
-                      eventType: payload.eventType,
-                      new: payload.new,
-                      old: payload.old
-                    });
-
-                    console.log('[REALTIME:ENTRY]', {
-                      id: payload.new?.id,
-                      status: payload.new?.status,
-                      is_confirmed: payload.new?.is_confirmed,
-                      updated_at: payload.new?.updated_at
-                    });
                     // DELETE
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
@@ -346,21 +300,11 @@ export const useCloudSync = ({
                         const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
                         
                         setMatchResults(prev => {
-                            console.log('[REALTIME:FIND_INDEX]', {
-                              incomingId: id,
-                              foundIndex: prev.findIndex(r => r.transaction.id === id),
-                              totalItems: prev.length
-                            });
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             
                             // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
                             // Isso garante a sincronização em tempo real entre dispositivos.
                             if (idx === -1) {
-                                console.log('[REALTIME:IDX_NOT_FOUND]', {
-                                  id,
-                                  status,
-                                  action: 'IGNORED_OR_CREATE'
-                                });
                                 if (status === 'pending') return prev;
 
                                 const t = payload.new;
@@ -414,18 +358,6 @@ export const useCloudSync = ({
 
                             const current = prev[idx];
                             const cloudUpdatedAt = updated_at;
-
-                            console.log('[REALTIME:TIMESTAMP_CHECK]', {
-                              local: current.updatedAt,
-                              cloud: cloudUpdatedAt,
-                              willIgnore: new Date(cloudUpdatedAt) <= new Date(current.updatedAt)
-                            });
-
-                            // 🛡️ Regra de Realtime: Se o local é mais novo, ignoramos o evento
-                            if (current.updatedAt && cloudUpdatedAt) {
-                                if (new Date(cloudUpdatedAt) <= new Date(current.updatedAt)) {
-                                }
-                            }
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
@@ -452,28 +384,8 @@ export const useCloudSync = ({
                                 amount: current.transaction.amount
                             } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
 
-                            if (current.isConfirmed === !!is_confirmed && 
-                                current.status === newStatus && 
-                                current.church?.id === church_id &&
-                                current.contributor?.id === contributor_id &&
-                                current.contributor?.name === newContributor?.name) {
-                              console.log('[REALTIME:SKIPPED_NO_CHANGE]', {
-                                id,
-                                reason: 'no differences detected'
-                              });
-                              return prev;
-                            }
-
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
-                            console.log('[REALTIME:APPLY_UPDATE]', {
-                              id,
-                              newStatus,
-                              is_confirmed,
-                              church_id,
-                              contributor_id
-                            });
-
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
