@@ -11,6 +11,7 @@ interface UseCloudSyncProps {
     setMatchResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
     setHasActiveSession: (has: boolean) => void;
     activeReportId: string | null;
+    setActiveReportId: (id: string | null) => void;
     savedReports: any[];
     overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
     churches: any[];
@@ -29,6 +30,7 @@ export const useCloudSync = ({
     setMatchResults,
     setHasActiveSession,
     activeReportId,
+    setActiveReportId,
     savedReports,
     overwriteSavedReport,
     churches,
@@ -53,6 +55,8 @@ export const useCloudSync = ({
         Array.isArray(learnedAssociations) &&
         churches.length > 0 &&
         learnedAssociations.length > 0;
+
+    const isContextReady = isReady && activeReportId !== null;
 
     const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
@@ -159,6 +163,23 @@ export const useCloudSync = ({
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
+                
+                // 🛡️ RESTAURAÇÃO AUTOMÁTICA DE REPORT_ID (Se não houver um ativo)
+                if (!activeReportId && savedReports && savedReports.length > 0) {
+                    let target = savedReports[0];
+                    if (savedReports.length > 1) {
+                        target = [...savedReports].sort((a, b) => {
+                            const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+                            const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+                            return dateB - dateA;
+                        })[0];
+                    }
+                    if (target && target.id) {
+                        console.log('[REPORT:RESTORED]', { activeReportId: target.id });
+                        setActiveReportId(target.id);
+                    }
+                }
+
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
@@ -263,7 +284,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
@@ -524,8 +545,13 @@ export const useCloudSync = ({
      * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        if (matchResults.length === 0 || isLoading) {
+        if (!isContextReady || isLoading) {
+            console.log('[PostReconstruct:SKIPPED]', { isContextReady, isLoading });
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
+            return;
+        }
+
+        if (matchResults.length === 0) {
             return;
         }
 
@@ -552,7 +578,7 @@ export const useCloudSync = ({
         return () => {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
-    }, [matchResults, isLoading, handleCompare]);
+    }, [matchResults, isLoading, handleCompare, isContextReady]);
 
     return {
         syncToCloud,
