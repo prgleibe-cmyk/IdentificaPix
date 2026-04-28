@@ -387,14 +387,23 @@ export const useCloudSync = ({
                                     return prev;
                                 }
                             }
-                            
+
+                            // 🛡️ Proteção contra regressão de estado (Garante que Confirmed/Resolved não voltem atrás)
+                            const incomingIsConfirmed = !!is_confirmed;
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
                                 'resolved': ReconciliationStatus.RESOLVED,
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
+                            const incomingStatus = statusMap[status] || current.status;
 
-                           const newStatus = statusMap[status] || current.status;
+                            if ((current.isConfirmed && !incomingIsConfirmed) || 
+                                (current.status === ReconciliationStatus.RESOLVED && incomingStatus !== ReconciliationStatus.RESOLVED)) {
+                                console.log('[REALTIME:BLOCKED_REGRESSION]', { id, current, incoming: payload.new });
+                                return prev;
+                            }
+                            
+                            const newStatus = incomingStatus;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
