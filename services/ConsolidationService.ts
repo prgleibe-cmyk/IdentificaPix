@@ -189,12 +189,24 @@ export const consolidationService = {
               payload: updateData
             });
 
-            console.log('💾 SALVANDO MATCH (TransactionStatus)', updateData);
-            const { data, error } = await (supabase as any)
-                .from('consolidated_transactions')
-                .update(updateData)
-                .eq('id', id)
-                .select();
+           const safeUpdateData = {
+    ...updateData,
+    ...(updateData.contributor_id !== undefined && {
+        contributor_id:
+            updateData.contributor_id &&
+            !String(updateData.contributor_id).startsWith('temp-')
+                ? updateData.contributor_id
+                : null
+    })
+};
+
+console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
+
+const { data, error } = await (supabase as any)
+    .from('consolidated_transactions')
+    .update(safeUpdateData)
+    .eq('id', id)
+    .select();
 
             console.log('[WRITE:RESULT]', {
               data,
