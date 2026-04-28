@@ -68,6 +68,7 @@ export interface MatchResult {
   contributor: Contributor | null;
   status: ReconciliationStatus;
   church: Church;
+  reportId?: string;
   matchMethod?: MatchMethod;
   similarity?: number;
   contributorAmount?: number;

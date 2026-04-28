@@ -218,6 +218,7 @@ export const useCloudSync = ({
                         transaction,
                         contributor,
                         church,
+                        reportId: t.report_id,
                         status,
                         isConfirmed: t.is_confirmed,
                         matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
@@ -405,7 +406,8 @@ export const useCloudSync = ({
                             const normalizedDesc = strictNormalize(current.transaction.description);
                             const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
-                            const newChurch = churches.find(c => c.id === church_id) || (church_id === null ? PLACEHOLDER_CHURCH : current.church);
+                            const dbChurch = churches.find(c => c.id === church_id);
+                            const newChurch = dbChurch || current.church || PLACEHOLDER_CHURCH;
                             
                             const newContributor: Contributor | null = assoc ? {
                                 id: contributor_id || undefined,
@@ -423,8 +425,10 @@ export const useCloudSync = ({
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
+                                // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO
+                                reportId: current.reportId || (payload.new as any).report_id,
                                 status: newStatus,
-                                church: newChurch,
+                                church: newChurch, 
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
                                 transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
