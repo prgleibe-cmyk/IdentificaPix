@@ -1,11 +1,18 @@
 
 export enum FileType {
   PDF = 'PDF',
+  CSV = 'CSV',
   XLSX = 'XLSX',
   OFX = 'OFX',
-  CSV = 'CSV',
   TXT = 'TXT',
   UNKNOWN = 'UNKNOWN'
+}
+
+export interface ProbeResult {
+  type: FileType;
+  mimeType: string;
+  extension: string;
+  confidence: 'HIGH' | 'LOW';
 }
 
 export interface RawDocument<T = any> {
@@ -19,22 +26,24 @@ export interface RawDocument<T = any> {
   };
 }
 
+/**
+ * Representação intermediária de uma transação.
+ * Campos ainda são strings pois não passaram pela Normalização/Sanitização.
+ */
 export interface TransactionDraft {
   rawDate: string;
   rawDescription: string;
   rawAmount: string;
-  [key: string]: any;
+  sourceRowIndex: number;
+  metadata: Record<string, any>;
 }
 
+/**
+ * Resultado FINAL e IMUTÁVEL do motor de processamento.
+ * Exatamente 3 colunas conforme regra de negócio.
+ */
 export interface NormalizedTransaction {
   data: string;  // YYYY-MM-DD
-  nome: string;
-  valor: number;
-}
-
-export interface ProbeResult {
-  type: FileType;
-  mimeType: string;
-  extension: string;
-  confidence: 'HIGH' | 'LOW';
+  nome: string;  // Descrição Limpa
+  valor: number; // Float 64
 }

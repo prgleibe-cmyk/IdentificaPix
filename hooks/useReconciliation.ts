@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
     Transaction, 
@@ -38,7 +39,7 @@ export const useReconciliation = (props: any) => {
     const effectiveUserId = subscription?.ownerId || user?.id;
     const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
     
-    // ESTADOS PERSISTENTES (Mantêm o progresso do relatório)
+    // ESTADOS PERSISTENTES
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
     const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
     const [activeSpreadsheetData, setActiveSpreadsheetData] = usePersistentState<any | null>(`identificapix-spreadsheet-data${userSuffix}`, null, true);
@@ -49,14 +50,46 @@ export const useReconciliation = (props: any) => {
     const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
     const [reportPreviewData, setReportPreviewData] = useState<{ income: GroupedReportData; expenses: GroupedReportData } | null>(null);
     const [comparisonType, setComparisonType] = useState<any>('income');
-    const [manualIdentificationTx, setManualIdentificationTx] = useState<Transaction | null>(null);
     const [bulkIdentificationTxs, setBulkIdentificationTxs] = useState<Transaction[]>([]);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
-    // Agrupamento de parâmetros para os sub-hooks
+    // ✅ NORMALIZAÇÃO TOTAL (MESMO PADRÃO DA CONFIRMAÇÃO FINAL)
+    const buildCanonicalPayload = useCallback((row: MatchResult) => {
+        return {
+            transaction: {
+                ...row.transaction,
+                id: row.transaction.id
+            },
+            status: row.status || 'identified',
+            contributionType: row.contributionType || null,
+            paymentMethod: row.paymentMethod || null,
+            isConfirmed: !!row.isConfirmed,
+            contributor: row.contributor || null,
+            church: row.church || PLACEHOLDER_CHURCH
+        };
+    }, []);
+
+    // 📡 GATILHO DE SINCRONIZAÇÃO GLOBAL
+    const triggerSync = useCallback((updatedRow: MatchResult) => {
+        const ownerId = subscription.ownerId || user?.id;
+        if (!ownerId) return;
+
+        const payload = buildCanonicalPayload(updatedRow);
+
+        console.log("[Sync:Trigger] Payload CANÔNICO:", payload);
+        
+        supabase
+            .channel(`sync-granular-${ownerId}`)
+            .send({
+                type: 'broadcast',
+                event: 'transaction_updated',
+                payload
+            });
+    }, [user?.id, subscription.ownerId, buildCanonicalPayload]);
+
     const params = {
         ...props,
         effectiveUserId,
@@ -69,17 +102,15 @@ export const useReconciliation = (props: any) => {
         selectedBankIds, setSelectedBankIds,
         reportPreviewData, setReportPreviewData,
         comparisonType, setComparisonType,
-        manualIdentificationTx, setManualIdentificationTx,
         bulkIdentificationTxs, setBulkIdentificationTxs,
         modelRequiredData, setModelRequiredData,
         loadingAiId, setLoadingAiId,
-        launchedResults, setLaunchedResults
+        launchedResults, setLaunchedResults,
+        triggerSync
     };
 
-    // 1. Hook de Matching de Transações (Movido para cima para fornecer handleCompare)
     const matcher = useTransactionMatcher(params);
 
-    // 2. Hook de Sincronização em Nuvem (CloudSync + Cache Integrity)
     const cloud = useCloudSync({
         ...params,
         learnedAssociations,
@@ -89,7 +120,6 @@ export const useReconciliation = (props: any) => {
         overwriteSavedReport
     });
 
-    // 3. Hook de Sincronização de Lista (Original)
     const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
         user,
         subscription,
@@ -97,24 +127,27 @@ export const useReconciliation = (props: any) => {
         setSelectedBankIds
     });
 
-    // 4. Hook de Processamento de Arquivos
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
 
-    // ✅ Filtros de segurança unificados (Membros/Secundários)
     const applySecurityFilters = useCallback((results: MatchResult[]) => {
         const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
         if (!isSecondary) return results;
 
         let filtered = results;
-        if (subscription.congregationIds && subscription.congregationIds.length > 0) {
+
+        if (subscription.congregationIds?.length > 0) {
             filtered = filtered.filter(r => {
                 const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
                 return subscription.congregationIds.includes(churchId);
             });
         }
-        if (subscription.bankIds && subscription.bankIds.length > 0) {
-            filtered = filtered.filter(r => subscription.bankIds.includes(String(r.transaction.bank_id)));
+
+        if (subscription.bankIds?.length > 0) {
+            filtered = filtered.filter(r =>
+                subscription.bankIds.includes(String(r.transaction.bank_id))
+            );
         }
+
         return filtered;
     }, [subscription, user?.id]);
 
@@ -154,8 +187,6 @@ export const useReconciliation = (props: any) => {
         comparisonType, 
         setComparisonType, 
         selectedBankIds,
-        manualIdentificationTx, 
-        setManualIdentificationTx,
         bulkIdentificationTxs, 
         setBulkIdentificationTxs,
         modelRequiredData, 
