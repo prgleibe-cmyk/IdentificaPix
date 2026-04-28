@@ -146,13 +146,19 @@ export const useCloudSync = ({
                 const reportsMap = new Map<string, MatchResult>();
 
                 (savedReports || []).forEach((report: any) => {
-                    const results = report?.data?.results || [];
-                    results.forEach((r: MatchResult) => {
-                        if (r?.transaction?.id) {
-                            reportsMap.set(r.transaction.id, r);
-                        }
-                    });
-                });
+    if (!report || !report.data || !Array.isArray(report.data.results)) {
+        console.warn('[SAFE_GUARD][INVALID_REPORT]', report);
+        return;
+    }
+
+    const results = report.data.results;
+
+    results.forEach((r: MatchResult) => {
+        if (r?.transaction?.id) {
+            reportsMap.set(r.transaction.id, r);
+        }
+    });
+});
 
                 console.log('[RECONSTRUCT:REPORTS_MAP]', Array.from(reportsMap.values()));
 
