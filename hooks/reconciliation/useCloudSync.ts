@@ -379,7 +379,6 @@ export const useCloudSync = ({
                             }
 
                             const current = prev[idx];
-                            const cloudUpdatedAt = updated_at;
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
@@ -387,7 +386,20 @@ export const useCloudSync = ({
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                           const newStatus = statusMap[status] || current.status;
+                            const newStatus = statusMap[status] || current.status;
+
+                            // 🛡️ BLOQUEIO DE REGRESSÃO: Evita que eventos antigos sobrescrevam estados finais
+                            if (current.isConfirmed === true && is_confirmed === false) {
+                                console.log('[REALTIME:BLOCKED_REGRESSION]', { id, current, incoming: payload.new });
+                                return prev;
+                            }
+
+                            if (current.status === ReconciliationStatus.RESOLVED && newStatus !== ReconciliationStatus.RESOLVED) {
+                                console.log('[REALTIME:BLOCKED_REGRESSION]', { id, current, incoming: payload.new });
+                                return prev;
+                            }
+
+                            const cloudUpdatedAt = updated_at;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
@@ -411,6 +423,7 @@ export const useCloudSync = ({
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
+                                reportId: current.reportId ?? (current as any).report_id ?? updated[idx]?.reportId,
                                 status: newStatus,
                                 church: newChurch,
                                 contributor: newContributor,
