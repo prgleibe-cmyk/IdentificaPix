@@ -22,7 +22,7 @@ import { StatsStrip } from '../components/reports/StatsStrip';
 export const ReportsView: React.FC = () => {
     const ctrl = useReportsController();
     const { t, language } = useTranslation();
-    const { loadingAiId } = useContext(AppContext);
+    const { loadingAiId, openSmartEdit } = useContext(AppContext);
     const { subscription } = useAuth();
 
     if (!ctrl.reportPreviewData) {
@@ -94,6 +94,7 @@ export const ReportsView: React.FC = () => {
                                 sortConfig={ctrl.sortConfig}
                                 onSort={ctrl.handleSort}
                                 loadingAiId={loadingAiId}
+                                onEdit={openSmartEdit}
                             />
                         </div>
                     ) : (

@@ -51,15 +51,15 @@ export const useTransactionMatcher = ({
         const uniqueResults = Array.from(new Map(filteredResults.map(r => [r.transaction.id, r])).values());
         
         const incomeResults = uniqueResults.filter(r => {
-            const val = (r.status === ReconciliationStatus.PENDING || (r.status as any) === 'PENDENTE' || (r.status as any) === 'NÃO IDENTIFICADO' || (r.status as any) === 'pending')
-                ? (r.contributorAmount || r.contributor?.amount || r.transaction.amount || 0) 
+            const val = r.status === ReconciliationStatus.PENDING 
+                ? (r.contributorAmount || r.contributor?.amount || 0) 
                 : r.transaction.amount;
             return val >= 0; 
         });
         
         const expenseResults = uniqueResults.filter(r => {
-            const val = (r.status === ReconciliationStatus.PENDING || (r.status as any) === 'PENDENTE' || (r.status as any) === 'NÃO IDENTIFICADO' || (r.status as any) === 'pending')
-                ? (r.contributorAmount || r.contributor?.amount || r.transaction.amount || 0) 
+            const val = r.status === ReconciliationStatus.PENDING 
+                ? (r.contributorAmount || r.contributor?.amount || 0) 
                 : r.transaction.amount;
             return val < 0;
         });

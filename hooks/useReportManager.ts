@@ -280,10 +280,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             r: (results || []).length, 
             s: !!spreadsheetData,
             // Fingerprint mais robusto para detectar mudanças em qualquer lugar da lista
-            // Incluindo Tipo e Forma para garantir persistência multiusuário
+            // Usamos uma amostragem maior e incluímos o total de confirmados para detectar mudanças rápidas
             f: (results || []).length > 100 
-                ? `${(results || []).filter(r => r.isConfirmed).length}-${(results || []).filter(r => r.status === 'IDENTIFICADO').length}-${(results || []).reduce((acc, r) => acc + (r.contributionType?.length || 0) + (r.paymentMethod?.length || 0), 0)}`
-                : (results || []).map(r => `${r.status}-${r.isConfirmed}-${r.contributionType}-${r.paymentMethod}`).join('|')
+                ? `${(results || []).filter(r => r.isConfirmed).length}-${(results || []).filter(r => r.status === 'IDENTIFICADO').length}`
+                : (results || []).map(r => `${r.status}-${r.isConfirmed}`).join('|')
         });
         if (lastSavedPayloadRef.current === currentPayload + reportId) return;
         lastSavedPayloadRef.current = currentPayload + reportId;

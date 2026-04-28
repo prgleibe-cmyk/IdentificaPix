@@ -8,6 +8,7 @@ import { BulkActionToolbar } from './BulkActionToolbar';
 
 interface ResultsTableProps {
   results: MatchResult[];
+  onManualIdentify: (transactionId: string) => void;
   loadingAiId: string | null;
   currentPage?: number;
   totalPages?: number;
@@ -36,7 +37,7 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
     );
 };
 
-export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, onManualIdentify, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
     const { toggleConfirmation } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -179,7 +180,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                                 </button>
                                             ) : (
                                                 status === 'NÃO IDENTIFICADO' && (
-                                                    <div className="w-8 h-8" />
+                                                    <button 
+                                                        onClick={() => onManualIdentify(transaction.id)} 
+                                                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-brand-blue hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                                                    >
+                                                        <UserPlusIcon className="w-3.5 h-3.5" />
+                                                    </button>
                                                 )
                                             )}
                                         </div>

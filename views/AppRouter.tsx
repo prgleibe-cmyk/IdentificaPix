@@ -29,6 +29,7 @@ import { SearchFiltersModal } from '../components/modals/SearchFiltersModal';
 import { DivergenceConfirmationModal } from '../components/modals/DivergenceConfirmationModal';
 import { PaymentModal } from '../components/modals/PaymentModal';
 import { FilePreprocessorModal } from '../components/modals/FilePreprocessorModal';
+import { SmartEditModal } from '../components/modals/SmartEditModal';
 import { ModelRequiredModal } from '../components/modals/ModelRequiredModal';
 
 export const AppRouter: React.FC = () => {
@@ -61,6 +62,7 @@ export const ModalsRenderer: React.FC = () => {
     const {
         editingBank, 
         editingChurch, 
+        manualIdentificationTx, 
         bulkIdentificationTxs,
         deletingItem, 
         manualMatchState, 
@@ -71,6 +73,7 @@ export const ModalsRenderer: React.FC = () => {
         pendingTraining,
         setPendingTraining,
         handleTrainingSuccess,
+        smartEditTarget,
         modelRequiredData
     } = context;
 
@@ -78,7 +81,7 @@ export const ModalsRenderer: React.FC = () => {
         <>
             {editingBank && <EditBankModal />}
             {editingChurch && <EditChurchModal />}
-            {bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && <ManualIdModal />}
+            {(manualIdentificationTx || bulkIdentificationTxs) && <ManualIdModal />}
             {deletingItem && <ConfirmDeleteModal />}
             {manualMatchState && <ManualMatchModal />}
             {savingReportState && <SaveReportModal />}
@@ -92,6 +95,7 @@ export const ModalsRenderer: React.FC = () => {
                     onSuccess={handleTrainingSuccess}
                 />
             )}
+            {smartEditTarget && <SmartEditModal />}
             {modelRequiredData && <ModelRequiredModal />}
         </>
     );

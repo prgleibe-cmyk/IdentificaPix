@@ -135,7 +135,7 @@ const MobileCard = memo(({
                 </div>
             </div>
 
-                    <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-2">
                 {confirmed ? (
                     <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
                         <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
@@ -144,7 +144,9 @@ const MobileCard = memo(({
                     <>
                         <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50"><TrashIcon className="w-4 h-4" /></button>
                         {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
-                        <div className="flex-1" />
+                        <button onClick={() => onEdit(row)} className="flex-1 py-2.5 rounded-xl bg-brand-blue text-white font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                            {isIdentified || isGhost ? <><PencilIcon className="w-3.5 h-3.5" /> Editar</> : <><UserPlusIcon className="w-3.5 h-3.5" /> Identificar</>}
+                        </button>
                     </>
                 )}
             </div>
@@ -229,7 +231,14 @@ const IncomeRow = memo(({
                         </button>
                     ) : (
                         <>
-                            {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                            {!isIdentified && !isGhost ? (
+                                <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg bg-brand-blue text-white shadow-sm"><UserPlusIcon className="w-3.5 h-3.5" /></button>
+                            ) : (
+                                <>
+                                    <button onClick={() => onEdit(row)} className="p-1.5 rounded-lg text-brand-blue bg-blue-50"><PencilIcon className="w-3.5 h-3.5" /></button>
+                                    {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                                </>
+                            )}
                             <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
                         </>
                     )}
@@ -241,7 +250,7 @@ const IncomeRow = memo(({
 
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit }) => {
     const { t, language } = useTranslation();
-    const { openDeleteConfirmation, undoIdentification, toggleConfirmation } = useContext(AppContext);
+    const { openDeleteConfirmation, openSmartEdit, undoIdentification, toggleConfirmation } = useContext(AppContext);
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     
@@ -308,7 +317,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 language={language}
                                 isSelected={selectedIds.includes(result.transaction.id)}
                                 onToggleSelection={toggleSelection}
-                                onEdit={() => {}}
+                                onEdit={(row: MatchResult) => onEdit ? onEdit(row) : openSmartEdit(row)}
                                 onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                                 onUndo={undoIdentification}
                                 onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
@@ -338,7 +347,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             language={language}
                             isSelected={selectedIds.includes(result.transaction.id)}
                             onToggleSelection={toggleSelection}
-                            onEdit={() => {}}
+                            onEdit={(row: MatchResult) => onEdit ? onEdit(row) : openSmartEdit(row)}
                             onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                             onUndo={undoIdentification}
                             onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}

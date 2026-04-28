@@ -5,6 +5,7 @@ import { MatchResult, DeletingItem } from '../types';
 export const useModalController = () => {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isUpdateFilesModalOpen, setIsUpdateFilesModalOpen] = useState(false);
+    const [smartEditTarget, setSmartEditTarget] = useState<MatchResult | null>(null);
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
@@ -14,6 +15,9 @@ export const useModalController = () => {
     
     const openUpdateFilesModal = useCallback(() => setIsUpdateFilesModalOpen(true), []);
     const closeUpdateFilesModal = useCallback(() => setIsUpdateFilesModalOpen(false), []);
+
+    const openSmartEdit = useCallback((target: MatchResult) => setSmartEditTarget(target), []);
+    const closeSmartEdit = useCallback(() => setSmartEditTarget(null), []);
 
     const openDeleteConfirmation = useCallback((item: DeletingItem) => setDeletingItem(item), []);
     const closeDeleteConfirmation = useCallback(() => setDeletingItem(null), []);
@@ -31,6 +35,9 @@ export const useModalController = () => {
         isUpdateFilesModalOpen,
         openUpdateFilesModal,
         closeUpdateFilesModal,
+        smartEditTarget,
+        openSmartEdit,
+        closeSmartEdit,
         deletingItem,
         openDeleteConfirmation,
         closeDeleteConfirmation,

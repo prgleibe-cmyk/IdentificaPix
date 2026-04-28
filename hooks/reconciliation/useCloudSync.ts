@@ -11,7 +11,6 @@ interface UseCloudSyncProps {
     setMatchResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
     setHasActiveSession: (has: boolean) => void;
     activeReportId: string | null;
-    setActiveReportId: (id: string | null) => void;
     savedReports: any[];
     overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
     churches: any[];
@@ -30,7 +29,6 @@ export const useCloudSync = ({
     setMatchResults,
     setHasActiveSession,
     activeReportId,
-    setActiveReportId,
     savedReports,
     overwriteSavedReport,
     churches,
@@ -46,7 +44,6 @@ export const useCloudSync = ({
     const isValidating = useRef<boolean>(false);
     const stableTimeoutRef = useRef<any>(null);
     const lastProcessedLength = useRef<number>(0);
-    const lastSignatureRef = useRef<string>('');
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -55,8 +52,6 @@ export const useCloudSync = ({
         Array.isArray(learnedAssociations) &&
         churches.length > 0 &&
         learnedAssociations.length > 0;
-
-    const isContextReady = isReady && activeReportId !== null;
 
     const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
@@ -156,21 +151,6 @@ export const useCloudSync = ({
 
                 console.log('[RECONSTRUCT:REPORTS_MAP]', Array.from(reportsMap.values()));
 
-                // 🛡️ RESTAURAÇÃO AUTOMÁTICA DE REPORT_ID (Se não houver um ativo)
-                if (!activeReportId && savedReports && savedReports.length > 0) {
-                    let target = savedReports[0];
-                    if (savedReports.length > 1) {
-                        target = [...savedReports].sort((a, b) => {
-                            const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-                            const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-                            return dateB - dateA;
-                        })[0];
-                    }
-                    if (target && target.id) {
-                        setActiveReportId(target.id);
-                    }
-                }
-
                 if ((!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
                     return;
@@ -178,7 +158,6 @@ export const useCloudSync = ({
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
-
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
@@ -246,15 +225,49 @@ export const useCloudSync = ({
                 console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
 
                 setMatchResults(prev => {
+                    console.log('[DEBUG:PREV_MATCH_RESULTS]', prev.length);
+                    console.log('[RECONSTRUCT:PREV_MATCH_RESULTS]', prev);
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
-                        map.set(r.transaction.id, r);
+                        const existing = map.get(r.transaction.id);
+
+                        if (!existing) {
+                            map.set(r.transaction.id, r);
+                            hasChanges = true;
+                            return;
+                        }
+
+                        // lógica atual de prioridade (mantida)
+                        const localIsStrong = existing.isConfirmed || existing.status === ReconciliationStatus.RESOLVED;
+                        const cloudIsWeak = !r.isConfirmed && r.status !== ReconciliationStatus.RESOLVED;
+
+                        if (localIsStrong && cloudIsWeak) {
+                            if (!r.updatedAt || !existing.updatedAt || new Date(r.updatedAt) <= new Date(existing.updatedAt)) {
+                                return;
+                            }
+                        }
+
+                        if (existing.updatedAt && r.updatedAt) {
+                            if (new Date(existing.updatedAt) >= new Date(r.updatedAt)) {
+                                return;
+                            }
+                        }
+
+                        map.set(r.transaction.id, { ...existing, ...r });
                         hasChanges = true;
                     });
 
                     const final = Array.from(map.values());
+
+                    console.log('[DEBUG:SET_MATCH_RESULTS]', final.length);
+                    console.log('[RECONSTRUCT:SET_MATCH_RESULTS_FINAL]', {
+                        hasChanges,
+                        total: final.length,
+                        data: final
+                    });
+
                     return hasChanges ? final : prev;
                 });
 
@@ -283,7 +296,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
@@ -308,6 +321,7 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    if (batchState.isBatchUpdating) return;
                     // DELETE
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
@@ -325,8 +339,8 @@ export const useCloudSync = ({
                             
                             // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
                             // Isso garante a sincronização em tempo real entre dispositivos.
-                           if (idx === -1) {
-    if (status === 'pending') return prev;
+                            if (idx === -1) {
+                                if (status === 'pending') return prev;
 
                                 const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
@@ -378,6 +392,14 @@ export const useCloudSync = ({
                             }
 
                             const current = prev[idx];
+                            const cloudUpdatedAt = updated_at;
+
+                            // 🛡️ Regra de Realtime: Se o local é mais novo, ignoramos o evento
+                            if (current.updatedAt && cloudUpdatedAt) {
+                                if (new Date(cloudUpdatedAt) <= new Date(current.updatedAt)) {
+                                    return prev;
+                                }
+                            }
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
@@ -386,19 +408,6 @@ export const useCloudSync = ({
                             };
 
                             const newStatus = statusMap[status] || current.status;
-
-                            // 🛡️ BLOQUEIO DE REGRESSÃO: Evita que eventos antigos sobrescrevam estados finais
-                            if (current.isConfirmed === true && is_confirmed === false) {
-                                console.log('[REALTIME:BLOCKED_REGRESSION]', { id, current, incoming: payload.new });
-                                return prev;
-                            }
-
-                            if (current.status === ReconciliationStatus.RESOLVED && newStatus !== ReconciliationStatus.RESOLVED) {
-                                console.log('[REALTIME:BLOCKED_REGRESSION]', { id, current, incoming: payload.new });
-                                return prev;
-                            }
-
-                            const cloudUpdatedAt = updated_at;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
@@ -417,12 +426,17 @@ export const useCloudSync = ({
                                 amount: current.transaction.amount
                             } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
 
+                            if (current.isConfirmed === !!is_confirmed && 
+                                current.status === newStatus && 
+                                current.church?.id === church_id &&
+                                current.contributor?.id === contributor_id &&
+                                current.contributor?.name === newContributor?.name) return prev;
+
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
-                                reportId: current.reportId ?? (current as any).report_id ?? updated[idx]?.reportId,
                                 status: newStatus,
                                 church: newChurch,
                                 contributor: newContributor,
@@ -444,6 +458,7 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    if (batchState.isBatchUpdating) return;
                     if (payload.eventType === 'DELETE') {
                         // Se uma associação for deletada, não removemos o resultado, mas ele perde o vínculo "learned"
                         return;
@@ -557,27 +572,19 @@ export const useCloudSync = ({
      * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        if (!isContextReady || isLoading) {
-            console.log('[PostReconstruct:SKIPPED]', { isContextReady, isLoading });
+        if (matchResults.length === 0 || isLoading) {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             return;
         }
 
-        if (matchResults.length === 0) {
-            return;
-        }
-
-        // Se o conteúdo mudou, resetamos o timer de estabilidade
-        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
-
-        if (currentSignature !== lastSignatureRef.current) {
-            console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
+        // Se o tamanho mudou, resetamos o timer de estabilidade
+        if (matchResults.length !== lastProcessedLength.current) {
+            console.log('[PostReconstruct:WAIT_STABLE]', { current: matchResults.length, last: lastProcessedLength.current });
             
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             
             stableTimeoutRef.current = setTimeout(() => {
                 console.log('[PostReconstruct:STABLE]', matchResults.length);
-                lastSignatureRef.current = currentSignature;
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompare === 'function') {
@@ -590,7 +597,7 @@ export const useCloudSync = ({
         return () => {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
-    }, [matchResults, isLoading, handleCompare, isContextReady]);
+    }, [matchResults.length, isLoading, handleCompare]);
 
     return {
         syncToCloud,

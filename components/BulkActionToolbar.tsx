@@ -11,7 +11,7 @@ interface BulkActionToolbarProps {
 }
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
-    const { setBulkIdentificationTxs, toggleConfirmation } = useContext(AppContext);
+    const { setBulkIdentificationTxs, setManualIdentificationTx, toggleConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
     // ✅ PROTEÇÃO TOTAL contra undefined
@@ -40,6 +40,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
 
         if (txsToProcess.length > 0) {
             setBulkIdentificationTxs(txsToProcess);
+            setManualIdentificationTx(null);
         }
     };
 
