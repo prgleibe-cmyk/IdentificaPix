@@ -257,25 +257,8 @@ export const useTransactionMatcher = ({
         setMatchResults(prev => {
             const next = [...prev];
             const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
-            const prevStatus = idx !== -1 ? next[idx].status : undefined;
-            if (idx !== -1) {
-                next[idx] = {
-                    ...updatedRow,
-                    reportId: (updatedRow as any).reportId || (updatedRow as any).report_id || (next[idx] as any)?.reportId || (next[idx] as any)?.report_id
-                };
-            } else {
-                next.push(updatedRow);
-            }
-
-            if (prevStatus !== updatedRow.status) {
-                console.log('[DEBUG:STATUS_CHANGE]', {
-                    id: updatedRow.transaction.id,
-                    prevStatus: prevStatus,
-                    newStatus: updatedRow.status,
-                    reportId: (updatedRow as any).report_id || (updatedRow as any).reportId
-                });
-            }
-
+            if (idx !== -1) next[idx] = updatedRow;
+            else next.push(updatedRow);
             nextResults = next;
             return next;
         });
@@ -300,23 +283,16 @@ export const useTransactionMatcher = ({
 
     const revertMatch = useCallback((txId: string) => {
         setMatchResults(prev =>
-            prev.map(r => {
-                if (r.transaction.id === txId) {
-                    console.log('[DEBUG:STATUS_CHANGE]', {
-                        id: txId,
-                        prevStatus: r.status,
-                        newStatus: ReconciliationStatus.UNIDENTIFIED,
-                        reportId: (r as any).report_id || (r as any).reportId
-                    });
-                    return {
+            prev.map(r =>
+                r.transaction.id === txId
+                    ? {
                         ...r,
                         status: ReconciliationStatus.UNIDENTIFIED,
                         contributor: null,
                         church: PLACEHOLDER_CHURCH
-                    };
-                }
-                return r;
-            })
+                    }
+                    : r
+            )
         );
     }, [setMatchResults]);
 

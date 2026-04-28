@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
@@ -153,17 +153,6 @@ export const useReconciliation = (props: any) => {
 
     const filteredMatchResults = useMemo(() => applySecurityFilters(matchResults), [matchResults, applySecurityFilters]);
     const filteredLaunchedResults = useMemo(() => applySecurityFilters(launchedResults), [launchedResults, applySecurityFilters]);
-
-    // 🕵️ DEBUG: Monitoramento de lista final para diagnosticar remoções
-    useEffect(() => {
-        if (filteredMatchResults.length > 0) {
-            console.log('[DEBUG:FINAL_LIST]', filteredMatchResults.map(i => ({
-                id: i.transaction.id,
-                status: i.status,
-                reportId: (i as any).report_id || (i as any).reportId
-            })));
-        }
-    }, [filteredMatchResults]);
 
     const resetReconciliation = useCallback(async () => {
         setIsLoading(true);

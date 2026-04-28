@@ -146,19 +146,13 @@ export const useCloudSync = ({
                 const reportsMap = new Map<string, MatchResult>();
 
                 (savedReports || []).forEach((report: any) => {
-    if (!report || !report.data || !Array.isArray(report.data.results)) {
-        console.warn('[SAFE_GUARD][INVALID_REPORT]', report);
-        return;
-    }
-
-    const results = report.data.results;
-
-    results.forEach((r: MatchResult) => {
-        if (r?.transaction?.id) {
-            reportsMap.set(r.transaction.id, r);
-        }
-    });
-});
+                    const results = report?.data?.results || [];
+                    results.forEach((r: MatchResult) => {
+                        if (r?.transaction?.id) {
+                            reportsMap.set(r.transaction.id, r);
+                        }
+                    });
+                });
 
                 console.log('[RECONSTRUCT:REPORTS_MAP]', Array.from(reportsMap.values()));
 
@@ -187,11 +181,6 @@ export const useCloudSync = ({
                 }
 
                 const txResults: MatchResult[] = txs.map((t: any) => {
-                    console.log('[DEBUG:RECONSTRUCT_ITEM]', {
-                        id: t.id,
-                        reportId: t.report_id || t.reportId,
-                        included: !!(t.report_id || t.reportId)
-                    });
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                     const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
@@ -229,8 +218,7 @@ export const useCloudSync = ({
                         isConfirmed: t.is_confirmed,
                         matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                         similarity: 100,
-                        updatedAt: t.updated_at,
-                        reportId: t.report_id || t.reportId
+                        updatedAt: t.updated_at
                     };
                 });
 
@@ -254,12 +242,6 @@ export const useCloudSync = ({
                 });
 
                 const reconstructed = Array.from(reconstructedMap.values());
-
-                console.log('[DEBUG:FINAL_LIST]', reconstructed.map(i => ({
-                    id: i.transaction.id,
-                    status: i.status,
-                    reportId: (i as any).report_id || (i as any).reportId
-                })));
 
                 console.log('[DEBUG:FINAL_COUNT]', reconstructed.length);
                 console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
@@ -405,14 +387,7 @@ export const useCloudSync = ({
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                            const newStatus = statusMap[status] || current.status;
-
-                            console.log('[DEBUG:STATUS_CHANGE]', {
-                                id,
-                                prevStatus: current.status,
-                                newStatus: newStatus,
-                                reportId: (current as any).report_id || (current as any).reportId
-                            });
+                           const newStatus = statusMap[status] || current.status;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
@@ -436,7 +411,6 @@ export const useCloudSync = ({
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
-                                reportId: (current as any).reportId || (current as any).report_id || (updated[idx] as any)?.reportId,
                                 status: newStatus,
                                 church: newChurch,
                                 contributor: newContributor,

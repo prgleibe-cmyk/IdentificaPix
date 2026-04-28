@@ -83,7 +83,6 @@ export interface MatchResult {
   _injectedId?: string;
   _churchId?: string;
   launchedAt?: string;
-  reportId?: string;
 }
 
 export interface LearnedAssociation {
