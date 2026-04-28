@@ -380,6 +380,13 @@ export const useCloudSync = ({
 
                             const current = prev[idx];
                             const cloudUpdatedAt = updated_at;
+
+                            // 🛡️ Proteção contra atualização out-of-order (Garante que dados antigos não sobrescrevam dados novos)
+                            if (current.updatedAt && cloudUpdatedAt) {
+                                if (new Date(cloudUpdatedAt) <= new Date(current.updatedAt)) {
+                                    return prev;
+                                }
+                            }
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
