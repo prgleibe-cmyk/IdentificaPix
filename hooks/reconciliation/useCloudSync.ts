@@ -380,30 +380,14 @@ export const useCloudSync = ({
 
                             const current = prev[idx];
                             const cloudUpdatedAt = updated_at;
-
-                            // 🛡️ Proteção contra atualização out-of-order (Garante que dados antigos não sobrescrevam dados novos)
-                            if (current.updatedAt && cloudUpdatedAt) {
-                                if (new Date(cloudUpdatedAt) <= new Date(current.updatedAt)) {
-                                    return prev;
-                                }
-                            }
-
-                            // 🛡️ Proteção contra regressão de estado (Garante que Confirmed/Resolved não voltem atrás)
-                            const incomingIsConfirmed = !!is_confirmed;
+                            
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
                                 'resolved': ReconciliationStatus.RESOLVED,
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
-                            const incomingStatus = statusMap[status] || current.status;
 
-                            if ((current.isConfirmed && !incomingIsConfirmed) || 
-                                (current.status === ReconciliationStatus.RESOLVED && incomingStatus !== ReconciliationStatus.RESOLVED)) {
-                                console.log('[REALTIME:BLOCKED_REGRESSION]', { id, current, incoming: payload.new });
-                                return prev;
-                            }
-                            
-                            const newStatus = incomingStatus;
+                           const newStatus = statusMap[status] || current.status;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);

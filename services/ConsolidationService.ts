@@ -191,9 +191,13 @@ export const consolidationService = {
 
            const safeUpdateData = {
     ...updateData,
-    contributor_id: updateData.contributor_id && !String(updateData.contributor_id).startsWith('temp-')
-        ? updateData.contributor_id
-        : null
+    ...(updateData.contributor_id !== undefined && {
+        contributor_id:
+            updateData.contributor_id &&
+            !String(updateData.contributor_id).startsWith('temp-')
+                ? updateData.contributor_id
+                : null
+    })
 };
 
 console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
