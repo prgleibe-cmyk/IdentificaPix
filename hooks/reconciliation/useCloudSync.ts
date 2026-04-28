@@ -156,14 +156,6 @@ export const useCloudSync = ({
 
                 console.log('[RECONSTRUCT:REPORTS_MAP]', Array.from(reportsMap.values()));
 
-                if ((!txs || txs.length === 0) && reportsMap.size === 0) {
-                    isHydratingFromCloud.current = false;
-                    return;
-                }
-
-                // 2. Mapeia para MatchResults usando as associações aprendidas
-                console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
-                
                 // 🛡️ RESTAURAÇÃO AUTOMÁTICA DE REPORT_ID (Se não houver um ativo)
                 if (!activeReportId && savedReports && savedReports.length > 0) {
                     let target = savedReports[0];
@@ -175,10 +167,17 @@ export const useCloudSync = ({
                         })[0];
                     }
                     if (target && target.id) {
-                        console.log('[REPORT:RESTORED]', { activeReportId: target.id });
                         setActiveReportId(target.id);
                     }
                 }
+
+                if ((!txs || txs.length === 0) && reportsMap.size === 0) {
+                    isHydratingFromCloud.current = false;
+                    return;
+                }
+
+                // 2. Mapeia para MatchResults usando as associações aprendidas
+                console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
 
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
