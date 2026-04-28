@@ -56,7 +56,9 @@ export const useReconciliationActions = ({
             churchId, 
             original.transaction.bank_id,
             contributor.id,
-            false
+            false,
+            contributionType,
+            paymentMethod
           );
         }
         affectedCount++;

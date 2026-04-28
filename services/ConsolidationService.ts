@@ -150,7 +150,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -176,6 +176,8 @@ export const consolidationService = {
             if (bankId !== undefined) updateData.bank_id = bankId;
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
+            if (type !== undefined) updateData.type = type;
+            if (pix_key !== undefined) updateData.pix_key = pix_key;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,
