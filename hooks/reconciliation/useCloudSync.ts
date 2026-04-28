@@ -223,7 +223,8 @@ export const useCloudSync = ({
                         isConfirmed: t.is_confirmed,
                         matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
                         similarity: 100,
-                        updatedAt: t.updated_at
+                        updatedAt: t.updated_at,
+                        reportId: t.report_id || t.reportId
                     };
                 });
 
@@ -429,6 +430,7 @@ export const useCloudSync = ({
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
+                                reportId: (current as any).reportId || (current as any).report_id || (updated[idx] as any)?.reportId,
                                 status: newStatus,
                                 church: newChurch,
                                 contributor: newContributor,

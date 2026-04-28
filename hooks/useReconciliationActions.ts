@@ -71,6 +71,7 @@ export const useReconciliationActions = ({
 
           const updated: MatchResult = {
             ...r,
+            reportId: (r as any).reportId || (r as any).report_id,
             status: ReconciliationStatus.IDENTIFIED,
             isConfirmed: false,
             contributor: { ...contributor },
@@ -175,6 +176,7 @@ export const useReconciliationActions = ({
 
         return {
           ...r,
+          reportId: (r as any).reportId || (r as any).report_id,
           status: newStatus,
           isConfirmed: confirmed,
           transaction: { ...r.transaction, isConfirmed: confirmed },
@@ -234,6 +236,7 @@ export const useReconciliationActions = ({
         });
         return { 
           ...r, 
+          reportId: (r as any).reportId || (r as any).report_id,
           status: ReconciliationStatus.UNIDENTIFIED,
           contributor: null,
           church: referenceData.PLACEHOLDER_CHURCH || r.church,

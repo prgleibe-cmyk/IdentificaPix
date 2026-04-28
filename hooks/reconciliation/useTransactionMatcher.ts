@@ -258,8 +258,14 @@ export const useTransactionMatcher = ({
             const next = [...prev];
             const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
             const prevStatus = idx !== -1 ? next[idx].status : undefined;
-            if (idx !== -1) next[idx] = updatedRow;
-            else next.push(updatedRow);
+            if (idx !== -1) {
+                next[idx] = {
+                    ...updatedRow,
+                    reportId: (updatedRow as any).reportId || (updatedRow as any).report_id || (next[idx] as any)?.reportId || (next[idx] as any)?.report_id
+                };
+            } else {
+                next.push(updatedRow);
+            }
 
             if (prevStatus !== updatedRow.status) {
                 console.log('[DEBUG:STATUS_CHANGE]', {
