@@ -165,6 +165,14 @@ export const useReconciliationActions = ({
           ? ReconciliationStatus.RESOLVED 
           : (r.contributor ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED);
         
+        console.log('[DEBUG:STATUS_CHANGE]', {
+          id: r.transaction.id,
+          prevStatus: r.status,
+          newStatus: newStatus,
+          reportId: (r as any).report_id || (r as any).reportId,
+          ctx: 'toggleConfirmation'
+        });
+
         return {
           ...r,
           status: newStatus,
@@ -215,19 +223,29 @@ export const useReconciliationActions = ({
       await consolidationService.updateConfirmationStatus([txId], false, null, undefined, null);
     }
 
-    const updatedResults = reconciliation.fullMatchResults.map((r: MatchResult) => 
-      r.transaction.id === txId ? { 
-        ...r, 
-        status: ReconciliationStatus.UNIDENTIFIED,
-        contributor: null,
-        church: referenceData.PLACEHOLDER_CHURCH || r.church,
-        isConfirmed: false,
-        contributionType: null,
-        paymentMethod: null,
-        transaction: { ...r.transaction, isConfirmed: false },
-        updatedAt: new Date().toISOString()
-      } : r
-    );
+    const updatedResults = reconciliation.fullMatchResults.map((r: MatchResult) => {
+      if (r.transaction.id === txId) {
+        console.log('[DEBUG:STATUS_CHANGE]', {
+          id: txId,
+          prevStatus: r.status,
+          newStatus: ReconciliationStatus.UNIDENTIFIED,
+          reportId: (r as any).report_id || (r as any).reportId,
+          ctx: 'undoIdentification'
+        });
+        return { 
+          ...r, 
+          status: ReconciliationStatus.UNIDENTIFIED,
+          contributor: null,
+          church: referenceData.PLACEHOLDER_CHURCH || r.church,
+          isConfirmed: false,
+          contributionType: null,
+          paymentMethod: null,
+          transaction: { ...r.transaction, isConfirmed: false },
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return r;
+    });
 
     reconciliation.setMatchResults(updatedResults);
 

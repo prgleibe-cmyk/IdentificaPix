@@ -181,6 +181,11 @@ export const useCloudSync = ({
                 }
 
                 const txResults: MatchResult[] = txs.map((t: any) => {
+                    console.log('[DEBUG:RECONSTRUCT_ITEM]', {
+                        id: t.id,
+                        reportId: t.report_id || t.reportId,
+                        included: !!(t.report_id || t.reportId)
+                    });
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                     const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
@@ -242,6 +247,12 @@ export const useCloudSync = ({
                 });
 
                 const reconstructed = Array.from(reconstructedMap.values());
+
+                console.log('[DEBUG:FINAL_LIST]', reconstructed.map(i => ({
+                    id: i.transaction.id,
+                    status: i.status,
+                    reportId: (i as any).report_id || (i as any).reportId
+                })));
 
                 console.log('[DEBUG:FINAL_COUNT]', reconstructed.length);
                 console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
@@ -387,7 +398,14 @@ export const useCloudSync = ({
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                           const newStatus = statusMap[status] || current.status;
+                            const newStatus = statusMap[status] || current.status;
+
+                            console.log('[DEBUG:STATUS_CHANGE]', {
+                                id,
+                                prevStatus: current.status,
+                                newStatus: newStatus,
+                                reportId: (current as any).report_id || (current as any).reportId
+                            });
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
