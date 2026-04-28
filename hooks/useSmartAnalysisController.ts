@@ -153,7 +153,7 @@ export const useSmartAnalysisController = () => {
                     }));
                     setMatchResults(hydrated);
                     setReportPreviewData({
-                        income: groupResultsByChurch((hydrated || []).filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE')),
+                        income: groupResultsByChurch((hydrated || []).filter((r: any) => r.transaction.amount > 0 || r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO' || r.status === 'pending')),
                         expenses: { 'all_expenses_group': (hydrated || []).filter((r: any) => r.transaction.amount < 0) }
                     });
                     

@@ -69,22 +69,22 @@ export const useTransactionMatcher = ({
         );
 
         const cleanedResults = uniqueResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING
-                ? (r.contributorAmount || r.contributor?.amount || 0)
+            const val = (r.status === ReconciliationStatus.PENDING || r.status === (ReconciliationStatus as any).UNIDENTIFIED || (r.status as any) === 'pending')
+                ? (r.contributorAmount || r.contributor?.amount || r.transaction.amount || 0)
                 : r.transaction.amount;
             return Number(val) !== 0;
         });
 
         const incomeResults = cleanedResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING
-                ? (r.contributorAmount || r.contributor?.amount || 0)
+            const val = (r.status === ReconciliationStatus.PENDING || r.status === (ReconciliationStatus as any).UNIDENTIFIED || (r.status as any) === 'pending')
+                ? (r.contributorAmount || r.contributor?.amount || r.transaction.amount || 0)
                 : r.transaction.amount;
             return val >= 0;
         });
 
         const expenseResults = cleanedResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING
-                ? (r.contributorAmount || r.contributor?.amount || 0)
+            const val = (r.status === ReconciliationStatus.PENDING || r.status === (ReconciliationStatus as any).UNIDENTIFIED || (r.status as any) === 'pending')
+                ? (r.contributorAmount || r.contributor?.amount || r.transaction.amount || 0)
                 : r.transaction.amount;
             return val < 0;
         });
