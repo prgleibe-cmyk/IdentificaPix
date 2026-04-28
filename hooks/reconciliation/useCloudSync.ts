@@ -19,6 +19,8 @@ interface UseCloudSyncProps {
     showToast: (msg: string, type: 'success' | 'error') => void;
     handleCompare?: (isAuto?: boolean) => Promise<void>;
     isLoading?: boolean;
+    activeBankFiles?: any[];
+    selectedBankIds?: string[];
 }
 
 export const batchState = { isBatchUpdating: false };
@@ -37,7 +39,9 @@ export const useCloudSync = ({
     learnedAssociations,
     showToast,
     handleCompare,
-    isLoading
+    isLoading,
+    activeBankFiles,
+    selectedBankIds
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -285,6 +289,14 @@ export const useCloudSync = ({
 
         reconstructSession();
     }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+
+    // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
+    useEffect(() => {
+        if (isReady && !isLoading && matchResults?.length === 0) {
+            console.log('[AUTO_PROCESS] Executando processamento inicial da lista viva...');
+            handleCompare?.(false); // isAuto = true
+        }
+    }, [isReady, isLoading, matchResults?.length, handleCompare]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
