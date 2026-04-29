@@ -150,7 +150,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, matchResult?: any) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -171,8 +171,6 @@ export const consolidationService = {
                 user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
                 updated_at: new Date().toISOString()
             };
-            
-            updateData.report_id = matchResult?.reportId ?? updateData.report_id ?? null;
             
             if (churchId !== undefined) updateData.church_id = churchId;
             if (bankId !== undefined) updateData.bank_id = bankId;
@@ -232,7 +230,7 @@ const { data, error } = await (supabase as any)
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null, matchResult?: any) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -255,8 +253,7 @@ const { data, error } = await (supabase as any)
             is_confirmed,
             status: is_confirmed ? 'resolved' : 'pending',
             user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
-            updated_at: new Date().toISOString(),
-            report_id: matchResult?.reportId || null
+            updated_at: new Date().toISOString()
         };
 
         if (churchId !== undefined) updateData.church_id = churchId;
