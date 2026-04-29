@@ -394,19 +394,29 @@ export const useCloudSync = ({
                             const current = prev[idx];
                             const cloudUpdatedAt = updated_at;
                             
+                            // 🛡️ BLOCK REGRESSION: Impede que dados mais antigos do banco sobrescrevam estados mais recentes
+                            const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
+                            const incomingUpdatedAt = cloudUpdatedAt ? new Date(cloudUpdatedAt).getTime() : 0;
+
+                            if (incomingUpdatedAt < currentUpdatedAt) {
+                                console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco');
+                                return prev;
+                            }
+
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
                                 'resolved': ReconciliationStatus.RESOLVED,
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                           const newStatus = statusMap[status] || current.status;
+                            const newStatus = statusMap[status] || current.status;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
                             const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
                             const dbChurch = churches.find(c => c.id === church_id);
+                            // 🔥 GARANTIR: manter igreja se não vier uma nova válida do banco
                             const newChurch = dbChurch || current.church || PLACEHOLDER_CHURCH;
                             
                             const newContributor: Contributor | null = assoc ? {
@@ -425,10 +435,10 @@ export const useCloudSync = ({
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
-                                // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO
-                                reportId: current.reportId || (payload.new as any).report_id,
+                                // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO E IGREJA
+                                reportId: current.reportId || (payload.new as any).report_id || updated[idx]?.reportId,
                                 status: newStatus,
-                                church: newChurch, 
+                                church: current.church || newChurch || updated[idx]?.church, 
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
                                 transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
