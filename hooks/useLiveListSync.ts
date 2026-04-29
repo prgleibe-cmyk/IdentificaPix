@@ -9,8 +9,7 @@ export const useLiveListSync = ({
     user,
     subscription,
     setBankStatementFile,
-    setSelectedBankIds,
-    activeBankFiles
+    setSelectedBankIds
 }: any) => {
     const { showToast } = useUI();
     const isHydrating = useRef(false);
@@ -40,31 +39,10 @@ export const useLiveListSync = ({
         try {
             const dbTransactions = await consolidationService.getPendingTransactions(effectiveUserId);
             
-            // 🛡️ BLOCK_REGRESSION: Mapeia timestamps locais atuais
-            const currentTimestamps = new Map<string, number>();
-            (activeBankFiles || []).forEach((file: any) => {
-                (file.processedTransactions || []).forEach((tx: any) => {
-                    if (tx.id && tx.updatedAt) {
-                        currentTimestamps.set(tx.id, new Date(tx.updatedAt).getTime());
-                    }
-                });
-            });
-
             // AJUSTE CIRÚRGICO: Remover rigorosamente qualquer linha com valor 0,00 (independente da descrição)
             const filteredDbTransactions = (dbTransactions || []).filter((t: any) => {
                 const amount = Math.abs(Number(t.amount || 0));
-                if (amount < 0.01) return false;
-
-                // 🛡️ Verificação de Regressão
-                const incomingTs = t.updated_at ? new Date(t.updated_at).getTime() : 0;
-                const currentTs = currentTimestamps.get(t.id) || 0;
-
-                if (incomingTs < currentTs) {
-                    console.log('[BLOCK_REGRESSION:HYDRATE] Evitando sobrescrita por dado antigo do banco para:', t.id);
-                    // Nota: Se ignorarmos aqui, a transação sumiria da "Lista Viva" se for um refresh total.
-                    // Para evitar sumiço, deveríamos manter a versão local no processamento.
-                }
-                return true;
+                return amount >= 0.01;
             });
 
             if (!filteredDbTransactions || filteredDbTransactions.length === 0) {
@@ -81,48 +59,20 @@ export const useLiveListSync = ({
                 }
                 const finalBankId = bankId || 'virtual';
 
-                // Verificamos se usamos a versão do banco ou a local (mais recente)
-                const currentTs = currentTimestamps.get(t.id) || 0;
-                const incomingTs = t.updated_at ? new Date(t.updated_at).getTime() : 0;
-
-                let tx: Transaction;
-
-                if (currentTs > incomingTs) {
-                    // Recupera a versão local da transação que está no activeBankFiles
-                    const localTx = (activeBankFiles || [])
-                        .flatMap((f: any) => f.processedTransactions || [])
-                        .find((tx: any) => tx.id === t.id);
-                    
-                    tx = localTx || {
-                        id: t.id,
-                        date: t.transaction_date,
-                        description: t.description,
-                        rawDescription: t.description,
-                        amount: t.amount,
-                        originalAmount: String(t.amount.toFixed(2)),
-                        contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
-                        paymentMethod: t.pix_key || 'OUTROS',
-                        cleanedDescription: t.description,
-                        bank_id: t.bank_id,
-                        isConfirmed: !!t.is_confirmed,
-                        updatedAt: t.updated_at
-                    };
-                } else {
-                    tx = {
-                        id: t.id,
-                        date: t.transaction_date,
-                        description: t.description,
-                        rawDescription: t.description,
-                        amount: t.amount,
-                        originalAmount: String(t.amount.toFixed(2)),
-                        contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
-                        paymentMethod: t.pix_key || 'OUTROS',
-                        cleanedDescription: t.description,
-                        bank_id: t.bank_id,
-                        isConfirmed: !!t.is_confirmed,
-                        updatedAt: t.updated_at
-                    };
-                }
+                const tx: Transaction = {
+                    id: t.id,
+                    date: t.transaction_date,
+                    description: t.description,
+                    rawDescription: t.description,
+                    amount: t.amount,
+                    originalAmount: String(t.amount.toFixed(2)),
+                    contributionType: t.type === 'income' ? 'ENTRADA' : 'SAÍDA',
+                    paymentMethod: t.pix_key || 'OUTROS',
+                    cleanedDescription: t.description,
+                    bank_id: t.bank_id,
+                    // Fix: isConfirmed is now a valid property of Transaction
+                    isConfirmed: !!t.is_confirmed
+                };
                 
                 if (!groupedByBank[finalBankId]) groupedByBank[finalBankId] = [];
                 groupedByBank[finalBankId].push(tx);

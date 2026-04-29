@@ -256,16 +256,6 @@ export const useCloudSync = ({
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
-                        const current = map.get(r.transaction.id);
-                        if (current) {
-                            const currentTs = current.updatedAt ? new Date(current.updatedAt).getTime() : 0;
-                            const incomingTs = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
-                            
-                            if (incomingTs < currentTs) {
-                                console.log('[BLOCK_REGRESSION:RECONSTRUCT] Ignorando dado antigo para:', r.transaction.id);
-                                return;
-                            }
-                        }
                         map.set(r.transaction.id, r);
                         hasChanges = true;
                     });
@@ -403,15 +393,6 @@ export const useCloudSync = ({
 
                             const current = prev[idx];
                             const cloudUpdatedAt = updated_at;
-
-                            // 🛡️ BLOCK_REGRESSION: Impede que dados antigos do banco sobrescrevam estados locais mais recentes
-                            const currentTs = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
-                            const incomingTs = cloudUpdatedAt ? new Date(cloudUpdatedAt).getTime() : 0;
-
-                            if (incomingTs < currentTs) {
-                                console.log('[BLOCK_REGRESSION:REALTIME] Ignorando update antigo do banco para transação:', id);
-                                return prev;
-                            }
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
