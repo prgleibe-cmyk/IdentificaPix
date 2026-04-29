@@ -124,7 +124,8 @@ export const useReconciliation = (props: any) => {
         user,
         subscription,
         setBankStatementFile,
-        setSelectedBankIds
+        setSelectedBankIds,
+        activeBankFiles
     });
 
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
