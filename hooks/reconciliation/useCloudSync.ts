@@ -333,11 +333,11 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    // DELETE
+                    // DELETE: Agora usamos map em vez de filter para nunca remover itens do estado em tempo real
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
                         if (deletedId) {
-                            setMatchResults(prev => prev.filter(r => r.transaction.id !== deletedId));
+                            setMatchResults(prev => prev.map(r => r.transaction.id === deletedId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED } : r));
                         }
                         return;
                     }
@@ -350,9 +350,8 @@ export const useCloudSync = ({
                             
                             // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
                             // Isso garante a sincronização em tempo real entre dispositivos.
-                           if (idx === -1) {
-    if (status === 'pending') return prev;
-
+                            if (idx === -1) {
+                                // NUNCA retornar antes ou remover — garantimos que o item sempre entre no array
                                 const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
                                 const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
