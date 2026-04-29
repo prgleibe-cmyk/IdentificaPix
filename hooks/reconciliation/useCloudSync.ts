@@ -447,11 +447,15 @@ export const useCloudSync = ({
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
+                            const incoming = payload.new as any;
+                            const existing = current;
+                            const safeReportId = incoming.report_id || existing.reportId;
+
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
                                 // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO
-                                reportId: current.reportId || (payload.new as any).report_id,
+                                reportId: safeReportId,
                                 status: newStatus,
                                 church: newChurch, 
                                 contributor: newContributor,
