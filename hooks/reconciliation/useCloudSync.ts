@@ -104,6 +104,11 @@ export const useCloudSync = ({
                 return;
             }
 
+            if (!savedReports || savedReports.length === 0) {
+                console.warn('[RECONSTRUCT:SKIPPED_NO_REPORTS]');
+                return;
+            }
+
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
             needsRetry.current = false;
