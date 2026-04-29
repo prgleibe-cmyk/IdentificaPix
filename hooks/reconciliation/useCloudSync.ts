@@ -91,18 +91,13 @@ export const useCloudSync = ({
             dataReadyKey
         });
 
-        if (!isReady) return;
+        if (!isReady || activeReportId) return;
 
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
         lastDataReadyKeyRef.current = dataReadyKey;
 
         const reconstructSession = async () => {
-            if (!activeReportId) {
-                console.log('[RECONSTRUCT:SKIPPED_NO_ACTIVE_REPORT]');
-                return;
-            }
-
             // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
             if (isHydratingFromCloud.current) {
                 needsRetry.current = true;
@@ -407,6 +402,20 @@ export const useCloudSync = ({
                             }
 
                             const current = prev[idx];
+                            
+                            // 🛡️ BLOCK_REGRESSION: Proteção contra updates atrasados do banco
+                            const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
+                            const incomingUpdatedAt = updated_at ? new Date(updated_at).getTime() : 0;
+
+                            if (incomingUpdatedAt < currentUpdatedAt) {
+                                console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco', {
+                                    id,
+                                    incomingUpdatedAt,
+                                    currentUpdatedAt
+                                });
+                                return prev;
+                            }
+                            
                             const cloudUpdatedAt = updated_at;
                             
                             const statusMap: Record<string, ReconciliationStatus> = {
