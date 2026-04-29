@@ -91,13 +91,18 @@ export const useCloudSync = ({
             dataReadyKey
         });
 
-        if (!isReady || activeReportId) return;
+        if (!isReady) return;
 
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
         lastDataReadyKeyRef.current = dataReadyKey;
 
         const reconstructSession = async () => {
+            if (!activeReportId) {
+                console.log('[RECONSTRUCT:SKIPPED_NO_ACTIVE_REPORT]');
+                return;
+            }
+
             // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
             if (isHydratingFromCloud.current) {
                 needsRetry.current = true;
@@ -347,24 +352,17 @@ export const useCloudSync = ({
                         
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
+                            
+                            // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
+                            // Isso garante a sincronização em tempo real entre dispositivos.
+                            if (idx === -1) {
+                                // NUNCA retornar antes ou remover — garantimos que o item sempre entre no array
+                                const t = payload.new;
+                                const normalizedDesc = strictNormalize(t.description);
+                                const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                                const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
-                            if (idx !== -1) {
-                                // 🔥 ATUALIZAÇÃO OTIMISTA (REALTIME): Sem validações de versão ou reconstrução pesada
-                                return prev.map(r => r.transaction.id === id ? {
-                                    ...r,
-                                    status: status === 'resolved' ? ReconciliationStatus.RESOLVED : (status === 'identified' ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED),
-                                    isConfirmed: !!is_confirmed,
-                                    transaction: { ...r.transaction, isConfirmed: !!is_confirmed, bank_id },
-                                    updatedAt: updated_at,
-                                    church: churches.find(c => c.id === church_id) || r.church,
-                                    reportId: r.reportId || (payload.new as any).report_id
-                                } : r);
-                            }
-
-                            // 🛡️ INSERÇÃO AUTOMÁTICA (ITEM NOVO): Criação imediata no estado para evitar gap visual
-                            const t = payload.new;
-                            const newItem: MatchResult = {
-                                transaction: {
+                                const transaction: Transaction = {
                                     id: t.id,
                                     date: t.transaction_date,
                                     description: t.description,
@@ -372,17 +370,86 @@ export const useCloudSync = ({
                                     amount: t.amount,
                                     bank_id: t.bank_id,
                                     isConfirmed: !!t.is_confirmed
-                                },
-                                contributor: t.contributor_id ? { id: t.contributor_id, name: t.description, amount: t.amount } : null,
-                                church: churches.find(c => c.id === church_id) || PLACEHOLDER_CHURCH,
-                                status: status === 'resolved' ? ReconciliationStatus.RESOLVED : (status === 'identified' ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED),
-                                isConfirmed: !!t.is_confirmed,
-                                matchMethod: MatchMethod.MANUAL,
-                                similarity: 100,
-                                updatedAt: t.updated_at,
-                                reportId: (t as any).report_id
+                                };
+
+                                const contributor: Contributor | null = assoc ? {
+                                    id: t.contributor_id || undefined,
+                                    name: assoc.contributorNormalizedName || t.description,
+                                    amount: t.amount,
+                                    cleanedName: assoc.contributorNormalizedName || t.description
+                                } : (t.contributor_id ? {
+                                    id: t.contributor_id,
+                                    name: t.description,
+                                    amount: t.amount
+                                } : null);
+
+                                let matchStatus = ReconciliationStatus.UNIDENTIFIED;
+                                if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
+                                else if (t.status === 'identified') matchStatus = ReconciliationStatus.IDENTIFIED;
+
+                                const newItem: MatchResult = {
+                                    transaction,
+                                    contributor,
+                                    church,
+                                    status: matchStatus,
+                                    isConfirmed: !!t.is_confirmed,
+                                    matchMethod: assoc ? MatchMethod.LEARNED : MatchMethod.MANUAL,
+                                    similarity: 100,
+                                    updatedAt: t.updated_at
+                                };
+
+                                console.log(`[Realtime:ATOM] Adicionando nova transação via realtime: ${id}`);
+                                return [newItem, ...prev];
+                            }
+                            
+                            if (status === 'pending') {
+                                console.log(`[REALTIME:UPDATE_INSTEAD_REMOVE] Transação ${id} movida para pendente, atualizando em vez de remover.`);
+                            }
+
+                            const current = prev[idx];
+                            const cloudUpdatedAt = updated_at;
+                            
+                            const statusMap: Record<string, ReconciliationStatus> = {
+                                'identified': ReconciliationStatus.IDENTIFIED,
+                                'resolved': ReconciliationStatus.RESOLVED,
+                                'pending': ReconciliationStatus.UNIDENTIFIED
                             };
-                            return [newItem, ...prev];
+
+                           const newStatus = statusMap[status] || current.status;
+                            
+                            // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
+                            const normalizedDesc = strictNormalize(current.transaction.description);
+                            const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                            
+                            const dbChurch = churches.find(c => c.id === church_id);
+                            const newChurch = dbChurch || current.church || PLACEHOLDER_CHURCH;
+                            
+                            const newContributor: Contributor | null = assoc ? {
+                                id: contributor_id || undefined,
+                                name: assoc.contributorNormalizedName || current.transaction.description,
+                                amount: current.transaction.amount,
+                                cleanedName: assoc.contributorNormalizedName || current.transaction.description
+                            } : (contributor_id ? {
+                                id: contributor_id,
+                                name: current.transaction.description,
+                                amount: current.transaction.amount
+                            } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
+
+                            console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
+                            
+                            const updated = [...prev];
+                            updated[idx] = {
+                                ...current,
+                                // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO
+                                reportId: current.reportId || (payload.new as any).report_id,
+                                status: newStatus,
+                                church: newChurch, 
+                                contributor: newContributor,
+                                isConfirmed: !!is_confirmed,
+                                transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
+                                updatedAt: cloudUpdatedAt
+                            };
+                            return updated;
                         });
                     }
                 }
