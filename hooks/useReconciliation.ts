@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
@@ -55,14 +55,6 @@ export const useReconciliation = (props: any) => {
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
-    
-    // 🛡️ SELEÇÃO AUTOMÁTICA DE RELATÓRIO ATIVO
-    useEffect(() => {
-        if (!activeReportId && savedReports && savedReports.length > 0) {
-            console.log("[Reconciliation] Selecionando automaticamente o primeiro relatório:", savedReports[0].id);
-            setActiveReportId(savedReports[0].id);
-        }
-    }, [savedReports, activeReportId, setActiveReportId]);
 
     // ✅ NORMALIZAÇÃO TOTAL (MESMO PADRÃO DA CONFIRMAÇÃO FINAL)
     const buildCanonicalPayload = useCallback((row: MatchResult) => {

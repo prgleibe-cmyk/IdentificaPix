@@ -256,6 +256,17 @@ export const useCloudSync = ({
                     let hasChanges = false;
 
                     reconstructed.forEach(r => {
+                        const current = map.get(r.transaction.id);
+                        
+                        // 🛡️ BLOCK_REGRESSION: Apenas atualizamos se os dados da nuvem forem mais recentes ou se o item for novo
+                        const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
+                        const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
+
+                        if (current && incomingUpdatedAt < currentUpdatedAt) {
+                            console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
+                            return;
+                        }
+
                         map.set(r.transaction.id, r);
                         hasChanges = true;
                     });
@@ -392,31 +403,35 @@ export const useCloudSync = ({
                             }
 
                             const current = prev[idx];
-                            const cloudUpdatedAt = updated_at;
                             
-                            // 🛡️ BLOCK REGRESSION: Impede que dados mais antigos do banco sobrescrevam estados mais recentes
+                            // 🛡️ BLOCK_REGRESSION: Proteção contra updates atrasados do banco
                             const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
-                            const incomingUpdatedAt = cloudUpdatedAt ? new Date(cloudUpdatedAt).getTime() : 0;
+                            const incomingUpdatedAt = updated_at ? new Date(updated_at).getTime() : 0;
 
                             if (incomingUpdatedAt < currentUpdatedAt) {
-                                console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco');
+                                console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco', {
+                                    id,
+                                    incomingUpdatedAt,
+                                    currentUpdatedAt
+                                });
                                 return prev;
                             }
-
+                            
+                            const cloudUpdatedAt = updated_at;
+                            
                             const statusMap: Record<string, ReconciliationStatus> = {
                                 'identified': ReconciliationStatus.IDENTIFIED,
                                 'resolved': ReconciliationStatus.RESOLVED,
                                 'pending': ReconciliationStatus.UNIDENTIFIED
                             };
 
-                            const newStatus = statusMap[status] || current.status;
+                           const newStatus = statusMap[status] || current.status;
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
                             const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
                             const dbChurch = churches.find(c => c.id === church_id);
-                            // 🔥 GARANTIR: manter igreja se não vier uma nova válida do banco
                             const newChurch = dbChurch || current.church || PLACEHOLDER_CHURCH;
                             
                             const newContributor: Contributor | null = assoc ? {
@@ -435,10 +450,10 @@ export const useCloudSync = ({
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
-                                // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO E IGREJA
-                                reportId: current.reportId || (payload.new as any).report_id || updated[idx]?.reportId,
+                                // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO
+                                reportId: current.reportId || (payload.new as any).report_id,
                                 status: newStatus,
-                                church: current.church || newChurch || updated[idx]?.church, 
+                                church: newChurch, 
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
                                 transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
@@ -571,7 +586,7 @@ export const useCloudSync = ({
      * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        if (!isContextReady || isLoading) {
+        if ((!isContextReady && matchResults.length === 0) || isLoading) {
             console.log('[PostReconstruct:SKIPPED]', { isContextReady, isLoading });
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             return;
