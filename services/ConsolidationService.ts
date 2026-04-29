@@ -77,7 +77,6 @@ export const consolidationService = {
                         bank_id: t.bank_id || null,
                         status: t.status || 'pending',
                         row_hash: t.row_hash,
-                        report_id: t.report_id || null,
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false
                     };
 
@@ -151,7 +150,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, reportId?: string) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, matchResult?: any) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -170,9 +169,10 @@ export const consolidationService = {
             const updateData: any = { 
                 status,
                 user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
-                updated_at: new Date().toISOString(),
-                report_id: reportId || null,
+                updated_at: new Date().toISOString()
             };
+            
+            updateData.report_id = matchResult?.reportId ?? updateData.report_id ?? null;
             
             if (churchId !== undefined) updateData.church_id = churchId;
             if (bankId !== undefined) updateData.bank_id = bankId;
@@ -232,7 +232,7 @@ const { data, error } = await (supabase as any)
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null, reportId?: string) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null, matchResult?: any) => {
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -256,7 +256,7 @@ const { data, error } = await (supabase as any)
             status: is_confirmed ? 'resolved' : 'pending',
             user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
             updated_at: new Date().toISOString(),
-            report_id: reportId || null,
+            report_id: matchResult?.reportId || null
         };
 
         if (churchId !== undefined) updateData.church_id = churchId;
