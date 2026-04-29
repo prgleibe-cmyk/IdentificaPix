@@ -77,7 +77,10 @@ export const useAiAutoIdentify = ({
                                 church.id, 
                                 res.transaction.bank_id,
                                 undefined,
-                                false
+                                false,
+                                undefined,
+                                undefined,
+                                reconciliation.activeReportId
                             );
                         }
 

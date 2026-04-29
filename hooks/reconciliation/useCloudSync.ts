@@ -104,11 +104,6 @@ export const useCloudSync = ({
                 return;
             }
 
-            if (!savedReports || savedReports.length === 0) {
-                console.warn('[RECONSTRUCT:SKIPPED_NO_REPORTS]');
-                return;
-            }
-
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
             needsRetry.current = false;
@@ -452,15 +447,11 @@ export const useCloudSync = ({
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
-                            const incoming = payload.new as any;
-                            const existing = current;
-                            const safeReportId = incoming.report_id || existing.reportId;
-
                             const updated = [...prev];
                             updated[idx] = {
                                 ...current,
                                 // 🔥 MANTER CONSISTÊNCIA DE AGRUPAMENTO
-                                reportId: safeReportId,
+                                reportId: current.reportId || (payload.new as any).report_id,
                                 status: newStatus,
                                 church: newChurch, 
                                 contributor: newContributor,
