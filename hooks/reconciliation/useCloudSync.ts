@@ -21,6 +21,7 @@ interface UseCloudSyncProps {
     isLoading?: boolean;
     activeBankFiles?: any[];
     selectedBankIds?: string[];
+    subscription?: any;
 }
 
 export const batchState = { isBatchUpdating: false };
@@ -41,7 +42,8 @@ export const useCloudSync = ({
     handleCompare,
     isLoading,
     activeBankFiles,
-    selectedBankIds
+    selectedBankIds,
+    subscription
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -82,6 +84,8 @@ export const useCloudSync = ({
 
     const lastSignatureRef = useRef<string | null>(null);
 
+    const isAdmin = subscription?.role === 'admin' || user?.role === 'admin';
+
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
         const currentSignature = JSON.stringify({
@@ -100,6 +104,7 @@ export const useCloudSync = ({
             isReady,
             activeReportId,
             effectiveUserId,
+            isAdmin,
             churchesCount: churches?.length,
             assocCount: learnedAssociations?.length,
             lastDataReadyKey: lastDataReadyKeyRef.current,
@@ -131,6 +136,7 @@ export const useCloudSync = ({
 
                 console.log('[RECONSTRUCT:FILTER]', {
                     effectiveUserId,
+                    isAdmin,
                     dateThreshold
                 });
 
@@ -139,10 +145,16 @@ export const useCloudSync = ({
                 const pageSize = 1000;
 
                 while (true) {
-                    const { data, error } = await supabase
+                    let query = supabase
                         .from('consolidated_transactions')
-                        .select('*')
-                        .eq('user_id', effectiveUserId)
+                        .select('*');
+
+                    // 🛡️ ADMIN POLICY: Se for admin, ignora o filtro por userId para ver TUDO
+                    if (!isAdmin) {
+                        query = query.eq('user_id', effectiveUserId);
+                    }
+
+                    const { data, error } = await query
                         .gte('transaction_date', dateThreshold)
                         .order('transaction_date', { ascending: false })
                         .range(from, from + pageSize - 1);
