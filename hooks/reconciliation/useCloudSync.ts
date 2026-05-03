@@ -50,7 +50,7 @@ export const useCloudSync = ({
     const isValidating = useRef<boolean>(false);
     const stableTimeoutRef = useRef<any>(null);
     const lastProcessedLength = useRef<number>(0);
-    const lastSignatureRef = useRef<string>('');
+    const postProcessingSignatureRef = useRef<string>('');
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -79,8 +79,22 @@ export const useCloudSync = ({
         // O progresso agora é salvo individualmente em cada ação (Identificar/Confirmar)
     }, []);
 
+    const lastSignatureRef = useRef<string | null>(null);
+
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
+        const currentSignature = JSON.stringify({
+            activeReportId,
+            assocCount: learnedAssociations?.length,
+            churchesCount: churches?.length
+        });
+
+        if (lastSignatureRef.current === currentSignature) {
+            return;
+        }
+
+        lastSignatureRef.current = currentSignature;
+
         console.log('[CloudSync:ATOM_EFFECT_TRIGGER]', {
             isReady,
             activeReportId,
@@ -598,14 +612,14 @@ export const useCloudSync = ({
         // Se o conteúdo mudou, resetamos o timer de estabilidade
         const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
 
-        if (currentSignature !== lastSignatureRef.current) {
+        if (currentSignature !== postProcessingSignatureRef.current) {
             console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
             
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             
             stableTimeoutRef.current = setTimeout(() => {
                 console.log('[PostReconstruct:STABLE]', matchResults.length);
-                lastSignatureRef.current = currentSignature;
+                postProcessingSignatureRef.current = currentSignature;
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompare === 'function') {
