@@ -4,6 +4,8 @@ import { supabase } from '../services/supabaseClient';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 
+const ENABLE_HEAVY_LOGS = false;
+
 const getInitialDateRange = () => {
     const today = new Date();
     const thirtyDaysAgo = new Date();
@@ -52,13 +54,15 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * 📥 CARGA INICIAL
      */
     useEffect(() => {
-        console.log("[AUDIT][USE_EFFECT_TRIGGER]", {
-            userId: user?.id,
-            effectiveUserId,
-            hasInitialReports: !!initialReports?.length,
-            executionId: executionId.current,
-            timestamp: Date.now()
-        });
+        if (ENABLE_HEAVY_LOGS) {
+            console.log("[AUDIT][USE_EFFECT_TRIGGER]", {
+                userId: user?.id,
+                effectiveUserId,
+                hasInitialReports: !!initialReports?.length,
+                executionId: executionId.current,
+                timestamp: Date.now()
+            });
+        }
 
         let ignore = false;
         if (!user || !effectiveUserId) {
@@ -79,14 +83,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 data: r.data || { results: [], spreadsheet: null }
             }));
 
-            console.log("[AUDIT][SET_REPORTS]", {
-                userId: user?.id,
-                effectiveUserId,
-                total: hydrated.length,
-                source: 'initialReports',
-                executionId: executionId.current,
-                timestamp: Date.now()
-            });
+            if (ENABLE_HEAVY_LOGS) {
+                console.log("[AUDIT][SET_REPORTS]", {
+                    userId: user?.id,
+                    effectiveUserId,
+                    total: hydrated.length,
+                    source: 'initialReports',
+                    executionId: executionId.current,
+                    timestamp: Date.now()
+                });
+            }
 
             if (!hasHydratedRef.current) {
                 setSavedReports(hydrated);
@@ -107,12 +113,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
 
-                console.log("[AUDIT][FETCH_START]", {
-                    userId: user?.id,
-                    effectiveUserId,
-                    executionId: executionId.current,
-                    timestamp: Date.now()
-                });
+                if (ENABLE_HEAVY_LOGS) {
+                    console.log("[AUDIT][FETCH_START]", {
+                        userId: user?.id,
+                        effectiveUserId,
+                        executionId: executionId.current,
+                        timestamp: Date.now()
+                    });
+                }
 
                 const response = await fetch(`/api/reference/data/${apiOwnerId}?limit=50&offset=0`, {
                     method: 'GET',
@@ -123,14 +131,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 if (response.ok) {
                     const resData = await response.json();
 
-                    console.log("[AUDIT][FETCH_END]", {
-                        userId: user?.id,
-                        effectiveUserId,
-                        reports: resData.reports?.length,
-                        churches: resData.churches?.length,
-                        executionId: executionId.current,
-                        timestamp: Date.now()
-                    });
+                    if (ENABLE_HEAVY_LOGS) {
+                        console.log("[AUDIT][FETCH_END]", {
+                            userId: user?.id,
+                            effectiveUserId,
+                            reports: resData.reports?.length,
+                            churches: resData.churches?.length,
+                            executionId: executionId.current,
+                            timestamp: Date.now()
+                        });
+                    }
 
                     if (ignore) return;
                     data = resData.reports || [];
@@ -149,14 +159,16 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         data: r.data || { results: [], spreadsheet: null }
                     }));
 
-                    console.log("[AUDIT][SET_REPORTS]", {
-                        userId: user?.id,
-                        effectiveUserId,
-                        total: hydrated.length,
-                        source: 'fetchReports',
-                        executionId: executionId.current,
-                        timestamp: Date.now()
-                    });
+                    if (ENABLE_HEAVY_LOGS) {
+                        console.log("[AUDIT][SET_REPORTS]", {
+                            userId: user?.id,
+                            effectiveUserId,
+                            total: hydrated.length,
+                            source: 'fetchReports',
+                            executionId: executionId.current,
+                            timestamp: Date.now()
+                        });
+                    }
 
                     if (!hasHydratedRef.current) {
                         setSavedReports(hydrated);

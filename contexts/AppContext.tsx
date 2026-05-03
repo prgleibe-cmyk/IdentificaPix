@@ -12,6 +12,7 @@ import { useAiAutoIdentify } from '../hooks/useAiAutoIdentify';
 import { useSummaryData } from '../hooks/useSummaryData';
 import { supabase } from '../services/supabaseClient';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
+const ENABLE_HEAVY_LOGS = false;
 
 export const AppContext = createContext<any>(null!);
 
@@ -57,7 +58,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
         if (!activeId) {
-            console.warn('[AUDIT][NO_REPORT_ID]');
+            if (ENABLE_HEAVY_LOGS) {
+                console.warn('[AUDIT][NO_REPORT_ID]');
+            }
             lastLoadedReportId.current = null;
             return;
         }
@@ -66,41 +69,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const shouldLoad = activeId !== lastLoadedReportId.current;
         if (!shouldLoad) return;
 
-        console.log('[AUDIT][LOAD_REPORT_START]', { reportId: activeId });
+        if (ENABLE_HEAVY_LOGS) {
+            console.log('[AUDIT][LOAD_REPORT_START]', { reportId: activeId });
+        }
         const report = reportManager.savedReports.find(r => r.id === activeId);
         
-        console.log('[AUDIT][RAW_REPORT_FROM_DB]', report);
-
-        console.log('[AUDIT][DATA_FULL]', report?.data);
+        if (ENABLE_HEAVY_LOGS) {
+            console.log('[AUDIT][RAW_REPORT_FROM_DB]', report);
+            console.log('[AUDIT][DATA_FULL]', report?.data);
+        }
 
         if (report?.data && typeof report.data === 'object') {
             const rData = report.data as any;
             Object.keys(rData).forEach((key) => {
-                console.log(`[AUDIT][DATA_KEY:${key}]`, rData[key]);
+                if (ENABLE_HEAVY_LOGS) {
+                    console.log(`[AUDIT][DATA_KEY:${key}]`, rData[key]);
+                }
 
                 if (Array.isArray(rData[key])) {
-                    console.log(`[AUDIT][FOUND_ARRAY_IN:${key}] LENGTH:`, rData[key].length);
+                    if (ENABLE_HEAVY_LOGS) {
+                        console.log(`[AUDIT][FOUND_ARRAY_IN:${key}] LENGTH:`, rData[key].length);
+                    }
                 }
 
                 if (rData[key] && typeof rData[key] === 'object') {
                     Object.keys(rData[key]).forEach((subKey) => {
-                        console.log(`[AUDIT][SUB_KEY:${key}.${subKey}]`, rData[key][subKey]);
+                        if (ENABLE_HEAVY_LOGS) {
+                            console.log(`[AUDIT][SUB_KEY:${key}.${subKey}]`, rData[key][subKey]);
+                        }
 
                         if (Array.isArray(rData[key][subKey])) {
-                            console.log(`[AUDIT][FOUND_ARRAY_IN:${key}.${subKey}] LENGTH:`, rData[key][subKey].length);
+                            if (ENABLE_HEAVY_LOGS) {
+                                console.log(`[AUDIT][FOUND_ARRAY_IN:${key}.${subKey}] LENGTH:`, rData[key][subKey].length);
+                            }
                         }
                     });
                 }
             });
         }
 
-        console.log('[AUDIT][REPORT_FIELDS]', {
-            id: report?.id,
-            hasData: !!report?.data,
-            dataType: typeof report?.data,
-            dataKeys: report?.data ? Object.keys(report.data) : null,
-            full: report
-        });
+        if (ENABLE_HEAVY_LOGS) {
+            console.log('[AUDIT][REPORT_FIELDS]', {
+                id: report?.id,
+                hasData: !!report?.data,
+                dataType: typeof report?.data,
+                dataKeys: report?.data ? Object.keys(report.data) : null,
+                full: report
+            });
+        }
 
         const data = report.data as any;
         if (!report || (!Array.isArray(data) && !data?.transactions && !data?.results)) return;
@@ -128,9 +144,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             );
         }
 
-        console.log('[AUDIT][DATA_BEFORE_SET]', hydrated);
-        console.log('[AUDIT][DATA_LENGTH]', Array.isArray(hydrated) ? hydrated.length : 'not-array');
-        console.log('[AUDIT][LOAD_REPORT_DATA]', hydrated);
+        if (ENABLE_HEAVY_LOGS) {
+            console.log('[AUDIT][DATA_BEFORE_SET]', hydrated);
+            console.log('[AUDIT][DATA_LENGTH]', Array.isArray(hydrated) ? hydrated.length : 'not-array');
+            console.log('[AUDIT][LOAD_REPORT_DATA]', hydrated);
+        } else {
+            console.log('[AUDIT][DATA_LENGTH]', hydrated?.length);
+            console.log('[AUDIT][LOAD_REPORT_DATA_LENGTH]', hydrated?.length);
+        }
         reconciliation.setMatchResults(hydrated);
         lastLoadedReportId.current = activeId;
     }, [
@@ -145,7 +166,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
-        console.log('[AUDIT][OPEN_REPORT_TRIGGER]', { reportId: report?.id, report });
+        if (ENABLE_HEAVY_LOGS) {
+            console.log('[AUDIT][OPEN_REPORT_TRIGGER]', { reportId: report?.id, report });
+        }
         if (!report) return;
 
         setIsLoading(true);
@@ -213,7 +236,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if (((results || []).length > 0) || spreadsheet) {
-                console.log('[AUDIT][BEFORE_NAVIGATION]', { reportId });
+                if (ENABLE_HEAVY_LOGS) {
+                    console.log('[AUDIT][BEFORE_NAVIGATION]', { reportId });
+                }
                 reconciliation.setActiveReportId(reportId);
                 reconciliation.setHasActiveSession(true);
 
@@ -246,14 +271,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     setActiveView('smart_analysis');
                 }
 
-                console.log('[AUDIT][AFTER_NAVIGATION]', { reportId });
+                if (ENABLE_HEAVY_LOGS) {
+                    console.log('[AUDIT][AFTER_NAVIGATION]', { reportId });
+                }
                 showToast(`Relatório "${report.name}" carregado.`, "success");
             } else {
                 showToast("Este relatório está vazio.", "error");
             }
 
         } catch (error: any) {
-            console.error('[AUDIT][LOAD_REPORT_ERROR]', error);
+            if (ENABLE_HEAVY_LOGS) {
+                console.error('[AUDIT][LOAD_REPORT_ERROR]', error);
+            }
             console.error("[AppContext] Erro ao abrir relatório:", error);
             showToast("Erro ao carregar os dados do relatório.", "error");
         } finally {
