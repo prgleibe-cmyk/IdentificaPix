@@ -51,6 +51,7 @@ export const useCloudSync = ({
     const stableTimeoutRef = useRef<any>(null);
     const lastProcessedLength = useRef<number>(0);
     const postProcessingSignatureRef = useRef<string>('');
+    const lastAutoProcessSignatureRef = useRef<string | null>(null);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -623,6 +624,16 @@ export const useCloudSync = ({
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompare === 'function') {
+                    const autoProcessSignature = JSON.stringify({
+                        length: matchResults?.length
+                    });
+
+                    if (lastAutoProcessSignatureRef.current === autoProcessSignature) {
+                        return;
+                    }
+
+                    lastAutoProcessSignatureRef.current = autoProcessSignature;
+
                     console.log('[AutoProcess:FINAL_TRIGGER]');
                     handleCompare(false);
                 }
