@@ -277,7 +277,7 @@ export const useCloudSync = ({
                         const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                         const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
 
-                        if (current && incomingUpdatedAt < currentUpdatedAt) {
+                        if (current && incomingUpdatedAt + 2000 < currentUpdatedAt) {
                             console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
                             return;
                         }
@@ -422,7 +422,7 @@ export const useCloudSync = ({
                             const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                             const incomingUpdatedAt = updated_at ? new Date(updated_at).getTime() : 0;
 
-                            if (incomingUpdatedAt < currentUpdatedAt) {
+                            if (incomingUpdatedAt + 2000 < currentUpdatedAt) {
                                 console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco', {
                                     id,
                                     incomingUpdatedAt,
