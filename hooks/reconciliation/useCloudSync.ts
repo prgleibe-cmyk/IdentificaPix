@@ -611,6 +611,16 @@ export const useCloudSync = ({
         }
 
         // Se o conteúdo mudou, resetamos o timer de estabilidade
+        const stableSignature = JSON.stringify(
+            (matchResults || [])
+                .map(r => ({
+                    id: r.transaction.id,
+                    status: r.status,
+                    is_confirmed: r.isConfirmed
+                }))
+                .sort((a, b) => a.id.localeCompare(b.id))
+        );
+
         const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
 
         if (currentSignature !== postProcessingSignatureRef.current) {
@@ -624,12 +634,12 @@ export const useCloudSync = ({
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompare === 'function') {
-                    if (lastAutoProcessSignatureRef.current === currentSignature) {
+                    if (lastAutoProcessSignatureRef.current === stableSignature) {
                         return;
                     }
-
-                    lastAutoProcessSignatureRef.current = currentSignature;
-
+ 
+                    lastAutoProcessSignatureRef.current = stableSignature;
+ 
                     console.log('[AutoProcess:FINAL_TRIGGER]');
                     handleCompare(false);
                 }
