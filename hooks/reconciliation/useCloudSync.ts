@@ -6,6 +6,7 @@ import { consolidationService } from '../../services/ConsolidationService';
 
 interface UseCloudSyncProps {
     user: any;
+    subscription?: any;
     effectiveUserId: string;
     matchResults: MatchResult[];
     setMatchResults: (update: (prev: MatchResult[]) => MatchResult[]) => void;
@@ -27,6 +28,7 @@ export const batchState = { isBatchUpdating: false };
 
 export const useCloudSync = ({
     user,
+    subscription,
     effectiveUserId,
     matchResults,
     setMatchResults,
@@ -84,6 +86,8 @@ export const useCloudSync = ({
 
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
+        if (!subscription?.ownerId) return;
+
         const currentSignature = JSON.stringify({
             activeReportId,
             assocCount: learnedAssociations?.length,
@@ -315,10 +319,11 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, subscription, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
+        if (!subscription?.ownerId) return;
         if (isReady && !isLoading && matchResults?.length === 0) {
             console.log('[AUTO_PROCESS] Executando processamento inicial da lista viva...');
             handleCompare?.(false); // isAuto = true
@@ -330,7 +335,7 @@ export const useCloudSync = ({
      * Escuta mudanças individuais em transações e associações aprendidas
      */
     useEffect(() => {
-        if (!effectiveUserId) return;
+        if (!effectiveUserId || !subscription?.ownerId) return;
 
         console.log('[REALTIME:USER]', {
           userId: user?.id,
@@ -534,13 +539,13 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, churches, setMatchResults, learnedAssociations]);
+    }, [effectiveUserId, subscription, churches, setMatchResults, learnedAssociations]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)
      */
     useEffect(() => {
-        if (!effectiveUserId || matchResults.length === 0 || isValidating.current) return;
+        if (!effectiveUserId || !subscription?.ownerId || matchResults.length === 0 || isValidating.current) return;
 
         const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
         if (currentIdsHash === lastValidatedHash.current) return;
@@ -600,7 +605,7 @@ export const useCloudSync = ({
      * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        if ((!isContextReady && matchResults.length === 0) || isLoading) {
+        if (!subscription?.ownerId || (!isContextReady && matchResults.length === 0) || isLoading) {
             console.log('[PostReconstruct:SKIPPED]', { isContextReady, isLoading });
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             return;
