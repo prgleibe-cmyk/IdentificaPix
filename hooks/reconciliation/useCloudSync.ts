@@ -624,15 +624,11 @@ export const useCloudSync = ({
                 lastProcessedLength.current = matchResults.length;
                 
                 if (typeof handleCompare === 'function') {
-                    const autoProcessSignature = JSON.stringify({
-                        length: matchResults?.length
-                    });
-
-                    if (lastAutoProcessSignatureRef.current === autoProcessSignature) {
+                    if (lastAutoProcessSignatureRef.current === currentSignature) {
                         return;
                     }
 
-                    lastAutoProcessSignatureRef.current = autoProcessSignature;
+                    lastAutoProcessSignatureRef.current = currentSignature;
 
                     console.log('[AutoProcess:FINAL_TRIGGER]');
                     handleCompare(false);
