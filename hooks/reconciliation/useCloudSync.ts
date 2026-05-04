@@ -295,8 +295,14 @@ export const useCloudSync = ({
                         const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                         const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
 
-                        if (current && incomingUpdatedAt < currentUpdatedAt) {
-                            console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
+                        const TIME_TOLERANCE = 2000; // 2 segundos
+                        if (current && incomingUpdatedAt < currentUpdatedAt - TIME_TOLERANCE) {
+                            console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', {
+                                id: r.transaction.id,
+                                incomingUpdatedAt,
+                                currentUpdatedAt,
+                                diff: currentUpdatedAt - incomingUpdatedAt
+                            });
                             return;
                         }
 
@@ -440,11 +446,14 @@ export const useCloudSync = ({
                             const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                             const incomingUpdatedAt = updated_at ? new Date(updated_at).getTime() : 0;
 
-                            if (incomingUpdatedAt < currentUpdatedAt) {
+                            const TIME_TOLERANCE = 2000; // 2 segundos
+
+                            if (incomingUpdatedAt < currentUpdatedAt - TIME_TOLERANCE) {
                                 console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco', {
                                     id,
                                     incomingUpdatedAt,
-                                    currentUpdatedAt
+                                    currentUpdatedAt,
+                                    diff: currentUpdatedAt - incomingUpdatedAt
                                 });
                                 return prev;
                             }
