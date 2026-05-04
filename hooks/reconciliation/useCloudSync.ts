@@ -21,7 +21,6 @@ interface UseCloudSyncProps {
     isLoading?: boolean;
     activeBankFiles?: any[];
     selectedBankIds?: string[];
-    subscription?: any;
 }
 
 export const batchState = { isBatchUpdating: false };
@@ -42,8 +41,7 @@ export const useCloudSync = ({
     handleCompare,
     isLoading,
     activeBankFiles,
-    selectedBankIds,
-    subscription
+    selectedBankIds
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -84,14 +82,6 @@ export const useCloudSync = ({
 
     const lastSignatureRef = useRef<string | null>(null);
 
-    const isAdmin = subscription?.role === 'admin' || user?.role === 'admin';
-
-    const triggerHydration = useCallback(() => {
-        console.log('[CloudSync] Forçando re-hidratação via triggerHydration...');
-        lastSignatureRef.current = null;
-        setMatchResults(prev => [...prev]);
-    }, [setMatchResults]);
-
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
         const currentSignature = JSON.stringify({
@@ -110,7 +100,6 @@ export const useCloudSync = ({
             isReady,
             activeReportId,
             effectiveUserId,
-            isAdmin,
             churchesCount: churches?.length,
             assocCount: learnedAssociations?.length,
             lastDataReadyKey: lastDataReadyKeyRef.current,
@@ -142,7 +131,6 @@ export const useCloudSync = ({
 
                 console.log('[RECONSTRUCT:FILTER]', {
                     effectiveUserId,
-                    isAdmin,
                     dateThreshold
                 });
 
@@ -151,16 +139,10 @@ export const useCloudSync = ({
                 const pageSize = 1000;
 
                 while (true) {
-                    let query = supabase
+                    const { data, error } = await supabase
                         .from('consolidated_transactions')
-                        .select('*');
-
-                    // 🛡️ ADMIN POLICY: Se for admin, ignora o filtro por userId para ver TUDO
-                    if (!isAdmin) {
-                        query = query.eq('user_id', effectiveUserId);
-                    }
-
-                    const { data, error } = await query
+                        .select('*')
+                        .eq('user_id', effectiveUserId)
                         .gte('transaction_date', dateThreshold)
                         .order('transaction_date', { ascending: false })
                         .range(from, from + pageSize - 1);
@@ -295,14 +277,8 @@ export const useCloudSync = ({
                         const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                         const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
 
-                        const TIME_TOLERANCE = 2000; // 2 segundos
-                        if (current && incomingUpdatedAt < currentUpdatedAt - TIME_TOLERANCE) {
-                            console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', {
-                                id: r.transaction.id,
-                                incomingUpdatedAt,
-                                currentUpdatedAt,
-                                diff: currentUpdatedAt - incomingUpdatedAt
-                            });
+                        if (current && incomingUpdatedAt < currentUpdatedAt) {
+                            console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
                             return;
                         }
 
@@ -446,14 +422,11 @@ export const useCloudSync = ({
                             const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                             const incomingUpdatedAt = updated_at ? new Date(updated_at).getTime() : 0;
 
-                            const TIME_TOLERANCE = 2000; // 2 segundos
-
-                            if (incomingUpdatedAt < currentUpdatedAt - TIME_TOLERANCE) {
+                            if (incomingUpdatedAt < currentUpdatedAt) {
                                 console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco', {
                                     id,
                                     incomingUpdatedAt,
-                                    currentUpdatedAt,
-                                    diff: currentUpdatedAt - incomingUpdatedAt
+                                    currentUpdatedAt
                                 });
                                 return prev;
                             }
@@ -671,34 +644,6 @@ export const useCloudSync = ({
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
     }, [matchResults, isLoading, handleCompare, isContextReady]);
-
-    useEffect(() => {
-        const handleResume = () => {
-            try {
-                console.log('[APP:RESUME] Re-hidratando após retorno ao foco');
-
-                // chamada leve: reaproveita fluxo já existente
-                if (typeof triggerHydration === 'function') {
-                    triggerHydration();
-                }
-
-            } catch (err) {
-                console.warn('[APP:RESUME] erro ao re-hidratar', err);
-            }
-        };
-
-        window.addEventListener('focus', handleResume);
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                handleResume();
-            }
-        });
-
-        return () => {
-            window.removeEventListener('focus', handleResume);
-            document.removeEventListener('visibilitychange', handleResume);
-        };
-    }, [triggerHydration]);
 
     return {
         syncToCloud,
