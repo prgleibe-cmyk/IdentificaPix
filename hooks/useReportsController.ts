@@ -36,6 +36,7 @@ export const useReportsController = () => {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const syncHashRef = useRef<string>('');
+    const lastPreviewSignatureRef = useRef<string | null>(null);
     const isProcessingRef = useRef(false);
     const debounceRef = useRef<any>(null);
 
@@ -51,6 +52,16 @@ export const useReportsController = () => {
     // Isso garante que ações de "Identificar" e "Confirmar" reflitam imediatamente no relatório
     useEffect(() => {
         if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
+            // Gerar assinatura estável para evitar re-renderização redundante
+            const previewSignature = JSON.stringify({
+                reportId: activeReportId,
+                total: matchResults?.length,
+                confirmed: (matchResults || []).filter(t => t.isConfirmed).length
+            });
+
+            if (lastPreviewSignatureRef.current === previewSignature) return;
+            lastPreviewSignatureRef.current = previewSignature;
+
             if (stableKey !== syncHashRef.current) {
                 if (debounceRef.current) {
                     clearTimeout(debounceRef.current);
