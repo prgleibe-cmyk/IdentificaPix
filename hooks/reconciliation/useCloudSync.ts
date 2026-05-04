@@ -86,6 +86,12 @@ export const useCloudSync = ({
 
     const isAdmin = subscription?.role === 'admin' || user?.role === 'admin';
 
+    const triggerHydration = useCallback(() => {
+        console.log('[CloudSync] Forçando re-hidratação via triggerHydration...');
+        lastSignatureRef.current = null;
+        setMatchResults(prev => [...prev]);
+    }, [setMatchResults]);
+
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
         const currentSignature = JSON.stringify({
@@ -656,6 +662,34 @@ export const useCloudSync = ({
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
     }, [matchResults, isLoading, handleCompare, isContextReady]);
+
+    useEffect(() => {
+        const handleResume = () => {
+            try {
+                console.log('[APP:RESUME] Re-hidratando após retorno ao foco');
+
+                // chamada leve: reaproveita fluxo já existente
+                if (typeof triggerHydration === 'function') {
+                    triggerHydration();
+                }
+
+            } catch (err) {
+                console.warn('[APP:RESUME] erro ao re-hidratar', err);
+            }
+        };
+
+        window.addEventListener('focus', handleResume);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                handleResume();
+            }
+        });
+
+        return () => {
+            window.removeEventListener('focus', handleResume);
+            document.removeEventListener('visibilitychange', handleResume);
+        };
+    }, [triggerHydration]);
 
     return {
         syncToCloud,
