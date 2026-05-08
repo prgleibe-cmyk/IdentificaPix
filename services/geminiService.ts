@@ -58,68 +58,20 @@ export const extractTransactionsWithModel = async (
     isAIBusy = true;
 
     try {
-        const ai = getAIClient();
-        
-        const isPreview = !!limit;
-        const limitInstruction = isPreview 
-            ? `RESTRICAO: Apenas os primeiros ${limit} registros.`
-            : `PROCESSAMENTO TOTAL: Extraia todos os dados sem exceção.`;
-
-        const instruction = `VOCÊ É UM ROBÔ DE CÓPIA LITERAL (CÓPIA BIT-A-BIT). 
-           Sua inteligência é avaliada pela fidelidade caractere-por-caractere com o documento original.
-           
-           --- CONTRATO DE EXTRAÇÃO (GABARITO ESTRUTURAL) ---
-           ${modelContext}
-           
-           --- REGRAS DE OURO DE PRESERVAÇÃO ---
-           1. FIDELIDADE TEXTUAL TOTAL: A 'description' deve ser copiada EXATAMENTE como aparece visualmente.
-           2. DETECÇÃO DE SINAIS: Identifique se é Crédito ou Débito. Valores de saída (Débitos) devem ser SEMPRE negativos no JSON.
-           3. FILTRAGEM: Extraia apenas as transações. Ignore headers de página e rodapés.
-           ${limitInstruction}
-           
-           RETORNO OBRIGATÓRIO: JSON { "rows": [ { "date", "description", "amount", "forma", "tipo" } ] }`;
-
-        const parts: any[] = [];
-        if (base64Data) {
-            parts.push({ inlineData: { data: base64Data, mimeType: 'application/pdf' } });
-        } else {
-            parts.push({ text: `CONTEÚDO PARA EXTRAÇÃO:\n${isPreview ? rawText.substring(0, 15000) : rawText}` });
-        }
-        parts.push({ text: instruction });
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview', 
-            contents: { parts },
-            config: {
-                temperature: 0,
-                // Aumentado para suportar listas muito longas e evitar o corte em 24 linhas
-                maxOutputTokens: 96000, 
-                thinkingConfig: { thinkingBudget: 24000 },
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        rows: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    date: { type: Type.STRING },
-                                    description: { type: Type.STRING },
-                                    amount: { type: Type.NUMBER },
-                                    forma: { type: Type.STRING },
-                                    tipo: { type: Type.STRING }
-                                },
-                                required: ["date", "description", "amount", "forma", "tipo"]
-                            }
-                        }
-                    },
-                    required: ["rows"]
-                }
-            }
+        const response = await fetch('/api/ai/extract-transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rawText, modelContext, base64Data, limit })
         });
         
-        return safeJsonParse(response.text);
+        if (!response.ok) {
+            throw new Error(`Erro na ponte backend (Extract): ${response.statusText}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error("[GeminiService] Erro na extração via backend:", error);
+        throw error;
     } finally {
         isAIBusy = false;
     }
