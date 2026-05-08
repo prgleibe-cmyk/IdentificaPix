@@ -1,49 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-
-const getAIClient = () => {
-    if (!process.env.API_KEY) throw new Error("Chave de API do Gemini não configurada.");
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
-};
-
 let isAIBusy = false;
-
-/**
- * 🛡️ PARSER RESILIENTE (V4 - ULTRA RECOVERY)
- */
-const safeJsonParse = (input: any, fallback: any = []) => {
-    if (!input) return fallback;
-    let sanitized = String(input).trim();
-    
-    sanitized = sanitized.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
-
-    const tryParse = (str: string) => {
-        try {
-            const parsed = JSON.parse(str);
-            if (parsed.rows) return parsed.rows;
-            if (parsed.transactions) return parsed.transactions;
-            return Array.isArray(parsed) ? parsed : null;
-        } catch { return null; }
-    };
-
-    let result = tryParse(sanitized);
-    if (result) return result;
-
-    let lastBrace = sanitized.lastIndexOf('}');
-    const possibleClosures = ['', ']', ']}', '"}]}', '"}'];
-
-    while (lastBrace > 0) {
-        const base = sanitized.substring(0, lastBrace + 1);
-        for (const closure of possibleClosures) {
-            const candidate = base + closure;
-            result = tryParse(candidate);
-            if (result) return result;
-        }
-        lastBrace = sanitized.lastIndexOf('}', lastBrace - 1);
-    }
-
-    return fallback;
-};
 
 /**
  * 🎯 MOTOR DE EXTRAÇÃO SEMÂNTICA (MODO PRESERVAÇÃO LITERAL ABSOLUTA)
