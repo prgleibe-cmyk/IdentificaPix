@@ -129,28 +129,20 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
     if (isAIBusy) return [];
     isAIBusy = true;
     try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: {
-                parts: [
-                    { inlineData: { data: base64Data, mimeType: 'application/pdf' } },
-                    { text: "Extraia cada linha visual do documento literal. Mantenha espaços e capitalização. Retorne JSON 'rawLines'." }
-                ]
-            },
-            config: {
-                temperature: 0,
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        rawLines: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    }
-                }
-            }
+        const response = await fetch('/api/ai/structural-dump', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64Data })
         });
-        const result = JSON.parse(response.text || '{"rawLines": []}');
-        return result.rawLines || [];
+        
+        if (!response.ok) {
+            throw new Error(`Erro na ponte backend (StructuralDump): ${response.statusText}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error("[GeminiService] Erro ao extrair dump via backend:", error);
+        throw error;
     } finally {
         isAIBusy = false;
     }
@@ -173,6 +165,33 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
         return await response.json();
     } catch (error) {
         console.error("[GeminiService] Erro ao inferir mapeamento via backend:", error);
+        throw error;
+    } finally {
+        isAIBusy = false;
+    }
+};
+
+export const learnPattern = async (
+    extractionMode: 'COLUMNS' | 'BLOCK', 
+    learnedPatternSource: any, 
+    gridDataContext: string
+): Promise<any> => {
+    if (isAIBusy) return null;
+    isAIBusy = true;
+    try {
+        const response = await fetch('/api/ai/learn-pattern', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ extractionMode, learnedPatternSource, gridDataContext })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Erro na ponte backend (LearnPattern): ${response.statusText}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error("[GeminiService] Erro no aprendizado via backend:", error);
         throw error;
     } finally {
         isAIBusy = false;

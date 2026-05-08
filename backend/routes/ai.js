@@ -151,12 +151,20 @@ export default (ai) => {
 
     // 📄 STRUCTURAL DUMP (PROXY BACKEND)
     router.post('/structural-dump', async (req, res) => {
-        if (!ai) return res.status(500).json({ error: "Serviço de IA não configurado." });
+        if (!ai) {
+            console.error("[AI Route] Erro: Cliente Gemini não está inicializado.");
+            return res.status(500).json({ error: "Serviço de IA não configurado." });
+        }
         
+        console.log("[AI Route] Iniciando structural-dump no backend...");
         try {
             const { base64Data } = req.body;
-            if (!base64Data) throw new Error("Dados Base64 ausentes.");
+            if (!base64Data) {
+                console.warn("[AI Route] structural-dump chamado sem base64Data.");
+                throw new Error("Dados Base64 ausentes.");
+            }
 
+            console.log("[AI Route] Chamando Gemini (flash-preview) para structural-dump...");
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: {
@@ -177,11 +185,29 @@ export default (ai) => {
                 }
             });
 
+            console.log("[AI Route] Gemini respondeu structural-dump com sucesso.");
+            if (!response.text) {
+                console.warn("[AI Route] Gemini retornou texto vazio no structural-dump.");
+            }
+
             const result = JSON.parse(response.text || '{"rawLines": []}');
             res.json(result.rawLines || []);
         } catch (error) {
-            console.error("[AI Route] Erro structural-dump:", error);
-            res.status(500).json({ error: error.message });
+            console.error("[AI Route] CRÍTICO - Erro structural-dump no backend:");
+            console.error("- Mensagem:", error.message);
+            if (error.response) {
+                console.error("- Status Google:", error.response.status);
+                console.error("- Detalhes:", JSON.stringify(error.response.data, null, 2));
+            }
+            if (error.stack) console.error("- Stack:", error.stack);
+            
+            res.status(500).json({ 
+                error: error.message,
+                diagnostics: {
+                    type: "GEMINI_BACKEND_ERROR",
+                    hasAuth: !!process.env.API_KEY || !!process.env.VITE_GEMINI_API_KEY
+                }
+            });
         }
     });
 
