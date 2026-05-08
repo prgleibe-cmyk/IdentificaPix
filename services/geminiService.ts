@@ -160,26 +160,20 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
     if (isAIBusy) return null;
     isAIBusy = true;
     try {
-        const ai = getAIClient();
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Analise este texto: ${sampleText.substring(0, 3000)}`,
-            config: { 
-                temperature: 0, 
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        extractionMode: { type: Type.STRING },
-                        dateColumnIndex: { type: Type.INTEGER },
-                        descriptionColumnIndex: { type: Type.INTEGER },
-                        amountColumnIndex: { type: Type.INTEGER },
-                        skipRowsStart: { type: Type.INTEGER }
-                    }
-                }
-            }
+        const response = await fetch('/api/ai/infer-mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sampleText })
         });
-        return JSON.parse(response.text || "{}");
+        
+        if (!response.ok) {
+            throw new Error(`Erro na ponte backend: ${response.statusText}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error("[GeminiService] Erro ao inferir mapeamento via backend:", error);
+        throw error;
     } finally {
         isAIBusy = false;
     }
