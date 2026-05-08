@@ -3,7 +3,6 @@ import express from 'express';
 import { Type } from "@google/genai";
 import { generateAiSuggestion } from '../../services/serverHelpers.js';
 
-const router = express.Router();
 
 // 🛡️ PARSER RESILIENTE (BACKEND VERSION)
 const safeJsonParse = (input, fallback = []) => {
@@ -62,6 +61,7 @@ const aiRateLimiter = (req, res, next) => {
 };
 
 export default (ai) => {
+    const router = express.Router();
     router.use(aiRateLimiter);
 
     router.post('/suggestion', async (req, res) => {
