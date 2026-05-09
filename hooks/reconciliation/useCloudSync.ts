@@ -54,7 +54,6 @@ export const useCloudSync = ({
     const lastAutoProcessSignatureRef = useRef<string | null>(null);
     const isAutoProcessingRef = useRef<boolean>(false);
     const lastAutoProcessTimeRef = useRef<number>(0);
-    const lastUpdateTypeRef = useRef<'granular' | 'full'>('full');
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -110,13 +109,6 @@ export const useCloudSync = ({
         });
 
         if (!isReady || activeReportId) return;
-
-        // 🛡️ FAST-PATH: Evita reconstrução completa se já temos dados ativos (Deltas Realtime cuidam do resto)
-        if (matchResults?.length > 0 && lastDataReadyKeyRef.current !== '') {
-            console.log("[CloudSync] Ignorando re-fetch completo (Lista já populada e sincronizada via Realtime)");
-            lastDataReadyKeyRef.current = dataReadyKey;
-            return;
-        }
 
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
@@ -358,9 +350,6 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                    // Sinaliza FAST-PATH para evitar gatilho de re-processamento pesado
-                    lastUpdateTypeRef.current = 'granular';
-
                     // DELETE: Agora usamos map em vez de filter para nunca remover itens do estado em tempo real
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
@@ -511,10 +500,6 @@ export const useCloudSync = ({
                         
                         if (fullChurch) {
                             console.log(`[Realtime:ATOM] Associação aprendida (Event:${payload.eventType}): ${normalized_description} -> ${fullChurch.name}`);
-                            
-                            // Sinaliza FAST-PATH para evitar gatilho de re-processamento pesado
-                            lastUpdateTypeRef.current = 'granular';
-
                             setMatchResults(prev => {
                                 let hasChanges = false;
                                 const updated = prev.map(r => {
@@ -646,17 +631,8 @@ export const useCloudSync = ({
         const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
 
         if (currentSignature !== postProcessingSignatureRef.current) {
-            console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true, type: lastUpdateTypeRef.current });
+            console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
             
-            // 🛡️ FAST-PATH CIRÚRGICO: Se a mudança foi um update unitário realtime, bypassamos o matcher pesado
-            if (lastUpdateTypeRef.current === 'granular') {
-                console.log('[PostReconstruct:FAST_PATH] Bypass de reconstrução completa para update unitário.');
-                postProcessingSignatureRef.current = currentSignature;
-                lastProcessedLength.current = matchResults.length;
-                lastUpdateTypeRef.current = 'full'; // Reset para o próximo estado
-                return;
-            }
-
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             
             stableTimeoutRef.current = setTimeout(async () => {
