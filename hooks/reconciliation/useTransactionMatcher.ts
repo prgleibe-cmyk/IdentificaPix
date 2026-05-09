@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
 
@@ -54,6 +54,8 @@ export const useTransactionMatcher = ({
     triggerSync
 }: UseTransactionMatcherProps) => {
 
+    const syncDebounceRef = useRef<any>(null);
+
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         let filteredResults = results;
 
@@ -97,8 +99,15 @@ export const useTransactionMatcher = ({
 
     useEffect(() => {
         if (matchResults && matchResults.length > 0) {
-            regenerateReportPreview(matchResults);
+            // 🛡️ ESTABILIZAÇÃO CORE: Evita reconstrução imediata do preview a cada delta realtime
+            if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+            syncDebounceRef.current = setTimeout(() => {
+                regenerateReportPreview(matchResults);
+            }, 1000); 
         }
+        return () => {
+            if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+        };
     }, [matchResults, regenerateReportPreview]);
 
     const handleCompare = useCallback(async (showLoading: any = true) => {
