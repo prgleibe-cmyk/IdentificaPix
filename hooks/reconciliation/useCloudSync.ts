@@ -65,7 +65,7 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
+    const dataReadyKey = effectiveUserId;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
@@ -88,8 +88,7 @@ export const useCloudSync = ({
     useEffect(() => {
         const currentSignature = JSON.stringify({
             activeReportId,
-            assocCount: learnedAssociations?.length,
-            churchesCount: churches?.length
+            userId: effectiveUserId
         });
 
         if (lastSignatureRef.current === currentSignature) {
@@ -102,9 +101,6 @@ export const useCloudSync = ({
             isReady,
             activeReportId,
             effectiveUserId,
-            churchesCount: churches?.length,
-            assocCount: learnedAssociations?.length,
-            lastDataReadyKey: lastDataReadyKeyRef.current,
             dataReadyKey
         });
 
@@ -317,7 +313,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, effectiveUserId, activeReportId, setActiveReportId, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
