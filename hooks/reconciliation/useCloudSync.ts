@@ -65,7 +65,7 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = effectiveUserId;
+    const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
@@ -88,7 +88,8 @@ export const useCloudSync = ({
     useEffect(() => {
         const currentSignature = JSON.stringify({
             activeReportId,
-            userId: effectiveUserId
+            assocCount: learnedAssociations?.length,
+            churchesCount: churches?.length
         });
 
         if (lastSignatureRef.current === currentSignature) {
@@ -101,6 +102,9 @@ export const useCloudSync = ({
             isReady,
             activeReportId,
             effectiveUserId,
+            churchesCount: churches?.length,
+            assocCount: learnedAssociations?.length,
+            lastDataReadyKey: lastDataReadyKeyRef.current,
             dataReadyKey
         });
 
@@ -313,7 +317,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, effectiveUserId, activeReportId, setActiveReportId, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
@@ -624,7 +628,7 @@ export const useCloudSync = ({
                 .sort((a, b) => a.id.localeCompare(b.id))
         );
 
-        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
+        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.church?.id || (item as any)._churchId}-${item.transaction.bank_id}-${item.matchMethod}`).join('|');
 
         if (currentSignature !== postProcessingSignatureRef.current) {
             console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
