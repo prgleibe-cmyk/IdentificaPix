@@ -65,9 +65,7 @@ export const matchTransactions = (
 
     transactions.forEach(tx => {
         const existingMatch = existingResults.find(r => r.transaction.id === tx.id);
-
-        // 🛡️ BLOQUEIO ABSOLUTO (AUTOPROCESS): Não reprocessar itens já confirmados ou resolvidos
-        if (existingMatch && (existingMatch.isConfirmed || existingMatch.status === ReconciliationStatus.RESOLVED)) {
+        if (existingMatch && (existingMatch.status === ReconciliationStatus.IDENTIFIED || existingMatch.status === ReconciliationStatus.RESOLVED)) {
             finalResults.push(existingMatch);
             if (existingMatch.contributor?._internalId) {
                 usedContributors.add(existingMatch.contributor._internalId);
