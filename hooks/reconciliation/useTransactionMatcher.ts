@@ -153,6 +153,7 @@ export const useTransactionMatcher = ({
         const filteredExistingResults = isAuto
             ? matchResults.filter(r =>
                 r.isConfirmed ||
+                r.status === ReconciliationStatus.RESOLVED ||
                 r.status === ReconciliationStatus.IDENTIFIED ||
                 r.status === ReconciliationStatus.PENDING
             )
