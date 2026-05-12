@@ -23,7 +23,7 @@ interface UseCloudSyncProps {
     selectedBankIds?: string[];
 }
 
-export const batchState = { isBatchUpdating: false };
+export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
 
 export const useCloudSync = ({
     user,
@@ -65,7 +65,7 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}-${churches.length}-${learnedAssociations.length}`;
+    const dataReadyKey = `${effectiveUserId}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
@@ -87,9 +87,7 @@ export const useCloudSync = ({
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
         const currentSignature = JSON.stringify({
-            activeReportId,
-            assocCount: learnedAssociations?.length,
-            churchesCount: churches?.length
+            activeReportId
         });
 
         if (lastSignatureRef.current === currentSignature) {
@@ -362,6 +360,7 @@ export const useCloudSync = ({
                     if (payload.new) {
                         const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
                         
+                        batchState.isAtomicUpdate = true;
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
                             
@@ -500,6 +499,7 @@ export const useCloudSync = ({
                         
                         if (fullChurch) {
                             console.log(`[Realtime:ATOM] Associação aprendida (Event:${payload.eventType}): ${normalized_description} -> ${fullChurch.name}`);
+                            batchState.isAtomicUpdate = true;
                             setMatchResults(prev => {
                                 let hasChanges = false;
                                 const updated = prev.map(r => {
@@ -614,6 +614,16 @@ export const useCloudSync = ({
 
         // 🛡️ TRAVA DE SEGURANÇA: Evita disparar se já estiver processando
         if (isAutoProcessingRef.current) {
+            return;
+        }
+
+        // 🛡️ GATILHO ATÔMICO: Se a última mudança foi uma ação simples (confirmar, realtime, etc), não disparamos AutoProcess
+        if (batchState.isAtomicUpdate) {
+            console.log('[PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.');
+            batchState.isAtomicUpdate = false;
+            // Atualizamos a assinatura para marcar que já vimos esse estado, mas sem disparar
+            const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
+            postProcessingSignatureRef.current = currentSignature;
             return;
         }
 

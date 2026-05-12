@@ -243,6 +243,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         
         if (isBatchUpdating) return;
 
+        batchState.isAtomicUpdate = true;
         const newAssociation: LearnedAssociation = { 
             normalizedDescription: normalizedDesc, 
             contributorNormalizedName: contributorName, 

@@ -65,6 +65,7 @@ export const useReconciliationActions = ({
       }
 
       // 2. Atualização Atômica de Estado (Padrão idêntico ao toggleConfirmation com consistência total)
+      batchState.isAtomicUpdate = true;
       reconciliation.setMatchResults(prev => {
         const finalResults = prev.map(r => {
           if (!txIds.includes(r.transaction.id) || r.isConfirmed) return r;
@@ -178,6 +179,7 @@ export const useReconciliationActions = ({
       return r;
     });
 
+    batchState.isAtomicUpdate = true;
     reconciliation.setMatchResults(currentResults);
 
     if (onAfterAction) onAfterAction(currentResults);
@@ -231,6 +233,7 @@ export const useReconciliationActions = ({
       } : r
     );
 
+    batchState.isAtomicUpdate = true;
     reconciliation.setMatchResults(updatedResults);
 
     if (onAfterAction) onAfterAction(updatedResults);
