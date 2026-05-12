@@ -251,10 +251,18 @@ const { data, error } = await (supabase as any)
 
         const updateData: any = {
             is_confirmed,
-            status: is_confirmed ? 'resolved' : (contributorId ? 'identified' : 'pending'),
             user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
             updated_at: new Date().toISOString()
         };
+
+        // AO confirmar: status='resolved'
+        if (is_confirmed) {
+            updateData.status = 'resolved';
+        } else if (contributorId || churchId) {
+            // AO desfazer: restaurar status=identified se houver vínculo
+            updateData.status = 'identified';
+        }
+        // Se is_confirmed=false e não houver vínculos, NÃO incluímos 'status' (REMOVIDO PENDING FALLBACK)
 
         if (churchId !== undefined) updateData.church_id = churchId;
         if (bankId !== undefined) updateData.bank_id = bankId;

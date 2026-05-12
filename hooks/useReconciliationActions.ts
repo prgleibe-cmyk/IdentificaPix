@@ -166,7 +166,7 @@ export const useReconciliationActions = ({
       if (txIds.includes(r.transaction.id)) {
         const newStatus = confirmed 
           ? ReconciliationStatus.RESOLVED 
-          : (r.contributor ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED);
+          : ( (r.contributor || r.church || r._churchId) ? ReconciliationStatus.IDENTIFIED : ReconciliationStatus.UNIDENTIFIED);
         
         return {
           ...r,
