@@ -273,11 +273,14 @@ export const useCloudSync = ({
                     reconstructed.forEach(r => {
                         const current = map.get(r.transaction.id);
                         
-                        // 🛡️ BLOCK_REGRESSION: Apenas atualizamos se os dados da nuvem forem mais recentes ou se o item for novo
+                        // 🛡️ BLOCK_REGRESSION: Proteção contra updates atrasados do banco
                         const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                         const incomingUpdatedAt = r.updatedAt ? new Date(r.updatedAt).getTime() : 0;
 
-                        if (current && incomingUpdatedAt < currentUpdatedAt) {
+                        // 🛡️ EXCEÇÃO FASE 2.3: Permitimos 'regressão' para pending ou unconfirmed se for uma mudança legítima de estado
+                        const isUndoingHydrate = r.status === ReconciliationStatus.UNIDENTIFIED || r.isConfirmed === false;
+
+                        if (current && incomingUpdatedAt < currentUpdatedAt && !isUndoingHydrate) {
                             console.log('[BLOCK_REGRESSION:HYDRATE] Ignorando item antigo do banco:', r.transaction.id);
                             return;
                         }
@@ -423,7 +426,11 @@ export const useCloudSync = ({
                             const currentUpdatedAt = current?.updatedAt ? new Date(current.updatedAt).getTime() : 0;
                             const incomingUpdatedAt = updated_at ? new Date(updated_at).getTime() : 0;
 
-                            if (incomingUpdatedAt < currentUpdatedAt) {
+                            // 🛡️ EXCEÇÃO FASE 2.3: Se o status mudar para pending ou confirmed para false, permitimos a atualização
+                            // mesmo que o timestamp local seja maior, para garantir que 'desfazer' funcione via realtime.
+                            const isUndoingRealtime = status === 'pending' || is_confirmed === false;
+
+                            if (incomingUpdatedAt < currentUpdatedAt && !isUndoingRealtime) {
                                 console.log('[BLOCK_REGRESSION] Ignorando update antigo do banco', {
                                     id,
                                     incomingUpdatedAt,
