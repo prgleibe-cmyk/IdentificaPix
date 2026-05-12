@@ -151,21 +151,25 @@ export const useReportsController = () => {
         const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
         
         results.forEach(r => {
-            const isIdentified = r.status === ReconciliationStatus.IDENTIFIED || 
-                               r.status === ReconciliationStatus.PENDING || 
-                               r.status === ReconciliationStatus.RESOLVED;
+            // 🛡️ REINSERÇÃO VISUAL (FASE 2.4): Consideramos qualquer transação que tenha um ID de igreja 
+            // Válido, independente do status de confirmação ou identificação.
+            const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
+                                 (r._churchId && r._churchId !== 'unidentified');
             
-            if (isIdentified && r.church?.id && r.church.id !== 'unidentified') {
-                if (allowedIds && !allowedIds.includes(r.church.id)) return;
+            if (hasValidChurch) {
+                const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
+                if (allowedIds && !allowedIds.includes(churchId)) return;
                 
-                const existing = churchMap.get(r.church.id);
+                const existing = churchMap.get(churchId);
+                const churchName = r.church?.name || 'Igreja Desconhecida';
+                
                 if (existing) {
                     existing.count++;
                     existing.total += (r.transaction?.amount || 0);
                 } else {
-                    churchMap.set(r.church.id, {
-                        id: r.church.id,
-                        name: r.church.name || 'Igreja Desconhecida',
+                    churchMap.set(churchId, {
+                        id: churchId,
+                        name: churchName,
                         count: 1,
                         total: r.transaction?.amount || 0
                     });

@@ -185,13 +185,16 @@ export const groupResultsByChurch = (results: MatchResult[]): Record<string, Mat
     const grouped: Record<string, MatchResult[]> = {};
     results.forEach(r => {
         let key = 'unidentified';
-        const isIdentified = r.status === ReconciliationStatus.IDENTIFIED || 
-                           r.status === ReconciliationStatus.PENDING || 
-                           r.status === ReconciliationStatus.RESOLVED;
         
-        if (isIdentified && r.church?.id) {
+        // 🛡️ REINSERÇÃO VISUAL (FASE 2.4): Se a transação tem uma igreja associada, 
+        // ela deve aparecer nessa igreja independente do status.
+        // Isso impede que itens "desapareçam" da lista ao sofrerem 'downgrade' de status (unconfirmed/pending) via realtime.
+        if (r.church?.id && r.church.id !== 'unidentified') {
             key = r.church.id;
+        } else if (r._churchId && r._churchId !== 'unidentified') {
+            key = r._churchId;
         }
+        
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(r);
     });
