@@ -251,14 +251,20 @@ const { data, error } = await (supabase as any)
 
         const updateData: any = {
             is_confirmed,
-            status: is_confirmed ? 'resolved' : 'pending',
+            status: is_confirmed ? 'resolved' : (contributorId ? 'identified' : 'pending'),
             user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
             updated_at: new Date().toISOString()
         };
 
         if (churchId !== undefined) updateData.church_id = churchId;
         if (bankId !== undefined) updateData.bank_id = bankId;
-        if (contributorId !== undefined) updateData.contributor_id = contributorId;
+        
+        // Limpeza de contributorId para evitar erros de FK com IDs temporários (Padrão de Segurança)
+        if (contributorId !== undefined) {
+            updateData.contributor_id = (contributorId && !String(contributorId).startsWith('temp-')) 
+                ? contributorId 
+                : null;
+        }
 
         console.log('[ID:WRITE]', {
           userId: currentUserId,
