@@ -628,7 +628,7 @@ export const useCloudSync = ({
                 .sort((a, b) => a.id.localeCompare(b.id))
         );
 
-        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
+        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.church?.id || (item as any)._churchId}-${item.transaction.bank_id}-${item.matchMethod}`).join('|');
 
         if (currentSignature !== postProcessingSignatureRef.current) {
             console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
