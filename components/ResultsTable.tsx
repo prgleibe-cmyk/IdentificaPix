@@ -1,4 +1,4 @@
-import React, { memo, useContext, useState, useCallback, useEffect } from 'react';
+import React, { memo, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { MatchResult } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
@@ -44,7 +44,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
     const { toggleConfirmation } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [visibleRange, setVisibleRange] = useState({ start: 0, end: 40 });
-    const containerRef = React.useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => { 
         setSelectedIds([]); 

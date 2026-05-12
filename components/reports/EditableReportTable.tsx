@@ -1,4 +1,4 @@
-import React, { useState, useContext, memo, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useContext, memo, useCallback, useMemo, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';

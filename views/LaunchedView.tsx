@@ -1,5 +1,5 @@
 
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useUI } from '../contexts/UIContext';
@@ -30,7 +30,7 @@ export const LaunchedView: React.FC = () => {
     const { t, language } = useTranslation();
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleRange, setVisibleRange] = useState({ start: 0, end: 40 });
-    const containerRef = React.useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const filtered = useMemo(() => {
         if (!searchTerm.trim()) return launchedResults;
