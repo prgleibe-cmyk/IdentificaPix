@@ -152,7 +152,8 @@ export const consolidationService = {
 
     updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, isManual: boolean = false) => {
         try {
-            // 🛡️ GUARDA ABSOLUTA (BLOCKED_REGRESSION): Impede que processos automáticos revertam estados confirmados
+            // 🛡️ GUARDA CIRÚRGICA DE ANTI-REGRESSÃO (Persistence Layer)
+            // Impede que processos automáticos revertam estados confirmados ou resolvidos
             if (!isManual && (status === 'pending' || isConfirmed === false)) {
                 const { data: current } = await (supabase as any)
                     .from('consolidated_transactions')
@@ -160,9 +161,15 @@ export const consolidationService = {
                     .eq('id', id)
                     .maybeSingle();
 
-                if (current && (current.status === 'resolved' || current.is_confirmed)) {
-                    console.warn('[Consolidation:GUARD] Bloqueando update regressivo automático para ID:', id);
-                    return true; // Simula sucesso para não travar o loop do chamador
+                if (current && (current.status === 'resolved' || current.is_confirmed === true)) {
+                    console.warn('⚠️ [Consolidation:BLOCKED_REGRESSION] Abortando escrita automática regressiva (TransactionStatus).', {
+                        id,
+                        status,
+                        isConfirmed,
+                        currentStatus: current.status,
+                        currentConfirmed: current.is_confirmed
+                    });
+                    return true; // Aborta a escrita e simula sucesso
                 }
             }
 
@@ -249,18 +256,24 @@ const { data, error } = await (supabase as any)
     try {
         if (!ids || ids.length === 0) return true;
 
-        // 🛡️ GUARDA ABSOLUTA (BLOCKED_REGRESSION): Impede que processos automáticos revertam estados confirmados
+        // 🛡️ GUARDA CIRÚRGICA DE ANTI-REGRESSÃO (Persistence Layer)
+        // Bloqueia se: NÃO é manual E (novo payload tenta is_confirmed=false OU status=pending)
+        // E o estado atual no banco já é confirmado ou resolvido.
         if (!isManual && is_confirmed === false) {
             const { data: currentItems } = await (supabase as any)
                 .from('consolidated_transactions')
                 .select('id, status, is_confirmed')
                 .in('id', ids);
 
-            const hasConfirmedOrResolved = currentItems?.some(item => item.is_confirmed || item.status === 'resolved');
+            const hasConfirmedOrResolved = currentItems?.some(item => item.is_confirmed === true || item.status === 'resolved');
 
             if (hasConfirmedOrResolved) {
-                console.warn('[Consolidation:GUARD] Bloqueando batch de confirmação regressiva automática:', ids);
-                return true; // Simula sucesso para não travar o loop do chamador
+                console.warn('⚠️ [Consolidation:BLOCKED_REGRESSION] Abortando escrita automática regressiva (ConfirmationStatus).', {
+                    ids,
+                    is_confirmed,
+                    regressiveCount: currentItems?.filter(item => item.is_confirmed || item.status === 'resolved').length
+                });
+                return true; // Aborta a escrita e simula sucesso
             }
         }
 
