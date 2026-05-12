@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { ReconciliationStatus, MatchMethod, MatchResult } from '../types';
 import { strictNormalize, groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
+import { batchState } from './reconciliation/useCloudSync';
 
 interface UseAiAutoIdentifyProps {
     reconciliation: any;
@@ -52,6 +53,10 @@ export const useAiAutoIdentify = ({
         
         setIsLoading(true);
         let identifiedCount = 0;
+        
+        // 🛡️ BLOQUEIO DE REBUILD GLOBAL DURANTE IA
+        const originalIsAtomicValue = batchState.isAtomicUpdate;
+        batchState.isAtomicUpdate = true;
         
         const nextResults = [];
 
