@@ -85,20 +85,16 @@ export const useCloudSync = ({
     const lastSignatureRef = useRef<string | null>(null);
 
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
-    const lastHydrationKeyRef = useRef<string>('');
-    const isReconstructPendingRef = useRef<boolean>(false);
-
     useEffect(() => {
-        const hydrationKey = `${effectiveUserId}|${activeReportId || 'live'}`;
+        const currentSignature = JSON.stringify({
+            activeReportId
+        });
 
-        if (lastHydrationKeyRef.current === hydrationKey) {
+        if (lastSignatureRef.current === currentSignature) {
             return;
         }
 
-        // 🛡️ BLOQUEIO ATÔMICO: Se é uma atualização atômica (realtime/ação), nunca disparamos reconstrução global
-        if (batchState.isAtomicUpdate) {
-            return;
-        }
+        lastSignatureRef.current = currentSignature;
 
         console.log('[CloudSync:ATOM_EFFECT_TRIGGER]', {
             isReady,
@@ -106,15 +102,15 @@ export const useCloudSync = ({
             effectiveUserId,
             churchesCount: churches?.length,
             assocCount: learnedAssociations?.length,
-            lastHydrationKey: lastHydrationKeyRef.current,
-            hydrationKey
+            lastDataReadyKey: lastDataReadyKeyRef.current,
+            dataReadyKey
         });
 
-        // 🛡️ Snapshot inicial: apenas login, reload ou troca de relatório/usuário
-        if (!isReady) return;
+        if (!isReady || activeReportId) return;
 
-        lastHydrationKeyRef.current = hydrationKey;
-        isReconstructPendingRef.current = true;
+        // 🛡️ Evita reconstrução com dados incompletos repetidos
+        if (lastDataReadyKeyRef.current === dataReadyKey) return;
+        lastDataReadyKeyRef.current = dataReadyKey;
 
         const reconstructSession = async () => {
             // Se já estamos hidratando, marcamos que precisamos de outra rodada ao terminar
@@ -614,6 +610,8 @@ export const useCloudSync = ({
      */
     useEffect(() => {
         if ((!isContextReady && (matchResults?.length || 0) === 0) || isLoading) {
+            console.log('[PostReconstruct:SKIPPED]', { isContextReady, isLoading });
+            if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             return;
         }
 
@@ -621,24 +619,26 @@ export const useCloudSync = ({
             return;
         }
 
-        // 🛡️ BLINDAGEM FASE 3: O AutoProcess Automático só deve rodar UM VEZ após a Reconstrução Inicial.
-        // Fora desse cenário, qualquer mudança na lista (IA, Concluir, Realtime) deve ser incremental.
-        if (!isReconstructPendingRef.current && !batchState.isAtomicUpdate) {
-            // Se não houve uma reconstrução e não é atômico, ainda assim bloqueamos pois não é um gatilho permitido.
-            // Apenas permitimos o processamento automático se foi EXPLICITAMENTE marcado como pendente pelo snaphot inicial.
+        // 🛡️ TRAVA DE SEGURANÇA: Evita disparar se já estiver processando
+        if (isAutoProcessingRef.current) {
             return;
         }
 
         // 🛡️ GATILHO ATÔMICO: Se a última mudança foi uma ação simples (confirmar, realtime, etc), não disparamos AutoProcess
         if (batchState.isAtomicUpdate) {
+            if (stableTimeoutRef.current) {
+                clearTimeout(stableTimeoutRef.current);
+                stableTimeoutRef.current = null;
+            }
             console.log('[PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.');
             // Deferimos o reset para garantir que todos os hooks observadores vejam a flag antes de limpar
             setTimeout(() => { batchState.isAtomicUpdate = false; }, 200);
+            
+            // Atualizamos a assinatura para marcar que já vimos esse estado, mas sem disparar
+            const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
+            postProcessingSignatureRef.current = currentSignature;
             return;
         }
-
-        // Se chegamos aqui, é porque isReconstructPendingRef.current é true (visto logo após a hidratação)
-        console.log('[PostReconstruct:ALLOWED] Gatilho de pós-reconstrução permitido.');
 
         // Se o conteúdo mudou, resetamos o timer de estabilidade
         const stableSignature = JSON.stringify(
@@ -651,46 +651,51 @@ export const useCloudSync = ({
                 .sort((a, b) => a.id.localeCompare(b.id))
         );
 
-        if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
-            
-        stableTimeoutRef.current = setTimeout(async () => {
-            const now = Date.now();
-            
-            // 🛡️ THROTTLE: Janela de resfriamento de 1.5s para evitar tempestade de re-processamento
-            if (now - lastAutoProcessTimeRef.current < 1500) {
-                console.log('[PostReconstruct:THROTTLED]');
-                return;
-            }
+        const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
 
-            if (isAutoProcessingRef.current) {
-                console.log('[PostReconstruct:LOCKED]');
-                return;
-            }
-
-            console.log('[PostReconstruct:STABLE]', matchResults.length);
-            lastProcessedLength.current = matchResults.length;
+        if (currentSignature !== postProcessingSignatureRef.current) {
+            console.log('[PostReconstruct:WAIT_STABLE]', { signatureChanged: true });
             
-            if (typeof handleCompare === 'function') {
-                if (lastAutoProcessSignatureRef.current === stableSignature) {
-                    isReconstructPendingRef.current = false; // Resetamos mesmo em skip
+            if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
+            
+            stableTimeoutRef.current = setTimeout(async () => {
+                const now = Date.now();
+                
+                // 🛡️ THROTTLE: Janela de resfriamento de 1.5s para evitar tempestade de re-processamento
+                if (now - lastAutoProcessTimeRef.current < 1500) {
+                    console.log('[PostReconstruct:THROTTLED]');
                     return;
                 }
 
-                lastAutoProcessSignatureRef.current = stableSignature;
-                lastAutoProcessTimeRef.current = now;
-                isAutoProcessingRef.current = true;
-
-                console.log('[AutoProcess:FINAL_TRIGGER]');
-                try {
-                    await handleCompare(false);
-                } catch (err) {
-                    console.error('[AutoProcess:ERROR]', err);
-                } finally {
-                    isAutoProcessingRef.current = false;
-                    isReconstructPendingRef.current = false; // ✅ BLINDAGEM: Desativa o gatilho automático até o próximo snapshot
+                if (isAutoProcessingRef.current) {
+                    console.log('[PostReconstruct:LOCKED]');
+                    return;
                 }
-            }
-        }, 800);
+
+                console.log('[PostReconstruct:STABLE]', matchResults.length);
+                postProcessingSignatureRef.current = currentSignature;
+                lastProcessedLength.current = matchResults.length;
+                
+                if (typeof handleCompare === 'function') {
+                    if (lastAutoProcessSignatureRef.current === stableSignature) {
+                        return;
+                    }
+ 
+                    lastAutoProcessSignatureRef.current = stableSignature;
+                    lastAutoProcessTimeRef.current = now;
+                    isAutoProcessingRef.current = true;
+ 
+                    console.log('[AutoProcess:FINAL_TRIGGER]');
+                    try {
+                        await handleCompare(false);
+                    } catch (err) {
+                        console.error('[AutoProcess:ERROR]', err);
+                    } finally {
+                        isAutoProcessingRef.current = false;
+                    }
+                }
+            }, 800); // Janela de estabilização aumentada para 800ms
+        }
 
         return () => {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);

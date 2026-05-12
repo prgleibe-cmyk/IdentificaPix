@@ -54,10 +54,6 @@ export const useAiAutoIdentify = ({
         setIsLoading(true);
         let identifiedCount = 0;
         
-        // 🛡️ BLOQUEIO DE REBUILD GLOBAL DURANTE IA
-        const originalIsAtomicValue = batchState.isAtomicUpdate;
-        batchState.isAtomicUpdate = true;
-        
         const nextResults = [];
 
         for (const res of matchResults) {
@@ -109,6 +105,7 @@ export const useAiAutoIdentify = ({
         }
 
         if (identifiedCount > 0) {
+            batchState.isAtomicUpdate = true;
             setMatchResults(nextResults);
             
             const incomeResults = nextResults.filter((r: MatchResult) => {

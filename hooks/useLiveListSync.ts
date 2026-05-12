@@ -4,7 +4,6 @@ import { consolidationService } from '../services/ConsolidationService';
 import { LaunchService } from '../services/LaunchService';
 import { useUI } from '../contexts/UIContext';
 import { supabase } from '../services/supabaseClient';
-import { batchState } from './reconciliation/useCloudSync';
 
 export const useLiveListSync = ({
     user,
@@ -27,12 +26,6 @@ export const useLiveListSync = ({
     const hydrate = useCallback(async (forceClearUI: boolean = false) => {
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!effectiveUserId || isCleaning) return;
-        
-        // 🛡️ BLINDAGEM FASE 3: Se houver atualização atômica em curso, bloqueamos a hidratação global do banco
-        if (batchState.isAtomicUpdate) {
-            console.log('[hydrate:BLOCK] Pulando hidratação global durante atualização atômica.');
-            return;
-        }
         
         if (isHydrating.current) {
             pendingHydrate.current = true;

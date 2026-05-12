@@ -265,6 +265,7 @@ export const useTransactionMatcher = ({
 
     const updateReportData = useCallback(async (updatedRow: MatchResult) => {
         let nextResults: MatchResult[] = [];
+        batchState.isAtomicUpdate = true;
         setMatchResults(prev => {
             const next = [...prev];
             const idx = next.findIndex(r => r.transaction.id === updatedRow.transaction.id);
@@ -293,6 +294,7 @@ export const useTransactionMatcher = ({
     }, [setMatchResults, activeReportId, overwriteSavedReport]);
 
     const revertMatch = useCallback((txId: string) => {
+        batchState.isAtomicUpdate = true;
         setMatchResults(prev =>
             prev.map(r =>
                 r.transaction.id === txId
@@ -312,6 +314,7 @@ export const useTransactionMatcher = ({
     }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
+        batchState.isAtomicUpdate = true;
         setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
     }, [setMatchResults]);
 
