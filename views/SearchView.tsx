@@ -73,11 +73,8 @@ export const SearchView: React.FC = () => {
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {ctrl.filteredResults.length > 0 ? (
                      <ResultsTable 
-                        results={ctrl.paginatedResults} 
+                        results={ctrl.filteredResults} 
                         loadingAiId={ctrl.loadingAiId} 
-                        currentPage={ctrl.currentPage} 
-                        totalPages={ctrl.totalPages} 
-                        onPageChange={ctrl.setCurrentPage} 
                     />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400 dark:text-slate-500 italic bg-white/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">

@@ -21,11 +21,16 @@ import {
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { ExportService } from '../services/ExportService';
 
+const ROW_HEIGHT = 65;
+const OVERSCAN = 10;
+
 export const LaunchedView: React.FC = () => {
     const { launchedResults, deleteLaunchedItem, undoLaunch, hydrate, openSaveReportModal } = useContext(AppContext);
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [searchTerm, setSearchTerm] = useState('');
+    const [visibleRange, setVisibleRange] = useState({ start: 0, end: 40 });
+    const containerRef = React.useRef<HTMLDivElement>(null);
 
     const filtered = useMemo(() => {
         if (!searchTerm.trim()) return launchedResults;
@@ -36,6 +41,44 @@ export const LaunchedView: React.FC = () => {
             (r.church?.name || '').toLowerCase().includes(lower)
         );
     }, [launchedResults, searchTerm]);
+
+    const handleScroll = useCallback(() => {
+        if (!containerRef.current) return;
+        const { scrollTop, clientHeight } = containerRef.current;
+        
+        const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+        const end = Math.min(filtered.length, Math.ceil((scrollTop + clientHeight) / ROW_HEIGHT) + OVERSCAN);
+        
+        setVisibleRange(prev => {
+            if (prev.start === start && prev.end === end) return prev;
+            console.log(`[VIRTUAL_LIST:VISIBLE_RANGE] LaunchedView start: ${start}, end: ${end}, total: ${filtered.length}`);
+            return { start, end };
+        });
+    }, [filtered.length]);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('scroll', handleScroll, { passive: true });
+            handleScroll();
+            return () => container.removeEventListener('scroll', handleScroll);
+        }
+    }, [handleScroll]);
+
+    // Reset scroll when filters change
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+            setVisibleRange({ start: 0, end: 40 });
+        }
+    }, [searchTerm]);
+
+    const virtualizedData = useMemo(() => {
+        return filtered.slice(visibleRange.start, visibleRange.end);
+    }, [filtered, visibleRange]);
+
+    const spacerTopHeight = visibleRange.start * ROW_HEIGHT;
+    const spacerBottomHeight = Math.max(0, (filtered.length - visibleRange.end) * ROW_HEIGHT);
 
     const totalValue = useMemo(() => {
         return filtered.reduce((acc: number, curr: any) => {
@@ -144,7 +187,7 @@ export const LaunchedView: React.FC = () => {
             </div>
 
             <div className="flex-1 min-h-0 bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-card border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto custom-scrollbar">
+                <div ref={containerRef} className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-50/80 dark:bg-slate-900/50 sticky top-0 backdrop-blur-sm z-10 border-b border-slate-100 dark:border-slate-700">
                             <tr>
@@ -156,60 +199,65 @@ export const LaunchedView: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                            {filtered.map((item: any) => (
-                                <tr key={item.transaction.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono">
-                                            <CalendarIcon className="w-3.5 h-3.5" />
-                                            {item.launchedAt ? formatDate(item.launchedAt.split('T')[0]) : formatDate(item.transaction.date)}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                                                <CheckCircleIcon className="w-4 h-4" />
+                            {spacerTopHeight > 0 && <tr><td colSpan={10} style={{ height: `${spacerTopHeight}px` }} /></tr>}
+                            {virtualizedData.map((item: any) => {
+                                console.log(`[VIRTUAL_LIST:ROW_RENDER] LaunchedRow ID: ${item.transaction.id}`);
+                                return (
+                                    <tr key={item.transaction.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono">
+                                                <CalendarIcon className="w-3.5 h-3.5" />
+                                                {item.launchedAt ? formatDate(item.launchedAt.split('T')[0]) : formatDate(item.transaction.date)}
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
-                                                    {item.contributor?.name || item.transaction.description}
-                                                </p>
-                                                <p className="text-[9px] text-slate-400 truncate uppercase font-bold tracking-tight">
-                                                    {item.transaction.cleanedDescription || 'Identificado'}
-                                                </p>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                                    <CheckCircleIcon className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                                                        {item.contributor?.name || item.transaction.description}
+                                                    </p>
+                                                    <p className="text-[9px] text-slate-400 truncate uppercase font-bold tracking-tight">
+                                                        {item.transaction.cleanedDescription || 'Identificado'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                            <BuildingOfficeIcon className="w-3.5 h-3.5 text-indigo-400" />
-                                            {item.church?.name || '---'}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <span className={`text-xs font-black font-mono ${item.transaction.amount < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                            {formatCurrency(item.transaction.amount || item.contributor?.amount || 0, language)}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <button 
-                                                onClick={() => undoLaunch(item.transaction.id)}
-                                                className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                                title="Desfazer lançamento"
-                                            >
-                                                <ArrowUturnLeftIcon className="w-4 h-4" />
-                                            </button>
-                                            <button 
-                                                onClick={() => deleteLaunchedItem(item.transaction.id)}
-                                                className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                title="Remover do histórico"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                                <BuildingOfficeIcon className="w-3.5 h-3.5 text-indigo-400" />
+                                                {item.church?.name || '---'}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <span className={`text-xs font-black font-mono ${item.transaction.amount < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                                {formatCurrency(item.transaction.amount || item.contributor?.amount || 0, language)}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button 
+                                                    onClick={() => undoLaunch(item.transaction.id)}
+                                                    className="p-2 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                    title="Desfazer lançamento"
+                                                >
+                                                    <ArrowUturnLeftIcon className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => deleteLaunchedItem(item.transaction.id)}
+                                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                    title="Remover do histórico"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {spacerBottomHeight > 0 && <tr><td colSpan={10} style={{ height: `${spacerBottomHeight}px` }} /></tr>}
                         </tbody>
                     </table>
                 </div>

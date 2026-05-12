@@ -6,8 +6,6 @@ import { useTranslation } from '../contexts/I18nContext';
 import { filterByUniversalQuery, parseDate } from '../services/processingService';
 import { formatDate, formatCurrency } from '../utils/formatters';
 
-const ITEMS_PER_PAGE = 50;
-
 export const useSearchController = () => {
     const { 
         allHistoricalResults, 
@@ -22,7 +20,6 @@ export const useSearchController = () => {
     const { setActiveView } = useUI();
     const { t, language } = useTranslation();
     const [query, setQuery] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
 
     const activeFilterCount = useMemo(() => {
         let count = 0;
@@ -126,14 +123,8 @@ export const useSearchController = () => {
     }, [filteredResults]);
 
     useEffect(() => {
-        setCurrentPage(1);
+        // Reset scrolling? No, virtualization handle it.
     }, [query, searchFilters]);
-
-    const totalPages = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
-    const paginatedResults = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredResults.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredResults, currentPage]);
 
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
@@ -193,10 +184,6 @@ export const useSearchController = () => {
         savedReports,
         query,
         setQuery,
-        currentPage,
-        setCurrentPage,
-        totalPages,
-        paginatedResults,
         activeFilterCount,
         summary,
         searchFilters,

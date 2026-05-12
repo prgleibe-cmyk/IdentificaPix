@@ -38,7 +38,9 @@ interface EditableReportTableProps {
     onEdit?: (row: MatchResult) => void;
 }
 
-const ITEMS_PER_PAGE = 50;
+const ROW_HEIGHT_DESKTOP = 48;
+const ROW_HEIGHT_MOBILE = 145;
+const OVERSCAN = 10;
 
 const SortableHeader: React.FC<{
     sortKey: string;
@@ -244,6 +246,8 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const { openDeleteConfirmation, undoIdentification, toggleConfirmation } = useContext(AppContext);
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [visibleRange, setVisibleRange] = useState({ start: 0, end: 40 });
+    const containerRef = useRef<HTMLDivElement>(null);
     
     useEffect(() => {
         setSelectedIds([]);
@@ -261,16 +265,54 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         }
     }, [data, selectedIds]);
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const paginatedData = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return data.slice(start, start + ITEMS_PER_PAGE);
-    }, [data, currentPage]);
+    const handleScroll = useCallback(() => {
+        if (!containerRef.current) return;
+
+        const { scrollTop, clientHeight } = containerRef.current;
+        const isMobile = window.innerWidth < 768;
+        const rowHeight = isMobile ? ROW_HEIGHT_MOBILE : ROW_HEIGHT_DESKTOP;
+
+        const start = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN);
+        const end = Math.min(data.length, Math.ceil((scrollTop + clientHeight) / rowHeight) + OVERSCAN);
+
+        setVisibleRange(prev => {
+            if (prev.start === start && prev.end === end) return prev;
+            console.log(`[VIRTUAL_LIST:VISIBLE_RANGE] start: ${start}, end: ${end}, total: ${data.length}`);
+            return { start, end };
+        });
+    }, [data.length]);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('scroll', handleScroll, { passive: true });
+            handleScroll(); // Initial calc
+            return () => container.removeEventListener('scroll', handleScroll);
+        }
+    }, [handleScroll]);
+
+    // Reset scroll and range when data changes significantly (e.g. new report)
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+            setVisibleRange({ start: 0, end: 40 });
+            console.log('[VIRTUAL_LIST:SKIP_FULL_RENDER] Lista reiniciada devido a mudança de dados.');
+        }
+    }, [data.length]);
+
+    const virtualizedData = useMemo(() => {
+        return data.slice(visibleRange.start, visibleRange.end);
+    }, [data, visibleRange]);
+
+    const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+    const rowHeight = isMobile ? ROW_HEIGHT_MOBILE : ROW_HEIGHT_DESKTOP;
+    const spacerTopHeight = visibleRange.start * rowHeight;
+    const spacerBottomHeight = Math.max(0, (data.length - visibleRange.end) * rowHeight);
 
     return (
         <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900 relative">
             <BulkActionToolbar selectedIds={selectedIds} results={data} onClear={() => setSelectedIds([])} />
-            <div className="flex-1 w-full overflow-auto custom-scrollbar relative">
+            <div ref={containerRef} className="flex-1 w-full overflow-auto custom-scrollbar relative">
                 {/* Desktop Table View */}
                 <table className="hidden md:table w-full text-left border-collapse">
                     <thead className="bg-slate-200 dark:bg-slate-950 sticky top-0 z-20 shadow-sm">
@@ -301,19 +343,28 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                        {paginatedData.map(result => (
-                            <IncomeRow 
-                                key={result.transaction.id}
-                                result={result}
-                                language={language}
-                                isSelected={selectedIds.includes(result.transaction.id)}
-                                onToggleSelection={toggleSelection}
-                                onEdit={() => {}}
-                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
-                                onUndo={undoIdentification}
-                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
-                            />
-                        ))}
+                        {spacerTopHeight > 0 && (
+                            <tr><td colSpan={10} style={{ height: `${spacerTopHeight}px` }}></td></tr>
+                        )}
+                        {virtualizedData.map(result => {
+                            console.log(`[VIRTUAL_LIST:ROW_RENDER] Desktop ID: ${result.transaction.id}`);
+                            return (
+                                <IncomeRow 
+                                    key={result.transaction.id}
+                                    result={result}
+                                    language={language}
+                                    isSelected={selectedIds.includes(result.transaction.id)}
+                                    onToggleSelection={toggleSelection}
+                                    onEdit={() => {}}
+                                    onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
+                                    onUndo={undoIdentification}
+                                    onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                                />
+                            );
+                        })}
+                        {spacerBottomHeight > 0 && (
+                            <tr><td colSpan={10} style={{ height: `${spacerBottomHeight}px` }}></td></tr>
+                        )}
                     </tbody>
                 </table>
 
@@ -331,30 +382,27 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
                     </div>
-                    {paginatedData.map(result => (
-                        <MobileCard 
-                            key={result.transaction.id}
-                            result={result}
-                            language={language}
-                            isSelected={selectedIds.includes(result.transaction.id)}
-                            onToggleSelection={toggleSelection}
-                            onEdit={() => {}}
-                            onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
-                            onUndo={undoIdentification}
-                            onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
-                        />
-                    ))}
+                    
+                    {spacerTopHeight > 0 && <div style={{ height: `${spacerTopHeight}px` }} />}
+                    {virtualizedData.map(result => {
+                        console.log(`[VIRTUAL_LIST:ROW_RENDER] Mobile ID: ${result.transaction.id}`);
+                        return (
+                            <MobileCard 
+                                key={result.transaction.id}
+                                result={result}
+                                language={language}
+                                isSelected={selectedIds.includes(result.transaction.id)}
+                                onToggleSelection={toggleSelection}
+                                onEdit={() => {}}
+                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
+                                onUndo={undoIdentification}
+                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                            />
+                        );
+                    })}
+                    {spacerBottomHeight > 0 && <div style={{ height: `${spacerBottomHeight}px` }} />}
                 </div>
             </div>
-            {data.length > ITEMS_PER_PAGE && (
-                <div className="flex-shrink-0 flex justify-between items-center px-4 py-3 bg-white border-t border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-500">Página {currentPage} de {Math.ceil(data.length / ITEMS_PER_PAGE)}</span>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronLeftIcon className="w-4 h-4" /></button>
-                        <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / ITEMS_PER_PAGE), p + 1))} disabled={currentPage === Math.ceil(data.length / ITEMS_PER_PAGE)} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronRightIcon className="w-4 h-4" /></button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 });
