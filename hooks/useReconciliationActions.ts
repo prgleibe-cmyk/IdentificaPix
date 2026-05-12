@@ -58,8 +58,7 @@ export const useReconciliationActions = ({
             contributor.id,
             false,
             contributionType,
-            paymentMethod,
-            true // isManual
+            paymentMethod
           );
         }
         affectedCount++;
@@ -147,13 +146,13 @@ export const useReconciliationActions = ({
 
           if (isUniform) {
             const allIds = resultsToUpdate.map(r => r.transaction.id);
-            await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId, true);
+            await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId);
           } else {
             for (const result of resultsToUpdate) {
               const churchId = result.church?.id || result._churchId;
               const bankId = result.transaction.bank_id;
               const contributorId = result.contributor?.id;
-              await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId, true);
+              await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId);
             }
           }
         }
@@ -214,8 +213,8 @@ export const useReconciliationActions = ({
     }
 
     if (!txId.includes('ghost') && !txId.includes('sim')) {
-      await consolidationService.updateTransactionStatus(txId, 'pending', null, undefined, null, false, undefined, undefined, true);
-      await consolidationService.updateConfirmationStatus([txId], false, null, undefined, null, true);
+      await consolidationService.updateTransactionStatus(txId, 'pending', null, undefined, null, false);
+      await consolidationService.updateConfirmationStatus([txId], false, null, undefined, null);
     }
 
     const updatedResults = reconciliation.fullMatchResults.map((r: MatchResult) => 

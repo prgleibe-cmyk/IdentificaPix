@@ -150,29 +150,8 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, isManual: boolean = false) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string) => {
         try {
-            // 🛡️ GUARDA CIRÚRGICA DE ANTI-REGRESSÃO (Persistence Layer)
-            // Impede que processos automáticos revertam estados confirmados ou resolvidos
-            if (!isManual && (status === 'pending' || isConfirmed === false)) {
-                const { data: current } = await (supabase as any)
-                    .from('consolidated_transactions')
-                    .select('status, is_confirmed')
-                    .eq('id', id)
-                    .maybeSingle();
-
-                if (current && (current.status === 'resolved' || current.is_confirmed === true)) {
-                    console.warn('⚠️ [Consolidation:BLOCKED_REGRESSION] Abortando escrita automática regressiva (TransactionStatus).', {
-                        id,
-                        status,
-                        isConfirmed,
-                        currentStatus: current.status,
-                        currentConfirmed: current.is_confirmed
-                    });
-                    return true; // Aborta a escrita e simula sucesso
-                }
-            }
-
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
 
@@ -251,32 +230,9 @@ const { data, error } = await (supabase as any)
     /**
      * CONFIRMAÇÃO FINAL
      */
-    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null, isManual: boolean = false) => {
+    updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
 
     try {
-        if (!ids || ids.length === 0) return true;
-
-        // 🛡️ GUARDA CIRÚRGICA DE ANTI-REGRESSÃO (Persistence Layer)
-        // Bloqueia se: NÃO é manual E (novo payload tenta is_confirmed=false OU status=pending)
-        // E o estado atual no banco já é confirmado ou resolvido.
-        if (!isManual && is_confirmed === false) {
-            const { data: currentItems } = await (supabase as any)
-                .from('consolidated_transactions')
-                .select('id, status, is_confirmed')
-                .in('id', ids);
-
-            const hasConfirmedOrResolved = currentItems?.some(item => item.is_confirmed === true || item.status === 'resolved');
-
-            if (hasConfirmedOrResolved) {
-                console.warn('⚠️ [Consolidation:BLOCKED_REGRESSION] Abortando escrita automática regressiva (ConfirmationStatus).', {
-                    ids,
-                    is_confirmed,
-                    regressiveCount: currentItems?.filter(item => item.is_confirmed || item.status === 'resolved').length
-                });
-                return true; // Aborta a escrita e simula sucesso
-            }
-        }
-
         const { data: { session } } = await supabase.auth.getSession();
         const currentUserId = session?.user.id;
 
@@ -290,6 +246,8 @@ const { data, error } = await (supabase as any)
                 .maybeSingle();
             if (profile?.owner_id) effectiveUserId = profile.owner_id;
         }
+
+        if (!ids || ids.length === 0) return true;
 
         const updateData: any = {
             is_confirmed,
