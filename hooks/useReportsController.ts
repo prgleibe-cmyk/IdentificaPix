@@ -141,67 +141,116 @@ export const useReportsController = () => {
     }, [activeCategory, reportPreviewData, subscription]);
 
     const churchList = useMemo(() => {
-        if (!reportPreviewData?.income) return [];
-        let entries = Object.entries(reportPreviewData.income)
-            .filter(([id]) => id !== 'unidentified');
-            
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-            entries = entries.filter(([id]) => (subscription.congregationIds || []).includes(id));
-        }
-
-        return entries.map(([id, results]) => {
-                const res = Array.isArray(results) ? results : [];
-                return {
-                    id,
-                    name: res[0]?.church?.name || 'Igreja Desconhecida',
-                    count: (res || []).length,
-                    total: res.reduce((sum, r) => sum + (r.transaction?.amount || 0), 0)
-                };
-            })
-            .sort((a, b) => a.name.localeCompare(b.name));
-    }, [reportPreviewData, subscription]);
-
-    const counts = useMemo(() => {
-        const incomeGroups = reportPreviewData?.income || {};
+        // 🛡️ LISTA DE IGREJAS LOCAL (FASE 2.2): Usamos matchResults para extrair a lista de igrejas
+        // sem depender do reportPreviewData debouncado/bloqueado.
+        const results = (matchResults || []);
         
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const allowedIds = isSecondary ? (subscription.congregationIds || []) : null;
+
+        const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
+        
+        results.forEach(r => {
+            const isIdentified = r.status === ReconciliationStatus.IDENTIFIED || 
+                               r.status === ReconciliationStatus.PENDING || 
+                               r.status === ReconciliationStatus.RESOLVED;
+            
+            if (isIdentified && r.church?.id && r.church.id !== 'unidentified') {
+                if (allowedIds && !allowedIds.includes(r.church.id)) return;
+                
+                const existing = churchMap.get(r.church.id);
+                if (existing) {
+                    existing.count++;
+                    existing.total += (r.transaction?.amount || 0);
+                } else {
+                    churchMap.set(r.church.id, {
+                        id: r.church.id,
+                        name: r.church.name || 'Igreja Desconhecida',
+                        count: 1,
+                        total: r.transaction?.amount || 0
+                    });
+                }
+            }
+        });
+
+        return Array.from(churchMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [matchResults, subscription, user?.id]);
+
+    const counts = useMemo(() => {
+        // 🛡️ CONTABILIDADE LOCAL (FASE 2.2): Usamos matchResults diretamente para os contadores das abas
+        // Isso garante que os números nos botões de categoria reflitam as mudanças atômicas instantaneamente
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        
         if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-            return { 
-                general: 0, 
-                churches: (subscription.congregationIds || []).length, 
-                pending: 0, 
-                expenses: 0 
-            };
+            const allowedIds = subscription.congregationIds || [];
+            const churchesCount = allowedIds.length;
+            const filteredResults = (matchResults || []).filter(r => allowedIds.includes(r.church?.id || r._churchId));
+            const general = filteredResults.length;
+            const pending = filteredResults.filter(r => r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING || !r.isConfirmed).length;
+            const expenses = filteredResults.filter(r => (r.transaction?.amount || 0) < 0).length;
+            return { general, churches: churchesCount, pending, expenses };
         }
 
-        const general = (Object.values(incomeGroups).flat() || []).length;
+        const general = (matchResults || []).length;
         const churchesCount = (churchList || []).length;
-        const pending = (incomeGroups['unidentified'] || []).length;
-        const expenses = (reportPreviewData?.expenses?.['all_expenses_group'] || []).length;
+        const pending = (matchResults || []).filter(r => 
+            r.status === ReconciliationStatus.UNIDENTIFIED || 
+            r.status === ReconciliationStatus.PENDING ||
+            !r.isConfirmed
+        ).length;
+        const expenses = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0).length;
         return { general, churches: churchesCount, pending, expenses };
-    }, [churchList, reportPreviewData, subscription]);
+    }, [churchList, reportPreviewData, subscription, matchResults]);
 
     const activeData = useMemo(() => {
-        if (!reportPreviewData) return [];
+        if (!reportPreviewData && activeCategory !== 'general' && activeCategory !== 'unidentified') return [];
         let data: MatchResult[] = [];
         
         try {
             const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
-            // 1. Seleção da base por categoria com trava de segurança para membros
-            if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-                if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
-                    data = reportPreviewData.income?.[selectedReportId] || [];
-                } else {
-                    data = reportPreviewData.income?.[subscription.congregationIds[0]] || [];
-                }
-            } else if (activeCategory === 'general') {
-                const incomeGroups = reportPreviewData.income || {};
-                data = (Object.values(incomeGroups) as MatchResult[][]).flat();
+            
+            // 🛡️ REINSERÇÃO LOCAL (FASE 2.2): Usamos matchResults diretamente para categorias simples
+            // Isso garante que mudanças atômicas (realtime, toggle) reflitam instantaneamente sem rebuild global
+            if (activeCategory === 'general') {
+                data = (matchResults || []);
+            } else if (activeCategory === 'unidentified') {
+                data = (matchResults || []).filter(r => 
+                    r.status === ReconciliationStatus.UNIDENTIFIED || 
+                    r.status === ReconciliationStatus.PENDING ||
+                    !r.isConfirmed
+                );
             } else if (activeCategory === 'expenses') {
-                data = reportPreviewData.expenses?.['all_expenses_group'] || [];
-            } else if (selectedReportId) {
-                data = reportPreviewData.income?.[selectedReportId] || [];
+                data = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0);
+            } else {
+                // Para igrejas, mantemos a base do reportPreviewData para respeitar o agrupamento granular
+                if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+                    if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
+                        data = reportPreviewData?.income?.[selectedReportId] || [];
+                    } else {
+                        data = reportPreviewData?.income?.[subscription.congregationIds?.[0]] || [];
+                    }
+                } else if (selectedReportId) {
+                    data = reportPreviewData?.income?.[selectedReportId] || [];
+                }
+
+                // 🔥 PATCH LOCAL: Atualiza o estado visual das linhas no grupo de igrejas
+                if (data.length > 0 && matchResults.length > 0) {
+                    const matchMap = new Map((matchResults as MatchResult[]).map(r => [r.transaction.id, r]));
+                    data = data.map((r: MatchResult) => {
+                        const live = matchMap.get(r.transaction.id);
+                        if (live) {
+                            return {
+                                ...r,
+                                status: live.status,
+                                isConfirmed: live.isConfirmed,
+                                contributor: live.contributor,
+                                church: live.church,
+                                updatedAt: live.updatedAt
+                            };
+                        }
+                        return r;
+                    });
+                }
             }
 
             // 1.5 Filtro por Banco (Global)
@@ -245,7 +294,7 @@ export const useReportsController = () => {
         
         // Fallback absoluto para garantir que nunca seja undefined
         return Array.isArray(data) ? data : [];
-    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm, searchFilters, selectedBankId, subscription]);
+    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm, searchFilters, selectedBankId, subscription, matchResults]);
 
     const sortedData = useMemo(() => {
         const source = Array.isArray(activeData) ? activeData : [];
