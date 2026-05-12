@@ -162,7 +162,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                         {spacerTopHeight > 0 && <tr><td colSpan={10} style={{ height: `${spacerTopHeight}px` }}></td></tr>}
                         {virtualizedData.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed }) => {
-                            console.log(`[VIRTUAL_LIST:ROW_RENDER] ResultsTable ID: ${transaction.id}`);
                             const isSelected = selectedIds.includes(transaction.id);
 
                             // 🧠 Fonte única de verdade

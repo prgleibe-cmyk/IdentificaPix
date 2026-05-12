@@ -201,7 +201,6 @@ export const LaunchedView: React.FC = () => {
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                             {spacerTopHeight > 0 && <tr><td colSpan={10} style={{ height: `${spacerTopHeight}px` }} /></tr>}
                             {virtualizedData.map((item: any) => {
-                                console.log(`[VIRTUAL_LIST:ROW_RENDER] LaunchedRow ID: ${item.transaction.id}`);
                                 return (
                                     <tr key={item.transaction.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-all group">
                                         <td className="px-6 py-4">

@@ -347,7 +347,6 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             <tr><td colSpan={10} style={{ height: `${spacerTopHeight}px` }}></td></tr>
                         )}
                         {virtualizedData.map(result => {
-                            console.log(`[VIRTUAL_LIST:ROW_RENDER] Desktop ID: ${result.transaction.id}`);
                             return (
                                 <IncomeRow 
                                     key={result.transaction.id}
@@ -385,7 +384,6 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     
                     {spacerTopHeight > 0 && <div style={{ height: `${spacerTopHeight}px` }} />}
                     {virtualizedData.map(result => {
-                        console.log(`[VIRTUAL_LIST:ROW_RENDER] Mobile ID: ${result.transaction.id}`);
                         return (
                             <MobileCard 
                                 key={result.transaction.id}
