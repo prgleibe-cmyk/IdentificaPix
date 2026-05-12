@@ -620,7 +620,9 @@ export const useCloudSync = ({
         // 🛡️ GATILHO ATÔMICO: Se a última mudança foi uma ação simples (confirmar, realtime, etc), não disparamos AutoProcess
         if (batchState.isAtomicUpdate) {
             console.log('[PostReconstruct:BLOCK] Pulando AutoProcess em resposta a atualização atômica.');
-            batchState.isAtomicUpdate = false;
+            // Deferimos o reset para garantir que todos os hooks observadores vejam a flag antes de limpar
+            setTimeout(() => { batchState.isAtomicUpdate = false; }, 200);
+            
             // Atualizamos a assinatura para marcar que já vimos esse estado, mas sem disparar
             const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
             postProcessingSignatureRef.current = currentSignature;

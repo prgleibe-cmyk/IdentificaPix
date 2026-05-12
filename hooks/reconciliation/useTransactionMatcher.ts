@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { MatchResult, ReconciliationStatus, GroupedReportData, Transaction } from '../../types';
 import { matchTransactions, groupResultsByChurch, PLACEHOLDER_CHURCH } from '../../services/processingService';
+import { batchState } from './useCloudSync';
 
 interface UseTransactionMatcherProps {
     subscription: any;
@@ -99,6 +100,12 @@ export const useTransactionMatcher = ({
 
     useEffect(() => {
         if (matchResults && matchResults.length > 0) {
+            // 🛡️ BLOQUEIO ATÔMICO: Se a mudança foi atômica, pulamos o recalculo global aqui também
+            if (batchState.isAtomicUpdate) {
+                console.log("[useTransactionMatcher] Pulando recalculo de preview (atualização atômica)");
+                return;
+            }
+
             // 🛡️ ESTABILIZAÇÃO CORE: Evita reconstrução imediata do preview a cada delta realtime
             if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
             syncDebounceRef.current = setTimeout(() => {

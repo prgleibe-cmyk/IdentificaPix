@@ -7,6 +7,7 @@ import { MatchResult, ReconciliationStatus } from '../types';
 import { ExportService } from '../services/ExportService';
 import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
+import { batchState } from './reconciliation/useCloudSync';
 
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
 
@@ -53,6 +54,14 @@ export const useReportsController = () => {
     useEffect(() => {
         if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
             if (stableKey !== syncHashRef.current) {
+                // 🛡️ BLOQUEIO ATÔMICO: Se a mudança foi atômica (confirmar/realtime), não sincronizamos o preview global
+                if (batchState.isAtomicUpdate) {
+                    console.log("[useReportsController] Pulando sincronização de preview (atualização atômica)");
+                    // Marcamos como sincronizado para evitar disparos subsequentes para o mesmo estado
+                    syncHashRef.current = stableKey;
+                    return;
+                }
+
                 if (debounceRef.current) {
                     clearTimeout(debounceRef.current);
                 }
