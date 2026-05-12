@@ -7,9 +7,6 @@ export default defineConfig(({ mode }) => {
 
   return {
     publicDir: 'public',
-    define: {
-      'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.API_KEY)
-    },
     server: {
       port: 5173,
       host: '0.0.0.0',

@@ -14,7 +14,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching shell assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+      // Usar add em loop com catch para evitar falha total se um asset estiver ausente
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map(url => 
+          cache.add(url).catch(err => console.warn(`[SW] Failed to cache: ${url}`, err))
+        )
+      );
     })
   );
   self.skipWaiting();

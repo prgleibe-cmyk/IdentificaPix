@@ -57,11 +57,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
-        if (!activeId) {
-            if (ENABLE_HEAVY_LOGS) {
+        
+        // 🛡️ BLOQUEIO ABSOLUTO: Se a lista está sendo construída pelo useCloudSync ou existe sessão ativa, o AppContext não deve competir
+        if (!activeId || reconciliation.isHydratingFromCloud.current || reconciliation.hasActiveSession) {
+            if (ENABLE_HEAVY_LOGS && !activeId) {
                 console.warn('[AUDIT][NO_REPORT_ID]');
             }
-            lastLoadedReportId.current = null;
+            if (reconciliation.isHydratingFromCloud.current || reconciliation.hasActiveSession) {
+                console.log('[AppContext] Hidratação de relatório suprimida: useCloudSync ou Sessão Ativa em controle.');
+            }
+            lastLoadedReportId.current = activeId || null;
             return;
         }
 
@@ -320,7 +325,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 🔄 AUTO-LOAD: Tenta carregar os detalhes de um relatório ativo se os dados locais estiverem ausentes
     useEffect(() => {
-        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading) {
+        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
             const savedReport = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
             if (savedReport && savedReport.data?.results?.length > 0) {
                 console.log("[AppContext] Auto-carregando dados do relatório ativo:", reconciliation.activeReportId);
@@ -332,7 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
     useEffect(() => {
-        if (!reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading) {
+        if (!reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
             const liveReport = reportManager.savedReports.find(r => r.name === '[SESSÃO_ATIVA]');
             if (liveReport && liveReport.data?.results?.length > 0) {
                 console.log("[AppContext] Auto-carregando sessão ativa da nuvem.");
@@ -388,7 +393,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 🔄 SYNC DO RELATÓRIO SALVO (Via Tabelas)
     useEffect(() => {
         const activeId = reconciliation.activeReportId;
-        if (!activeId || isSyncing || isLoading) return;
+        
+        // 🛡️ BLOQUEIO ABSOLUTO: Se existe sessão realtime ativa, o Sync Passivo do AppContext é desativado
+        // para evitar rollback visual e loops reativos. O useCloudSync assume o controle.
+        if (!activeId || isSyncing || isLoading || reconciliation.hasActiveSession) {
+            return;
+        }
 
         const savedReport = reportManager.savedReports.find(r => r.id === activeId);
         if (!savedReport || !savedReport.data?.results) return;

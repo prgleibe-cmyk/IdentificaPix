@@ -75,13 +75,13 @@ try {
     // Rotas públicas ou de webhook (devem vir ANTES do authMiddleware)
     app.use('/api/payment', paymentRoutes);
     app.use('/api/inbox', inboxRoutes(ai));
+    app.use('/api/ai', aiRoutes(ai));
 
     // Middleware de Autenticação para as demais rotas
     app.use('/api', authMiddleware);
     
     // Rotas protegidas
     app.use('/api/gmail', gmailRoutes(ai));
-    app.use('/api/ai', aiRoutes(ai));
     app.use('/api/users', usersRoutes());
     app.use('/api/reference', referenceRoutes());
 } catch (error) {
