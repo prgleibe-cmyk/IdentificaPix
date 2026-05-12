@@ -38,7 +38,6 @@ export const useReportsController = () => {
     const syncHashRef = useRef<string>('');
     const isProcessingRef = useRef(false);
     const debounceRef = useRef<any>(null);
-    const lastSyncTimeRef = useRef<number>(0);
 
     const stableKey = useMemo(() => {
         const currentTotal = (matchResults || []).length;
@@ -60,30 +59,12 @@ export const useReportsController = () => {
                 debounceRef.current = setTimeout(() => {
                     if (isProcessingRef.current) return;
 
-                    const now = Date.now();
-                    const timeSinceLastSync = now - lastSyncTimeRef.current;
-
-                    // 🛡️ BLOQUEIO DE SINCRONIZAÇÃO REDUNDANTE DURANTE REALTIME ATIVO
-                    // Se houve um sync há menos de 1.5 segundos, pulamos este para evitar tempestade de processamento
-                    // Isso é essencial quando múltiplos deltas realtime chegam em sequência rápida
-                    if (timeSinceLastSync < 1500) {
-                        console.log("[useReportsController] Sync redundante bloqueado (sessão realtime ativa/estabilizada)");
-                        return;
-                    }
-
                     isProcessingRef.current = true;
                     console.log("[useReportsController] Sincronizando preview de relatório...");
                     syncHashRef.current = stableKey;
-                    lastSyncTimeRef.current = now;
-                    
-                    try {
-                        regenerateReportPreview(matchResults);
-                    } catch (e) {
-                        console.error("[useReportsController] Erro na sincronização do preview:", e);
-                    } finally {
-                        isProcessingRef.current = false;
-                    }
-                }, 800); // Janela de estabilização aumentada para 800ms
+                    regenerateReportPreview(matchResults);
+                    isProcessingRef.current = false;
+                }, 50);
             }
         }
     }, [stableKey, regenerateReportPreview, matchResults]);

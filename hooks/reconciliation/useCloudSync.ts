@@ -52,8 +52,6 @@ export const useCloudSync = ({
     const lastProcessedLength = useRef<number>(0);
     const postProcessingSignatureRef = useRef<string>('');
     const lastAutoProcessSignatureRef = useRef<string | null>(null);
-    const isAutoProcessingRef = useRef<boolean>(false);
-    const lastAutoProcessTimeRef = useRef<number>(0);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -602,18 +600,13 @@ export const useCloudSync = ({
      * Estabilização por tamanho para evitar processamento parcial durante paginação
      */
     useEffect(() => {
-        if ((!isContextReady && (matchResults?.length || 0) === 0) || isLoading) {
+        if ((!isContextReady && matchResults.length === 0) || isLoading) {
             console.log('[PostReconstruct:SKIPPED]', { isContextReady, isLoading });
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             return;
         }
 
-        if (!matchResults || matchResults.length === 0) {
-            return;
-        }
-
-        // 🛡️ TRAVA DE SEGURANÇA: Evita disparar se já estiver processando
-        if (isAutoProcessingRef.current) {
+        if (matchResults.length === 0) {
             return;
         }
 
@@ -635,20 +628,7 @@ export const useCloudSync = ({
             
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
             
-            stableTimeoutRef.current = setTimeout(async () => {
-                const now = Date.now();
-                
-                // 🛡️ THROTTLE: Janela de resfriamento de 1.5s para evitar tempestade de re-processamento
-                if (now - lastAutoProcessTimeRef.current < 1500) {
-                    console.log('[PostReconstruct:THROTTLED]');
-                    return;
-                }
-
-                if (isAutoProcessingRef.current) {
-                    console.log('[PostReconstruct:LOCKED]');
-                    return;
-                }
-
+            stableTimeoutRef.current = setTimeout(() => {
                 console.log('[PostReconstruct:STABLE]', matchResults.length);
                 postProcessingSignatureRef.current = currentSignature;
                 lastProcessedLength.current = matchResults.length;
@@ -659,19 +639,11 @@ export const useCloudSync = ({
                     }
  
                     lastAutoProcessSignatureRef.current = stableSignature;
-                    lastAutoProcessTimeRef.current = now;
-                    isAutoProcessingRef.current = true;
  
                     console.log('[AutoProcess:FINAL_TRIGGER]');
-                    try {
-                        await handleCompare(false);
-                    } catch (err) {
-                        console.error('[AutoProcess:ERROR]', err);
-                    } finally {
-                        isAutoProcessingRef.current = false;
-                    }
+                    handleCompare(false);
                 }
-            }, 800); // Janela de estabilização aumentada para 800ms
+            }, 200);
         }
 
         return () => {
