@@ -1,4 +1,14 @@
-import { MatchResult, Transaction, SavedReport } from '../types';
+/**
+ * ❄️ FROZEN ARCHITECTURE - IDENTIFICAPIX APP CONTEXT
+ * 
+ * Este arquivo centraliza o estado estável da aplicação e os mecanismos de sincronização granular.
+ * CONTROLES PROTEGIDOS:
+ * - Sync Granular: Broadcast de eventos em tempo real.
+ * - Integração de Hooks: Orquestração entre reconciliation, reference data e report manager.
+ * 
+ * NÃO ALTERAR A ESTRUTURA DE PROVISÃO DE CONTEXTO OU O FLUXO DE BROADCAST.
+ */
+import { MatchResult, Transaction, SavedReport} from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';

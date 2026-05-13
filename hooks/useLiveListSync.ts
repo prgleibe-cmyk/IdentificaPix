@@ -1,3 +1,13 @@
+/**
+ * ❄️ FROZEN ARCHITECTURE - IDENTIFICAPIX LIVE LIST SYNC
+ * 
+ * Este arquivo gerencia a sincronização da "Lista Viva" (transações pendentes).
+ * CONTROLES PROTEGIDOS:
+ * - Hydration de Transações: Carregamento inicial de itens pendentes.
+ * - Realtime DELETE -> UPDATE: Transformação de deleções em atualizações de status.
+ * 
+ * NÃO ALTERAR O FLUXO DE HIDRATAÇÃO OU A LÓGICA DE MANUTENÇÃO DE ITENS NA LISTA.
+ */
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
