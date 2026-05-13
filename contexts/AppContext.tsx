@@ -16,6 +16,17 @@ const ENABLE_HEAVY_LOGS = false;
 
 export const AppContext = createContext<any>(null!);
 
+/**
+ * @frozen-architecture
+ * 🛡️ APP CONTEXT ORCHESTRATION (THE HIVE)
+ * Centralizador de estado e orquestração de hooks especializados.
+ * 
+ * REGRAS DE CONGELAMENTO:
+ * 1. Manter o BLOQUEIO ABSOLUTO de hidratação de relatório quando a sessão cloud está ativa.
+ * 2. O Broadcast Sync (sync-granular) deve permanecer como canal de comunicação leve e não persistente.
+ * 3. Proibido unificar os fluxos de 'useCloudSync' e 'AppContext' para evitar loops reativos.
+ * 4. Jamais remover os filtros de segurança (isSecondary check) que garantem multi-tenancy.
+ */
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, subscription } = useAuth();
     const { showToast, setIsLoading, setActiveView, isLoading } = useUI();

@@ -2,6 +2,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 
+/**
+ * @frozen-architecture
+ * 🛡️ PERSISTENT STATE MANAGEMENT
+ * Gestão de estado com persistência local (LocalStorage/IndexedDB).
+ * 
+ * REGRAS DE CONGELAMENTO:
+ * 1. Manter a separação entre dados leves (LC) e pesados (IDB).
+ * 2. Preservar o salvamento em 'requestIdleCallback' para evitar frames drop.
+ * 3. A lógica de hidratação deve garantir que o 'lastSavedValue' seja sincronizado 
+ *    imediatamente para evitar loops de escrita.
+ */
 export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boolean = false): [T, React.Dispatch<React.SetStateAction<T>>] {
     const [state, setState] = useState<T>(() => {
         try {
