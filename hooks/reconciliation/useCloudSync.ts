@@ -130,6 +130,7 @@ export const useCloudSync = ({
                 return;
             }
 
+            console.log("[COLD_BOOT:SNAPSHOT_REUSE] Iniciando ATOM_RECONSTRUCT do useCloudSync");
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
             needsRetry.current = false;

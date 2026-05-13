@@ -37,6 +37,8 @@ export const useLiveListSync = ({
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!effectiveUserId || isCleaning) return;
         
+        console.log("[COLD_BOOT:HYDRATE] Iniciando hidratação da Lista Viva");
+        
         if (isHydrating.current) {
             pendingHydrate.current = true;
             return;
