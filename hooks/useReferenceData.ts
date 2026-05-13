@@ -1,13 +1,3 @@
-/**
- * ❄️ FROZEN ARCHITECTURE - IDENTIFICAPIX REFERENCE DATA
- * 
- * Este arquivo sincroniza dados de referência (bancos, igrejas, associações, modelos).
- * CONTROLES PROTEGIDOS:
- * - Realtime Reference: Updates atômicos de cadastros básicos.
- * - Learned Associations: Sincronização de inteligência de pareamento.
- * 
- * NÃO ALTERAR A LÓGICA DE CARREGAMENTO INICIAL OU OS LISTENERS DE REFERÊNCIA.
- */
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';

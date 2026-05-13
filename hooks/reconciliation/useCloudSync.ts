@@ -1,14 +1,3 @@
-/**
- * ❄️ FROZEN ARCHITECTURE - IDENTIFICAPIX CORE SYNC
- * 
- * Este arquivo faz parte do núcleo de sincronização incremental e atômica.
- * CONTROLES PROTEGIDOS:
- * - BLOCK_REGRESSION: Proteção contra updates atrasados.
- * - ATOM_RECONSTRUCT: Reconstrução granular da sessão.
- * - PostReconstruct: Estabilização de disparos pós-hidratação.
- * 
- * NÃO REFATORAR OU ALTERAR A LÓGICA DE SINCRONIZAÇÃO SEM NECESSIDADE COMPROVADA.
- */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributor } from '../../types';
@@ -130,7 +119,6 @@ export const useCloudSync = ({
                 return;
             }
 
-            console.log("[COLD_BOOT:SNAPSHOT_REUSE] Iniciando ATOM_RECONSTRUCT do useCloudSync");
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
             needsRetry.current = false;

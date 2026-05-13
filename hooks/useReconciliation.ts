@@ -39,11 +39,11 @@ export const useReconciliation = (props: any) => {
     const effectiveUserId = subscription?.ownerId || user?.id;
     const userSuffix = effectiveUserId ? `-${effectiveUserId}` : '-guest';
     
-    // ESTADOS PERSISTENTES (Reset Controlado: matchResults, spreadsheetData e launched são limpos no boot)
+    // ESTADOS PERSISTENTES
     const [activeReportId, setActiveReportId] = usePersistentState<string | null>(`identificapix-active-report-id${userSuffix}`, null);
-    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true, true);
-    const [activeSpreadsheetData, setActiveSpreadsheetData] = usePersistentState<any | null>(`identificapix-spreadsheet-data${userSuffix}`, null, true, true);
-    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false, false, true);
+    const [matchResults, setMatchResults] = usePersistentState<MatchResult[]>(`identificapix-match-results${userSuffix}`, [], true);
+    const [activeSpreadsheetData, setActiveSpreadsheetData] = usePersistentState<any | null>(`identificapix-spreadsheet-data${userSuffix}`, null, true);
+    const [hasActiveSession, setHasActiveSession] = usePersistentState<boolean>(`identificapix-has-session${userSuffix}`, false);
     
     const [activeBankFiles, setBankStatementFile] = useState<any[]>([]);
     const [contributorFiles, setContributorFiles] = useState<ContributorFile[]>([]);
@@ -54,7 +54,7 @@ export const useReconciliation = (props: any) => {
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     
-    const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true, true);
+    const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
     // ✅ NORMALIZAÇÃO TOTAL (MESMO PADRÃO DA CONFIRMAÇÃO FINAL)
     const buildCanonicalPayload = useCallback((row: MatchResult) => {

@@ -1,14 +1,4 @@
-/**
- * ❄️ FROZEN ARCHITECTURE - IDENTIFICAPIX APP CONTEXT
- * 
- * Este arquivo centraliza o estado estável da aplicação e os mecanismos de sincronização granular.
- * CONTROLES PROTEGIDOS:
- * - Sync Granular: Broadcast de eventos em tempo real.
- * - Integração de Hooks: Orquestração entre reconciliation, reference data e report manager.
- * 
- * NÃO ALTERAR A ESTRUTURA DE PROVISÃO DE CONTEXTO OU O FLUXO DE BROADCAST.
- */
-import { MatchResult, Transaction, SavedReport} from '../types';
+import { MatchResult, Transaction, SavedReport } from '../types';
 import React, { createContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIContext';
@@ -334,35 +324,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, []);
 
     // 🔄 AUTO-LOAD: Tenta carregar os detalhes de um relatório ativo se os dados locais estiverem ausentes
-    // DESATIVADO FASE 2: Favorece o fresh sync oficial do useCloudSync (Apenas dados da nuvem aparecem no boot)
     useEffect(() => {
-        /*
         if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
             const savedReport = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
             if (savedReport && savedReport.data?.results?.length > 0) {
-                console.log("[COLD_BOOT:PERSIST] Restaurando relatório ativo persistido:", reconciliation.activeReportId);
                 console.log("[AppContext] Auto-carregando dados do relatório ativo:", reconciliation.activeReportId);
                 reconciliation.setMatchResults(() => savedReport.data.results);
                 reconciliation.setHasActiveSession(true);
             }
         }
-        */
     }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation]);
 
     // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
-    // DESATIVADO FASE 2: Evita reaproveitamento de snapshot antigo antes da reconstrução atômica
     useEffect(() => {
-        /*
         if (!reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
             const liveReport = reportManager.savedReports.find(r => r.name === '[SESSÃO_ATIVA]');
             if (liveReport && liveReport.data?.results?.length > 0) {
-                console.log("[COLD_BOOT:SNAPSHOT_REUSE] Carregando [SESSÃO_ATIVA] da nuvem como fallback");
                 console.log("[AppContext] Auto-carregando sessão ativa da nuvem.");
                 reconciliation.setMatchResults(() => liveReport.data.results);
                 reconciliation.setHasActiveSession(true);
             }
         }
-        */
     }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation]);
 
     // 📡 REAL-TIME SYNC: Sincroniza o relatório ativo se houver mudanças remotas
