@@ -66,7 +66,7 @@ export const consolidationService = {
                         finalDate = new Date().toISOString().split('T')[0];
                     }
 
-                    return {
+                    const payload = {
                         transaction_date: finalDate,
                         amount: isNaN(amount) ? 0 : amount,
                         description: t.description,
@@ -80,6 +80,29 @@ export const consolidationService = {
                         is_confirmed: typeof t.is_confirmed === 'boolean' ? t.is_confirmed : false
                     };
 
+                    // Validação preventiva contra consolidated_transactions_type_check
+                    const errors: string[] = [];
+                    const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+
+                    if (!['income', 'expense'].includes(payload.type as any)) {
+                        errors.push(`Type inválido: ${payload.type}`);
+                    }
+                    if (!['pending', 'identified', 'resolved'].includes(payload.status as any)) {
+                        errors.push(`Status inválido: ${payload.status}`);
+                    }
+                    if (payload.status === 'resolved' && !payload.is_confirmed) {
+                        errors.push('Inconsistência: status=resolved exige is_confirmed=true');
+                    }
+                    if (!isUuid(payload.bank_id)) {
+                        errors.push(`bank_id não é um UUID válido: ${payload.bank_id}`);
+                    }
+
+                    if (errors.length > 0) {
+                        console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [addTransactions]', { errors, payload });
+                        return null; // Filtramos o item inválido
+                    }
+
+                    return payload;
                 })
                 .filter((item): item is NonNullable<typeof item> => item !== null && !!item.user_id);
 
@@ -191,7 +214,7 @@ export const consolidationService = {
               payload: updateData
             });
 
-           const safeUpdateData = {
+const safeUpdateData: any = {
     ...updateData,
     ...(updateData.contributor_id !== undefined && {
         contributor_id:
@@ -201,6 +224,40 @@ export const consolidationService = {
                 : null
     })
 };
+
+// Validação preventiva contra consolidated_transactions_type_check
+const errors: string[] = [];
+const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+
+if (safeUpdateData.type !== undefined && !['income', 'expense'].includes(safeUpdateData.type)) {
+    errors.push(`Type inválido (deve ser income ou expense): ${safeUpdateData.type}`);
+}
+if (safeUpdateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(safeUpdateData.status)) {
+    errors.push(`Status inválido: ${safeUpdateData.status}`);
+}
+// Checa consistência no payload de update
+if (safeUpdateData.status === 'resolved' && safeUpdateData.is_confirmed === false) {
+    errors.push('Inconsistência: tentativa de definir status=resolved com is_confirmed=false');
+}
+if (safeUpdateData.is_confirmed === false && safeUpdateData.status === 'resolved') {
+    errors.push('Inconsistência: tentativa de desconfirmar mantendo status=resolved');
+}
+
+// Validação de UUIDs
+if (safeUpdateData.church_id !== undefined && !isUuid(safeUpdateData.church_id)) {
+    errors.push(`church_id inválido: ${safeUpdateData.church_id}`);
+}
+if (safeUpdateData.contributor_id !== undefined && !isUuid(safeUpdateData.contributor_id)) {
+    errors.push(`contributor_id inválido: ${safeUpdateData.contributor_id}`);
+}
+if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
+    errors.push(`bank_id inválido: ${safeUpdateData.bank_id}`);
+}
+
+if (errors.length > 0) {
+    console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
+    return false; // Bloqueia o PATCH
+}
 
 console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
 
@@ -287,6 +344,34 @@ const { data, error } = await (supabase as any)
         });
 
         console.log('💾 SALVANDO MATCH (ConfirmationStatus)', updateData);
+
+        // Validação preventiva contra consolidated_transactions_type_check
+        const errors: string[] = [];
+        const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+
+        if (updateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(updateData.status)) {
+            errors.push(`Status inválido: ${updateData.status}`);
+        }
+        if (updateData.status === 'resolved' && updateData.is_confirmed === false) {
+            errors.push('Inconsistência: status=resolved exige is_confirmed=true');
+        }
+        if (updateData.is_confirmed === false && updateData.status === 'resolved') {
+            errors.push('Inconsistência: is_confirmed=false não permite status=resolved');
+        }
+
+        // Validação de UUIDs
+        if (updateData.church_id !== undefined && !isUuid(updateData.church_id)) {
+            errors.push(`church_id inválido: ${updateData.church_id}`);
+        }
+        if (updateData.contributor_id !== undefined && !isUuid(updateData.contributor_id)) {
+            errors.push(`contributor_id inválido: ${updateData.contributor_id}`);
+        }
+
+        if (errors.length > 0) {
+            console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateConfirmationStatus]', { errors, updateData });
+            return false; // Bloqueia o PATCH
+        }
+
         const { data, error } = await (supabase as any)
             .from('consolidated_transactions')
             .update(updateData)
