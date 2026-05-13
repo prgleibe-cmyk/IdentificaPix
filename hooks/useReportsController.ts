@@ -226,35 +226,19 @@ export const useReportsController = () => {
             } else if (activeCategory === 'expenses') {
                 data = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0);
             } else {
-                // Para igrejas, mantemos a base do reportPreviewData para respeitar o agrupamento granular
-                if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-                    if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
-                        data = reportPreviewData?.income?.[selectedReportId] || [];
-                    } else {
-                        data = reportPreviewData?.income?.[subscription.congregationIds?.[0]] || [];
-                    }
-                } else if (selectedReportId) {
-                    data = reportPreviewData?.income?.[selectedReportId] || [];
-                }
+                // 🛡️ REINSERÇÃO DIRETA (FASE 4 SYNC FIX): Para igrejas, usamos matchResults diretamente.
+                // Isso elimina a dependência do reportPreviewData (debouncado) e garante cardinalidade idêntica entre usuários.
+                const filterId = (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0)
+                    ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : (subscription.congregationIds[0] || ''))
+                    : selectedReportId;
 
-                // 🔥 PATCH LOCAL: Atualiza o estado visual das linhas no grupo de igrejas
-                if (data.length > 0 && matchResults.length > 0) {
-                    const matchMap = new Map((matchResults as MatchResult[]).map(r => [r.transaction.id, r]));
-                    data = data.map((r: MatchResult) => {
-                        const live = matchMap.get(r.transaction.id);
-                        if (live) {
-                            return {
-                                ...r,
-                                status: live.status,
-                                isConfirmed: live.isConfirmed,
-                                contributor: live.contributor,
-                                church: live.church,
-                                updatedAt: live.updatedAt
-                            };
-                        }
-                        return r;
-                    });
-                }
+                data = (matchResults || []).filter(r => {
+                    const churchId = r.church?.id || r._churchId;
+                    const amount = r.status === ReconciliationStatus.PENDING 
+                        ? (r.contributorAmount || r.contributor?.amount || 0)
+                        : (r.transaction?.amount || 0);
+                    return amount >= 0 && churchId === filterId;
+                });
             }
 
             // 1.5 Filtro por Banco (Global)
