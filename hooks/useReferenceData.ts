@@ -165,9 +165,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const ownerId = subscription.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
 
-        console.log('[RT:AUDIT_EFFECT_MOUNT] useReferenceData realtime effect');
-
-        console.log('[RT:AUDIT_SUBSCRIBE] useReferenceData channel creation', { ownerId });
         const channel = supabase
             .channel(`reference-realtime-${ownerId}`)
             .on(
@@ -228,9 +225,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             .subscribe();
 
         return () => {
-            console.log('[RT:AUDIT_UNSUBSCRIBE] useReferenceData channel removal', { ownerId });
             supabase.removeChannel(channel);
-            console.log('[RT:AUDIT_EFFECT_UNMOUNT] useReferenceData realtime effect');
         };
     }, [user?.id, subscription.ownerId, setBanks, setChurches, setLearnedAssociations]);
 

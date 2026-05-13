@@ -335,14 +335,11 @@ export const useCloudSync = ({
     useEffect(() => {
         if (!effectiveUserId) return;
 
-        console.log('[RT:AUDIT_EFFECT_MOUNT] useCloudSync realtime effect');
-
         console.log('[REALTIME:USER]', {
           userId: user?.id,
           effectiveUserId
         });
         
-        console.log('[RT:AUDIT_SUBSCRIBE] useCloudSync channel creation', { effectiveUserId });
         const channel = supabase
             .channel(`reconciliation-atom-sync-${effectiveUserId}`)
             .on(
@@ -544,9 +541,7 @@ export const useCloudSync = ({
             .subscribe();
             
         return () => {
-            console.log('[RT:AUDIT_UNSUBSCRIBE] useCloudSync channel removal', { effectiveUserId });
             supabase.removeChannel(channel);
-            console.log('[RT:AUDIT_EFFECT_UNMOUNT] useCloudSync realtime effect');
         };
     }, [effectiveUserId, churches, setMatchResults, learnedAssociations]);
 
