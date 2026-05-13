@@ -117,6 +117,9 @@ export const useLiveListSync = ({
         const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
 
+        console.log('[RT:AUDIT_EFFECT_MOUNT] useLiveListSync realtime effect');
+
+        console.log('[RT:AUDIT_SUBSCRIBE] useLiveListSync channel creation', { ownerId });
         const channel = supabase
             .channel(`realtime-viva-${ownerId}`)
             .on(
@@ -134,7 +137,9 @@ export const useLiveListSync = ({
             .subscribe();
 
         return () => {
+            console.log('[RT:AUDIT_UNSUBSCRIBE] useLiveListSync channel removal', { ownerId });
             supabase.removeChannel(channel);
+            console.log('[RT:AUDIT_EFFECT_UNMOUNT] useLiveListSync realtime effect');
         };
     }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
 

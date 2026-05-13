@@ -352,7 +352,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const ownerId = subscription.ownerId || user?.id;
         if (!ownerId) return;
 
+        console.log('[RT:AUDIT_EFFECT_MOUNT] AppContext broadcast effect');
+
         // Canal de Broadcast para sincronização granular em tempo real
+        console.log('[RT:AUDIT_SUBSCRIBE] AppContext broadcast channel creation', { ownerId });
         const channel = supabase
             .channel(`sync-granular-${ownerId}`)
             .on('broadcast', { event: 'transaction_updated' }, ({ payload }) => {
@@ -386,7 +389,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .subscribe();
 
         return () => {
+            console.log('[RT:AUDIT_UNSUBSCRIBE] AppContext broadcast channel removal', { ownerId });
             supabase.removeChannel(channel);
+            console.log('[RT:AUDIT_EFFECT_UNMOUNT] AppContext broadcast effect');
         };
     }, [user?.id, subscription.ownerId]);
 
