@@ -176,13 +176,7 @@ export const consolidationService = {
             if (bankId !== undefined) updateData.bank_id = bankId;
             if (contributorId !== undefined) updateData.contributor_id = contributorId;
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
-            
-            // 🛡️ PROTEÇÃO contra consolidated_transactions_type_check
-            // Apenas permitimos 'income' ou 'expense' no campo type do banco.
-            if (type !== undefined && (type === 'income' || type === 'expense')) {
-                updateData.type = type;
-            }
-            
+            if (type !== undefined) updateData.type = type;
             if (pix_key !== undefined) updateData.pix_key = pix_key;
 
             console.log('[ID:WRITE]', {

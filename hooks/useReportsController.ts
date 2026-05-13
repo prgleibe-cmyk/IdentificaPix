@@ -56,7 +56,7 @@ export const useReportsController = () => {
             if (stableKey !== syncHashRef.current) {
                 // 🛡️ BLOQUEIO ATÔMICO: Se a mudança foi atômica (confirmar/realtime), não sincronizamos o preview global
                 if (batchState.isAtomicUpdate) {
-                    console.log("[CONSISTENCY:ATOMIC_ONLY] Pulando sincronização de preview (atualização atômica detectada)");
+                    console.log("[useReportsController] Pulando sincronização de preview (atualização atômica)");
                     // Marcamos como sincronizado para evitar disparos subsequentes para o mesmo estado
                     syncHashRef.current = stableKey;
                     return;
@@ -74,13 +74,14 @@ export const useReportsController = () => {
 
                     // 🛡️ BLOQUEIO DE SINCRONIZAÇÃO REDUNDANTE DURANTE REALTIME ATIVO
                     // Se houve um sync há menos de 1.5 segundos, pulamos este para evitar tempestade de processamento
+                    // Isso é essencial quando múltiplos deltas realtime chegam em sequência rápida
                     if (timeSinceLastSync < 1500) {
-                        console.log("[CONSISTENCY:SHARED_COLLECTION] Sync redundante bloqueado (sessão realtime ativa/estabilizada)");
+                        console.log("[useReportsController] Sync redundante bloqueado (sessão realtime ativa/estabilizada)");
                         return;
                     }
 
                     isProcessingRef.current = true;
-                    console.log("[CONSISTENCY:SHARED_COLLECTION] Sincronizando preview de relatório a partir da coleção viva...");
+                    console.log("[useReportsController] Sincronizando preview de relatório...");
                     syncHashRef.current = stableKey;
                     lastSyncTimeRef.current = now;
                     
@@ -91,7 +92,7 @@ export const useReportsController = () => {
                     } finally {
                         isProcessingRef.current = false;
                     }
-                }, 800); 
+                }, 800); // Janela de estabilização aumentada para 800ms
             }
         }
     }, [stableKey, regenerateReportPreview, matchResults]);
@@ -225,19 +226,35 @@ export const useReportsController = () => {
             } else if (activeCategory === 'expenses') {
                 data = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0);
             } else {
-                // 🛡️ REINSERÇÃO DIRETA (FASE 4 SYNC FIX): Para igrejas, usamos matchResults diretamente.
-                // Isso elimina a dependência do reportPreviewData (debouncado) e garante cardinalidade idêntica entre usuários.
-                const filterId = (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0)
-                    ? (selectedReportId && subscription.congregationIds.includes(selectedReportId) ? selectedReportId : (subscription.congregationIds[0] || ''))
-                    : selectedReportId;
+                // Para igrejas, mantemos a base do reportPreviewData para respeitar o agrupamento granular
+                if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+                    if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
+                        data = reportPreviewData?.income?.[selectedReportId] || [];
+                    } else {
+                        data = reportPreviewData?.income?.[subscription.congregationIds?.[0]] || [];
+                    }
+                } else if (selectedReportId) {
+                    data = reportPreviewData?.income?.[selectedReportId] || [];
+                }
 
-                data = (matchResults || []).filter(r => {
-                    const churchId = r.church?.id || r._churchId;
-                    const amount = r.status === ReconciliationStatus.PENDING 
-                        ? (r.contributorAmount || r.contributor?.amount || 0)
-                        : (r.transaction?.amount || 0);
-                    return amount >= 0 && churchId === filterId;
-                });
+                // 🔥 PATCH LOCAL: Atualiza o estado visual das linhas no grupo de igrejas
+                if (data.length > 0 && matchResults.length > 0) {
+                    const matchMap = new Map((matchResults as MatchResult[]).map(r => [r.transaction.id, r]));
+                    data = data.map((r: MatchResult) => {
+                        const live = matchMap.get(r.transaction.id);
+                        if (live) {
+                            return {
+                                ...r,
+                                status: live.status,
+                                isConfirmed: live.isConfirmed,
+                                contributor: live.contributor,
+                                church: live.church,
+                                updatedAt: live.updatedAt
+                            };
+                        }
+                        return r;
+                    });
+                }
             }
 
             // 1.5 Filtro por Banco (Global)

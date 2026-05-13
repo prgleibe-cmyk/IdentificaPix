@@ -172,7 +172,6 @@ export const useTransactionMatcher = ({
         ).filter(r => Number(r.transaction.amount) !== 0);
 
         setMatchResults(prev => {
-            console.log(`[CONSISTENCY:SHARED_COLLECTION] Sincronizando resultados do AutoProcess. Cardinalidade base: ${prev.length}`);
             const map = new Map<string, MatchResult>();
 
             // Preserva estado atual
@@ -191,9 +190,7 @@ export const useTransactionMatcher = ({
                 map.set(r.transaction.id, r);
             });
 
-            const final = Array.from(map.values());
-            console.log(`[CONSISTENCY:SHARED_COLLECTION] Cardinalidade final após AutoProcess: ${final.length}`);
-            return final;
+            return Array.from(map.values()).filter(r => Number(r.transaction.amount) !== 0);
         });
         setHasActiveSession(true);
 
@@ -228,7 +225,6 @@ export const useTransactionMatcher = ({
     }, [matchResults]);
 
     const markAsLaunched = useCallback((txId: string) => {
-        console.log(`[CONSISTENCY:BLOCK_REMOVE] Encaminhando item ${txId} para Lançados. Mantendo na coleção principal para consistência.`);
         setMatchResults(prev => {
             const itemIndex = prev.findIndex(r => r.transaction.id === txId);
             if (itemIndex === -1) return prev;
@@ -240,9 +236,7 @@ export const useTransactionMatcher = ({
                 ...launched
             ]);
 
-            // 🔥 CONSISTENCY: Em vez de remover, marcamos como lançado (status especial ou flag)
-            // Para manter a cardinalidade entre usuários, o item deve permanecer no array.
-            return prev.map(r => r.transaction.id === txId ? { ...r, status: ReconciliationStatus.RESOLVED, isConfirmed: true, _isLaunched: true } : r);
+            return prev.filter(r => r.transaction.id !== txId);
         });
     }, [setMatchResults, setLaunchedResults]);
 
@@ -320,10 +314,8 @@ export const useTransactionMatcher = ({
     }, [setBulkIdentificationTxs]);
 
     const removeTransaction = useCallback((id: string) => {
-        console.log(`[CONSISTENCY:BLOCK_REMOVE] Tentativa de remoção bloqueada para ID: ${id}. Resetando status.`);
         batchState.isAtomicUpdate = true;
-        // setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
-        setMatchResults(prev => prev.map(r => r.transaction.id === id ? { ...r, status: ReconciliationStatus.UNIDENTIFIED, isConfirmed: false } : r));
+        setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
     }, [setMatchResults]);
 
     return {

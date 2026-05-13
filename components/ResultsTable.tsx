@@ -1,4 +1,4 @@
-import React, { memo, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useContext, useState, useCallback, useEffect } from 'react';
 import { MatchResult } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
@@ -36,58 +36,14 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
     );
 };
 
-const ROW_HEIGHT = 44;
-const OVERSCAN = 10;
-
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
     const { toggleConfirmation } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const [visibleRange, setVisibleRange] = useState({ start: 0, end: 40 });
-    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => { 
         setSelectedIds([]); 
     }, [results.length]);
-
-    const handleScroll = useCallback(() => {
-        if (!containerRef.current) return;
-        const { scrollTop, clientHeight } = containerRef.current;
-        
-        const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
-        const end = Math.min(results.length, Math.ceil((scrollTop + clientHeight) / ROW_HEIGHT) + OVERSCAN);
-        
-        setVisibleRange(prev => {
-            if (prev.start === start && prev.end === end) return prev;
-            console.log(`[VIRTUAL_LIST:VISIBLE_RANGE] start: ${start}, end: ${end}, total: ${results.length}`);
-            return { start, end };
-        });
-    }, [results.length]);
-
-    useEffect(() => {
-        const container = containerRef.current;
-        if (container) {
-            container.addEventListener('scroll', handleScroll, { passive: true });
-            handleScroll();
-            return () => container.removeEventListener('scroll', handleScroll);
-        }
-    }, [handleScroll]);
-
-    // Reset scroll when results change significantly
-    useEffect(() => {
-        if (containerRef.current) {
-            containerRef.current.scrollTop = 0;
-            setVisibleRange({ start: 0, end: 40 });
-            console.log('[VIRTUAL_LIST:SKIP_FULL_RENDER] Lista ResultsTable reiniciada.');
-        }
-    }, [results.length]);
-
-    const virtualizedData = useMemo(() => {
-        return results.slice(visibleRange.start, visibleRange.end);
-    }, [results, visibleRange]);
-
-    const spacerTopHeight = visibleRange.start * ROW_HEIGHT;
-    const spacerBottomHeight = Math.max(0, (results.length - visibleRange.end) * ROW_HEIGHT);
 
     const toggleSelection = useCallback((id: string) => {
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -143,7 +99,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
     onClear={() => setSelectedIds([])} 
 />
 
-            <div ref={containerRef} className="overflow-x-auto custom-scrollbar relative">
+            <div className="overflow-x-auto custom-scrollbar relative">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50/95 dark:bg-slate-800/95 border-b border-slate-200/60 dark:border-slate-700 backdrop-blur-md sticky top-0 z-20">
                         <tr>
@@ -160,8 +116,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {spacerTopHeight > 0 && <tr><td colSpan={10} style={{ height: `${spacerTopHeight}px` }}></td></tr>}
-                        {virtualizedData.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed }) => {
+                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed }) => {
                             const isSelected = selectedIds.includes(transaction.id);
 
                             // 🧠 Fonte única de verdade
@@ -232,7 +187,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                 </tr>
                             );
                         })}
-                        {spacerBottomHeight > 0 && <tr><td colSpan={10} style={{ height: `${spacerBottomHeight}px` }}></td></tr>}
                     </tbody>
                 </table>
             </div>

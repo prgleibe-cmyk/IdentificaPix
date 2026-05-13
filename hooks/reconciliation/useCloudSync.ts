@@ -351,30 +351,27 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
-                        // DELETE: 🛡️ CONSISTENCY:BLOCK_REMOVE - Nunca removemos itens da coleção viva para garantir cardinalidade idêntica entre usuários.
-                        if (payload.eventType === 'DELETE') {
-                            const deletedId = payload.old?.id;
-                            if (deletedId) {
-                                console.log(`[CONSISTENCY:BLOCK_REMOVE] Bloqueando remoção física do ID: ${deletedId}. Resetando para UNIDENTIFIED.`);
-                                setMatchResults(prev => prev.map(r => r.transaction.id === deletedId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED, isConfirmed: false } : r));
-                            }
-                            return;
+                    // DELETE: Agora usamos map em vez de filter para nunca remover itens do estado em tempo real
+                    if (payload.eventType === 'DELETE') {
+                        const deletedId = payload.old?.id;
+                        if (deletedId) {
+                            setMatchResults(prev => prev.map(r => r.transaction.id === deletedId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED } : r));
                         }
+                        return;
+                    }
 
-                        if (payload.new) {
-                            const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
+                    if (payload.new) {
+                        const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
+                        
+                        batchState.isAtomicUpdate = true;
+                        setMatchResults(prev => {
+                            const idx = prev.findIndex(r => r.transaction.id === id);
                             
-                            console.log(`[CONSISTENCY:ATOMIC_ONLY] Recebendo update realtime para ID: ${id}`);
-                            batchState.isAtomicUpdate = true;
-                            setMatchResults(prev => {
-                                const idx = prev.findIndex(r => r.transaction.id === id);
-                                
-                                // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
-                                // Isso garante a sincronização em tempo real entre dispositivos.
-                                if (idx === -1) {
-                                    console.log(`[CONSISTENCY:SHARED_COLLECTION] Novo item detectado via realtime: ${id}. Adicionando à coleção compartilhada.`);
-                                    // NUNCA retornar antes ou remover — garantimos que o item sempre entre no array
-                                    const t = payload.new;
+                            // 🛡️ ADIÇÃO AUTOMÁTICA: Se o item não existe localmente, criamos e adicionamos.
+                            // Isso garante a sincronização em tempo real entre dispositivos.
+                            if (idx === -1) {
+                                // NUNCA retornar antes ou remover — garantimos que o item sempre entre no array
+                                const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
                                 const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                                 const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
@@ -420,7 +417,7 @@ export const useCloudSync = ({
                             }
                             
                             if (status === 'pending') {
-                                console.log(`[CONSISTENCY:ATOMIC_ONLY] Transação ${id} movida para pendente via realtime, atualizando em vez de remover.`);
+                                console.log(`[REALTIME:UPDATE_INSTEAD_REMOVE] Transação ${id} movida para pendente, atualizando em vez de remover.`);
                             }
 
                             const current = prev[idx];
