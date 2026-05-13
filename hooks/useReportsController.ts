@@ -56,7 +56,7 @@ export const useReportsController = () => {
             if (stableKey !== syncHashRef.current) {
                 // 🛡️ BLOQUEIO ATÔMICO: Se a mudança foi atômica (confirmar/realtime), não sincronizamos o preview global
                 if (batchState.isAtomicUpdate) {
-                    console.log("[useReportsController] Pulando sincronização de preview (atualização atômica)");
+                    console.log("[CONSISTENCY:ATOMIC_ONLY] Pulando sincronização de preview (atualização atômica detectada)");
                     // Marcamos como sincronizado para evitar disparos subsequentes para o mesmo estado
                     syncHashRef.current = stableKey;
                     return;
@@ -74,14 +74,13 @@ export const useReportsController = () => {
 
                     // 🛡️ BLOQUEIO DE SINCRONIZAÇÃO REDUNDANTE DURANTE REALTIME ATIVO
                     // Se houve um sync há menos de 1.5 segundos, pulamos este para evitar tempestade de processamento
-                    // Isso é essencial quando múltiplos deltas realtime chegam em sequência rápida
                     if (timeSinceLastSync < 1500) {
-                        console.log("[useReportsController] Sync redundante bloqueado (sessão realtime ativa/estabilizada)");
+                        console.log("[CONSISTENCY:SHARED_COLLECTION] Sync redundante bloqueado (sessão realtime ativa/estabilizada)");
                         return;
                     }
 
                     isProcessingRef.current = true;
-                    console.log("[useReportsController] Sincronizando preview de relatório...");
+                    console.log("[CONSISTENCY:SHARED_COLLECTION] Sincronizando preview de relatório a partir da coleção viva...");
                     syncHashRef.current = stableKey;
                     lastSyncTimeRef.current = now;
                     
@@ -92,7 +91,7 @@ export const useReportsController = () => {
                     } finally {
                         isProcessingRef.current = false;
                     }
-                }, 800); // Janela de estabilização aumentada para 800ms
+                }, 800); 
             }
         }
     }, [stableKey, regenerateReportPreview, matchResults]);
