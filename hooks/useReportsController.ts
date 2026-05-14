@@ -246,20 +246,29 @@ export const useReportsController = () => {
                 // 🔥 PATCH LOCAL: Atualiza o estado visual das linhas no grupo de igrejas
                 if (data.length > 0 && matchResults.length > 0) {
                     const matchMap = new Map((matchResults as MatchResult[]).map(r => [r.transaction.id, r]));
-                    data = data.map((r: MatchResult) => {
+                    data = data.reduce((acc: MatchResult[], r: MatchResult) => {
                         const live = matchMap.get(r.transaction.id);
                         if (live) {
-                            return {
+                            // 🛡️ DETACH VISUAL LOCAL: Se o item mudou de igreja ou foi desfeito (undo),
+                            // removemos do array local para feedback imediato na visão atual.
+                            if (activeCategory === 'churches' && selectedReportId) {
+                                const currentChurchId = live.church?.id || live._churchId;
+                                if (currentChurchId !== selectedReportId) return acc;
+                            }
+
+                            acc.push({
                                 ...r,
                                 status: live.status,
                                 isConfirmed: live.isConfirmed,
                                 contributor: live.contributor,
                                 church: live.church,
                                 updatedAt: live.updatedAt
-                            };
+                            });
+                        } else {
+                            acc.push(r);
                         }
-                        return r;
-                    });
+                        return acc;
+                    }, []);
                 }
             }
 
