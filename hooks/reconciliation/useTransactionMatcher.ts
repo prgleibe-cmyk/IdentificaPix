@@ -29,17 +29,6 @@ interface UseTransactionMatcherProps {
     triggerSync?: (updatedRow: MatchResult) => void;
 }
 
-/**
- * @frozen-architecture
- * 🛡️ TRANSACTION MATCHER & PREVIEW SYNC
- * Lógica de processamento de regras, matching e sincronização de preview.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. O debouncing de 1s para 'regenerateReportPreview' é obrigatório para evitar flickering.
- * 2. O 'handleCompare' no modo automático (isAuto) deve SEMPRE preservar IDENTIFIED e CONFIRMED.
- * 3. Proibido disparar 'handleCompare' globalmente em cada mudança de estado.
- * 4. A filtragem de valores 0,00 é estrutural e deve ser mantida em todos os níveis de processamento.
- */
 export const useTransactionMatcher = ({
     subscription,
     user,

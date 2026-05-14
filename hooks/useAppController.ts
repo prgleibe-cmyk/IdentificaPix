@@ -15,13 +15,11 @@ export const useContentController = () => {
     
     // Fallback seguro se o context não estiver pronto (embora deva estar dentro do Provider)
     const initialDataLoaded = context?.initialDataLoaded ?? false;
-    const firstSyncComplete = context?.firstSyncComplete ?? false;
     const savedReports = context?.savedReports ?? [];
 
     return { 
         isLoading, 
         initialDataLoaded,
-        firstSyncComplete,
         toast,
         savedReports
     };

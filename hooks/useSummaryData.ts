@@ -3,17 +3,6 @@ import { MatchResult } from '../types';
 import { groupResultsByChurch } from '../services/processingService';
 import { useAuth } from '../contexts/AuthContext';
 
-/**
- * @frozen-architecture
- * 🛡️ SUMMARY DATA CALCULATION
- * Motor de cálculo de estatísticas e métricas do dashboard.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. Manter a aplicação explícita dos filtros de segurança (isSecondary) e período (dateRange).
- * 2. O cálculo deve SEMPRE diferenciar entre valor automático, manual e pendente.
- * 3. O agrupamento por igreja deve utilizar o 'groupResultsByChurch' canônico para consistência com os relatórios.
- * 4. Jamais remover a filtragem por 'selectedBankId' que permite visões departamentais.
- */
 export const useSummaryData = (reconciliation: any, reportManager: any, selectedBankId?: string | null) => {
     const { subscription } = useAuth();
 

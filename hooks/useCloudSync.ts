@@ -14,16 +14,6 @@ interface UseCloudSyncProps {
     churches: any[];
 }
 
-/**
- * @frozen-architecture
- * 🛡️ CLOUD SYNC & SESSION RECONSTRUCTION
- * Esta lógica é crítica para a consistência multi-usuário e integridade dos dados.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. Não substituir a hidratação incremental por reconstrução total automática.
- * 2. Manter a detecção de mudanças baseada em payload (lastCloudSyncRef).
- * 3. Preservar o vínculo com objetos de igreja (Hidratação) para manter a UI estável.
- */
 export const useCloudSync = ({
     user,
     effectiveUserId,

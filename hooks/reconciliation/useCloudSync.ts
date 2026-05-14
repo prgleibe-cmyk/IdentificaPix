@@ -25,18 +25,6 @@ interface UseCloudSyncProps {
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
 
-/**
- * @frozen-architecture
- * 🛡️ CLOUD SYNC & SESSION RECONSTRUCTION (SINC/HIDRATAÇÃO)
- * Esta lógica reside no núcleo da consistência multi-usuário do sistema.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. O 'reconstructSession' deve permanecer incremental e atômico (puxando registros individuais).
- * 2. Manter a proteção 'BLOCK_REGRESSION' baseada em timestamp (updated_at) em todos os merges de estado.
- * 3. O Realtime deve seguir o padrão 'UPDATE_INSTEAD_REMOVE' para evitar flicker visual e perda de dados.
- * 4. O 'PostReconstruct:BLOCK' deve impedir o AutoProcess global em atualizações atômicas.
- * 5. Manter a janela de estabilização (debounce) de 800ms para disparos de processamento pós-hidratação.
- */
 export const useCloudSync = ({
     user,
     effectiveUserId,
@@ -68,7 +56,6 @@ export const useCloudSync = ({
     const lastAutoProcessTimeRef = useRef<number>(0);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
-    const [firstSyncComplete, setFirstSyncComplete] = useState(false);
     const isReady =
         !!effectiveUserId &&
         Array.isArray(churches) &&
@@ -132,7 +119,7 @@ export const useCloudSync = ({
                 return;
             }
 
-            console.log("[BOOTSTRAP_SYNC:START] Reconstruindo sessão ativa a partir de registros individuais...");
+            console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
             needsRetry.current = false;
 
@@ -321,8 +308,6 @@ export const useCloudSync = ({
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
             } finally {
                 isHydratingFromCloud.current = false;
-                setFirstSyncComplete(true);
-                console.log('[BOOTSTRAP_SYNC:COMPLETE] Primeira sincronização oficial concluída.');
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
@@ -719,7 +704,6 @@ export const useCloudSync = ({
 
     return {
         syncToCloud,
-        isHydratingFromCloud,
-        firstSyncComplete
+        isHydratingFromCloud
     };
 };

@@ -16,17 +16,6 @@ import { useCloudSync } from './reconciliation/useCloudSync';
 import { useFileProcessor } from './reconciliation/useFileProcessor';
 import { useTransactionMatcher } from './reconciliation/useTransactionMatcher';
 
-/**
- * @frozen-architecture
- * 🛡️ RECONCILIATION ORCHESTRATION (O MAESTRO)
- * Orquestrador central do fluxo de reconciliação e sincronização.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. O 'triggerSync' deve manter o payload canônico idêntico ao esperado pelo AppContext.
- * 2. Manter a separação entre 'matchResults' (filtrado por segurança) e 'fullMatchResults' (completo).
- * 3. O 'resetReconciliation' deve limpar o estado remoto (clearRemoteList) e local sincronizadamente.
- * 4. Jamais alterar as chaves de persistência (identificapix-*) para não corromper caches de usuários.
- */
 export const useReconciliation = (props: any) => {
     const {
         user,

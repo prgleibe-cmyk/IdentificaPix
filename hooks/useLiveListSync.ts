@@ -5,17 +5,6 @@ import { LaunchService } from '../services/LaunchService';
 import { useUI } from '../contexts/UIContext';
 import { supabase } from '../services/supabaseClient';
 
-/**
- * @frozen-architecture
- * 🛡️ LIVE LIST SYNCHRONIZATION (LISTA VIVA)
- * Arquitetura de Sincronização em Tempo Real e Persistência Atômica.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. O 'hydrate' deve permanecer como o único funil de saída (Single Source of Truth na UI).
- * 2. O Realtime (📡) deve ser mantido atômico por canal de usuário (ownerId).
- * 3. Não remover a filtragem de valores 0,00 para garantir a integridade financeira da lista.
- * 4. Jamais substituir o fluxo incremental por um reset global de runtime.
- */
 export const useLiveListSync = ({
     user,
     subscription,

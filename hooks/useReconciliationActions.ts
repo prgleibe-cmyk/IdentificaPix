@@ -12,18 +12,6 @@ interface UseReconciliationActionsProps {
   onAfterAction?: (updatedResults: MatchResult[]) => void;
 }
 
-/**
- * @frozen-architecture
- * 🛡️ RECONCILIATION ACTIONS (GATILHOS DE ESTADO)
- * Ações de confirmação, identificação e reversão de transações.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. Manter a ativação das flags 'batchState.isBatchUpdating' e 'batchState.isAtomicUpdate' 
- *    durante as operações de lote e individuais.
- * 2. Toda ação de estado deve disparar 'reconciliation.triggerSync' para propagação realtime.
- * 3. Preservar o 'buildSafeContributor' para evitar 'null pointers' em campos de contributor obrigatórios.
- * 4. Jamais remover a chamada 'onAfterAction' (persistActiveReport) que garante a persistência do snapshot.
- */
 export const useReconciliationActions = ({
   reconciliation,
   referenceData,

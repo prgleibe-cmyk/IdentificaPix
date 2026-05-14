@@ -11,18 +11,6 @@ import { batchState } from './reconciliation/useCloudSync';
 
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
 
-/**
- * @frozen-architecture
- * 🛡️ REPORTS CONTROLLER (A LENTE)
- * Controlador de exibição, filtragem e sincronização de previews de relatórios.
- * 
- * REGRAS DE CONGELAMENTO:
- * 1. O 'stableKey' deve permanecer como o gatilho único para sincronização de preview.
- * 2. Manter o BLOQUEIO DE SINCRONIZAÇÃO REDUNDANTE (< 1.5s) para estabilidade durante realtime.
- * 3. A 'activeData' deve preferir 'matchResults' diretamente para categorias simples ('general', 'unidentified', 'expenses') 
- *    para permitir atualizações visuais atômicas sem rebuild global do preview.
- * 4. Jamais remover os filtros de segurança e multitenancy aplicados em 'activeData' e 'churchList'.
- */
 export const useReportsController = () => {
     const { 
         reportPreviewData, 
