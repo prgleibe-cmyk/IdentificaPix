@@ -55,7 +55,13 @@ export const useReportsController = () => {
         if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
             if (stableKey !== syncHashRef.current) {
                 // 🛡️ BLOQUEIO ATÔMICO: Se a mudança foi atômica (confirmar/realtime), não sincronizamos o preview global
-                if (batchState.isAtomicUpdate) {
+                // EXCETO se for um "Undo" (status voltou para pending ou church_id removido), para garantir feedback visual imediato
+                const prevParts = syncHashRef.current.split('-').map(Number);
+                const currParts = stableKey.split('-').map(Number);
+                // currParts[1] = identified count, currParts[3] = church count
+                const isUndoAction = prevParts.length === 4 && (currParts[1] < prevParts[1] || currParts[3] < prevParts[3]);
+
+                if (batchState.isAtomicUpdate && !isUndoAction) {
                     console.log("[useReportsController] Pulando sincronização de preview (atualização atômica)");
                     // Marcamos como sincronizado para evitar disparos subsequentes para o mesmo estado
                     syncHashRef.current = stableKey;
