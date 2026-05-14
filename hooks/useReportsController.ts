@@ -55,13 +55,7 @@ export const useReportsController = () => {
         if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
             if (stableKey !== syncHashRef.current) {
                 // 🛡️ BLOQUEIO ATÔMICO: Se a mudança foi atômica (confirmar/realtime), não sincronizamos o preview global
-                // EXCETO se for um "Undo" (status voltou para pending ou church_id removido), para garantir feedback visual imediato
-                const prevParts = syncHashRef.current.split('-').map(Number);
-                const currParts = stableKey.split('-').map(Number);
-                // currParts[1] = identified count, currParts[3] = church count
-                const isUndoAction = prevParts.length === 4 && (currParts[1] < prevParts[1] || currParts[3] < prevParts[3]);
-
-                if (batchState.isAtomicUpdate && !isUndoAction) {
+                if (batchState.isAtomicUpdate) {
                     console.log("[useReportsController] Pulando sincronização de preview (atualização atômica)");
                     // Marcamos como sincronizado para evitar disparos subsequentes para o mesmo estado
                     syncHashRef.current = stableKey;
@@ -246,29 +240,29 @@ export const useReportsController = () => {
                 // 🔥 PATCH LOCAL: Atualiza o estado visual das linhas no grupo de igrejas
                 if (data.length > 0 && matchResults.length > 0) {
                     const matchMap = new Map((matchResults as MatchResult[]).map(r => [r.transaction.id, r]));
-                    data = data.reduce((acc: MatchResult[], r: MatchResult) => {
+                    data = data.map((r: MatchResult) => {
                         const live = matchMap.get(r.transaction.id);
                         if (live) {
-                            // 🛡️ DETACH VISUAL LOCAL: Se o item mudou de igreja ou foi desfeito (undo),
-                            // removemos do array local para feedback imediato na visão atual.
-                            if (activeCategory === 'churches' && selectedReportId) {
-                                const currentChurchId = live.church?.id || live._churchId;
-                                if (currentChurchId !== selectedReportId) return acc;
-                            }
-
-                            acc.push({
+                            return {
                                 ...r,
                                 status: live.status,
                                 isConfirmed: live.isConfirmed,
                                 contributor: live.contributor,
                                 church: live.church,
+                                _churchId: live._churchId,
                                 updatedAt: live.updatedAt
-                            });
-                        } else {
-                            acc.push(r);
+                            };
                         }
-                        return acc;
-                    }, []);
+                        return r;
+                    });
+
+                    // 🔥 EJEÇÃO VISUAL: Se o item live não pertencer mais ao selectedReportId atual, removemos do array visual imediatamente
+                    if (activeCategory === 'churches' && selectedReportId) {
+                        data = data.filter((r: MatchResult) => {
+                            const liveChurchId = r.church?.id || r._churchId;
+                            return liveChurchId === selectedReportId;
+                        });
+                    }
                 }
             }
 
