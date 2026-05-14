@@ -68,6 +68,7 @@ export const useCloudSync = ({
     const lastAutoProcessTimeRef = useRef<number>(0);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
+    const [firstSyncComplete, setFirstSyncComplete] = useState(false);
     const isReady =
         !!effectiveUserId &&
         Array.isArray(churches) &&
@@ -131,7 +132,7 @@ export const useCloudSync = ({
                 return;
             }
 
-            console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
+            console.log("[BOOTSTRAP_SYNC:START] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
             needsRetry.current = false;
 
@@ -320,6 +321,8 @@ export const useCloudSync = ({
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
             } finally {
                 isHydratingFromCloud.current = false;
+                setFirstSyncComplete(true);
+                console.log('[BOOTSTRAP_SYNC:COMPLETE] Primeira sincronização oficial concluída.');
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
@@ -716,6 +719,7 @@ export const useCloudSync = ({
 
     return {
         syncToCloud,
-        isHydratingFromCloud
+        isHydratingFromCloud,
+        firstSyncComplete
     };
 };

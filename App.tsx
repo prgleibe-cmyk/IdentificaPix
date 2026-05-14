@@ -17,10 +17,14 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
-    const { isLoading, initialDataLoaded, toast, savedReports } = useContentController();
+    const { isLoading, initialDataLoaded, firstSyncComplete, toast, savedReports } = useContentController();
     const hasCachedData = !!savedReports?.length;
 
-    if (!initialDataLoaded && !hasCachedData) {
+    // Gate de Bootstrap: Esperamos auth (initialDataLoaded) e a primeira sincronização oficial da nuvem (firstSyncComplete).
+    // O hasCachedData permanece no escopo para garantir compatibilidade estrutural, mas o gate agora é rigoroso.
+    const isReadyForRender = initialDataLoaded && firstSyncComplete;
+
+    if (!isReadyForRender) {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#051024]">
                 <div className="flex flex-col items-center">
