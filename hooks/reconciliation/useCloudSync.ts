@@ -453,8 +453,13 @@ export const useCloudSync = ({
                             const normalizedDesc = strictNormalize(current.transaction.description);
                             const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
-                            const dbChurch = churches.find(c => c.id === church_id);
-                            const newChurch = dbChurch || current.church || PLACEHOLDER_CHURCH;
+                            const dbChurch = church_id ? churches.find(c => c.id === church_id) : null;
+                            
+                            // 🔥 CORREÇÃO REALTIME: Se o status for 'pending' (undo) ou church_id for explicitamente null,
+                            // limpamos a igreja em vez de herdar a antiga (current.church).
+                            const newChurch = (status === 'pending' || church_id === null) 
+                                ? null 
+                                : (dbChurch || (church_id ? PLACEHOLDER_CHURCH : current.church));
                             
                             const newContributor: Contributor | null = assoc ? {
                                 id: contributor_id || undefined,
@@ -476,6 +481,7 @@ export const useCloudSync = ({
                                 reportId: current.reportId || (payload.new as any).report_id,
                                 status: newStatus,
                                 church: newChurch, 
+                                _churchId: church_id, // 🔥 Sincroniza o ID bruto para o filtro de ejeção visual
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
                                 transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
