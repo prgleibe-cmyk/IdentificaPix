@@ -190,7 +190,7 @@ export const useReportsController = () => {
             const churchesCount = allowedIds.length;
             const filteredResults = (matchResults || []).filter(r => allowedIds.includes(r.church?.id || r._churchId));
             const general = filteredResults.length;
-            const pending = filteredResults.filter(r => r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING || !r.isConfirmed).length;
+            const pending = filteredResults.filter(r => r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING).length;
             const expenses = filteredResults.filter(r => (r.transaction?.amount || 0) < 0).length;
             return { general, churches: churchesCount, pending, expenses };
         }
@@ -199,8 +199,7 @@ export const useReportsController = () => {
         const churchesCount = (churchList || []).length;
         const pending = (matchResults || []).filter(r => 
             r.status === ReconciliationStatus.UNIDENTIFIED || 
-            r.status === ReconciliationStatus.PENDING ||
-            !r.isConfirmed
+            r.status === ReconciliationStatus.PENDING
         ).length;
         const expenses = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0).length;
         return { general, churches: churchesCount, pending, expenses };
@@ -220,8 +219,7 @@ export const useReportsController = () => {
             } else if (activeCategory === 'unidentified') {
                 data = (matchResults || []).filter(r => 
                     r.status === ReconciliationStatus.UNIDENTIFIED || 
-                    r.status === ReconciliationStatus.PENDING ||
-                    !r.isConfirmed
+                    r.status === ReconciliationStatus.PENDING
                 );
             } else if (activeCategory === 'expenses') {
                 data = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0);
