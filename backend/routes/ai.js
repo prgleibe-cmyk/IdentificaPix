@@ -2,6 +2,7 @@
 import express from 'express';
 import { Type } from "@google/genai";
 import { generateAiSuggestion } from '../../services/serverHelpers.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 
 // 🛡️ PARSER RESILIENTE (BACKEND VERSION)
@@ -62,6 +63,7 @@ const aiRateLimiter = (req, res, next) => {
 
 export default (ai) => {
     const router = express.Router();
+    router.use(authMiddleware);
     router.use(aiRateLimiter);
 
     router.post('/suggestion', async (req, res) => {
