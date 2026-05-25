@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
-import { ViewType } from '../../types';
+import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
 import { 
     HomeIcon, 
     UploadIcon, 
@@ -31,7 +31,7 @@ export const Sidebar: React.FC = () => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings } = useAuth();
-    const { openPaymentModal } = useContext(AppContext);
+    const { openPaymentModal, setMatchResults, setBulkIdentificationTxs, churches } = useContext(AppContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -60,6 +60,50 @@ export const Sidebar: React.FC = () => {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') setDeferredPrompt(null);
+    };
+
+    const handleManualLaunch = (type: 'entrada' | 'saida') => {
+        const amountStr = window.prompt("Digite o valor da transação (Ex: 1500,00):");
+        if (!amountStr) return;
+
+        let amountFloat = parseFloat(amountStr.replace(/[^\d.-]/g, '').replace(',', '.'));
+        if (isNaN(amountFloat) || amountFloat === 0) {
+            alert("Por favor, digite um valor válido.");
+            return;
+        }
+
+        if (type === 'saida') {
+            amountFloat = -Math.abs(amountFloat);
+        } else {
+            amountFloat = Math.abs(amountFloat);
+        }
+
+        const description = window.prompt("Descrição do lançamento (Opcional):") || "Lançamento Manual";
+
+        const manualTxId = `ghost-manual-${Date.now()}`;
+        const newTx: Transaction = {
+            id: manualTxId,
+            date: new Date().toISOString().split('T')[0],
+            description: description,
+            rawDescription: description,
+            amount: amountFloat,
+            isConfirmed: false
+        };
+
+        const defaultChurch = churches[0] || { id: '', name: 'Sem Igreja', address: '', logoUrl: '' };
+
+        const newMatchResult: MatchResult = {
+            transaction: newTx,
+            contributor: null,
+            status: ReconciliationStatus.PENDING,
+            church: defaultChurch,
+            isConfirmed: false,
+            updatedAt: new Date().toISOString()
+        };
+
+        setIsNewLaunchModalOpen(false);
+        setMatchResults((prev: any) => [...prev, newMatchResult]);
+        setBulkIdentificationTxs([newTx]);
     };
 
     const isSecondaryUser = subscription.ownerId && subscription.ownerId !== user?.id;
@@ -183,7 +227,7 @@ export const Sidebar: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => setIsNewLaunchModalOpen(true)}
-                        className={`flex items-center justify-center rounded-full text-white bg-gradient-to-r from-brand-blue to-blue-600 hover:from-blue-700 hover:to-blue-500 shadow-lg shadow-brand-blue/30 hover:-translate-y-0.5 active:scale-95 transition-all ${isCollapsed ? 'p-3 w-12 h-12 mx-auto' : 'w-full py-3 px-5 gap-2.5'} text-[10px] font-black uppercase tracking-wider`}
+                        className={`relative w-full flex items-center rounded-full text-white bg-gradient-to-r from-brand-blue to-blue-600 hover:from-blue-700 hover:to-blue-500 shadow-lg shadow-brand-blue/30 hover:-translate-y-0.5 active:scale-95 transition-all duration-300 ${isCollapsed ? 'justify-center p-2.5 w-10 h-10 mx-auto' : 'px-4 py-2.5 gap-3'} text-xs font-bold tracking-wide uppercase`}
                         title="Novo Lançamento"
                         id="btn-novo-lancamento"
                     >
@@ -266,8 +310,7 @@ export const Sidebar: React.FC = () => {
                                 </div>
                             )}
                         </div>
-                        
-                        <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2.5 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                      <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2.5 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             {isLoggingOut ? <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />}
                         </button>
                     </div>
@@ -286,50 +329,52 @@ export const Sidebar: React.FC = () => {
                 onClick={() => setIsNewLaunchModalOpen(false)}
             >
                 <div 
-                    className="glass-modal w-full max-w-md animate-scale-in"
+                    className="glass-modal w-full max-w-md animate-scale-in rounded-[2rem] shadow-2xl border-0 bg-white dark:bg-[#0F172A]"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="p-8">
                         {/* Header Premium */}
-                        <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-xl font-black text-brand-graphite dark:text-white tracking-tight">Novo Lançamento</h3>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">Novo Lançamento</h3>
                             <button 
                                 type="button" 
                                 onClick={() => setIsNewLaunchModalOpen(false)} 
-                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
                                 id="close-launch-modal"
                             >
                                 <XMarkIcon className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-4 mb-8 font-medium">Selecione o tipo de transação que deseja lançar manualmente.</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-400 mb-8 font-medium">Selecione o tipo de transação que deseja lançar manualmente.</p>
 
                         <div className="grid grid-cols-2 gap-4">
                             <button
                                 type="button"
-                                className="flex flex-col items-center justify-center p-6 rounded-[1.5rem] bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 transition-all duration-200 hover:-translate-y-1 active:scale-95 group shadow-sm cursor-pointer"
+                                onClick={() => handleManualLaunch('entrada')}
+                                className="flex flex-col items-center justify-center p-8 rounded-[1.5rem] bg-[#E8FBF4] dark:bg-emerald-950/10 hover:bg-[#DDF8ED] dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 transition-all duration-200 cursor-pointer"
                                 id="btn-entrada"
                             >
-                                <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(16,185,129,0.3)] group-hover:scale-110 transition-transform">
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                <div className="w-12 h-12 rounded-full bg-[#10B981] text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(16,185,129,0.2)]">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                                     </svg>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider">Entrada</span>
+                                <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">Entrada</span>
                             </button>
 
                             <button
                                 type="button"
-                                className="flex flex-col items-center justify-center p-6 rounded-[1.5rem] bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 border border-rose-100/50 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 transition-all duration-200 hover:-translate-y-1 active:scale-95 group shadow-sm cursor-pointer"
+                                onClick={() => handleManualLaunch('saida')}
+                                className="flex flex-col items-center justify-center p-8 rounded-[1.5rem] bg-[#FFF1F2] dark:bg-rose-950/10 hover:bg-[#FFE4E6] dark:hover:bg-rose-950/20 text-rose-700 dark:text-rose-400 transition-all duration-200 cursor-pointer"
                                 id="btn-saida"
                             >
-                                <div className="w-12 h-12 rounded-full bg-rose-500 text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(244,63,94,0.3)] group-hover:scale-110 transition-transform">
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                <div className="w-12 h-12 rounded-full bg-[#F43F5E] text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(244,63,94,0.2)]">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                                     </svg>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider">Saída</span>
+                                <span className="text-xs font-bold uppercase tracking-wider text-[#F43F5E]">Saída</span>
                             </button>
                         </div>
                     </div>
