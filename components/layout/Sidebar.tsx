@@ -109,9 +109,7 @@ export const Sidebar: React.FC = () => {
     const isSecondaryUser = subscription.ownerId && subscription.ownerId !== user?.id;
 
     const navItems = useMemo(() => {
-        const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [
-            { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-5 h-5"/> },
-        ];
+        const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [];
 
         // Lançar Dados (upload) apenas para o proprietário (Owner)
         if (!isSecondaryUser) {
@@ -222,21 +220,31 @@ export const Sidebar: React.FC = () => {
                     )}
                 </div>
 
-                {/* Botão Novo Lançamento */}
-                <div className="px-4 py-3 shrink-0 relative z-30">
+                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar relative z-20 min-h-0">
+                    {/* Botão Dashboard */}
+                    <button
+                        type="button"
+                        onClick={() => setActiveView('dashboard')}
+                        className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === 'dashboard' ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                    >
+                        <HomeIcon className={`w-5 h-5 transition-transform ${activeView === 'dashboard' ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}`} />
+                        {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{t('nav.dashboard')}</span>}
+                        {activeView === 'dashboard' && !isCollapsed && (
+                            <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-brand-teal shadow-[0_0_8px_rgba(79,230,208,0.8)]"></div>
+                        )}
+                    </button>
+
+                    {/* Botão Novo Lançamento (harmonizado, sem cor azul) */}
                     <button
                         type="button"
                         onClick={() => setIsNewLaunchModalOpen(true)}
-                        className={`relative w-full flex items-center rounded-full text-white bg-gradient-to-r from-brand-blue to-blue-600 hover:from-blue-700 hover:to-blue-500 shadow-lg shadow-brand-blue/30 hover:-translate-y-0.5 active:scale-95 transition-all duration-300 ${isCollapsed ? 'justify-center p-2.5 w-10 h-10 mx-auto' : 'px-4 py-2.5 gap-3'} text-xs font-bold tracking-wide uppercase`}
+                        className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} text-slate-400 hover:text-white hover:bg-white/5`}
                         title="Novo Lançamento"
                         id="btn-novo-lancamento"
                     >
-                        <PlusCircleIcon className="w-5 h-5 shrink-0" />
-                        {!isCollapsed && <span className="truncate">Novo Lançamento</span>}
+                        <PlusCircleIcon className="w-5 h-5 transition-transform group-hover:scale-110" />
+                        {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">Novo Lançamento</span>}
                     </button>
-                </div>
-
-                <nav className="flex-1 px-4 space-y-1 py-1 overflow-y-auto custom-scrollbar relative z-20 min-h-0">
                     {navItems.map((item) => (
                         <button
                             key={item.view}
