@@ -23,7 +23,8 @@ import {
     TableCellsIcon,
     CloudArrowUpIcon,
     LinkIcon,
-    UserIcon
+    UserIcon,
+    XMarkIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -182,12 +183,12 @@ export const Sidebar: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => setIsNewLaunchModalOpen(true)}
-                        className={`flex items-center justify-center rounded-full text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all ${isCollapsed ? 'p-3 w-12 h-12 mx-auto' : 'w-full py-3 px-4 gap-2.5'}`}
+                        className={`flex items-center justify-center rounded-full text-white bg-gradient-to-r from-brand-blue to-blue-600 hover:from-blue-700 hover:to-blue-500 shadow-lg shadow-brand-blue/30 hover:-translate-y-0.5 active:scale-95 transition-all ${isCollapsed ? 'p-3 w-12 h-12 mx-auto' : 'w-full py-3 px-5 gap-2.5'} text-[10px] font-black uppercase tracking-wider`}
                         title="Novo Lançamento"
                         id="btn-novo-lancamento"
                     >
                         <PlusCircleIcon className="w-5 h-5 shrink-0" />
-                        {!isCollapsed && <span className="text-xs font-black uppercase tracking-wider">Novo Lançamento</span>}
+                        {!isCollapsed && <span className="truncate">Novo Lançamento</span>}
                     </button>
                 </div>
 
@@ -280,56 +281,57 @@ export const Sidebar: React.FC = () => {
 
         {isNewLaunchModalOpen && (
             <div 
-                className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in" 
+                className="glass-overlay animate-fade-in z-[9999]" 
                 id="new-launch-modal" 
                 onClick={() => setIsNewLaunchModalOpen(false)}
             >
                 <div 
-                    className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800 w-full max-w-md overflow-hidden transform transition-all duration-300 scale-100 p-8 flex flex-col relative"
+                    className="glass-modal w-full max-w-md animate-scale-in"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Botão Fechar */}
-                    <button 
-                        onClick={() => setIsNewLaunchModalOpen(false)}
-                        className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        id="close-launch-modal"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                    <div className="p-8">
+                        {/* Header Premium */}
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-xl font-black text-brand-graphite dark:text-white tracking-tight">Novo Lançamento</h3>
+                            <button 
+                                type="button" 
+                                onClick={() => setIsNewLaunchModalOpen(false)} 
+                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                id="close-launch-modal"
+                            >
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
 
-                    <div className="text-center mb-6">
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Novo Lançamento</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Selecione o tipo de transação que deseja lançar manualmente.</p>
-                    </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-4 mb-8 font-medium">Selecione o tipo de transação que deseja lançar manualmente.</p>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <button
-                            type="button"
-                            className="flex flex-col items-center justify-center p-6 rounded-[1.5rem] bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 transition-all duration-200 hover:-translate-y-1 active:scale-95 group shadow-sm cursor-pointer"
-                            id="btn-entrada"
-                        >
-                            <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(16,185,129,0.3)] group-hover:scale-110 transition-transform">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                </svg>
-                            </div>
-                            <span className="text-sm font-black uppercase tracking-wider">Entrada</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                type="button"
+                                className="flex flex-col items-center justify-center p-6 rounded-[1.5rem] bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/10 dark:hover:bg-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 transition-all duration-200 hover:-translate-y-1 active:scale-95 group shadow-sm cursor-pointer"
+                                id="btn-entrada"
+                            >
+                                <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(16,185,129,0.3)] group-hover:scale-110 transition-transform">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                    </svg>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-wider">Entrada</span>
+                            </button>
 
-                        <button
-                            type="button"
-                            className="flex flex-col items-center justify-center p-6 rounded-[1.5rem] bg-rose-50 hover:bg-rose-105 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 border border-rose-100/50 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 transition-all duration-200 hover:-translate-y-1 active:scale-95 group shadow-sm cursor-pointer"
-                            id="btn-saida"
-                        >
-                            <div className="w-12 h-12 rounded-full bg-rose-500 text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(244,63,94,0.3)] group-hover:scale-110 transition-transform">
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                            </div>
-                            <span className="text-sm font-black uppercase tracking-wider">Saída</span>
-                        </button>
+                            <button
+                                type="button"
+                                className="flex flex-col items-center justify-center p-6 rounded-[1.5rem] bg-rose-50 hover:bg-rose-100/80 dark:bg-rose-950/10 dark:hover:bg-rose-950/20 border border-rose-100/50 dark:border-rose-900/30 text-rose-700 dark:text-rose-400 transition-all duration-200 hover:-translate-y-1 active:scale-95 group shadow-sm cursor-pointer"
+                                id="btn-saida"
+                            >
+                                <div className="w-12 h-12 rounded-full bg-rose-500 text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(244,63,94,0.3)] group-hover:scale-110 transition-transform">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                    </svg>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-wider">Saída</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
