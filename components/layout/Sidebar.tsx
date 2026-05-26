@@ -386,29 +386,25 @@ export const Sidebar: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('entrada')}
-                                className="flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 border-slate-100 dark:border-white/5 bg-slate-50 hover:bg-emerald-50/30 hover:border-emerald-500/35 dark:bg-black/10 dark:hover:bg-emerald-950/10 dark:hover:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 transition-all duration-300 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 group"
+                                className="px-6 py-3 text-[10px] font-black rounded-full border border-emerald-300 dark:border-emerald-600/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/25 transition-all uppercase tracking-widest cursor-pointer flex items-center justify-center gap-2"
                                 id="btn-entrada"
                             >
-                                <div className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                    </svg>
-                                </div>
-                                <span className="text-xs font-black uppercase tracking-widest">Entrada</span>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                </svg>
+                                <span>Entrada</span>
                             </button>
 
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('saida')}
-                                className="flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 border-slate-100 dark:border-white/5 bg-slate-50 hover:bg-rose-50/30 hover:border-rose-500/35 dark:bg-black/10 dark:hover:bg-rose-950/10 dark:hover:border-rose-500/30 text-rose-600 dark:text-rose-400 transition-all duration-300 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 group"
+                                className="px-6 py-3 text-[10px] font-black rounded-full border border-rose-300 dark:border-rose-600/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/25 transition-all uppercase tracking-widest cursor-pointer flex items-center justify-center gap-2"
                                 id="btn-saida"
                             >
-                                <div className="w-14 h-14 rounded-full bg-rose-500 text-white flex items-center justify-center mb-4 shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform">
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                    </svg>
-                                </div>
-                                <span className="text-xs font-black uppercase tracking-widest">Saída</span>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                                <span>Saída</span>
                             </button>
                         </div>
                     </div>
