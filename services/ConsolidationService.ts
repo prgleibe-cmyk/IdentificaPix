@@ -310,9 +310,12 @@ console.log('[FIX:PERSIST_FIELDS]', {
 
 console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
 
+// Remove contribution_type and payment_method strictly for the database update payload
+const { contribution_type: _unused1, payment_method: _unused2, ...dbUpdatePayload } = safeUpdateData;
+
 const { data, error } = await (supabase as any)
     .from('consolidated_transactions')
-    .update(safeUpdateData)
+    .update(dbUpdatePayload)
     .eq('id', id)
     .select();
 
