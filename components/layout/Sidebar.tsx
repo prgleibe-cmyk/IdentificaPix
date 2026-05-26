@@ -55,6 +55,17 @@ export const Sidebar: React.FC = () => {
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
+    // Fechar modal de Novo Lançamento com a tecla Escape (idêntico ao Destinar Lote)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isNewLaunchModalOpen) {
+                setIsNewLaunchModalOpen(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isNewLaunchModalOpen]);
+
     const handleInstallApp = async () => {
         if (!deferredPrompt) return;
         deferredPrompt.prompt();
@@ -337,54 +348,80 @@ export const Sidebar: React.FC = () => {
                 onClick={() => setIsNewLaunchModalOpen(false)}
             >
                 <div 
-                    className="glass-modal w-full max-w-md animate-scale-in rounded-[2rem] shadow-2xl border-0 bg-white dark:bg-[#0F172A]"
+                    className="glass-modal w-full max-w-lg flex flex-col animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="p-8">
-                        {/* Header Premium */}
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">Novo Lançamento</h3>
+                    {/* Header idêntico ao DESTINAR LOTE */}
+                    <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20">
+                                <PlusCircleIcon className="w-6 h-6 animate-scale-in" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                    Novo Lançamento
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Lançamento Manual</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[7px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1 rounded">Esc</span>
                             <button 
                                 type="button" 
                                 onClick={() => setIsNewLaunchModalOpen(false)} 
-                                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
                                 id="close-launch-modal"
                             >
-                                <XMarkIcon className="w-5 h-5" />
+                                <XMarkIcon className="w-6 h-6" />
                             </button>
                         </div>
+                    </div>
 
-                        <p className="text-xs text-slate-400 dark:text-slate-400 mb-8 font-medium">Selecione o tipo de transação que deseja lançar manualmente.</p>
+                    <div className="p-8 space-y-6 flex-1">
+                        <p className="text-xs text-slate-400 dark:text-slate-400 font-medium ml-1">
+                            Selecione o tipo de transação que deseja lançar manualmente para alimentar o fluxo de conciliação.
+                        </p>
 
                         <div className="grid grid-cols-2 gap-4">
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('entrada')}
-                                className="flex flex-col items-center justify-center p-8 rounded-[1.5rem] bg-[#E8FBF4] dark:bg-emerald-950/10 hover:bg-[#DDF8ED] dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 transition-all duration-200 cursor-pointer"
+                                className="flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 border-slate-100 dark:border-white/5 bg-slate-50 hover:bg-emerald-50/30 hover:border-emerald-500/35 dark:bg-black/10 dark:hover:bg-emerald-950/10 dark:hover:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 transition-all duration-300 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 group"
                                 id="btn-entrada"
                             >
-                                <div className="w-12 h-12 rounded-full bg-[#10B981] text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(16,185,129,0.2)]">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="w-14 h-14 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                                     </svg>
                                 </div>
-                                <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">Entrada</span>
+                                <span className="text-xs font-black uppercase tracking-widest">Entrada</span>
                             </button>
 
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('saida')}
-                                className="flex flex-col items-center justify-center p-8 rounded-[1.5rem] bg-[#FFF1F2] dark:bg-rose-950/10 hover:bg-[#FFE4E6] dark:hover:bg-rose-950/20 text-rose-700 dark:text-rose-400 transition-all duration-200 cursor-pointer"
+                                className="flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 border-slate-100 dark:border-white/5 bg-slate-50 hover:bg-rose-50/30 hover:border-rose-500/35 dark:bg-black/10 dark:hover:bg-rose-950/10 dark:hover:border-rose-500/30 text-rose-600 dark:text-rose-400 transition-all duration-300 shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 group"
                                 id="btn-saida"
                             >
-                                <div className="w-12 h-12 rounded-full bg-[#F43F5E] text-white flex items-center justify-center mb-3 shadow-[0_4px_12px_rgba(244,63,94,0.2)]">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="w-14 h-14 rounded-full bg-rose-500 text-white flex items-center justify-center mb-4 shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                                     </svg>
                                 </div>
-                                <span className="text-xs font-bold uppercase tracking-wider text-[#F43F5E]">Saída</span>
+                                <span className="text-xs font-black uppercase tracking-widest">Saída</span>
                             </button>
                         </div>
+                    </div>
+
+                    {/* Footer idêntico ao DESTINAR LOTE */}
+                    <div className="px-8 py-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 rounded-b-[2.5rem]">
+                        <button 
+                            type="button" 
+                            onClick={() => setIsNewLaunchModalOpen(false)} 
+                            className="px-6 py-3 text-[10px] font-black rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 transition-all uppercase tracking-widest cursor-pointer"
+                        >
+                            Cancelar
+                        </button>
                     </div>
                 </div>
             </div>
