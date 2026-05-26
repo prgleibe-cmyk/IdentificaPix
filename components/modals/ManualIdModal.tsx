@@ -72,7 +72,7 @@ export const ManualIdModal: React.FC = () => {
 
     return (
         <div className="glass-overlay animate-fade-in">
-            <div className="glass-modal w-full max-w-lg flex flex-col animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]">
+            <div className="glass-modal w-full max-w-lg flex flex-col max-h-[90vh] md:max-h-[85vh] animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]">
                 
                 <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
                     <div className="flex items-center gap-4">
@@ -94,7 +94,7 @@ export const ManualIdModal: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="p-8 space-y-8">
+                <div className="p-8 space-y-8 flex-1 overflow-y-auto">
                     <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
                         <div className="flex justify-between items-center">
                             <div>
