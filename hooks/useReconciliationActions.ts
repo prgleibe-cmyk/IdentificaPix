@@ -76,10 +76,9 @@ export const useReconciliationActions = ({
           amount = parseFloat(sanitizedAmount) || 0;
         }
 
-        const finalDescription = manualDescription ? manualDescription.trim() : 'Lançamento Manual Entrada';
-        const finalDate = selectedDate || new Date().toISOString().split('T')[0];
-
-        const isEntrada = finalDescription.toLowerCase().includes('entrada');
+        const ghostTx = reconciliation.bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
+        const originalDesc = ghostTx?.description || '';
+        const isEntrada = originalDesc.toLowerCase().includes('entrada');
         const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
 
         let finalAmount = amount;
@@ -88,6 +87,9 @@ export const useReconciliationActions = ({
         } else if (txType === 'income' && finalAmount < 0) {
           finalAmount = Math.abs(finalAmount);
         }
+
+        const finalDescription = manualDescription ? manualDescription.trim() : (isEntrada ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída');
+        const finalDate = selectedDate || new Date().toISOString().split('T')[0];
 
         // Geração de hash robusto e de acordo com o sistema
         const stableRaw = finalDescription.replace(/\r\n/g, '\n').trim();
@@ -143,12 +145,25 @@ export const useReconciliationActions = ({
         // 3. Executar o mesmo fluxo oficial já existente de identificação usando o ID REAL
         const contributor = buildSafeContributor(tempOriginal, contributionType, paymentMethod);
 
+        // No fluxo manual: NÃO gerar contributorId fake/temporário
+        if (contributor.id && contributor.id.startsWith('temp-')) {
+          delete contributor.id;
+        }
+
+        const isValidUuid = (id: any) => id && /^[0-9a-fA-F-]{36}$/.test(id);
+        const finalContributorId = isValidUuid(contributor.id) ? contributor.id : undefined;
+
+        // 🪵 [TEMPORARY LOGS FOR VALIDATION]
+        console.log("[TEMPORARY LOG:MANUAL_TYPE] Tipo detectado:", txType);
+        console.log("[TEMPORARY LOG:MANUAL_AMOUNT] Valor final enviado:", finalAmount);
+        console.log("[TEMPORARY LOG:CONTRIBUTOR_ID] contributorId final enviado ao updateTransactionStatus:", finalContributorId);
+
         const updatePayload = {
           id: realId,
           status: 'identified' as const,
           churchId,
           bankId: undefined,
-          contributorId: contributor.id,
+          contributorId: finalContributorId,
           isConfirmed: false,
           contributionType,
           paymentMethod
@@ -162,7 +177,7 @@ export const useReconciliationActions = ({
           'identified',
           churchId,
           undefined,
-          contributor.id,
+          finalContributorId,
           false,
           contributionType,
           paymentMethod
