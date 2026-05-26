@@ -68,7 +68,11 @@ export const useReconciliationActions = ({
         }
 
         const original = reconciliation.fullMatchResults.find((r: MatchResult) => txIds.includes(r.transaction.id));
-        const isEntrada = original ? original.transaction.description.toLowerCase().includes('entrada') : true;
+        if (!original) {
+          throw new Error("Transação original (ghost) não encontrada no fullMatchResults.");
+        }
+
+        const isEntrada = original.transaction.description.toLowerCase().includes('entrada');
         const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
 
         let amount = 0;
@@ -84,7 +88,7 @@ export const useReconciliationActions = ({
           finalAmount = Math.abs(finalAmount);
         }
 
-        const finalDescription = manualDescription ? manualDescription.trim() : (original ? original.transaction.description : 'Lançamento Manual');
+        const finalDescription = manualDescription ? manualDescription.trim() : original.transaction.description;
         const finalDate = selectedDate || new Date().toISOString().split('T')[0];
 
         // Geração de hash robusto e de acordo com o sistema
@@ -111,6 +115,77 @@ export const useReconciliationActions = ({
 
         // 🪵 [TEMPORARY LOG] Resultado do addTransactions
         console.log("[TEMPORARY LOG:RESULT] Resultado do addTransactions:", result);
+
+        // 1. Capturar e validar ID REAL do Supabase
+        const realId = result?.[0]?.id;
+        console.log("[TEMPORARY LOG:REAL_ID] ID REAL retornado pelo addTransactions:", realId);
+
+        if (!realId || !/^[0-9a-fA-F-]{36}$/.test(realId)) {
+          throw new Error(`ID REAL inválido retornado pelo banco após INSERT: ${realId}`);
+        }
+
+        // 2. Executar o mesmo fluxo oficial já existente de identificação usando o ID REAL
+        const contributor = buildSafeContributor(original, contributionType, paymentMethod);
+
+        const updatePayload = {
+          id: realId,
+          status: 'identified' as const,
+          churchId,
+          bankId: undefined,
+          contributorId: contributor.id,
+          isConfirmed: false,
+          contributionType,
+          paymentMethod
+        };
+
+        // 🪵 [TEMPORARY LOG] Payload enviado ao updateTransactionStatus
+        console.log("[TEMPORARY LOG:UPDATE_PAYLOAD] Enviando identificação ao updateTransactionStatus:", updatePayload);
+
+        const updateResult = await consolidationService.updateTransactionStatus(
+          realId,
+          'identified',
+          churchId,
+          undefined,
+          contributor.id,
+          false,
+          contributionType,
+          paymentMethod
+        );
+
+        // 🪵 [TEMPORARY LOG] Resultado do updateTransactionStatus
+        console.log("[TEMPORARY LOG:UPDATE_RESULT] Resultado do updateTransactionStatus:", updateResult);
+
+        if (!updateResult) {
+          throw new Error(`Falha ao identificar a transação com ID REAL no updateTransactionStatus.`);
+        }
+
+        // 3. Registrar o aprendizado (Association) usando o ID real
+        const updatedMatchResult: MatchResult = {
+          ...original,
+          status: ReconciliationStatus.IDENTIFIED,
+          isConfirmed: false,
+          contributor,
+          church,
+          _churchId: church.id,
+          matchMethod: MatchMethod.MANUAL,
+          similarity: 100,
+          contributorAmount: contributor.amount,
+          contributionType: contributor.contributionType,
+          paymentMethod: contributor.paymentMethod,
+          transaction: {
+            ...original.transaction,
+            id: realId, // USA ID REAL
+            isConfirmed: false
+          },
+          updatedAt: new Date().toISOString()
+        };
+
+        referenceData.learnAssociation(updatedMatchResult);
+
+        // 4. Sincronização Realtime (Padrão de Propagação Imediata)
+        if (reconciliation.triggerSync) {
+          reconciliation.triggerSync(updatedMatchResult);
+        }
 
         // Remove ghost-manual do estado da UI para que seja mapeado pelo realtime naturalmente quando chegar do BD
         batchState.isAtomicUpdate = true;
