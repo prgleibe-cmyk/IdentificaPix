@@ -3,6 +3,8 @@ import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } f
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
 import { batchState } from './reconciliation/useCloudSync';
+import { supabase } from '../services/supabaseClient';
+import { LaunchService } from '../services/LaunchService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -54,12 +56,90 @@ export const useReconciliationActions = ({
     if (!church) return;
 
     let affectedCount = 0;
+    const isManualLaunch = txIds.some(id => id.startsWith('ghost-manual-'));
+
+    if (isManualLaunch) {
+      batchState.isBatchUpdating = true;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) {
+          throw new Error("Usuário não autenticado no confirmBulkManualIdentification.");
+        }
+
+        const original = reconciliation.fullMatchResults.find((r: MatchResult) => txIds.includes(r.transaction.id));
+        const isEntrada = original ? original.transaction.description.toLowerCase().includes('entrada') : true;
+        const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
+
+        let amount = 0;
+        if (manualAmount) {
+          const sanitizedAmount = manualAmount.replace(/\./g, '').replace(',', '.').trim();
+          amount = parseFloat(sanitizedAmount) || 0;
+        }
+
+        let finalAmount = amount;
+        if (txType === 'expense' && finalAmount > 0) {
+          finalAmount = -finalAmount;
+        } else if (txType === 'income' && finalAmount < 0) {
+          finalAmount = Math.abs(finalAmount);
+        }
+
+        const finalDescription = manualDescription ? manualDescription.trim() : (original ? original.transaction.description : 'Lançamento Manual');
+        const finalDate = selectedDate || new Date().toISOString().split('T')[0];
+
+        // Geração de hash robusto e de acordo com o sistema
+        const stableRaw = finalDescription.replace(/\r\n/g, '\n').trim();
+        const globalHashKey = `U${userId}|Bmanual|R${stableRaw}|D${finalDate}|A${finalAmount}`;
+        const globalHash = LaunchService.computeBaseHash(globalHashKey);
+
+        const newTxPayload = {
+          user_id: userId,
+          status: 'pending' as const,
+          is_confirmed: false,
+          amount: finalAmount,
+          type: txType,
+          transaction_date: finalDate,
+          description: finalDescription,
+          bank_id: null,
+          row_hash: globalHash
+        };
+
+        // 🪵 [TEMPORARY LOG] Payload enviado para insert
+        console.log("[TEMPORARY LOG:PAYLOAD] Enviando transação manual para addTransactions:", newTxPayload);
+
+        const result = await consolidationService.addTransactions([newTxPayload]);
+
+        // 🪵 [TEMPORARY LOG] Resultado do addTransactions
+        console.log("[TEMPORARY LOG:RESULT] Resultado do addTransactions:", result);
+
+        // Remove ghost-manual do estado da UI para que seja mapeado pelo realtime naturalmente quando chegar do BD
+        batchState.isAtomicUpdate = true;
+        reconciliation.setMatchResults((prev: MatchResult[]) => {
+          const final = prev.filter(r => !txIds.includes(r.transaction.id));
+          if (onAfterAction) onAfterAction(final);
+          return final;
+        });
+
+        affectedCount = 1;
+      } catch (error: any) {
+        console.error("[confirmBulkManualIdentification] Erro ao salvar lançamento manual:", error);
+        showToast("Erro ao salvar lançamento manual.", "error");
+        throw error;
+      } finally {
+        batchState.isBatchUpdating = false;
+      }
+
+      reconciliation.closeManualIdentify();
+      showToast("Lançamento manual criado com sucesso.", "success");
+      return;
+    }
+
     batchState.isBatchUpdating = true;
 
     try {
       // 1. Persistência Assíncrona (Processamento em Lote)
       for (const id of txIds) {
-        const original = reconciliation.fullMatchResults.find(r => r.transaction.id === id);
+        const original = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
         if (!original || original.isConfirmed) continue;
 
         const contributor = buildSafeContributor(original, contributionType, paymentMethod);
@@ -81,7 +161,7 @@ export const useReconciliationActions = ({
 
       // 2. Atualização Atômica de Estado (Padrão idêntico ao toggleConfirmation com consistência total)
       batchState.isAtomicUpdate = true;
-      reconciliation.setMatchResults(prev => {
+      reconciliation.setMatchResults((prev: MatchResult[]) => {
         const finalResults = prev.map(r => {
           if (!txIds.includes(r.transaction.id) || r.isConfirmed) return r;
 
