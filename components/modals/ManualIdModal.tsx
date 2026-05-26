@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useEffect } from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, FileText, DollarSign } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
@@ -23,6 +23,8 @@ export const ManualIdModal: React.FC = () => {
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(paymentMethods?.[0] || 'Transferência');
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [manualDescription, setManualDescription] = useState<string>('');
+    const [manualAmount, setManualAmount] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
 
     const isBulk = !!bulkIdentificationTxs && bulkIdentificationTxs.length > 0;
@@ -107,20 +109,54 @@ export const ManualIdModal: React.FC = () => {
                     </div>
 
                     {isManualLaunch && (
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                Data
-                            </label>
-                            <div className="relative group">
-                                <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                <input
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={e => setSelectedDate(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold"
-                                />
+                        <>
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Data
+                                </label>
+                                <div className="relative group">
+                                    <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={e => setSelectedDate(e.target.value)}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold"
+                                    />
+                                </div>
                             </div>
-                        </div>
+
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Nome / Descrição
+                                </label>
+                                <div className="relative group">
+                                    <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={manualDescription}
+                                        onChange={e => setManualDescription(e.target.value)}
+                                        placeholder="Ex: Doação / Oferta Especial"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Valor (R$)
+                                </label>
+                                <div className="relative group">
+                                    <DollarSign className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={manualAmount}
+                                        onChange={e => setManualAmount(e.target.value)}
+                                        placeholder="0,00"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    />
+                                </div>
+                            </div>
+                        </>
                     )}
 
                     <div className="space-y-3">
