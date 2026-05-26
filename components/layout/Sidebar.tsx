@@ -74,22 +74,8 @@ export const Sidebar: React.FC = () => {
     };
 
     const handleManualLaunch = (type: 'entrada' | 'saida') => {
-        const amountStr = window.prompt("Digite o valor da transação (Ex: 1500,00):");
-        if (!amountStr) return;
-
-        let amountFloat = parseFloat(amountStr.replace(/[^\d.-]/g, '').replace(',', '.'));
-        if (isNaN(amountFloat) || amountFloat === 0) {
-            alert("Por favor, digite um valor válido.");
-            return;
-        }
-
-        if (type === 'saida') {
-            amountFloat = -Math.abs(amountFloat);
-        } else {
-            amountFloat = Math.abs(amountFloat);
-        }
-
-        const description = window.prompt("Descrição do lançamento (Opcional):") || (type === 'entrada' ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída');
+        const amountFloat = 0;
+        const description = type === 'entrada' ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída';
 
         const manualTxId = `ghost-manual-${Date.now()}`;
         const newTx: Transaction = {
