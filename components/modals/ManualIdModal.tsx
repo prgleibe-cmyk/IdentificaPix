@@ -1,5 +1,6 @@
 
 import React, { useState, useContext, useEffect } from 'react';
+import { Calendar } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
@@ -21,9 +22,11 @@ export const ManualIdModal: React.FC = () => {
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(paymentMethods?.[0] || 'Transferência');
+    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [isSaving, setIsSaving] = useState(false);
 
     const isBulk = !!bulkIdentificationTxs && bulkIdentificationTxs.length > 0;
+    const isManualLaunch = bulkIdentificationTxs?.some(tx => tx.id.startsWith('ghost-manual-'));
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -102,6 +105,23 @@ export const ManualIdModal: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {isManualLaunch && (
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                Data
+                            </label>
+                            <div className="relative group">
+                                <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={e => setSelectedDate(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="space-y-3">
                         <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
