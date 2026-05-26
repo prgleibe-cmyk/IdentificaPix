@@ -171,6 +171,11 @@ export const useReconciliationActions = ({
           paymentMethod
         };
 
+        // 🪵 [TEMPORARY LOG:FIX_TYPE]
+        console.log("[TEMPORARY LOG:FIX_TYPE] txType financeiro enviado:", txType);
+        console.log("[TEMPORARY LOG:FIX_TYPE] selectedType contribuição enviado:", contributionType);
+        console.log("[TEMPORARY LOG:FIX_TYPE] payload final aprovado:", updatePayload);
+
         // 🪵 [TEMPORARY LOG] Payload enviado ao updateTransactionStatus
         console.log("[TEMPORARY LOG:UPDATE_PAYLOAD] Enviando identificação ao updateTransactionStatus:", updatePayload);
 
