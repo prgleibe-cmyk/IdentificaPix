@@ -58,7 +58,45 @@ export const ManualIdModal: React.FC = () => {
         try {
             if (isBulk) {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
-                await confirmBulkManualIdentification(ids, selectedChurchId, selectedType, selectedPaymentMethod);
+                
+                let mAmount: number | undefined = undefined;
+                let mDescription: string | undefined = undefined;
+                let mDate: string | undefined = undefined;
+
+                if (isManualLaunch) {
+                    let amountFloat = 0;
+                    if (manualAmount && manualAmount.trim()) {
+                        amountFloat = parseFloat(manualAmount.replace(/[^\d.-]/g, '').replace(',', '.'));
+                        if (isNaN(amountFloat)) {
+                            amountFloat = 0;
+                        }
+                    }
+
+                    const isSaida = bulkIdentificationTxs.some(tx => 
+                        tx.description?.toLowerCase().includes('saída') || 
+                        tx.description?.toLowerCase().includes('saida')
+                    );
+
+                    if (isSaida) {
+                        amountFloat = -Math.abs(amountFloat);
+                    } else {
+                        amountFloat = Math.abs(amountFloat);
+                    }
+
+                    mAmount = amountFloat;
+                    mDescription = manualDescription.trim() || (isSaida ? 'Lançamento Manual Saída' : 'Lançamento Manual Entrada');
+                    mDate = selectedDate || new Date().toISOString().split('T')[0];
+                }
+
+                await confirmBulkManualIdentification(
+                    ids, 
+                    selectedChurchId, 
+                    selectedType, 
+                    selectedPaymentMethod,
+                    mAmount,
+                    mDescription,
+                    mDate
+                );
             }
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);

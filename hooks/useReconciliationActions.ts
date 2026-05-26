@@ -34,7 +34,15 @@ export const useReconciliationActions = ({
     };
   };
 
-  const confirmBulkManualIdentification = useCallback(async (txIds: string[], churchId: string, contributionType?: string, paymentMethod?: string) => {
+  const confirmBulkManualIdentification = useCallback(async (
+    txIds: string[], 
+    churchId: string, 
+    contributionType?: string, 
+    paymentMethod?: string,
+    manualAmount?: number,
+    manualDescription?: string,
+    manualDate?: string
+  ) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -46,6 +54,14 @@ export const useReconciliationActions = ({
       for (const id of txIds) {
         const original = reconciliation.fullMatchResults.find(r => r.transaction.id === id);
         if (!original || original.isConfirmed) continue;
+
+        if (manualAmount !== undefined) original.transaction.amount = manualAmount;
+        if (manualDescription !== undefined) {
+          original.transaction.description = manualDescription;
+          original.transaction.rawDescription = manualDescription;
+          original.transaction.cleanedDescription = manualDescription;
+        }
+        if (manualDate !== undefined) original.transaction.date = manualDate;
 
         const contributor = buildSafeContributor(original, contributionType, paymentMethod);
 
@@ -69,6 +85,14 @@ export const useReconciliationActions = ({
       reconciliation.setMatchResults(prev => {
         const finalResults = prev.map(r => {
           if (!txIds.includes(r.transaction.id) || r.isConfirmed) return r;
+
+          if (manualAmount !== undefined) r.transaction.amount = manualAmount;
+          if (manualDescription !== undefined) {
+            r.transaction.description = manualDescription;
+            r.transaction.rawDescription = manualDescription;
+            r.transaction.cleanedDescription = manualDescription;
+          }
+          if (manualDate !== undefined) r.transaction.date = manualDate;
 
           const contributor = buildSafeContributor(r, contributionType, paymentMethod);
 
