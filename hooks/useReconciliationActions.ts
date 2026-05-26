@@ -67,13 +67,8 @@ export const useReconciliationActions = ({
           throw new Error("Usuário não autenticado no confirmBulkManualIdentification.");
         }
 
-        const original = reconciliation.fullMatchResults.find((r: MatchResult) => txIds.includes(r.transaction.id));
-        if (!original) {
-          throw new Error("Transação original (ghost) não encontrada no fullMatchResults.");
-        }
-
-        const isEntrada = original.transaction.description.toLowerCase().includes('entrada');
-        const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
+        // 🪵 [TEMPORARY LOG] Confirmação de bypass do ghost lookup
+        console.log("[TEMPORARY LOG:BYPASS] Executando bypass completo do lookup de ghost-manual em fullMatchResults.");
 
         let amount = 0;
         if (manualAmount) {
@@ -81,15 +76,18 @@ export const useReconciliationActions = ({
           amount = parseFloat(sanitizedAmount) || 0;
         }
 
+        const finalDescription = manualDescription ? manualDescription.trim() : 'Lançamento Manual Entrada';
+        const finalDate = selectedDate || new Date().toISOString().split('T')[0];
+
+        const isEntrada = finalDescription.toLowerCase().includes('entrada');
+        const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
+
         let finalAmount = amount;
         if (txType === 'expense' && finalAmount > 0) {
           finalAmount = -finalAmount;
         } else if (txType === 'income' && finalAmount < 0) {
           finalAmount = Math.abs(finalAmount);
         }
-
-        const finalDescription = manualDescription ? manualDescription.trim() : original.transaction.description;
-        const finalDate = selectedDate || new Date().toISOString().split('T')[0];
 
         // Geração de hash robusto e de acordo com o sistema
         const stableRaw = finalDescription.replace(/\r\n/g, '\n').trim();
@@ -124,8 +122,26 @@ export const useReconciliationActions = ({
           throw new Error(`ID REAL inválido retornado pelo banco após INSERT: ${realId}`);
         }
 
-        // 2. Executar o mesmo fluxo oficial já existente de identificação usando o ID REAL
-        const contributor = buildSafeContributor(original, contributionType, paymentMethod);
+        // 2. Construir MatchResult temporário sem depender do ghost
+        const tempOriginal: MatchResult = {
+          transaction: {
+            id: realId,
+            date: finalDate,
+            description: finalDescription,
+            rawDescription: finalDescription,
+            amount: finalAmount,
+            isConfirmed: false,
+            cleanedDescription: finalDescription
+          },
+          contributor: null,
+          status: ReconciliationStatus.PENDING,
+          church,
+          isConfirmed: false,
+          updatedAt: new Date().toISOString()
+        };
+
+        // 3. Executar o mesmo fluxo oficial já existente de identificação usando o ID REAL
+        const contributor = buildSafeContributor(tempOriginal, contributionType, paymentMethod);
 
         const updatePayload = {
           id: realId,
@@ -159,9 +175,9 @@ export const useReconciliationActions = ({
           throw new Error(`Falha ao identificar a transação com ID REAL no updateTransactionStatus.`);
         }
 
-        // 3. Registrar o aprendizado (Association) usando o ID real
+        // 4. Registrar o aprendizado (Association) usando o ID real
         const updatedMatchResult: MatchResult = {
-          ...original,
+          ...tempOriginal,
           status: ReconciliationStatus.IDENTIFIED,
           isConfirmed: false,
           contributor,
@@ -172,17 +188,12 @@ export const useReconciliationActions = ({
           contributorAmount: contributor.amount,
           contributionType: contributor.contributionType,
           paymentMethod: contributor.paymentMethod,
-          transaction: {
-            ...original.transaction,
-            id: realId, // USA ID REAL
-            isConfirmed: false
-          },
           updatedAt: new Date().toISOString()
         };
 
         referenceData.learnAssociation(updatedMatchResult);
 
-        // 4. Sincronização Realtime (Padrão de Propagação Imediata)
+        // 5. Sincronização Realtime (Padrão de Propagação Imediata)
         if (reconciliation.triggerSync) {
           reconciliation.triggerSync(updatedMatchResult);
         }
