@@ -76,9 +76,11 @@ export const useReconciliationActions = ({
           amount = parseFloat(sanitizedAmount) || 0;
         }
 
-        const ghostTx = reconciliation.bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
+        const ghostTx = reconciliation.bulkIdentificationTxs?.find((tx: any) => txIds.includes(tx.id)) || 
+                        reconciliation.bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
         const originalDesc = ghostTx?.description || '';
-        const isEntrada = originalDesc.toLowerCase().includes('entrada');
+        const isEntrada = originalDesc.toLowerCase().includes('entrada') || 
+                          (manualDescription ? manualDescription.toLowerCase().includes('entrada') : false);
         const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
 
         let finalAmount = amount;
@@ -165,7 +167,7 @@ export const useReconciliationActions = ({
           bankId: undefined,
           contributorId: finalContributorId,
           isConfirmed: false,
-          contributionType,
+          type: txType,
           paymentMethod
         };
 
@@ -179,7 +181,7 @@ export const useReconciliationActions = ({
           undefined,
           finalContributorId,
           false,
-          contributionType,
+          txType, // 🔥 CORREÇÃO: Passar txType ('income' | 'expense') para garantir validador e tipo corretos!
           paymentMethod
         );
 
