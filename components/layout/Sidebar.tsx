@@ -36,6 +36,8 @@ export const Sidebar: React.FC = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isNewLaunchModalOpen, setIsNewLaunchModalOpen] = useState(false);
+    const [manualLaunchAmount, setManualLaunchAmount] = useState('');
+    const [manualLaunchDescription, setManualLaunchDescription] = useState('');
     
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -74,8 +76,11 @@ export const Sidebar: React.FC = () => {
     };
 
     const handleManualLaunch = (type: 'entrada' | 'saida') => {
-        const amountStr = window.prompt("Digite o valor da transação (Ex: 1500,00):");
-        if (!amountStr) return;
+        const amountStr = manualLaunchAmount.trim();
+        if (!amountStr) {
+            alert("Por favor, digite o valor do lançamento.");
+            return;
+        }
 
         let amountFloat = parseFloat(amountStr.replace(/[^\d.-]/g, '').replace(',', '.'));
         if (isNaN(amountFloat) || amountFloat === 0) {
@@ -89,7 +94,7 @@ export const Sidebar: React.FC = () => {
             amountFloat = Math.abs(amountFloat);
         }
 
-        const description = window.prompt("Descrição do lançamento (Opcional):") || "Lançamento Manual";
+        const description = manualLaunchDescription.trim() || (type === 'entrada' ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída');
 
         const manualTxId = `ghost-manual-${Date.now()}`;
         const newTx: Transaction = {
@@ -113,6 +118,8 @@ export const Sidebar: React.FC = () => {
         };
 
         setIsNewLaunchModalOpen(false);
+        setManualLaunchAmount('');
+        setManualLaunchDescription('');
         setMatchResults((prev: any) => [...prev, newMatchResult]);
         setBulkIdentificationTxs([newTx]);
     };
@@ -377,12 +384,40 @@ export const Sidebar: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="p-8 space-y-6 flex-1">
+                    <div className="p-8 space-y-5 flex-1">
                         <p className="text-xs text-slate-400 dark:text-slate-400 font-medium ml-1">
-                            Selecione o tipo de transação que deseja lançar manualmente para alimentar o fluxo de conciliação.
+                            Preencha os dados do lançamento manual abaixo e selecione a modalidade do fluxo.
                         </p>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Valor do Lançamento (R$)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="0,00"
+                                    value={manualLaunchAmount}
+                                    onChange={(e) => setManualLaunchAmount(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-6 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Descrição do Lançamento (Opcional)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Lançamento Manual"
+                                    value={manualLaunchDescription}
+                                    onChange={(e) => setManualLaunchDescription(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-6 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 pt-2">
                             <button
                                 type="button"
                                 onClick={() => handleManualLaunch('entrada')}
