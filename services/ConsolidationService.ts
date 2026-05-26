@@ -238,9 +238,10 @@ console.log("- status:", status);
 console.log("- churchId:", churchId);
 console.log("- bankId:", bankId);
 console.log("- contributorId:", contributorId);
-console.log("- contributionType:", type);
-console.log("- paymentMethod:", pix_key);
+console.log("- type (financeiro):", type);
 console.log("- pixKey:", pix_key);
+console.log("- contribution_type (religioso):", contribution_type);
+console.log("- payment_method (forma):", payment_method);
 
 if (safeUpdateData.type !== undefined && !['income', 'expense'].includes(safeUpdateData.type)) {
     errors.push(`Type inválido (deve ser income ou expense): ${safeUpdateData.type}`);
