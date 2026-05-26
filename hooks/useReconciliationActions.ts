@@ -187,6 +187,8 @@ export const useReconciliationActions = ({
           finalContributorId,
           false,
           txType, // 🔥 CORREÇÃO: Passar txType ('income' | 'expense') para garantir validador e tipo corretos!
+          paymentMethod,
+          contributionType,
           paymentMethod
         );
 
@@ -253,6 +255,7 @@ export const useReconciliationActions = ({
         const contributor = buildSafeContributor(original, contributionType, paymentMethod);
 
         if (!id.includes('ghost') && !id.startsWith('sim')) {
+          const itemType = (original.transaction.amount >= 0) ? 'income' : 'expense';
           await consolidationService.updateTransactionStatus(
             id, 
             'identified', 
@@ -260,6 +263,8 @@ export const useReconciliationActions = ({
             original.transaction.bank_id,
             contributor.id,
             false,
+            itemType,
+            undefined,
             contributionType,
             paymentMethod
           );

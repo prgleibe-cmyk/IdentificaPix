@@ -173,7 +173,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -201,6 +201,8 @@ export const consolidationService = {
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
             if (type !== undefined) updateData.type = type;
             if (pix_key !== undefined) updateData.pix_key = pix_key;
+            if (contribution_type !== undefined) updateData.contribution_type = contribution_type;
+            if (payment_method !== undefined) updateData.payment_method = payment_method;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,
@@ -299,6 +301,12 @@ if (errors.length > 0) {
     console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
     return false; // Bloqueia o PATCH
 }
+
+console.log('[FIX:PERSIST_FIELDS]', {
+    type: safeUpdateData.type,
+    contribution_type: safeUpdateData.contribution_type,
+    payment_method: safeUpdateData.payment_method
+});
 
 console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
 
