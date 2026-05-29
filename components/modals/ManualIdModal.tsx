@@ -1,6 +1,5 @@
 
 import React, { useState, useContext, useEffect } from 'react';
-import { Calendar, FileText, DollarSign } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
@@ -22,13 +21,9 @@ export const ManualIdModal: React.FC = () => {
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(paymentMethods?.[0] || 'Transferência');
-    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [manualDescription, setManualDescription] = useState<string>('');
-    const [manualAmount, setManualAmount] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
 
     const isBulk = !!bulkIdentificationTxs && bulkIdentificationTxs.length > 0;
-    const isManualLaunch = bulkIdentificationTxs?.some(tx => tx.id.startsWith('ghost-manual-'));
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -58,15 +53,7 @@ export const ManualIdModal: React.FC = () => {
         try {
             if (isBulk) {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
-                await confirmBulkManualIdentification(
-                    ids, 
-                    selectedChurchId, 
-                    selectedType, 
-                    selectedPaymentMethod,
-                    selectedDate,
-                    manualDescription,
-                    manualAmount
-                );
+                await confirmBulkManualIdentification(ids, selectedChurchId, selectedType, selectedPaymentMethod);
             }
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);
@@ -80,7 +67,7 @@ export const ManualIdModal: React.FC = () => {
 
     return (
         <div className="glass-overlay animate-fade-in">
-            <div className="glass-modal w-full max-w-lg flex flex-col max-h-[90vh] md:max-h-[85vh] animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]">
+            <div className="glass-modal w-full max-w-lg flex flex-col animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]">
                 
                 <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
                     <div className="flex items-center gap-4">
@@ -102,7 +89,7 @@ export const ManualIdModal: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="p-8 space-y-8 flex-1 overflow-y-auto">
+                <div className="p-8 space-y-8">
                     <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
                         <div className="flex justify-between items-center">
                             <div>
@@ -115,57 +102,6 @@ export const ManualIdModal: React.FC = () => {
                             </div>
                         </div>
                     </div>
-
-                    {isManualLaunch && (
-                        <>
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Data
-                                </label>
-                                <div className="relative group">
-                                    <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="date"
-                                        value={selectedDate}
-                                        onChange={e => setSelectedDate(e.target.value)}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Nome / Descrição
-                                </label>
-                                <div className="relative group">
-                                    <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={manualDescription}
-                                        onChange={e => setManualDescription(e.target.value)}
-                                        placeholder="Ex: Doação / Oferta Especial"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Valor (R$)
-                                </label>
-                                <div className="relative group">
-                                    <DollarSign className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                    <input
-                                        type="text"
-                                        value={manualAmount}
-                                        onChange={e => setManualAmount(e.target.value)}
-                                        placeholder="0,00"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                    />
-                                </div>
-                            </div>
-                        </>
-                    )}
 
                     <div className="space-y-3">
                         <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">

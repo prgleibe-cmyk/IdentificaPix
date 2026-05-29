@@ -173,7 +173,7 @@ export const consolidationService = {
         }
     },
 
-    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string) => {
+    updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user.id;
@@ -201,8 +201,6 @@ export const consolidationService = {
             if (isConfirmed !== undefined) updateData.is_confirmed = isConfirmed;
             if (type !== undefined) updateData.type = type;
             if (pix_key !== undefined) updateData.pix_key = pix_key;
-            if (contribution_type !== undefined) updateData.contribution_type = contribution_type;
-            if (payment_method !== undefined) updateData.payment_method = payment_method;
 
             console.log('[ID:WRITE]', {
               userId: currentUserId,
@@ -231,18 +229,6 @@ const safeUpdateData: any = {
 const errors: string[] = [];
 const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
 
-// 🪵 [DIAGNOSTIC LOGS: BEFORE TYPE_CHECK]
-console.log("[DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:");
-console.log("- transactionId:", id);
-console.log("- status:", status);
-console.log("- churchId:", churchId);
-console.log("- bankId:", bankId);
-console.log("- contributorId:", contributorId);
-console.log("- type (financeiro):", type);
-console.log("- pixKey:", pix_key);
-console.log("- contribution_type (religioso):", contribution_type);
-console.log("- payment_method (forma):", payment_method);
-
 if (safeUpdateData.type !== undefined && !['income', 'expense'].includes(safeUpdateData.type)) {
     errors.push(`Type inválido (deve ser income ou expense): ${safeUpdateData.type}`);
 }
@@ -268,55 +254,16 @@ if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
     errors.push(`bank_id inválido: ${safeUpdateData.bank_id}`);
 }
 
-// 🪵 [DIAGNOSTIC LOGS: TYPE_CHECK RESULT]
-console.log("[DIAGNOSTIC] safeUpdateData final:", safeUpdateData);
-console.log("[DIAGNOSTIC] TYPE_CHECK Errors Detected:", errors);
-if (errors.length > 0) {
-    errors.forEach((err, idx) => {
-        console.error(`[DIAGNOSTIC] ERROR #${idx + 1}: ${err}`);
-        if (err.includes('Type inválido')) {
-            console.error(`- Campo falho: type (contributionType ou tipo de lançamento)`);
-            console.error(`- Motivo: O valor "${safeUpdateData.type}" não é "income" ou "expense"`);
-        } else if (err.includes('status')) {
-            console.error(`- Campo falho: status`);
-            console.error(`- Motivo: O valor "${safeUpdateData.status}" é inválido`);
-        } else if (err.includes('Inconsistência')) {
-            console.error(`- Campo falho: status / is_confirmed`);
-            console.error(`- Motivo: Relação inconsistente entre status e is_confirmed`);
-        } else if (err.includes('church_id')) {
-            console.error(`- Campo falho: church_id`);
-            console.error(`- Motivo: O valor "${safeUpdateData.church_id}" não é um UUID válido`);
-        } else if (err.includes('contributor_id')) {
-            console.error(`- Campo falho: contributor_id`);
-            console.error(`- Motivo: O valor "${safeUpdateData.contributor_id}" não é um UUID válido`);
-        } else if (err.includes('bank_id')) {
-            console.error(`- Campo falho: bank_id`);
-            console.error(`- Motivo: O valor "${safeUpdateData.bank_id}" não é um UUID válido`);
-        }
-    });
-} else {
-    console.log("[DIAGNOSTIC] TYPE_CHECK passed successfully with 0 errors!");
-}
-
 if (errors.length > 0) {
     console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
     return false; // Bloqueia o PATCH
 }
 
-console.log('[FIX:PERSIST_FIELDS]', {
-    type: safeUpdateData.type,
-    contribution_type: safeUpdateData.contribution_type,
-    payment_method: safeUpdateData.payment_method
-});
-
 console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
-
-// Remove contribution_type and payment_method strictly for the database update payload
-const { contribution_type: _unused1, payment_method: _unused2, ...dbUpdatePayload } = safeUpdateData;
 
 const { data, error } = await (supabase as any)
     .from('consolidated_transactions')
-    .update(dbUpdatePayload)
+    .update(safeUpdateData)
     .eq('id', id)
     .select();
 
