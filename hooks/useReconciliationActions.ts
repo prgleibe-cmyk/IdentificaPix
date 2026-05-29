@@ -45,6 +45,13 @@ export const useReconciliationActions = ({
     manualDescription?: string,
     manualAmount?: string
   ) => {
+    // 🪵 [TEMPORARY LOG] Validação obrigatória dos dados de lançamento manual
+    console.log("[TEMPORARY LOG] Dados do lançamento manual no confirmBulkManualIdentification:", {
+      data: selectedDate,
+      descricao: manualDescription,
+      valor: manualAmount
+    });
+
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
 
@@ -59,6 +66,9 @@ export const useReconciliationActions = ({
         if (!userId) {
           throw new Error("Usuário não autenticado no confirmBulkManualIdentification.");
         }
+
+        // 🪵 [TEMPORARY LOG] Confirmação de bypass do ghost lookup
+        console.log("[TEMPORARY LOG:BYPASS] Executando bypass completo do lookup de ghost-manual em fullMatchResults.");
 
         let amount = 0;
         if (manualAmount) {
@@ -100,10 +110,17 @@ export const useReconciliationActions = ({
           row_hash: globalHash
         };
 
+        // 🪵 [TEMPORARY LOG] Payload enviado para insert
+        console.log("[TEMPORARY LOG:PAYLOAD] Enviando transação manual para addTransactions:", newTxPayload);
+
         const result = await consolidationService.addTransactions([newTxPayload]);
+
+        // 🪵 [TEMPORARY LOG] Resultado do addTransactions
+        console.log("[TEMPORARY LOG:RESULT] Resultado do addTransactions:", result);
 
         // 1. Capturar e validar ID REAL do Supabase
         const realId = result?.[0]?.id;
+        console.log("[TEMPORARY LOG:REAL_ID] ID REAL retornado pelo addTransactions:", realId);
 
         if (!realId || !/^[0-9a-fA-F-]{36}$/.test(realId)) {
           throw new Error(`ID REAL inválido retornado pelo banco após INSERT: ${realId}`);
@@ -138,6 +155,11 @@ export const useReconciliationActions = ({
         const isValidUuid = (id: any) => id && /^[0-9a-fA-F-]{36}$/.test(id);
         const finalContributorId = isValidUuid(contributor.id) ? contributor.id : undefined;
 
+        // 🪵 [TEMPORARY LOGS FOR VALIDATION]
+        console.log("[TEMPORARY LOG:MANUAL_TYPE] Tipo detectado:", txType);
+        console.log("[TEMPORARY LOG:MANUAL_AMOUNT] Valor final enviado:", finalAmount);
+        console.log("[TEMPORARY LOG:CONTRIBUTOR_ID] contributorId final enviado ao updateTransactionStatus:", finalContributorId);
+
         const updatePayload = {
           id: realId,
           status: 'identified' as const,
@@ -148,6 +170,14 @@ export const useReconciliationActions = ({
           type: txType,
           paymentMethod
         };
+
+        // 🪵 [TEMPORARY LOG:FIX_TYPE]
+        console.log("[TEMPORARY LOG:FIX_TYPE] txType financeiro enviado:", txType);
+        console.log("[TEMPORARY LOG:FIX_TYPE] selectedType contribuição enviado:", contributionType);
+        console.log("[TEMPORARY LOG:FIX_TYPE] payload final aprovado:", updatePayload);
+
+        // 🪵 [TEMPORARY LOG] Payload enviado ao updateTransactionStatus
+        console.log("[TEMPORARY LOG:UPDATE_PAYLOAD] Enviando identificação ao updateTransactionStatus:", updatePayload);
 
         const updateResult = await consolidationService.updateTransactionStatus(
           realId,
@@ -161,6 +191,9 @@ export const useReconciliationActions = ({
           contributionType,
           paymentMethod
         );
+
+        // 🪵 [TEMPORARY LOG] Resultado do updateTransactionStatus
+        console.log("[TEMPORARY LOG:UPDATE_RESULT] Resultado do updateTransactionStatus:", updateResult);
 
         if (!updateResult) {
           throw new Error(`Falha ao identificar a transação com ID REAL no updateTransactionStatus.`);

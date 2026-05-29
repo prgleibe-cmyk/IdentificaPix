@@ -115,6 +115,9 @@ export const consolidationService = {
               payloadUserId: sanitizedPayload[0].user_id
             });
 
+            // Log do primeiro item para amostragem
+            console.log(`[WRITE:FIX] Inserindo transações com effectiveUserId: ${sanitizedPayload[0].user_id}`);
+
             const CHUNK_SIZE = 100;
             const results: any[] = [];
 
@@ -228,6 +231,18 @@ const safeUpdateData: any = {
 const errors: string[] = [];
 const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
 
+// 🪵 [DIAGNOSTIC LOGS: BEFORE TYPE_CHECK]
+console.log("[DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:");
+console.log("- transactionId:", id);
+console.log("- status:", status);
+console.log("- churchId:", churchId);
+console.log("- bankId:", bankId);
+console.log("- contributorId:", contributorId);
+console.log("- type (financeiro):", type);
+console.log("- pixKey:", pix_key);
+console.log("- contribution_type (religioso):", contribution_type);
+console.log("- payment_method (forma):", payment_method);
+
 if (safeUpdateData.type !== undefined && !['income', 'expense'].includes(safeUpdateData.type)) {
     errors.push(`Type inválido (deve ser income ou expense): ${safeUpdateData.type}`);
 }
@@ -253,10 +268,46 @@ if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
     errors.push(`bank_id inválido: ${safeUpdateData.bank_id}`);
 }
 
+// 🪵 [DIAGNOSTIC LOGS: TYPE_CHECK RESULT]
+console.log("[DIAGNOSTIC] safeUpdateData final:", safeUpdateData);
+console.log("[DIAGNOSTIC] TYPE_CHECK Errors Detected:", errors);
+if (errors.length > 0) {
+    errors.forEach((err, idx) => {
+        console.error(`[DIAGNOSTIC] ERROR #${idx + 1}: ${err}`);
+        if (err.includes('Type inválido')) {
+            console.error(`- Campo falho: type (contributionType ou tipo de lançamento)`);
+            console.error(`- Motivo: O valor "${safeUpdateData.type}" não é "income" ou "expense"`);
+        } else if (err.includes('status')) {
+            console.error(`- Campo falho: status`);
+            console.error(`- Motivo: O valor "${safeUpdateData.status}" é inválido`);
+        } else if (err.includes('Inconsistência')) {
+            console.error(`- Campo falho: status / is_confirmed`);
+            console.error(`- Motivo: Relação inconsistente entre status e is_confirmed`);
+        } else if (err.includes('church_id')) {
+            console.error(`- Campo falho: church_id`);
+            console.error(`- Motivo: O valor "${safeUpdateData.church_id}" não é um UUID válido`);
+        } else if (err.includes('contributor_id')) {
+            console.error(`- Campo falho: contributor_id`);
+            console.error(`- Motivo: O valor "${safeUpdateData.contributor_id}" não é um UUID válido`);
+        } else if (err.includes('bank_id')) {
+            console.error(`- Campo falho: bank_id`);
+            console.error(`- Motivo: O valor "${safeUpdateData.bank_id}" não é um UUID válido`);
+        }
+    });
+} else {
+    console.log("[DIAGNOSTIC] TYPE_CHECK passed successfully with 0 errors!");
+}
+
 if (errors.length > 0) {
     console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
     return false; // Bloqueia o PATCH
 }
+
+console.log('[FIX:PERSIST_FIELDS]', {
+    type: safeUpdateData.type,
+    contribution_type: safeUpdateData.contribution_type,
+    payment_method: safeUpdateData.payment_method
+});
 
 console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
 

@@ -1,7 +1,6 @@
 import { Transaction } from "../types";
 import { Logger } from "./monitoringService";
 import { NameResolver } from "../core/processors/NameResolver";
-import { supabase } from "./supabaseClient";
 
 export const parseEmailBatch = async (emails: { id: string, snippet: string, body: string, date: string, subject: string }[]): Promise<Transaction[]> => {
     if (emails.length === 0) return [];
@@ -9,15 +8,9 @@ export const parseEmailBatch = async (emails: { id: string, snippet: string, bod
     try {
         const emailData = emails.map(e => `ID: ${e.id} | ASSUNTO: ${e.subject} | CORPO: ${e.body.substring(0, 500)}`).join('\n---\n');
 
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-
         const response = await fetch('/api/ai/extract-transactions', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 rawText: emailData,
                 modelContext: "Extração de transações bancárias de e-mails. Entradas positivas, Saídas negativas.",

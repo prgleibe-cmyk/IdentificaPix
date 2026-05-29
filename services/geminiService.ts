@@ -1,6 +1,4 @@
 
-import { supabase } from './supabaseClient';
-
 let isAIBusy = false;
 
 /**
@@ -16,15 +14,9 @@ export const extractTransactionsWithModel = async (
     isAIBusy = true;
 
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-
         const response = await fetch('/api/ai/extract-transactions', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rawText, modelContext, base64Data, limit })
         });
         
@@ -45,15 +37,9 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
     if (isAIBusy) return [];
     isAIBusy = true;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-
         const response = await fetch('/api/ai/structural-dump', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ base64Data })
         });
         
@@ -74,15 +60,9 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
     if (isAIBusy) return null;
     isAIBusy = true;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-
         const response = await fetch('/api/ai/infer-mapping', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sampleText })
         });
         
@@ -107,15 +87,9 @@ export const learnPattern = async (
     if (isAIBusy) return null;
     isAIBusy = true;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-
         const response = await fetch('/api/ai/learn-pattern', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': token ? `Bearer ${token}` : ''
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ extractionMode, learnedPatternSource, gridDataContext })
         });
         
