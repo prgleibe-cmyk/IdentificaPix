@@ -119,7 +119,7 @@ export default (ai) => {
                 config: {
                     temperature: 0,
                     maxOutputTokens: 96000, 
-                    thinkingConfig: { thinkingBudget: 0 },
+                    thinkingConfig: { thinkingBudget: 24000 },
                     responseMimeType: "application/json",
                     responseSchema: {
                         type: Type.OBJECT,
