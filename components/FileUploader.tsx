@@ -22,7 +22,7 @@ interface FileUploaderProps {
   useLocalLoadingOnly?: boolean; 
 }
 
-const SUPPORTED_FORMATS = ".pdf,.xlsx,.xls,.csv,.txt";
+const SUPPORTED_FORMATS = ".pdf,.xlsx,.xls,.csv,.txt,.ofx";
 
 export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({ 
     title, 
