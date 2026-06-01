@@ -204,6 +204,17 @@ export const useCloudSync = ({
                     const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                     const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
+                    console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
+                        txId: t.id,
+                        description: t.description,
+                        t_type: t.type,
+                        t_pix_key: t.pix_key,
+                        t_church_id: t.church_id,
+                        assoc_found: !!assoc,
+                        assoc_churchId: assoc?.churchId,
+                        church_resolved: church?.name,
+                    });
+
                     const transaction: Transaction = {
                         id: t.id,
                         date: t.transaction_date,
@@ -351,6 +362,7 @@ export const useCloudSync = ({
                     filter: `user_id=eq.${effectiveUserId}`
                 },
                 (payload) => {
+                    console.log("[DIAGNOSTIC:REALTIME_RECEIVE]", { eventType: payload.eventType, old: payload.old, new: payload.new });
                     // DELETE: Agora usamos map em vez de filter para nunca remover itens do estado em tempo real
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
@@ -375,6 +387,16 @@ export const useCloudSync = ({
                                 const normalizedDesc = strictNormalize(t.description);
                                 const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                                 const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+
+                                console.log("[DIAGNOSTIC:REALTIME_NEW_ROW]", {
+                                    txId: t.id,
+                                    description: t.description,
+                                    t_type: t.type,
+                                    t_pix_key: t.pix_key,
+                                    t_church_id: t.church_id,
+                                    assoc_found: !!assoc,
+                                    church_resolved: church?.name,
+                                });
 
                                 const transaction: Transaction = {
                                     id: t.id,
