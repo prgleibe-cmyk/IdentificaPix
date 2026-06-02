@@ -4,6 +4,7 @@ import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { OFXParser } from '../core/parsers/OFXParser';
+import { NameResolver } from '../core/processors/NameResolver';
 
 export * from './utils/parsingUtils';
 export * from './logic/matchingLogic';
@@ -101,14 +102,20 @@ export const processFileContent = async (
                 finalDate = `${yyyy}-${mm}-${dd}`;
             }
             
+            const cleanedDesc = NameResolver.clean(
+                draft.rawDescription,
+                [],
+                globalKeywords
+            );
+            
             return {
                 id: `ofx-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
                 date: finalDate,
-                description: draft.rawDescription,
+                description: cleanedDesc,
                 rawDescription: draft.rawDescription,
                 amount: numAmount,
                 originalAmount: rawAmt,
-                cleanedDescription: draft.rawDescription,
+                cleanedDescription: cleanedDesc,
                 contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
                 paymentMethod: 'OUTROS'
             };
