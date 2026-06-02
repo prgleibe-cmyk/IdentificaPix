@@ -3,7 +3,6 @@ import { Transaction, FileModel } from '../types';
 import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
-import { OFXParser } from '../core/parsers/OFXParser';
 
 export * from './utils/parsingUtils';
 export * from './logic/matchingLogic';
@@ -69,57 +68,6 @@ export const processFileContent = async (
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
     const rawContent = IngestionOrchestrator.normalizeRawContent(content);
-    
-    // Intercepta arquivos .ofx antes da consulta de modelo ou StrategyEngine
-    const isOfxFile = fileName.toLowerCase().endsWith('.ofx') || content.includes('<OFX') || content.includes('<STMTTRN>');
-    
-    if (isOfxFile) {
-        const parser = new OFXParser();
-        const doc = {
-            sourceName: fileName,
-            fileType: 'OFX' as any,
-            content: rawContent,
-            timestamp: new Date().toISOString(),
-            metadata: {
-                size: rawContent.length,
-                encoding: 'utf-8'
-            }
-        };
-        const drafts = parser.parse(doc);
-        
-        // Conversor/Adaptador mínimo para transformar TransactionDraft[] em Transaction[]
-        const transactions: Transaction[] = drafts.map((draft, index) => {
-            const rawAmt = draft.rawAmount || '0';
-            const numAmount = parseFloat(rawAmt.replace(',', '.'));
-            
-            // Format OFX date (YYYYMMDD to YYYY-MM-DD) if format is standard
-            let finalDate = draft.rawDate;
-            if (finalDate && finalDate.length >= 8 && /^\d+$/.test(finalDate.substring(0, 8))) {
-                const yyyy = finalDate.substring(0, 4);
-                const mm = finalDate.substring(4, 6);
-                const dd = finalDate.substring(6, 8);
-                finalDate = `${yyyy}-${mm}-${dd}`;
-            }
-            
-            return {
-                id: `ofx-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
-                date: finalDate,
-                description: draft.rawDescription,
-                rawDescription: draft.rawDescription,
-                amount: numAmount,
-                originalAmount: rawAmt,
-                cleanedDescription: draft.rawDescription,
-                contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
-                paymentMethod: 'OUTROS'
-            };
-        });
-
-        return {
-            transactions,
-            strategyName: 'OFX Parser Direto',
-            appliedModel: undefined
-        };
-    }
     
     // Passamos o fileName para ajudar na disambiguação de PDFs
     const matchResult = findMatchingModel(rawContent, models, fileName);
