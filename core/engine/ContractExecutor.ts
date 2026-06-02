@@ -151,6 +151,14 @@ export const ContractExecutor = {
                     paymentMethod: rawForm || 'OUTROS',
                     bank_id: model.id
                 });
+            } else if (results.length > 0 && !isoDate && isNaN(numAmount) && rawDesc.trim().length > 0) {
+                const lastResult = results[results.length - 1];
+                const cleanContinuation = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
+                if (cleanContinuation) {
+                    lastResult.description = `${lastResult.description} ${cleanContinuation}`.trim();
+                    lastResult.cleanedDescription = `${lastResult.cleanedDescription} ${cleanContinuation}`.trim();
+                }
+                lastResult.rawDescription = `${lastResult.rawDescription} | ${line.trim()}`;
             }
         });
 
