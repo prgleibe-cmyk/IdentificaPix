@@ -24,6 +24,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     });
 
     const isHydrated = useRef(false);
+    const hasExternalUpdateRef = useRef(false);
     const isMounted = useRef(false);
     const timeoutRef = useRef<any>(null);
     const lastSavedValue = useRef<string>('');
@@ -31,6 +32,7 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
     useEffect(() => {
         isMounted.current = true;
         isHydrated.current = false; // Reset hydration flag when key changes
+        hasExternalUpdateRef.current = false; // Reset external update flag when key changes
         
         const hydrate = async () => {
             if (!isHeavy) {
@@ -39,8 +41,10 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                         const item = window.localStorage.getItem(key);
                         const value = item ? JSON.parse(item) : initialValue;
                         if (isMounted.current) {
-                            setState(value);
-                            lastSavedValue.current = JSON.stringify(value);
+                            if (!hasExternalUpdateRef.current) {
+                                setState(value);
+                                lastSavedValue.current = JSON.stringify(value);
+                            }
                         }
                     }
                 } catch (error) {
@@ -56,8 +60,10 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
                 const value = await Promise.race([idbPromise, timeoutPromise]) as T | undefined;
 
                 if (isMounted.current && value !== undefined && value !== null) {
-                    setState(value);
-                    lastSavedValue.current = JSON.stringify(value);
+                    if (!hasExternalUpdateRef.current) {
+                        setState(value);
+                        lastSavedValue.current = JSON.stringify(value);
+                    }
                 }
             } catch (error) {
                 console.warn(`Erro hidratação ${key}:`, error);
@@ -109,5 +115,10 @@ export function usePersistentState<T>(key: string, initialValue: T, isHeavy: boo
         return () => clearTimeout(timeoutRef.current);
     }, [key, state, isHeavy]);
 
-    return [state, setState];
+    const setPersistedState: React.Dispatch<React.SetStateAction<T>> = React.useCallback((value) => {
+        hasExternalUpdateRef.current = true;
+        setState(value);
+    }, []);
+
+    return [state, setPersistedState];
 }
