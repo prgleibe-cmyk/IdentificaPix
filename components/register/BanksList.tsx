@@ -3,6 +3,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { SearchIcon, PencilIcon, TrashIcon } from '../Icons';
 import { RegisterListItem } from './RegisterListItem';
+import { getBankKey, resolveBankBrand, resolveBankColors } from '../../utils/bankHelper';
 
 export const BanksList: React.FC = () => {
     const { banks, openEditBank, openDeleteConfirmation } = useContext(AppContext);
@@ -27,34 +28,53 @@ export const BanksList: React.FC = () => {
                 />
             </div>
             <ul className="space-y-1.5 overflow-y-auto pr-1 custom-scrollbar flex-1 min-h-0">
-                {filteredBanks.map((bank: any) => (
-                    <RegisterListItem
-                        key={bank.id}
-                        actions={
-                             <>
-                                <button
-                                    onClick={() => openEditBank(bank)}
-                                    className="p-1.5 rounded-full text-brand-blue bg-blue-50 hover:bg-blue-100 active:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm"
+                {filteredBanks.map((bank: any) => {
+                    const key = getBankKey(bank.name);
+                    const colors = resolveBankColors(bank.name);
+                    const isGeneric = key === 'GENERIC';
+
+                    return (
+                        <RegisterListItem
+                            key={bank.id}
+                            actions={
+                                 <>
+                                    <button
+                                        onClick={() => openEditBank(bank)}
+                                        className="p-1.5 rounded-full text-brand-blue bg-blue-50 hover:bg-blue-100 active:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm"
+                                    >
+                                        <PencilIcon className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                         onClick={() => openDeleteConfirmation({ type: 'bank', id: bank.id, name: bank.name })}
+                                         className="p-1.5 rounded-full text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors shadow-sm"
+                                    >
+                                        <TrashIcon className="w-3 h-3" />
+                                    </button>
+                                </>
+                            }
+                        >
+                            <div className="flex items-center gap-3">
+                                <div 
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border overflow-hidden shrink-0"
+                                    style={{
+                                        backgroundColor: isGeneric ? undefined : colors.bg,
+                                        borderColor: isGeneric ? undefined : colors.border,
+                                        color: isGeneric ? undefined : colors.text
+                                    }}
                                 >
-                                    <PencilIcon className="w-3 h-3" />
-                                </button>
-                                <button
-                                     onClick={() => openDeleteConfirmation({ type: 'bank', id: bank.id, name: bank.name })}
-                                     className="p-1.5 rounded-full text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors shadow-sm"
-                                >
-                                    <TrashIcon className="w-3 h-3" />
-                                </button>
-                            </>
-                        }
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-brand-blue dark:text-blue-400 flex items-center justify-center font-bold text-xs border border-blue-200 dark:border-blue-800">
-                                {bank.name.charAt(0).toUpperCase()}
+                                    {isGeneric ? (
+                                        <div className="w-full h-full bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700">
+                                            {bank.name.charAt(0).toUpperCase()}
+                                        </div>
+                                    ) : (
+                                        resolveBankBrand(bank.name)
+                                    )}
+                                </div>
+                                <span className="font-bold text-slate-700 dark:text-slate-200 text-xs tracking-tight truncate">{bank.name}</span>
                             </div>
-                            <span className="font-bold text-slate-700 dark:text-slate-200 text-xs tracking-tight">{bank.name}</span>
-                        </div>
-                    </RegisterListItem>
-                ))}
+                        </RegisterListItem>
+                    );
+                })}
                 {filteredBanks.length === 0 && (
                     <div className="text-center py-8 text-slate-400 dark:text-slate-500 italic text-[10px]">
                         Nenhum banco encontrado.
