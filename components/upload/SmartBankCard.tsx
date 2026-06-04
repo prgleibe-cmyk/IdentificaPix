@@ -7,6 +7,7 @@ import { FileUploader } from '../FileUploader';
 import { CheckCircleIcon, EllipsisVerticalIcon } from '../Icons';
 import { useSmartBankCard } from '../../hooks/useSmartBankCard';
 import { BankManagerMenu } from './BankManagerMenu';
+import { getBankKey, resolveBankBrand, resolveBankColors, resolveBankFormats } from '../../utils/bankHelper';
 
 interface SmartBankCardProps {
     bank: any;
@@ -43,20 +44,73 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
             {isUploaded && (
                 <div 
                     onClick={() => toggleBankSelection(bank.id)}
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer transition-all ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-emerald-200 hover:border-emerald-400'}`}
+                    className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer transition-all shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-emerald-200 hover:border-emerald-400'}`}
                 >
                     {isSelected && <CheckCircleIcon className="w-3.5 h-3.5 text-white" />}
                 </div>
             )}
 
-            <div className="flex flex-col min-w-0 flex-1">
-                <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}`}>{bank.name}</span>
-                {isUploaded ? (
-                    <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wide">Lista Viva</span>
-                        <span className="text-[9px] text-slate-400">({ctrl.totalTransactions} txs)</span>
-                    </div>
-                ) : <span className="text-[10px] text-slate-400 italic mt-0.5">Nenhum arquivo</span>}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                {(() => {
+                    const key = getBankKey(bank.name);
+                    const colors = resolveBankColors(bank.name);
+                    const isGeneric = key === 'GENERIC';
+                    const formats = resolveBankFormats(bank.name);
+
+                    return (
+                        <>
+                            <div 
+                                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border overflow-hidden shrink-0"
+                                style={{
+                                    backgroundColor: isGeneric ? undefined : colors.bg,
+                                    borderColor: isGeneric ? undefined : colors.border,
+                                    color: isGeneric ? undefined : colors.text
+                                }}
+                            >
+                                {isGeneric ? (
+                                    <div className="w-full h-full bg-slate-100 dark:bg-slate-800/10 text-slate-500 dark:text-slate-400 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700">
+                                        {bank.name.charAt(0).toUpperCase()}
+                                    </div>
+                                ) : (
+                                    resolveBankBrand(bank.name)
+                                )}
+                            </div>
+
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}`}>{bank.name}</span>
+                                {isUploaded ? (
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wide">Lista Viva</span>
+                                        <span className="text-[9px] text-slate-400">({ctrl.totalTransactions} txs)</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-1 mt-0.5 min-w-0">
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                            {formats.map((fmt) => (
+                                                <span 
+                                                    key={fmt} 
+                                                    className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase shrink-0 ${
+                                                        isGeneric 
+                                                            ? "bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800/30 dark:border-slate-700 dark:text-slate-400" 
+                                                            : ""
+                                                    }`}
+                                                    style={isGeneric ? undefined : {
+                                                        backgroundColor: colors.bg,
+                                                        borderColor: colors.border,
+                                                        color: colors.text
+                                                    }}
+                                                >
+                                                    {fmt}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 italic">Nenhum arquivo</span>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    );
+                })()}
             </div>
 
             <div className="flex items-center gap-2">
