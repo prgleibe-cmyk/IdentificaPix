@@ -10,6 +10,7 @@ export type BankKey =
     | 'SANTANDER' 
     | 'NUBANK' 
     | 'INTER' 
+    | 'MERCADO_PAGO'
     | 'GENERIC';
 
 export interface BankColors {
@@ -35,6 +36,7 @@ export const getBankKey = (name: string): BankKey => {
     if (lower.includes('santander')) return 'SANTANDER';
     if (lower.includes('nubank') || lower.includes('nu pagamentos') || lower.includes('nu ')) return 'NUBANK';
     if (lower.includes('inter')) return 'INTER';
+    if (lower.includes('mercado pago') || lower.includes('mercadopago')) return 'MERCADO_PAGO';
     
     return 'GENERIC';
 };
@@ -51,97 +53,244 @@ export const resolveBankBrand = (name: string): React.ReactNode => {
         case 'SICREDI':
             return React.createElement('svg', {
                 viewBox: '0 0 100 100',
-                className: 'w-full h-full object-contain',
+                className: 'w-full h-full object-contain p-1.5',
                 fill: 'none',
                 xmlns: 'http://www.w3.org/2000/svg'
             }, [
-                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#00a859' }),
-                React.createElement('path', {
-                    key: 'leaf-outer',
-                    d: 'M50 20 C65 20 75 30 75 45 C75 60 65 70 50 80 C35 70 25 60 25 45 C25 30 35 20 50 20 Z',
-                    fill: '#ffffff',
-                    opacity: '0.9'
-                }),
-                React.createElement('path', {
-                    key: 'leaf-inner',
-                    d: 'M50 30 C58 30 65 37 65 45 C65 53 58 60 50 67 C42 60 35 53 35 45 C35 37 42 30 50 30 Z',
-                    fill: '#00a859'
-                })
+                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#ffffff' }),
+                React.createElement('g', { key: 'pinwheel', transform: 'translate(51, 51)' }, 
+                    Array.from({ length: 7 }).map((_, i) => {
+                        const angle = i * (360 / 7);
+                        return React.createElement('g', { key: `leaf-${i}`, transform: `rotate(${angle.toFixed(2)})` }, [
+                            // 1. Dark green fold (outer/left facet)
+                            React.createElement('path', {
+                                key: 'dark-fold',
+                                d: 'M 0 -7 L -16 -35 C -24 -28, -22 -17, -17 -13 Z',
+                                fill: '#006f3c'
+                            }),
+                            // 2. Medium green fold (middle crease facet)
+                            React.createElement('path', {
+                                key: 'med-fold',
+                                d: 'M 0 -7 L -16 -35 C -11 -33, -6 -22, -3 -13 Z',
+                                fill: '#009f4d'
+                            }),
+                            // 3. Light green fold (inner/right accent facet)
+                            React.createElement('path', {
+                                key: 'light-fold',
+                                d: 'M 0 -7 L -10 -22 C -7 -20, -4 -14, -2 -9 Z',
+                                fill: '#6cb33f'
+                            })
+                        ]);
+                    })
+                )
             ]);
 
         case 'SICOOB':
             return React.createElement('svg', {
                 viewBox: '0 0 100 100',
-                className: 'w-full h-full object-contain',
+                className: 'w-full h-full object-contain p-1',
                 fill: 'none',
                 xmlns: 'http://www.w3.org/2000/svg'
             }, [
-                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#003641' }),
-                React.createElement('circle', { key: 'outer', cx: '50', cy: '50', r: '22', fill: '#a3d842' }),
-                React.createElement('circle', { key: 'inner', cx: '50', cy: '50', r: '14', fill: '#003641' })
+                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#ffffff' }),
+                React.createElement('g', { key: 'sicoob-mark', transform: 'translate(0, 2)' }, [
+                    // Green segment (Top-Left)
+                    React.createElement('path', {
+                        key: 'green-segment',
+                        d: 'M 50 22 L 24 22 C 19 22, 17.5 24.5, 19.5 28 L 33.5 52 C 34.5 53.5, 36 55.5, 38 56.5 L 40 57.5 L 50 40 Z',
+                        fill: '#70bd44'
+                    }),
+                    // Teal segment (Top-Right)
+                    React.createElement('path', {
+                        key: 'teal-segment',
+                        d: 'M 50 22 L 76 22 C 81 22, 82.5 24.5, 80.5 28 L 66.5 52 C 65.5 53.5, 64 55.5, 62 56.5 L 60 57.5 L 50 40 Z',
+                        fill: '#00b2a9'
+                    }),
+                    // Lime segment (Bottom)
+                    React.createElement('path', {
+                        key: 'lime-segment',
+                        d: 'M 40 57.5 L 60 57.5 L 66.5 52 L 53 75.5 C 51.5 78, 48.5 78, 47 75.5 L 33.5 52 Z',
+                        fill: '#a3d132'
+                    })
+                ])
             ]);
 
         case 'BB':
             return React.createElement('svg', {
                 viewBox: '0 0 100 100',
-                className: 'w-full h-full object-contain',
+                className: 'w-full h-full object-contain p-1',
                 fill: 'none',
                 xmlns: 'http://www.w3.org/2000/svg'
             }, [
-                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#fcf206' }),
-                React.createElement('g', { key: 'brand-group', transform: 'translate(10, 10) scale(0.8)' }, [
+                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#ffe600' }),
+                React.createElement('g', { key: 'bb-brand', transform: 'translate(50, 40)' }, [
+                    // Top loop (Shape 1)
                     React.createElement('path', {
-                        key: 'p1',
-                        d: 'M50 15 L25 40 L50 65 L75 40 Z',
-                        stroke: '#00509d',
-                        strokeWidth: '12',
-                        fill: 'none',
-                        strokeLinejoin: 'round'
+                        key: 'top-loop',
+                        d: 'M -3.5 -3.5 L -16.5 -16.5 L 0 -33 L 16.5 -16.5 L 6.5 -6.5 L 0 -13 L -6.5 -6.5',
+                        stroke: '#002d72',
+                        strokeWidth: '4.8',
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'miter',
+                        fill: 'none'
                     }),
+                    // Bottom loop (Shape 2 - perfect 180deg rotation of the top loop)
                     React.createElement('path', {
-                        key: 'p2',
-                        d: 'M50 35 L35 50 L50 65 L65 50 Z',
-                        stroke: '#00509d',
-                        strokeWidth: '8',
-                        fill: 'none',
-                        strokeLinejoin: 'round'
+                        key: 'bottom-loop',
+                        d: 'M 3.5 3.5 L 16.5 16.5 L 0 33 L -16.5 16.5 L -6.5 6.5 L 0 13 L 6.5 6.5',
+                        stroke: '#002d72',
+                        strokeWidth: '4.8',
+                        strokeLinecap: 'round',
+                        strokeLinejoin: 'miter',
+                        fill: 'none'
+                    }),
+                    // Top-right accent slash
+                    React.createElement('line', {
+                        key: 'top-slash',
+                        x1: '14.5',
+                        y1: '-22.5',
+                        x2: '21.5',
+                        y2: '-15.5',
+                        stroke: '#002d72',
+                        strokeWidth: '4.8',
+                        strokeLinecap: 'round'
+                    }),
+                    // Bottom-left accent slash
+                    React.createElement('line', {
+                        key: 'bottom-slash',
+                        x1: '-21.5',
+                        y1: '15.5',
+                        x2: '-14.5',
+                        y2: '22.5',
+                        stroke: '#002d72',
+                        strokeWidth: '4.8',
+                        strokeLinecap: 'round'
                     })
-                ])
+                ]),
+                React.createElement('text', {
+                    key: 'bb-text',
+                    x: '50',
+                    y: '80',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                    fontSize: '7.8',
+                    fontWeight: '900',
+                    fill: '#002d72',
+                    textAnchor: 'middle',
+                    letterSpacing: '-0.3'
+                }, 'BANCO DO BRASIL')
             ]);
 
         case 'CAIXA':
             return React.createElement('svg', {
                 viewBox: '0 0 100 100',
-                className: 'w-full h-full object-contain',
+                className: 'w-full h-full object-contain p-1',
                 fill: 'none',
                 xmlns: 'http://www.w3.org/2000/svg'
             }, [
-                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#0064a3' }),
-                React.createElement('path', {
-                    key: 'white-block',
-                    d: 'M30 30 L55 30 L70 50 L55 70 L30 70 Z',
-                    fill: '#ffffff'
-                }),
-                React.createElement('path', {
-                    key: 'orange-block',
-                    d: 'M58 30 L70 30 L85 50 L70 70 L58 70 L73 50 Z',
-                    fill: '#f07f20'
-                })
+                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#ffffff' }),
+                React.createElement('g', { key: 'caixa-brand', transform: 'translate(4, 2)' }, [
+                    // C
+                    React.createElement('path', {
+                        key: 'char-c',
+                        d: 'M 22,36 L 12,36 C 9,36 7,38 7,50 C 7,62 9,64 12,64 L 22,64 L 22,55 L 14,55 C 13,55 13,53 13,50 C 13,47 13,45 14,45 L 22,45 Z',
+                        fill: '#3c628e'
+                    }),
+                    // A
+                    React.createElement('path', {
+                        key: 'char-a1',
+                        d: 'M 25,64 L 30,64 L 31.5,52 L 37.5,52 L 39,64 L 44,64 L 38,36 L 31,36 Z',
+                        fill: '#3c628e'
+                    }),
+                    React.createElement('polygon', {
+                        key: 'char-a1-hole',
+                        points: '33.5,45 35.5,45 34.5,39',
+                        fill: '#ffffff'
+                    }),
+                    // I
+                    React.createElement('path', {
+                        key: 'char-i',
+                        d: 'M 47,36 L 52,36 L 52,64 L 47,64 Z',
+                        fill: '#3c628e'
+                    }),
+                    // X - Blue segment
+                    React.createElement('polygon', {
+                        key: 'char-x-blue',
+                        points: '55,36 60,36 71,64 66,64',
+                        fill: '#3c628e'
+                    }),
+                    // X - Orange segment
+                    React.createElement('polygon', {
+                        key: 'char-x-orange',
+                        points: '55,64 60,64 71,36 66,36',
+                        fill: '#f29325'
+                    }),
+                    // A
+                    React.createElement('path', {
+                        key: 'char-a2',
+                        d: 'M 74,64 L 79,64 L 80.5,52 L 86.5,52 L 88,64 L 93,64 L 87,36 L 80,36 Z',
+                        fill: '#3c628e'
+                    }),
+                    React.createElement('polygon', {
+                        key: 'char-a2-hole',
+                        points: '82.5,45 84.5,45 83.5,39',
+                        fill: '#ffffff'
+                    }),
+                    // Subtitle
+                    React.createElement('text', {
+                        key: 'subtitle',
+                        x: '46',
+                        y: '78',
+                        fontFamily: 'Inter, system-ui, sans-serif',
+                        fontSize: '4.8',
+                        fontWeight: '700',
+                        fill: '#3c628e',
+                        textAnchor: 'middle',
+                        letterSpacing: '0.2'
+                    }, 'CAIXA ECONÔMICA FEDERAL')
+                ])
             ]);
 
         case 'BRADESCO':
             return React.createElement('svg', {
                 viewBox: '0 0 100 100',
-                className: 'w-full h-full object-contain',
+                className: 'w-full h-full object-contain p-1',
                 fill: 'none',
                 xmlns: 'http://www.w3.org/2000/svg'
             }, [
-                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#cc092f' }),
-                React.createElement('g', { key: 'tree-group', stroke: '#ffffff', strokeWidth: '6', strokeLinecap: 'round', fill: 'none' }, [
-                    React.createElement('path', { key: 'trunk', d: 'M50 75 V35' }),
-                    React.createElement('path', { key: 'right-branch', d: 'M50 45 C65 35 75 40 75 55' }),
-                    React.createElement('path', { key: 'left-branch', d: 'M50 55 C35 45 25 50 25 65' })
-                ])
+                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#ffffff' }),
+                React.createElement('g', { key: 'bradesco-emblem', fill: '#e30613' }, [
+                    // Top crescent hood
+                    React.createElement('path', {
+                        key: 'top-hood',
+                        d: 'M 39.2,28.5 C 47.5,22 56.5,25 59.5,29.5 C 53.5,27.5 46.5,29 40.5,36 C 39.5,33.5 39.2,31 39.2,28.5 Z'
+                    }),
+                    // Main swooping branch
+                    React.createElement('path', {
+                        key: 'main-swoop',
+                        d: 'M 35.2,36.5 C 39,31 54,31.5 64,39 C 65,43 61,50.5 55.2,50.5 C 59.5,49.5 61,45.5 57.5,41 C 53,34.5 44.5,35 39,44.5 C 38.5,41.2 37,39 35.2,36.5 Z'
+                    }),
+                    // Shorter left pillar block
+                    React.createElement('path', {
+                        key: 'left-pillar',
+                        d: 'M 46.5,49 L 49.5,48 L 49.5,60 L 46.5,60 Z'
+                    }),
+                    // Taller right pillar block
+                    React.createElement('path', {
+                        key: 'right-pillar',
+                        d: 'M 51.5,46.5 L 54.5,45.5 L 54.5,60 L 51.5,60 Z'
+                    })
+                ]),
+                React.createElement('text', {
+                    key: 'bradesco-lowercase-text',
+                    x: '50',
+                    y: '81',
+                    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                    fontSize: '13.5',
+                    fontWeight: '800',
+                    fill: '#e30613',
+                    textAnchor: 'middle',
+                    letterSpacing: '-0.4'
+                }, 'bradesco')
             ]);
 
         case 'ITAU':
@@ -220,6 +369,75 @@ export const resolveBankBrand = (name: string): React.ReactNode => {
                 ])
             ]);
 
+        case 'MERCADO_PAGO':
+            return React.createElement('svg', {
+                viewBox: '0 0 100 100',
+                className: 'w-full h-full object-contain p-1',
+                fill: 'none',
+                xmlns: 'http://www.w3.org/2000/svg'
+            }, [
+                React.createElement('rect', { key: 'bg', width: '100', height: '100', rx: '24', fill: '#ffffff' }),
+                React.createElement('g', { key: 'mp-logo', transform: 'translate(0, 0)' }, [
+                    // Sky blue top and bottom backdrop parts
+                    React.createElement('path', {
+                        key: 'sky-upper',
+                        d: 'M 10 50 C 10 32, 90 32, 90 50 Q 70 42, 50 50 Q 30 58, 10 50 Z',
+                        fill: '#20b2ff'
+                    }),
+                    React.createElement('path', {
+                        key: 'sky-lower',
+                        d: 'M 10 50 C 10 68, 90 68, 90 50 Q 70 42, 50 50 Q 30 58, 10 50 Z',
+                        fill: '#20b2ff'
+                    }),
+                    // Outer oval container
+                    React.createElement('ellipse', { key: 'outer-oval', cx: '50', cy: '50', rx: '44', ry: '28', stroke: '#001e62', strokeWidth: '5', fill: 'none' }),
+                    // Shaking hands vector
+                    React.createElement('path', {
+                        key: 'handshake-silhouette',
+                        d: 'M 25 45 Q 35 44, 45 50 Q 55 56, 62 48 Q 50 38, 38 38 Z',
+                        fill: '#ffffff',
+                        stroke: '#001e62',
+                        strokeWidth: '4.5',
+                        strokeLinejoin: 'round'
+                    }),
+                    React.createElement('path', {
+                        key: 'left-sleeve',
+                        d: 'M 15 50 C 20 46, 24 45, 28 47',
+                        stroke: '#001e62',
+                        strokeWidth: '4.5',
+                        strokeLinecap: 'round'
+                    }),
+                    React.createElement('path', {
+                        key: 'right-sleeve',
+                        d: 'M 85 50 C 80 46, 76 45, 72 47',
+                        stroke: '#001e62',
+                        strokeWidth: '4.5',
+                        strokeLinecap: 'round'
+                    }),
+                    React.createElement('path', {
+                        key: 'hand-detail-1',
+                        d: 'M 40 45 C 44 48, 48 44, 46 40',
+                        stroke: '#001e62',
+                        strokeWidth: '4.5',
+                        strokeLinecap: 'round'
+                    }),
+                    React.createElement('path', {
+                        key: 'hand-detail-2',
+                        d: 'M 43 49 C 47 52, 51 48, 49 44',
+                        stroke: '#001e62',
+                        strokeWidth: '4.5',
+                        strokeLinecap: 'round'
+                    }),
+                    React.createElement('path', {
+                        key: 'hand-detail-3',
+                        d: 'M 46 53 C 50 56, 54 52, 52 48',
+                        stroke: '#001e62',
+                        strokeWidth: '4.5',
+                        strokeLinecap: 'round'
+                    })
+                ])
+            ]);
+
         default:
             return React.createElement('svg', {
                 viewBox: '0 0 100 100',
@@ -265,6 +483,8 @@ export const resolveBankFormats = (name: string): string[] => {
             return ['OFX', 'CSV'];
         case 'INTER':
             return ['OFX', 'PDF', 'CSV'];
+        case 'MERCADO_PAGO':
+            return ['XLSX', 'CSV'];
         default:
             return ['OFX', 'PDF', 'XLSX', 'CSV', 'TXT'];
     }
@@ -295,6 +515,8 @@ export const resolveBankInstructions = (name: string): string => {
             return 'Pelo aplicativo móvel do Nubank, acesse sua tela de conta > Exportar Extrato. Escolha o período e selecione OFX ou CSV.';
         case 'INTER':
             return 'No Internet Banking ou App do Banco Inter, acesse o painel de Conta Corrente > Extrato > Exportar Extrato nos formatos OFX ou PDF.';
+        case 'MERCADO_PAGO':
+            return 'No portal ou aplicativo do Mercado Pago, acesse Extrato > Baixar Extrato e escolha o formato CSV ou Excel (XLSX).';
         default:
             return 'Exporte o extrato bancário diretamente no portal do seu banco utilizando de preferência o formato OFX original.';
     }
@@ -369,6 +591,13 @@ export const resolveBankColors = (name: string): BankColors => {
                 bg: '#ff7a000d',
                 border: '#ff7a0025',
                 text: '#d66700'
+            };
+        case 'MERCADO_PAGO':
+            return {
+                primary: '#001e62',
+                bg: '#20b2ff0f',
+                border: '#001e6225',
+                text: '#001e62'
             };
         default:
             return {

@@ -23,6 +23,7 @@ import { GmailSyncModal } from './GmailSyncModal';
 import { processFileContent } from '../../services/processingService';
 import { LaunchService } from '../../services/LaunchService';
 import { useAuth } from '../../contexts/AuthContext';
+import { getBankKey, resolveBankBrand, resolveBankColors } from '../../utils/bankHelper';
 
 const BankRow: React.FC<{ 
     bank: any, 
@@ -115,7 +116,47 @@ const BankRow: React.FC<{
     return (
         <div className={`p-3 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-3 relative ${isUploaded ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
             <div className="hidden"><FileUploader ref={uploaderRef} id={`update-bank-${bank.id}`} title="Up" onFileUpload={handleFileUploadWrapper} isUploaded={false} uploadedFileName={null} onParsingStatusChange={setIsUploading} /></div>
-            <div className="flex flex-col min-w-0"><span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{bank.name}</span>{isUploaded ? <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium"><CheckCircleIcon className="w-3 h-3" /> Lista Viva Ativa</span> : <span className="text-[10px] text-slate-400 italic">Nenhum extrato</span>}</div>
+            
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                {(() => {
+                    const key = getBankKey(bank.name);
+                    const colors = resolveBankColors(bank.name);
+                    const isGeneric = key === 'GENERIC';
+
+                    return (
+                        <>
+                            <div 
+                                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border overflow-hidden shrink-0"
+                                style={{
+                                    backgroundColor: isGeneric ? undefined : colors.bg,
+                                    borderColor: isGeneric ? undefined : colors.border,
+                                    color: isGeneric ? undefined : colors.text
+                                }}
+                            >
+                                {isGeneric ? (
+                                    <div className="w-full h-full bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700">
+                                        {bank.name.charAt(0).toUpperCase()}
+                                    </div>
+                                ) : (
+                                    resolveBankBrand(bank.name)
+                                )}
+                            </div>
+
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{bank.name}</span>
+                                {isUploaded ? (
+                                    <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">
+                                        <CheckCircleIcon className="w-3 h-3 shrink-0" /> Lista Viva Ativa
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] text-slate-400 italic">Nenhum extrato</span>
+                                )}
+                            </div>
+                        </>
+                    );
+                })()}
+            </div>
+
             <div className="relative">
                 {isUploading ? <div className="p-2"><svg className="animate-spin h-5 w-5 text-blue-500" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div> : 
                 <button ref={buttonRef} onClick={toggleMenu} className={`p-2 rounded-full border ${menuOpen ? 'bg-blue-50 text-brand-blue border-blue-200' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>{isUploaded ? <EllipsisVerticalIcon className="w-5 h-5" /> : <CloudArrowUpIcon className="w-5 h-5" />}</button>}
