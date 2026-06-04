@@ -1,4 +1,5 @@
 import React from 'react';
+import { getBankIdentity } from './bankIdentity';
 
 export type BankKey = 
     | 'SICREDI' 
@@ -42,12 +43,63 @@ export const getBankKey = (name: string): BankKey => {
 };
 
 /**
+ * Traduz valores de identidade para a chave estrita BankKey.
+ */
+export const mapIdentityToBankKey = (idVal: string): BankKey => {
+    const upper = idVal.toUpperCase();
+    if (upper === 'BANCO_DO_BRASIL' || upper === 'BB') return 'BB';
+    if (upper === 'SICREDI') return 'SICREDI';
+    if (upper === 'SICOOB') return 'SICOOB';
+    if (upper === 'CAIXA') return 'CAIXA';
+    if (upper === 'BRADESCO') return 'BRADESCO';
+    if (upper === 'ITAU') return 'ITAU';
+    if (upper === 'SANTANDER') return 'SANTANDER';
+    if (upper === 'NUBANK') return 'NUBANK';
+    if (upper === 'INTER') return 'INTER';
+    if (upper === 'MERCADO_PAGO') return 'MERCADO_PAGO';
+    return 'GENERIC';
+};
+
+/**
+ * Resolve a chave de banco única (BankKey) do sistema aplicando de forma rigorosa a
+ * NOVA ORDEM OBRIGATÓRIA da Fase 5:
+ * 1. bank.bank_key (SE EXISTIR)
+ * 2. getBankIdentity(bank)
+ * 3. mapIdentityToBankKey
+ * 4. includes (LEGACY HEURÍSTICO FALLBACK)
+ * 5. GENERIC (último nível)
+ */
+export const resolveBankKey = (bank: { name: string; bank_key?: string | null } | string): BankKey => {
+    const bankObject = typeof bank === 'string' ? { name: bank } : bank;
+    
+    // 1. bank.bank_key (SE EXISTIR) -> mapIdentityToBankKey
+    if (bankObject.bank_key) {
+        const key = mapIdentityToBankKey(bankObject.bank_key);
+        if (key !== 'GENERIC') return key;
+    }
+    
+    // 2 & 3. getBankIdentity -> mapIdentityToBankKey
+    const identity = getBankIdentity(bankObject);
+    const keyFromIdentity = mapIdentityToBankKey(identity);
+    if (keyFromIdentity !== 'GENERIC') return keyFromIdentity;
+    
+    // 4. includes (LEGACY FALLBACK)
+    if (bankObject.name) {
+        const keyLegacy = getBankKey(bankObject.name);
+        if (keyLegacy !== 'GENERIC') return keyLegacy;
+    }
+    
+    // 5. GENERIC (último nível)
+    return 'GENERIC';
+};
+
+/**
  * Retorna o logotipo em formato SVG do banco correspondente.
  * Utiliza React.createElement para garantir compatibilidade estrutural estrita
  * compilando perfeitamente sem depender de arquivos .tsx especiais.
  */
-export const resolveBankBrand = (name: string): React.ReactNode => {
-    const key = getBankKey(name);
+export const resolveBankBrand = (bank: { name: string; bank_key?: string | null } | string): React.ReactNode => {
+    const key = resolveBankKey(bank);
 
     switch (key) {
         case 'SICREDI':
@@ -461,8 +513,8 @@ export const resolveBankBrand = (name: string): React.ReactNode => {
 /**
  * Retorna a lista de formatos aceitos e sugeridos para cada banco.
  */
-export const resolveBankFormats = (name: string): string[] => {
-    const key = getBankKey(name);
+export const resolveBankFormats = (bank: { name: string; bank_key?: string | null } | string): string[] => {
+    const key = resolveBankKey(bank);
 
     switch (key) {
         case 'SICREDI':
@@ -493,8 +545,8 @@ export const resolveBankFormats = (name: string): string[] => {
 /**
  * Retorna as instruções amigáveis de exportação associadas a cada instituição.
  */
-export const resolveBankInstructions = (name: string): string => {
-    const key = getBankKey(name);
+export const resolveBankInstructions = (bank: { name: string; bank_key?: string | null } | string): string => {
+    const key = resolveBankKey(bank);
 
     switch (key) {
         case 'SICREDI':
@@ -525,8 +577,8 @@ export const resolveBankInstructions = (name: string): string => {
 /**
  * Retorna um mapeamento ideal de cores CSS baseadas nas bandeiras institucionais de cada banco.
  */
-export const resolveBankColors = (name: string): BankColors => {
-    const key = getBankKey(name);
+export const resolveBankColors = (bank: { name: string; bank_key?: string | null } | string): BankColors => {
+    const key = resolveBankKey(bank);
 
     switch (key) {
         case 'SICREDI':

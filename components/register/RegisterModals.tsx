@@ -3,23 +3,49 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { XMarkIcon } from '../Icons';
 import { ChurchFormData } from '../../types';
+import { BANK_CATALOG } from '../../constants/bankCatalog';
 
 export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     const { addBank } = useContext(AppContext);
     const { t } = useTranslation();
     const [name, setName] = useState('');
+    const [selectedKey, setSelectedKey] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const key = e.target.value;
+        setSelectedKey(key);
+        if (key) {
+            const selectedItem = BANK_CATALOG.find(b => b.key === key);
+            if (selectedItem) {
+                setName(selectedItem.name);
+            }
+        } else {
+            setName('');
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        
+        let catalogNameFallback = '';
+        if (selectedKey) {
+            const selectedItem = BANK_CATALOG.find(b => b.key === selectedKey);
+            if (selectedItem) {
+                catalogNameFallback = selectedItem.name;
+            }
+        }
+
+        const bankName = name.trim() || catalogNameFallback;
+        if (!bankName) return;
         
         setIsSubmitting(true);
-        const success = await addBank(name);
+        const success = await addBank(bankName, selectedKey || null);
         setIsSubmitting(false);
         
         if (success) {
             setName('');
+            setSelectedKey('');
             onCancel();
         }
     };
@@ -37,6 +63,22 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                         </div>
                         <div className="space-y-5">
                             <div>
+                                <label htmlFor="bank-key" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1">Selecionar Banco Oficial</label>
+                                <select 
+                                    id="bank-key" 
+                                    value={selectedKey} 
+                                    onChange={handleSelectChange} 
+                                    className="block w-full rounded-2xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner focus:border-brand-blue focus:ring-brand-blue text-sm p-3.5 outline-none transition-all cursor-pointer"
+                                    disabled={isSubmitting}
+                                >
+                                    <option value="">Outro (Digitar Nome Livremente)</option>
+                                    {BANK_CATALOG.filter(b => b.active).map(b => (
+                                        <option key={b.key} value={b.key}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
                                 <label htmlFor="bank-name" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1">{t('register.bankName')}</label>
                                 <input 
                                     type="text" 
@@ -45,16 +87,16 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                                     onChange={e => setName(e.target.value)} 
                                     className="block w-full rounded-2xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner focus:border-brand-blue focus:ring-brand-blue text-sm p-3.5 outline-none transition-all" 
                                     placeholder="Ex: Banco Digital X" 
-                                    required 
+                                    required={!selectedKey} 
                                     disabled={isSubmitting}
-                                    autoFocus
+                                    autoFocus={!selectedKey}
                                 />
                             </div>
                         </div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50 mt-auto">
                         <button type="button" onClick={onCancel} disabled={isSubmitting} className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase disabled:opacity-50 tracking-wide">{t('common.cancel')}</button>
-                        <button type="submit" disabled={isSubmitting || !name.trim()} className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 tracking-wide">
+                        <button type="submit" disabled={isSubmitting || (!name.trim() && !selectedKey)} className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 tracking-wide">
                             {isSubmitting ? 'Salvando...' : t('common.save')}
                         </button>
                     </div>

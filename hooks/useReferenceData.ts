@@ -313,7 +313,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 
-    const addBank = useCallback(async (name: string): Promise<boolean> => {
+    const addBank = useCallback(async (name: string, bank_key?: string | null): Promise<boolean> => {
         if(!user || !effectiveUserId) return false;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
@@ -322,7 +322,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         console.log(`[WRITE:FIX] Adicionando banco com effectiveUserId: ${effectiveUserId}`);
         const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: effectiveUserId }]).select();
         if (data) {
-            setBanks(prev => [...prev, data[0]]);
+            const newBank = { ...data[0], bank_key: bank_key || null };
+            setBanks(prev => [...prev, newBank]);
             showToast('Banco adicionado.', 'success');
             return true;
         }
