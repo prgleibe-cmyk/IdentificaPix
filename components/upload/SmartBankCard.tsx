@@ -28,7 +28,13 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
     const isSelected = selectedBankIds.includes(bank.id);
 
     return (
-        <div className={`p-3 rounded-2xl border transition-all duration-300 flex items-center justify-between gap-3 group relative ${isUploaded ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+        <div className={`p-4 rounded-3xl border transition-all duration-300 flex items-center justify-between gap-4 group relative min-h-[96px] ${
+            isUploaded 
+                ? isSelected 
+                    ? 'bg-emerald-50/70 border-emerald-400 dark:bg-emerald-950/20 dark:border-emerald-600 shadow-sm' 
+                    : 'bg-emerald-50/20 border-emerald-200/60 dark:bg-emerald-950/5 dark:border-emerald-800/60 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10'
+                : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-brand-blue/30 dark:hover:border-brand-blue/40 shadow-sm hover:shadow-md'
+        }`}>
             <div className="hidden">
                 <FileUploader 
                     ref={ctrl.uploaderRef}
@@ -41,16 +47,20 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                 />
             </div>
 
-            {isUploaded && (
-                <div 
-                    onClick={() => toggleBankSelection(bank.id)}
-                    className={`w-5 h-5 rounded-md border flex items-center justify-center cursor-pointer transition-all shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-emerald-200 hover:border-emerald-400'}`}
-                >
-                    {isSelected && <CheckCircleIcon className="w-3.5 h-3.5 text-white" />}
-                </div>
-            )}
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+                {isUploaded && (
+                    <div 
+                        onClick={() => toggleBankSelection(bank.id)}
+                        className={`w-6 h-6 rounded-lg border flex items-center justify-center cursor-pointer transition-all shrink-0 shadow-sm ${
+                            isSelected 
+                                ? 'bg-emerald-500 border-emerald-500 hover:bg-emerald-600 hover:border-emerald-600' 
+                                : 'bg-white dark:bg-slate-800 border-slate-250 dark:border-slate-600 hover:border-emerald-400'
+                        }`}
+                    >
+                        {isSelected && <CheckCircleIcon className="w-4 h-4 text-white" />}
+                    </div>
+                )}
 
-            <div className="flex items-center gap-3 min-w-0 flex-1">
                 {(() => {
                     const key = getBankKey(bank.name);
                     const colors = resolveBankColors(bank.name);
@@ -60,7 +70,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                     return (
                         <>
                             <div 
-                                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs border overflow-hidden shrink-0"
+                                className="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xs border overflow-hidden shrink-0 shadow-inner p-1 transition-transform duration-250 group-hover:scale-[1.03]"
                                 style={{
                                     backgroundColor: isGeneric ? undefined : colors.bg,
                                     borderColor: isGeneric ? undefined : colors.border,
@@ -68,7 +78,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                 }}
                             >
                                 {isGeneric ? (
-                                    <div className="w-full h-full bg-slate-100 dark:bg-slate-800/10 text-slate-500 dark:text-slate-400 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <div className="w-full h-full bg-slate-50 dark:bg-slate-800/20 text-slate-500 dark:text-slate-400 flex items-center justify-center rounded-xl border border-slate-200/50 dark:border-slate-700 font-black text-xl">
                                         {bank.name.charAt(0).toUpperCase()}
                                     </div>
                                 ) : (
@@ -76,20 +86,30 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                 )}
                             </div>
 
-                            <div className="flex flex-col min-w-0 flex-1">
-                                <span className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}`}>{bank.name}</span>
+                            <div className="flex flex-col min-w-0 flex-1 py-1">
+                                <span className={`font-black text-sm tracking-tight truncate ${
+                                    isSelected 
+                                        ? 'text-emerald-800 dark:text-emerald-300' 
+                                        : 'text-slate-800 dark:text-slate-100'
+                                }`}>
+                                    {bank.name}
+                                </span>
                                 {isUploaded ? (
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wide">Lista Viva</span>
-                                        <span className="text-[9px] text-slate-400">({ctrl.totalTransactions} txs)</span>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                            Lista Viva
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                                            {ctrl.totalTransactions} txs
+                                        </span>
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col gap-1 mt-0.5 min-w-0">
+                                    <div className="flex flex-col gap-1.5 mt-1 min-w-0">
                                         <div className="flex items-center gap-1 flex-wrap">
                                             {formats.map((fmt) => (
                                                 <span 
                                                     key={fmt} 
-                                                    className={`text-[8px] font-bold px-1.5 py-0.5 rounded border uppercase shrink-0 ${
+                                                    className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-md border uppercase shrink-0 tracking-wider ${
                                                         isGeneric 
                                                             ? "bg-slate-100 border-slate-200 text-slate-600 dark:bg-slate-800/30 dark:border-slate-700 dark:text-slate-400" 
                                                             : ""
@@ -104,7 +124,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                                 </span>
                                             ))}
                                         </div>
-                                        <span className="text-[10px] text-slate-400 italic">Nenhum arquivo</span>
+                                        <span className="text-[10px] text-slate-400 italic font-medium">Nenhum arquivo</span>
                                     </div>
                                 )}
                             </div>
@@ -117,9 +137,23 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                 {ctrl.isUploading ? (
                     <svg className="animate-spin h-5 w-5 text-blue-500" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                 ) : !isUploaded ? (
-                    <button onClick={() => ctrl.triggerUpload('replace')} className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:border-brand-blue hover:text-brand-blue rounded-lg text-xs font-bold uppercase tracking-wide shadow-sm transition-all">{t('upload.statementButton')}</button>
+                    <button 
+                        onClick={() => ctrl.triggerUpload('replace')} 
+                        className="px-3.5 py-2 bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-850 text-slate-700 dark:text-slate-200 hover:text-brand-blue dark:hover:text-brand-blue border border-slate-250 dark:border-slate-600 hover:border-brand-blue/50 dark:hover:border-brand-blue/50 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm hover:shadow active:scale-[0.98] transition-all"
+                    >
+                        {t('upload.statementButton')}
+                    </button>
                 ) : (
-                    <button onClick={() => ctrl.setIsMenuOpen(!ctrl.isMenuOpen)} className={`p-2 rounded-full transition-all border ${ctrl.isMenuOpen ? 'bg-blue-50 border-blue-200 text-brand-blue' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}><EllipsisVerticalIcon className="w-5 h-5" /></button>
+                    <button 
+                        onClick={() => ctrl.setIsMenuOpen(!ctrl.isMenuOpen)} 
+                        className={`p-2 rounded-xl transition-all border ${
+                            ctrl.isMenuOpen 
+                                ? 'bg-blue-50/80 border-blue-200 text-brand-blue' 
+                                : 'bg-white dark:bg-slate-800 border-slate-250 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:border-slate-350 shadow-sm'
+                        }`}
+                    >
+                        <EllipsisVerticalIcon className="w-5 h-5" />
+                    </button>
                 )}
 
                 {ctrl.isMenuOpen && createPortal(
