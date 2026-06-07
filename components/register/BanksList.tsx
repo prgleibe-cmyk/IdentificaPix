@@ -3,7 +3,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { SearchIcon, PencilIcon, TrashIcon } from '../Icons';
 import { RegisterListItem } from './RegisterListItem';
-import { getBankKey, resolveBankBrand, resolveBankColors } from '../../utils/bankHelper';
+import { resolveBankKey, resolveBankBrand, resolveBankColors } from '../../utils/bankHelper';
 
 export const BanksList: React.FC = () => {
     const { banks, openEditBank, openDeleteConfirmation } = useContext(AppContext);
@@ -29,8 +29,8 @@ export const BanksList: React.FC = () => {
             </div>
             <ul className="space-y-1.5 overflow-y-auto pr-1 custom-scrollbar flex-1 min-h-0">
                 {filteredBanks.map((bank: any) => {
-                    const key = getBankKey(bank.name);
-                    const colors = resolveBankColors(bank.name);
+                    const key = resolveBankKey(bank);
+                    const colors = resolveBankColors(bank);
                     const isGeneric = key === 'GENERIC';
 
                     return (
@@ -67,10 +67,10 @@ export const BanksList: React.FC = () => {
                                             {bank.name.charAt(0).toUpperCase()}
                                         </div>
                                     ) : (
-                                        resolveBankBrand(bank.name)
+                                        resolveBankBrand(bank)
                                     )}
                                 </div>
-                                <span className="font-bold text-slate-700 dark:text-slate-200 text-xs tracking-tight truncate">{bank.name}</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-200 text-xs tracking-tight truncate">{bank.account_name ?? bank.name}</span>
                             </div>
                         </RegisterListItem>
                     );

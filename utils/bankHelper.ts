@@ -61,35 +61,45 @@ export const mapIdentityToBankKey = (idVal: string): BankKey => {
 };
 
 /**
- * Resolve a chave de banco única (BankKey) do sistema aplicando de forma rigorosa a
- * NOVA ORDEM OBRIGATÓRIA da Fase 5:
- * 1. bank.bank_key (SE EXISTIR)
- * 2. getBankIdentity(bank)
- * 3. mapIdentityToBankKey
- * 4. includes (LEGACY HEURÍSTICO FALLBACK)
- * 5. GENERIC (último nível)
+ * Resolve a chave de banco única (BankKey) do sistema de forma 100% determinística (Fase 6):
+ * 1. bank.bank_key (única fonte confiável) -> mapIdentityToBankKey(bank_key)
+ * 2. Se bank_key não estiver preenchido, cai para GENERIC.
+ * 3. O uso de name/includes/substring é banido da decisão primária e serve apenas
+ *    como compatibilidade histórica silenciosa de último recurso para evitar quebra de UI.
  */
 export const resolveBankKey = (bank: { name: string; bank_key?: string | null } | string): BankKey => {
-    const bankObject = typeof bank === 'string' ? { name: bank } : bank;
-    
-    // 1. bank.bank_key (SE EXISTIR) -> mapIdentityToBankKey
-    if (bankObject.bank_key) {
+    // Se for recebido como string, tentamos mapear diretamente
+    if (typeof bank === 'string') {
+        const keyFromString = mapIdentityToBankKey(bank);
+        if (keyFromString !== 'GENERIC') return keyFromString;
+        // Compatibilidade histórica silenciosa extra
+        const legacyKey = getBankKey(bank);
+        return legacyKey;
+    }
+
+    const bankObject = bank;
+
+    // 1. bank.bank_key (Única fonte confiável e prioritária)
+    if (bankObject && bankObject.bank_key) {
         const key = mapIdentityToBankKey(bankObject.bank_key);
         if (key !== 'GENERIC') return key;
     }
-    
-    // 2 & 3. getBankIdentity -> mapIdentityToBankKey
+
+    // 2. getBankIdentity(bank) como segunda verificação
     const identity = getBankIdentity(bankObject);
-    const keyFromIdentity = mapIdentityToBankKey(identity);
-    if (keyFromIdentity !== 'GENERIC') return keyFromIdentity;
-    
-    // 4. includes (LEGACY FALLBACK)
-    if (bankObject.name) {
-        const keyLegacy = getBankKey(bankObject.name);
-        if (keyLegacy !== 'GENERIC') return keyLegacy;
+    if (identity && identity !== 'GENERIC') {
+        const keyFromIdentity = mapIdentityToBankKey(identity);
+        if (keyFromIdentity !== 'GENERIC') return keyFromIdentity;
     }
-    
-    // 5. GENERIC (último nível)
+
+    // 3. Compatibilidade histórica de último nível (não decisória)
+    // Caso o registro seja legado e esteja sem bank_key cadastrada
+    if (bankObject && bankObject.name) {
+        const legacyKey = getBankKey(bankObject.name);
+        if (legacyKey !== 'GENERIC') return legacyKey;
+    }
+
+    // 4. GENERIC (fallback visual neutro)
     return 'GENERIC';
 };
 

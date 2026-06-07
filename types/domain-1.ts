@@ -16,6 +16,8 @@ export enum MatchMethod {
 export interface Bank {
   id: string;
   name: string;
+  bank_key?: string | null;
+  account_name?: string | null;
 }
 
 export interface Church {

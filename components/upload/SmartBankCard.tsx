@@ -7,7 +7,7 @@ import { FileUploader } from '../FileUploader';
 import { CheckCircleIcon, EllipsisVerticalIcon } from '../Icons';
 import { useSmartBankCard } from '../../hooks/useSmartBankCard';
 import { BankManagerMenu } from './BankManagerMenu';
-import { getBankKey, resolveBankBrand, resolveBankColors, resolveBankFormats } from '../../utils/bankHelper';
+import { resolveBankKey, resolveBankBrand, resolveBankColors, resolveBankFormats } from '../../utils/bankHelper';
 
 interface SmartBankCardProps {
     bank: any;
@@ -62,10 +62,10 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                 )}
 
                 {(() => {
-                    const key = getBankKey(bank.name);
-                    const colors = resolveBankColors(bank.name);
+                    const key = resolveBankKey(bank);
+                    const colors = resolveBankColors(bank);
                     const isGeneric = key === 'GENERIC';
-                    const formats = resolveBankFormats(bank.name);
+                    const formats = resolveBankFormats(bank);
 
                     return (
                         <>
@@ -82,7 +82,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                         {bank.name.charAt(0).toUpperCase()}
                                     </div>
                                 ) : (
-                                    resolveBankBrand(bank.name)
+                                    resolveBankBrand(bank)
                                 )}
                             </div>
 
@@ -92,7 +92,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                         ? 'text-emerald-800 dark:text-emerald-300' 
                                         : 'text-slate-800 dark:text-slate-100'
                                 }`}>
-                                    {bank.name}
+                                    {bank.account_name ?? bank.name}
                                 </span>
                                 {isUploaded ? (
                                     <div className="flex items-center gap-2 mt-1">

@@ -23,7 +23,7 @@ import { GmailSyncModal } from './GmailSyncModal';
 import { processFileContent } from '../../services/processingService';
 import { LaunchService } from '../../services/LaunchService';
 import { useAuth } from '../../contexts/AuthContext';
-import { getBankKey, resolveBankBrand, resolveBankColors } from '../../utils/bankHelper';
+import { resolveBankKey, resolveBankBrand, resolveBankColors } from '../../utils/bankHelper';
 
 const BankRow: React.FC<{ 
     bank: any, 
@@ -119,8 +119,8 @@ const BankRow: React.FC<{
             
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 {(() => {
-                    const key = getBankKey(bank.name);
-                    const colors = resolveBankColors(bank.name);
+                    const key = resolveBankKey(bank);
+                    const colors = resolveBankColors(bank);
                     const isGeneric = key === 'GENERIC';
 
                     return (
@@ -138,12 +138,12 @@ const BankRow: React.FC<{
                                         {bank.name.charAt(0).toUpperCase()}
                                     </div>
                                 ) : (
-                                    resolveBankBrand(bank.name)
+                                    resolveBankBrand(bank)
                                 )}
                             </div>
 
                             <div className="flex flex-col min-w-0 flex-1">
-                                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{bank.name}</span>
+                                <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{bank.account_name ?? bank.name}</span>
                                 {isUploaded ? (
                                     <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">
                                         <CheckCircleIcon className="w-3 h-3 shrink-0" /> Lista Viva Ativa

@@ -313,16 +313,54 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 
-    const addBank = useCallback(async (name: string, bank_key?: string | null): Promise<boolean> => {
+    const addBank = useCallback(async (nameOrPayload: string | { name: string; bank_key?: string | null; account_name?: string | null }, bank_key_legacy?: string | null): Promise<boolean> => {
         if(!user || !effectiveUserId) return false;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
             return false;
         }
+
+        let name: string;
+        let bank_key: string | null = null;
+        let account_name: string | null = null;
+
+        if (typeof nameOrPayload === 'string') {
+            name = nameOrPayload;
+            bank_key = bank_key_legacy || null;
+            account_name = name;
+        } else {
+            name = nameOrPayload.name;
+            bank_key = nameOrPayload.bank_key || null;
+            account_name = nameOrPayload.account_name ?? nameOrPayload.name;
+        }
+
+        const normalizedBankKey = bank_key || null;
+        const normalizedAccountName = (account_name || name || '').trim().toLowerCase();
+
+        const isDuplicate = banks.some(b => {
+            const bKey = b.bank_key || null;
+            const bAccName = (b.account_name || b.name || '').trim().toLowerCase();
+            return bKey === normalizedBankKey && bAccName === normalizedAccountName;
+        });
+
+        if (isDuplicate) {
+            console.error('[addBank] DUPLICATE_ACCOUNT_NAME');
+            showToast('Já existe uma conta com esse nome neste banco', 'error');
+            throw new Error('DUPLICATE_ACCOUNT_NAME');
+        }
+
         console.log(`[WRITE:FIX] Adicionando banco com effectiveUserId: ${effectiveUserId}`);
-        const { data } = await (supabase.from('banks') as any).insert([{ name, user_id: effectiveUserId }]).select();
+        const { data } = await (supabase.from('banks') as any)
+            .insert([{ 
+                name, 
+                user_id: effectiveUserId, 
+                bank_key: bank_key ?? null, 
+                account_name: account_name ?? name 
+            }])
+            .select();
+
         if (data) {
-            const newBank = { ...data[0], bank_key: bank_key || null };
+            const newBank = { ...data[0], bank_key: bank_key || null, account_name: account_name || name };
             setBanks(prev => [...prev, newBank]);
             showToast('Banco adicionado.', 'success');
             return true;

@@ -1,9 +1,9 @@
 import { getBankKey } from './bankHelper';
 
 /**
- * Retorna o identificador do banco priorizando a nova bank_key armazenada,
- * com fallback transparente para o algoritmo de correspondência clássica (includes)
- * em bancos cadastrados sem associação explícita.
+ * Retorna o identificador do banco prioritariamente pela bank_key armazenada (modo determinístico).
+ * Se não existir bank_key, recai para GENERIC, mantendo getBankKey estritamente como fallback
+ * silencioso de compatibilidade histórica.
  */
 export function getBankIdentity(bank: {
   name: string;
@@ -12,5 +12,11 @@ export function getBankIdentity(bank: {
   if (bank.bank_key) {
     return bank.bank_key;
   }
-  return getBankKey(bank.name);
+  
+  // Compatibilidade silenciosa de último recurso se o nome for informado
+  if (bank.name) {
+    return getBankKey(bank.name);
+  }
+
+  return 'GENERIC';
 }
