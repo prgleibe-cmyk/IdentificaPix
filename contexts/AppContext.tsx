@@ -485,7 +485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const bankList = useMemo(() => {
         if (!referenceData.banks) return [];
-        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.name }));
+        let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
 
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {

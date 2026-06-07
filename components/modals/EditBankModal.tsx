@@ -12,7 +12,7 @@ export const EditBankModal: React.FC = () => {
 
     useEffect(() => {
         if (editingBank) {
-            setName(editingBank.name);
+            setName(editingBank.account_name ?? editingBank.name);
         }
     }, [editingBank]);
 

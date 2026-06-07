@@ -306,10 +306,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const closeEditBank = useCallback(() => setEditingBank(null), []);
 
     const updateBank = useCallback(async (bankId: string, name: string) => {
-        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name } : b));
+        const account_name = name;
+        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name } : b));
         closeEditBank();
-        console.log(`[WRITE:ALREADY_CORRECT] Atualizando banco (ID: ${bankId})`);
-        await (supabase.from('banks') as any).update({ name }).eq('id', bankId);
+        console.log(`[WRITE:UPDATE] Atualizando banco name e account_name (ID: ${bankId})`);
+        await (supabase.from('banks') as any).update({ name, account_name }).eq('id', bankId);
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 

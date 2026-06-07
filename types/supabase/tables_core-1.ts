@@ -7,9 +7,9 @@ export interface AdminConfigTable {
 }
 
 export interface BanksTable {
-  Row: { created_at: string; id: string; name: string; user_id: string | null }
-  Insert: { created_at?: string; id?: string; name: string; user_id?: string | null }
-  Update: { created_at?: string; id?: string; name?: string; user_id?: string | null }
+  Row: { created_at: string; id: string; name: string; user_id: string | null; bank_key?: string | null; account_name?: string | null }
+  Insert: { created_at?: string; id?: string; name: string; user_id?: string | null; bank_key?: string | null; account_name?: string | null }
+  Update: { created_at?: string; id?: string; name?: string; user_id?: string | null; bank_key?: string | null; account_name?: string | null }
   Relationships: [{
     foreignKeyName: "banks_user_id_fkey"
     columns: ["user_id"]
