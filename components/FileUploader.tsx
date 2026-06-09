@@ -2,6 +2,8 @@
 import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { UploadIcon } from './Icons';
 import { useUI } from '../contexts/UIContext';
+import { resolveBankKey } from '../utils/bankHelper';
+import { PDFAdapter } from '../core/adapters/PDFAdapter';
 
 let XLSX: any = null;
 
@@ -20,6 +22,7 @@ interface FileUploaderProps {
   customTrigger?: (props: { onClick: (e: React.MouseEvent) => void, disabled: boolean, isParsing: boolean }) => React.ReactNode;
   onParsingStatusChange?: (isParsing: boolean) => void;
   useLocalLoadingOnly?: boolean; 
+  bank?: any;
 }
 
 const SUPPORTED_FORMATS = ".pdf,.xlsx,.xls,.csv,.txt,.ofx";
@@ -34,7 +37,8 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     onDelete, 
     customTrigger,
     onParsingStatusChange,
-    useLocalLoadingOnly = false
+    useLocalLoadingOnly = false,
+    bank
 }, ref) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -54,6 +58,26 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     try {
         if (!XLSX) { try { const mod = await import('xlsx'); XLSX = mod.default || mod; } catch (e) {} }
     } catch (e) {}
+  };
+
+  const ensurePdfjsLoaded = async () => {
+    const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    const WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    if (!(window as any).pdfjsLib) {
+        await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = PDFJS_URL;
+            script.onload = () => resolve();
+            script.onerror = (err) => reject(new Error('Failed to load PDF.js script'));
+            document.head.appendChild(script);
+        });
+    }
+
+    const pdfjsLib = (window as any).pdfjsLib;
+    if (pdfjsLib) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_URL;
+    }
   };
 
   useEffect(() => { ensureLibsLoaded(); }, []);
@@ -84,8 +108,24 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
 
         if (fileNameLower.endsWith('.pdf')) {
              console.log(`[PDF:PHASE:1:READING] START -> ${file.name} (${file.size} bytes)`);
-             // PDFs são enviados sem texto pré-extraído para forçar a IA a usar visão computacional
-             extractedText = '[DOCUMENTO_PDF_VISUAL]'; 
+             const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
+             if (isSicoob) {
+                 console.log(`[PDF:PHASE:1:READING] SICOOB DETECTED. Extracting text locally using PDFAdapter.`);
+                 try {
+                     await ensurePdfjsLoaded();
+                     const adapter = new PDFAdapter();
+                     const rawDoc = await adapter.readRaw(file);
+                     extractedText = rawDoc.content.join('\n');
+                     console.log(`[PDF:PHASE:1:READING] SICOOB PDF text extracted successfully (${extractedText.length} chars)`);
+                 } catch (adapterError: any) {
+                     console.error("[PDFAdapter] Error extracting SICOOB PDF text:", adapterError);
+                     // Fallback to visual placeholder if adapter fails
+                     extractedText = '[DOCUMENTO_PDF_VISUAL]';
+                 }
+             } else {
+                 // PDFs são enviados sem texto pré-extraído para forçar a IA a usar visão computacional
+                 extractedText = '[DOCUMENTO_PDF_VISUAL]'; 
+             }
              console.log(`[PDF:PHASE:2:RAW_TEXT] PDF_BINARY -> ${extractedText}`);
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
             if (!XLSX) throw new Error("Excel lib missing");

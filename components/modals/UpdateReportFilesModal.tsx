@@ -115,7 +115,7 @@ const BankRow: React.FC<{
 
     return (
         <div className={`p-3 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-3 relative ${isUploaded ? 'bg-emerald-50/50 border-emerald-200 dark:bg-emerald-900/10 dark:border-emerald-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
-            <div className="hidden"><FileUploader ref={uploaderRef} id={`update-bank-${bank.id}`} title="Up" onFileUpload={handleFileUploadWrapper} isUploaded={false} uploadedFileName={null} onParsingStatusChange={setIsUploading} /></div>
+            <div className="hidden"><FileUploader ref={uploaderRef} id={`update-bank-${bank.id}`} title="Up" onFileUpload={handleFileUploadWrapper} isUploaded={false} uploadedFileName={null} onParsingStatusChange={setIsUploading} bank={bank} /></div>
             
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 {(() => {

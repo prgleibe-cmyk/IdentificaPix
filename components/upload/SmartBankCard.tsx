@@ -44,6 +44,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                     isUploaded={false}
                     uploadedFileName={null}
                     onParsingStatusChange={ctrl.setIsUploading}
+                    bank={bank}
                 />
             </div>
 
