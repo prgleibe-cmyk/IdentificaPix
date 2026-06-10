@@ -5,6 +5,7 @@ import { Fingerprinter } from '../core/processors/Fingerprinter';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { OFXParser } from '../core/parsers/OFXParser';
 import { NameResolver } from '../core/processors/NameResolver';
+import { resolveBankKey } from '../utils/bankHelper';
 
 export * from './utils/parsingUtils';
 export * from './logic/matchingLogic';
@@ -66,10 +67,30 @@ export const processFileContent = async (
     fileName: string, 
     models: FileModel[] = [], 
     globalKeywords: string[] = [],
-    base64?: string 
+    base64?: string,
+    bank?: any
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
     const rawContent = IngestionOrchestrator.normalizeRawContent(content);
+    
+    console.log('[SICOOB:BYPASS:DEBUG] bank', bank);
+    console.log('[SICOOB:BYPASS:DEBUG] bankKey', bank ? resolveBankKey(bank) : 'UNDEFINED');
+    console.log('[SICOOB:BYPASS:DEBUG] fileName', fileName);
+    console.log('[SICOOB:BYPASS:DEBUG] evaluating condition');
+
+    // Intercepta e bypassa se o banco for SICOOB (Fase 2A)
+    if (bank) {
+        const bankKey = resolveBankKey(bank);
+        if (bankKey === 'SICOOB') {
+            console.log('[SICOOB:BYPASS:ACTIVATED]');
+            console.log(`[SICOOB:BYPASS] Bypass arquitetural ativado para banco SICOOB (${fileName})`);
+            console.log('[SICOOB:BYPASS:RETURNING]');
+            return {
+                transactions: [],
+                strategyName: 'Sicoob Bypass Validation'
+            };
+        }
+    }
     
     // Intercepta arquivos .ofx antes da consulta de modelo ou StrategyEngine
     const isOfxFile = fileName.toLowerCase().endsWith('.ofx') || content.includes('<OFX') || content.includes('<STMTTRN>');
@@ -129,6 +150,7 @@ export const processFileContent = async (
     }
     
     // Passamos o fileName para ajudar na disambiguação de PDFs
+    console.log('[SICOOB:BYPASS:ERROR] findMatchingModel reached');
     const matchResult = findMatchingModel(rawContent, models, fileName);
     const targetModel = matchResult?.model;
 
@@ -138,6 +160,7 @@ export const processFileContent = async (
         __source: 'file'
     };
 
+    console.log('[SICOOB:BYPASS:ERROR] StrategyEngine reached');
     const result = await StrategyEngine.process(
         fileName, 
         adaptedInput, 
