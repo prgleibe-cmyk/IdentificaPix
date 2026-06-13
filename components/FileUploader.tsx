@@ -95,6 +95,16 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
          return;
       }
     }
+
+    const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
+    if (isSicredi) {
+      const fileNameLower = file.name.toLowerCase();
+      if (!fileNameLower.endsWith('.ofx')) {
+         alert("O banco Sicredi aceita exclusivamente arquivos OFX.");
+         if (fileInputRef.current) fileInputRef.current.value = '';
+         return;
+      }
+    }
     
     await processFile(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -167,7 +177,12 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
   };
 
   const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
-  const acceptFilter = isSicoob ? ".pdf,application/pdf" : SUPPORTED_FORMATS;
+  const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
+  const acceptFilter = isSicoob 
+    ? ".pdf,application/pdf" 
+    : isSicredi 
+      ? ".ofx" 
+      : SUPPORTED_FORMATS;
 
   if (customTrigger) {
       return (
