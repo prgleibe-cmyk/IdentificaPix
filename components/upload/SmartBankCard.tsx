@@ -66,7 +66,12 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                     const key = resolveBankKey(bank);
                     const colors = resolveBankColors(bank);
                     const isGeneric = key === 'GENERIC';
-                    const formats = resolveBankFormats(bank);
+                    const rawFormats = resolveBankFormats(bank);
+                    const formats = key === 'SICOOB'
+                        ? ['PDF']
+                        : key === 'SICREDI'
+                            ? ['OFX']
+                            : rawFormats;
 
                     return (
                         <>
