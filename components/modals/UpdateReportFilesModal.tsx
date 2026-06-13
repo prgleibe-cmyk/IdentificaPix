@@ -158,6 +158,11 @@ const BankRow: React.FC<{
                                 ) : (
                                     <span className="text-[10px] text-slate-400 italic">Nenhum extrato</span>
                                 )}
+                                {resolveBankKey(bank) === 'SICOOB' && (
+                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">
+                                        Banco Sicoob: somente arquivos PDF são aceitos.
+                                    </span>
+                                )}
                             </div>
                         </>
                     );

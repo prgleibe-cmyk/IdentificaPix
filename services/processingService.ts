@@ -85,7 +85,6 @@ export const processFileContent = async (
         if (bankKey === 'SICOOB') {
             console.log('[SICOOB:BYPASS:ACTIVATED]');
             const transactions = SicoobParser.parse(rawContent, bank?.id);
-            console.log(`[SICOOB:PIPELINE:1] Quantidade retornada pelo parser Sicoob: ${transactions?.length || 0}`);
             console.log(`[SICOOB:BYPASS] Bypass arquitetural finalizado para banco SICOOB (${fileName}). Extraiu ${transactions.length} transacoes.`);
             console.log('[SICOOB:BYPASS:RETURNING]');
             return {

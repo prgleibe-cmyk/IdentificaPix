@@ -128,6 +128,11 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                         <span className="text-[10px] text-slate-400 italic font-medium">Nenhum arquivo</span>
                                     </div>
                                 )}
+                                {resolveBankKey(bank) === 'SICOOB' && (
+                                    <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold mt-1">
+                                        Banco Sicoob: somente arquivos PDF são aceitos.
+                                    </span>
+                                )}
                             </div>
                         </>
                     );

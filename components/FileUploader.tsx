@@ -86,6 +86,16 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     const file = event.target.files?.[0];
     if (!file || isBusyRef.current) return;
     
+    const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
+    if (isSicoob) {
+      const fileNameLower = file.name.toLowerCase();
+      if (!fileNameLower.endsWith('.pdf')) {
+         alert("O banco Sicoob aceita exclusivamente arquivos PDF.");
+         if (fileInputRef.current) fileInputRef.current.value = '';
+         return;
+      }
+    }
+    
     await processFile(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -156,10 +166,13 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     if (!disabled && !isParsing && !isBusyRef.current) fileInputRef.current?.click();
   };
 
+  const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
+  const acceptFilter = isSicoob ? ".pdf,application/pdf" : SUPPORTED_FORMATS;
+
   if (customTrigger) {
       return (
           <div className="flex-shrink-0">
-              <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={SUPPORTED_FORMATS} />
+              <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={acceptFilter} />
               {customTrigger({ onClick: handleClick, disabled: disabled || isParsing, isParsing })}
           </div>
       );
@@ -167,7 +180,7 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
 
   return (
     <div className="flex-shrink-0">
-      <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={SUPPORTED_FORMATS} />
+      <input type="file" id={id} ref={fileInputRef} className="hidden" onChange={handleFileChange} disabled={disabled || isParsing} accept={acceptFilter} />
       <button type="button" onClick={handleClick} disabled={disabled || isParsing} className={`group inline-flex items-center justify-center space-x-1.5 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all ${disabled ? 'bg-slate-100 text-slate-400' : 'text-white bg-emerald-600 hover:bg-emerald-50 shadow-sm'}`}>
          {isParsing ? <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full mr-2"></div> : <UploadIcon className="w-3 h-3" />}
          <span>{isParsing ? 'Carregando...' : title}</span>
