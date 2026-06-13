@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { Transaction, ContributorFile } from '../types';
 import { processFileContent, parseContributors } from '../services/processingService';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
+import { resolveBankKey } from '../utils/bankHelper';
 
 interface UseFileProcessorProps {
     user: any;
@@ -50,6 +51,11 @@ export const useFileProcessor = ({
             const bank = banks?.find(b => b.id === bankId);
             const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords, base64, bank);
             const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
+            
+            const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
+            if (isSicoob) {
+                console.log(`[SICOOB:PIPELINE:2] Quantidade recebida pelo useFileProcessor: ${transactions.length}`);
+            }
             
             const isSicoobBypass = executorResult.strategyName === 'Sicoob Bypass Validation';
 

@@ -89,6 +89,15 @@ export const useLiveListSync = ({
 
             setBankStatementFile(restoredFiles);
             
+            // Log de diagnóstico Sicoob no final do hydrate (PIPELINE:5)
+            const sicoobFile = restoredFiles.find(f => 
+                f.processedTransactions.some(t => t.id && String(t.id).startsWith('sicoob-')) || 
+                f.processedTransactions.some(t => t.originalAmount && (t.originalAmount.includes('C') || t.originalAmount.includes('D')))
+            );
+            if (sicoobFile) {
+                console.log(`[SICOOB:PIPELINE:5] Quantidade exibida na Lista Viva (Sicoob): ${sicoobFile.processedTransactions.length}`);
+            }
+            
             if (forceClearUI) {
                 setSelectedBankIds(restoredFiles.map(f => f.bankId));
             } else {
@@ -153,8 +162,16 @@ export const useLiveListSync = ({
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!effectiveUserId) return { added: 0, skipped: 0, total: transactions.length };
         
+        const hasSicoob = transactions.some(t => t.id && String(t.id).startsWith('sicoob-'));
+        if (hasSicoob) {
+            console.log(`[SICOOB:PIPELINE:3] Quantidade enviada ao LaunchService: ${transactions.length}`);
+        }
+        
         try {
             const stats = await LaunchService.launchToBank(effectiveUserId, bankId, transactions);
+            if (hasSicoob) {
+                console.log(`[SICOOB:PIPELINE:4] Quantidade efetivamente persistida (LaunchService): ${stats.added} adicionados, ${stats.skipped} pulados, ${stats.total} total.`);
+            }
             await hydrate(false);
             return stats;
         } catch (e: any) {

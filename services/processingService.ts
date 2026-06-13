@@ -4,6 +4,7 @@ import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
 import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { OFXParser } from '../core/parsers/OFXParser';
+import { SicoobParser } from '../core/parsers/SicoobParser';
 import { NameResolver } from '../core/processors/NameResolver';
 import { resolveBankKey } from '../utils/bankHelper';
 
@@ -83,11 +84,13 @@ export const processFileContent = async (
         const bankKey = resolveBankKey(bank);
         if (bankKey === 'SICOOB') {
             console.log('[SICOOB:BYPASS:ACTIVATED]');
-            console.log(`[SICOOB:BYPASS] Bypass arquitetural ativado para banco SICOOB (${fileName})`);
+            const transactions = SicoobParser.parse(rawContent, bank?.id);
+            console.log(`[SICOOB:PIPELINE:1] Quantidade retornada pelo parser Sicoob: ${transactions?.length || 0}`);
+            console.log(`[SICOOB:BYPASS] Bypass arquitetural finalizado para banco SICOOB (${fileName}). Extraiu ${transactions.length} transacoes.`);
             console.log('[SICOOB:BYPASS:RETURNING]');
             return {
-                transactions: [],
-                strategyName: 'Sicoob Bypass Validation'
+                transactions,
+                strategyName: 'Sicoob Parser Determinístico'
             };
         }
     }
