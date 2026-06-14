@@ -2,7 +2,6 @@
 import { Transaction, FileModel } from '../types';
 import { StrategyEngine, StrategyResult } from '../core/strategies';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
-import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { OFXParser } from '../core/parsers/OFXParser';
 import { SicoobParser } from '../core/parsers/SicoobParser';
 import { NameResolver } from '../core/processors/NameResolver';
@@ -13,6 +12,20 @@ export * from './logic/matchingLogic';
 export * from './logic/filteringLogic';
 
 export const generateFingerprint = Fingerprinter.generate;
+
+/**
+ * Normaliza o conteúdo original preservando-o conforme o Rigor V19.
+ */
+export function normalizeRawContent(content: string): string {
+    if (!content) return "";
+    
+    // RIGOR V19: Proibido alterar o input bruto. 
+    // O conteúdo deve chegar ao StrategyEngine exatamente como foi lido do arquivo.
+    if (content === '[DOCUMENTO_PDF_VISUAL]') {
+        console.log(`[PDF:PHASE:3:NORMALIZATION] ${content} -> ${content} (Preservação Literal)`);
+    }
+    return content;
+}
 
 /**
  * 🛠️ ADAPTER ESTRUTURAL (V4 - ABSOLUTE TRUTH)
@@ -71,7 +84,7 @@ export const processFileContent = async (
     bank?: any
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
-    const rawContent = IngestionOrchestrator.normalizeRawContent(content);
+    const rawContent = normalizeRawContent(content);
     
     console.log('[SICOOB:BYPASS:DEBUG] bank', bank);
     console.log('[SICOOB:BYPASS:DEBUG] bankKey', bank ? resolveBankKey(bank) : 'UNDEFINED');

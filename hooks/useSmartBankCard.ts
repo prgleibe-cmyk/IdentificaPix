@@ -13,7 +13,6 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
     const { 
         activeBankFiles,
         handleStatementUpload, 
-        fileModels,
         persistTransactions,
         hydrate,
         setModelRequiredData 
@@ -64,7 +63,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
         if (!user) return;
         setIsUploading(true);
         try {
-            const result = await processFileContent(content, fileName, fileModels, base64, bank);
+            const result = await processFileContent(content, fileName, [], base64, bank);
             const isSicoobBypass = result.strategyName === 'Sicoob Bypass Validation';
 
             if (isSicoobBypass) {

@@ -1,10 +1,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { generateFingerprint } from '../services/processingService';
+import { generateFingerprint, normalizeRawContent } from '../services/processingService';
 import { FileModel } from '../types';
 import { useUI } from '../contexts/UIContext';
-import { IngestionOrchestrator } from '../core/engine/IngestionOrchestrator';
 import { Fingerprinter } from '../core/processors/Fingerprinter';
 
 interface UseFileProcessingProps {
@@ -35,7 +34,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                 if (initialModel && !activeFile?.rawFile && !activeFile?.base64) {
                     const content = initialModel.snippet || "";
                     if (content.trim()) {
-                        const normalized = IngestionOrchestrator.normalizeRawContent(content);
+                        const normalized = normalizeRawContent(content);
                         const lines = normalized.split(/\r?\n/).filter(l => l.trim().length > 0);
                         
                         const delimiter = lines.length > 0 ? Fingerprinter.detectDelimiter(lines[0]) : ';';
@@ -69,7 +68,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                 else if (activeFile) {
                     const content = activeFile.content || "";
                     if (content.trim()) {
-                        const normalized = IngestionOrchestrator.normalizeRawContent(content);
+                        const normalized = normalizeRawContent(content);
                         const lines = normalized.split(/\r?\n/).filter(l => l.trim().length > 0);
                         const delimiter = lines.length > 0 ? Fingerprinter.detectDelimiter(lines[0]) : ';';
                         loadedRows = lines.slice(0, 50).map(line => line.split(delimiter));

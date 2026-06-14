@@ -44,8 +44,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscription,
         churches: referenceData.churches,
         banks: referenceData.banks,
-        fileModels: referenceData.fileModels,
-        fetchModels: referenceData.fetchModels,
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance,
         contributionKeywords: referenceData.contributionKeywords,

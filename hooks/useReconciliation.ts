@@ -21,8 +21,6 @@ export const useReconciliation = (props: any) => {
         user,
         subscription,
         churches,
-        fileModels,
-        fetchModels,
         similarityLevel,
         dayTolerance,
         contributionKeywords,

@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult, FileModel } from '../types';
+import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
-import { modelService } from '../services/modelService';
 import { batchState } from './reconciliation/useCloudSync';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
@@ -17,7 +16,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [banks, setBanks] = usePersistentState<Bank[]>(`identificapix-banks${userSuffix}`, []);
     const [churches, setChurches] = usePersistentState<Church[]>(`identificapix-churches${userSuffix}`, []);
     const [reports, setReports] = useState<any[]>([]);
-    const [fileModels, setFileModels] = useState<FileModel[]>([]);
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     
@@ -77,7 +75,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         let filteredChurches = data.churches || [];
                         let fetchedReports = data.reports || [];
                         let fetchedAssociations = data.associations || [];
-                        let fetchedModels = data.models || [];
                         
                         const allowedBankIds = subscription.bankIds || [];
                         const allowedChurchIds = subscription.congregationIds || [];
@@ -103,9 +100,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                                 bankId: 'global',
                                 user_id: d.user_id
                             })));
-
-                            // ✅ Consumindo modelos consolidados
-                            setFileModels(fetchedModels);
                         }
                     }
 
@@ -127,7 +121,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     // ✅ dependências corrigidas (cirúrgico)
     }, [user?.id, subscription?.role, subscription?.ownerId]);
 
-    // ✅ Carregamento inicial de associações e modelos para OWNER (Membros já recebem via API consolidada)
+    // ✅ Carregamento inicial de associações para OWNER (Membros já recebem via API consolidada)
     useEffect(() => {
         let ignore = false;
         if (!user || subscription.ownerId !== user.id) return;
@@ -146,10 +140,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         user_id: d.user_id
                     })));
                 }
-
-                // Modelos
-                const models = await modelService.getUserModels(user.id);
-                if (models && !ignore) setFileModels(models);
             } catch (e) {
                 console.error("[useReferenceData] Erro ao buscar extras do owner:", e);
             }
@@ -288,19 +278,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         }
     }, [user, effectiveUserId, isBatchUpdating]);
 
-    const fetchModels = useCallback(async () => {
-        if (!user) return;
-        // Se for membro, os modelos já vêm via API consolidada no syncData
-        if (subscription.ownerId !== user.id) return;
-        
-        try {
-            const models = await modelService.getUserModels(user.id);
-            setFileModels(models);
-        } catch (e) { console.error(e); }
-    }, [user, subscription.ownerId]);
-
-    useEffect(() => { fetchModels(); }, [fetchModels]);
-
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
 
@@ -422,7 +399,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     }, [setPaymentMethods, showToast]);
 
     return useMemo(() => ({
-        banks, churches, reports, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
+        banks, churches, reports, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         contributionKeywords, addContributionKeyword, removeContributionKeyword,
         paymentMethods, addPaymentMethod, removePaymentMethod,
         learnedAssociations, learnAssociation,
@@ -430,7 +407,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
-        banks, churches, reports, fileModels, fetchModels, similarityLevel, dayTolerance, 
+        banks, churches, reports, similarityLevel, dayTolerance, 
         contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 

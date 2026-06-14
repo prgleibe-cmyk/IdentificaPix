@@ -50,7 +50,6 @@ export default () => {
             const banks = await fetchAll('banks', 'id, name, user_id');
             const churches = await fetchAll('churches', 'id, name, user_id, address, pastor, logoUrl');
             const associations = await fetchAll('learned_associations', 'id, normalized_description, contributor_normalized_name, church_id, user_id');
-            const models = await fetchAll('file_models', 'id, name, fingerprint, mapping, parsing_rules, lineage_id, version', 'user_id', (q) => q.eq('is_active', true));
 
             let reports = [];
             try {
@@ -66,8 +65,7 @@ export default () => {
                 banks: banks || [], 
                 churches: churches || [],
                 reports: reports,
-                associations: associations || [],
-                models: models || []
+                associations: associations || []
             });
         } catch (error) {
             console.error("[Reference API] Erro:", error);

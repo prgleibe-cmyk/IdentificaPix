@@ -34,7 +34,7 @@ const BankRow: React.FC<{
     triggerUpdate: () => void 
 }> = ({ bank, isUploaded, handleStatementUpload, setIsGmailModalOpen, removeBankStatementFile, triggerUpdate }) => {
     
-    const { fileModels, setModelRequiredData, persistTransactions } = useContext(AppContext);
+    const { setModelRequiredData, persistTransactions } = useContext(AppContext);
     const { user } = useAuth();
     const { showToast } = useUI();
 
@@ -60,7 +60,7 @@ const BankRow: React.FC<{
         if (!user) return;
         setIsUploading(true);
         try {
-            const result = await processFileContent(content, fileName, fileModels, base64, bank);
+            const result = await processFileContent(content, fileName, [], base64, bank);
             const isSicoobBypass = result.strategyName === 'Sicoob Bypass Validation';
 
             if (isSicoobBypass) {

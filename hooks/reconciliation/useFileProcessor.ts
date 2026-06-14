@@ -1,13 +1,10 @@
 import { useCallback, useRef } from 'react';
 import { Transaction, ContributorFile } from '../../types';
 import { processFileContent, parseContributors } from '../../services/processingService';
-import { IngestionOrchestrator } from '../../core/engine/IngestionOrchestrator';
 
 interface UseFileProcessorProps {
     user: any;
     banks: any[];
-    fileModels: any[];
-    fetchModels: () => Promise<void>;
     contributionKeywords: string[];
     persistTransactions: (bankId: string, transactions: Transaction[]) => Promise<any>;
     showToast: (msg: string, type: 'success' | 'error') => void;
@@ -23,8 +20,6 @@ interface UseFileProcessorProps {
 export const useFileProcessor = ({
     user,
     banks,
-    fileModels,
-    fetchModels,
     contributionKeywords,
     persistTransactions,
     showToast,
@@ -46,9 +41,8 @@ export const useFileProcessor = ({
         setIsLoading(true);
 
         try {
-            if (fetchModels) await fetchModels();
             const bank = banks?.find(b => b.id === bankId);
-            const executorResult = await processFileContent(content, fileName, fileModels, base64, bank);
+            const executorResult = await processFileContent(content, fileName, [], base64, bank);
             const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
             
             const isSicoobBypass = executorResult.strategyName === 'Sicoob Bypass Validation';
@@ -83,7 +77,7 @@ export const useFileProcessor = ({
             processingFilesRef.current.delete(processKey);
             setIsLoading(false);
         }
-    }, [fileModels, fetchModels, persistTransactions, showToast, hydrate, setIsLoading, setModelRequiredData, banks]);
+    }, [persistTransactions, showToast, hydrate, setIsLoading, setModelRequiredData, banks]);
 
     const importGmailTransactions = useCallback(async (transactions: Transaction[]) => {
         if (!user || transactions.length === 0) return;
@@ -93,7 +87,13 @@ export const useFileProcessor = ({
         processingFilesRef.current.add(gmailKey);
         setIsLoading(true);
         try {
-            const result = await IngestionOrchestrator.processVirtualData('Gmail', transactions);
+            const result = {
+                source: 'virtual',
+                transactions: transactions || [],
+                status: 'SUCCESS',
+                fileName: 'Gmail',
+                strategyUsed: 'Virtual Injection'
+            };
             const stats = await persistTransactions('gmail-sync', result.transactions);
             showToast(`Gmail sincronizado! Total: ${stats.total}`, "success");
             await hydrate();
