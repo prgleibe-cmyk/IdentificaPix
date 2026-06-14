@@ -5,7 +5,7 @@ import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeS
 /**
  * Calcula a similaridade valorizando códigos identificadores (DNA Numérico).
  */
-export const calculateNameSimilarity = (description: string, contributor: Contributor, ignoreKeywords: string[] = []): number => {
+export const calculateNameSimilarity = (description: string, contributor: Contributor): number => {
     const txCode = extractIdentifyingCode(description);
     const contribCode = extractIdentifyingCode(contributor.name) || (contributor.id && extractIdentifyingCode(contributor.id));
 
@@ -16,8 +16,8 @@ export const calculateNameSimilarity = (description: string, contributor: Contri
         }
     }
 
-    const txNorm = normalizeString(description, ignoreKeywords);
-    const contribNorm = contributor.normalizedName || normalizeString(contributor.name, ignoreKeywords);
+    const txNorm = normalizeString(description);
+    const contribNorm = contributor.normalizedName || normalizeString(contributor.name);
     
     if (!txNorm || !contribNorm) return 0;
 
@@ -41,7 +41,6 @@ export const matchTransactions = (
     options: { similarityThreshold: number; dayTolerance: number; },
     learnedAssociations: any[],
     churches: Church[],
-    customIgnoreKeywords: string[] = [],
     existingResults: MatchResult[] = [] 
 ): MatchResult[] => {
     const contributorsByChurch = new Map<string, any[]>();
@@ -53,7 +52,7 @@ export const matchTransactions = (
                 ...c, 
                 church: file.church,
                 _churchId: churchId,
-                _internalId: c.id || `contrib-${churchId}-${normalizeString(c.name, customIgnoreKeywords).replace(/\s/g, '')}`
+                _internalId: c.id || `contrib-${churchId}-${normalizeString(c.name).replace(/\s/g, '')}`
             }));
             contributorsByChurch.set(churchId, list);
         });
@@ -119,7 +118,7 @@ export const matchTransactions = (
             let highestScore = 0;
 
             allContributorsFlat.forEach((contrib: any) => {
-                const score = calculateNameSimilarity(tx.description, contrib, customIgnoreKeywords);
+                const score = calculateNameSimilarity(tx.description, contrib);
                 if (score > highestScore) {
                     highestScore = score;
                     bestMatch = contrib;

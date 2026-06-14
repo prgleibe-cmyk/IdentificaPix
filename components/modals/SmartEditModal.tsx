@@ -77,7 +77,6 @@ export const SmartEditModal: React.FC = () => {
                         target={ctrl.smartEditTarget}
                         allContributors={allContributors}
                         availableBankTransactions={availableBankTransactions}
-                        effectiveIgnoreKeywords={ctrl.effectiveIgnoreKeywords}
                         churches={ctrl.churches}
                         language={ctrl.language}
                     />

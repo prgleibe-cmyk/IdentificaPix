@@ -17,7 +17,6 @@ interface SmartEditSuggestionsProps {
     target: any;
     allContributors: any[];
     availableBankTransactions: any[];
-    effectiveIgnoreKeywords: string[];
     churches: any[];
     language: any;
 }
@@ -25,7 +24,7 @@ interface SmartEditSuggestionsProps {
 export const SmartEditSuggestions: React.FC<SmartEditSuggestionsProps> = ({
     searchQuery, setSearchQuery, suggestions, setSuggestions, loadingAiId,
     isReverseMode, manualChurchId, onSelect, target, allContributors,
-    availableBankTransactions, effectiveIgnoreKeywords, churches, language
+    availableBankTransactions, churches, language
 }) => {
     useEffect(() => {
         if (!target) return;
@@ -36,7 +35,7 @@ export const SmartEditSuggestions: React.FC<SmartEditSuggestionsProps> = ({
             if (!targetContributor) return;
             items = availableBankTransactions.map(res => {
                 const tx = res.transaction;
-                const score = calculateNameSimilarity(tx.description, targetContributor, effectiveIgnoreKeywords);
+                const score = calculateNameSimilarity(tx.description, targetContributor);
                 return {
                     id: tx.id, primaryText: tx.cleanedDescription || tx.description,
                     secondaryText: `Extrato • ${tx.date}`, amount: tx.amount, originalRef: res, score, type: 'transaction'
@@ -45,7 +44,7 @@ export const SmartEditSuggestions: React.FC<SmartEditSuggestionsProps> = ({
         } else {
             const tx = target.transaction;
             items = allContributors.map(c => {
-                let score = calculateNameSimilarity(tx.description, c, effectiveIgnoreKeywords);
+                let score = calculateNameSimilarity(tx.description, c);
                 if (manualChurchId && c._churchId === manualChurchId) score += 50; 
                 else if (manualChurchId && c._churchId !== manualChurchId) score -= 80;
                 return {
@@ -77,7 +76,7 @@ export const SmartEditSuggestions: React.FC<SmartEditSuggestionsProps> = ({
             }
         }
         setSuggestions(final);
-    }, [target, isReverseMode, allContributors, availableBankTransactions, effectiveIgnoreKeywords, manualChurchId, churches, searchQuery, setSuggestions]);
+    }, [target, isReverseMode, allContributors, availableBankTransactions, manualChurchId, churches, searchQuery, setSuggestions]);
 
     return (
         <div className="space-y-4">

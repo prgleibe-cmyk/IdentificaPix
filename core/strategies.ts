@@ -17,7 +17,7 @@ export interface StrategyResult {
 export interface BankStrategy {
     name: string;
     canHandle(filename: string, content: any, models?: FileModel[]): boolean;
-    parse(content: any, models?: FileModel[], globalKeywords?: string[]): Transaction[] | Promise<Transaction[]>;
+    parse(content: any, models?: FileModel[]): Transaction[] | Promise<Transaction[]>;
 }
 
 /**
@@ -50,7 +50,7 @@ export const DatabaseModelStrategy: BankStrategy = {
             return false;
         });
     },
-    parse: async (content, models, globalKeywords = []) => {
+    parse: async (content, models) => {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const fileFp = Fingerprinter.generate(rawText);
         
@@ -66,17 +66,17 @@ export const DatabaseModelStrategy: BankStrategy = {
         if (!model) return [];
 
         console.log(`[StrategyEngine] 🎯 Aplicando Modelo: "${model.name}" (v${model.version})`);
-        return await ContractExecutor.apply(model, content, globalKeywords);
+        return await ContractExecutor.apply(model, content);
     }
 };
 
 export const StrategyEngine = {
-    process: async (filename: string, content: any, models: FileModel[] = [], globalKeywords: string[] = [], overrideModel?: FileModel): Promise<StrategyResult> => {
+    process: async (filename: string, content: any, models: FileModel[] = [], overrideModel?: FileModel): Promise<StrategyResult> => {
         const rawText = content?.__rawText || (typeof content === 'string' ? content : "");
         const source = content?.__source || 'unknown';
         
         if (overrideModel) {
-            const txs = await DatabaseModelStrategy.parse(content, [overrideModel], globalKeywords);
+            const txs = await DatabaseModelStrategy.parse(content, [overrideModel]);
             return { transactions: txs, strategyName: `Treino: ${overrideModel.name}` };
         }
 
@@ -92,7 +92,7 @@ export const StrategyEngine = {
         });
         
         if (targetModel) {
-            const txs = await DatabaseModelStrategy.parse(content, [targetModel], globalKeywords);
+            const txs = await DatabaseModelStrategy.parse(content, [targetModel]);
             return { transactions: txs, strategyName: `Contrato: ${targetModel.name}` };
         }
 

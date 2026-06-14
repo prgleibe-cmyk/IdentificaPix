@@ -16,7 +16,6 @@ interface UseTransactionMatcherProps {
     dayTolerance: number;
     learnedAssociations: any;
     churches: any[];
-    customIgnoreKeywords: string[];
     setIsLoading: (loading: boolean) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
     setHasActiveSession: (has: boolean) => void;
@@ -42,7 +41,6 @@ export const useTransactionMatcher = ({
     dayTolerance,
     learnedAssociations,
     churches,
-    customIgnoreKeywords,
     setIsLoading,
     showToast,
     setHasActiveSession,
@@ -167,7 +165,6 @@ export const useTransactionMatcher = ({
             { similarityThreshold: similarityLevel, dayTolerance: dayTolerance },
             learnedAssociations,
             churches,
-            customIgnoreKeywords,
             filteredExistingResults
         ).filter(r => Number(r.transaction.amount) !== 0);
 
@@ -213,7 +210,6 @@ export const useTransactionMatcher = ({
         dayTolerance,
         learnedAssociations,
         churches,
-        customIgnoreKeywords,
         setMatchResults,
         setHasActiveSession,
         setIsLoading,

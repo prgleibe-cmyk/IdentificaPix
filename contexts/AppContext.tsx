@@ -39,10 +39,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const referenceData = useReferenceData(user, showToast);
     const reportManager = useReportManager(user, showToast, referenceData.reports);
 
-    const effectiveIgnoreKeywords = useMemo(() => {
-        return referenceData.customIgnoreKeywords || [];
-    }, [referenceData.customIgnoreKeywords]);
-
     const reconciliation = useReconciliation({
         user: user,
         subscription,
@@ -52,7 +48,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchModels: referenceData.fetchModels,
         similarityLevel: referenceData.similarityLevel,
         dayTolerance: referenceData.dayTolerance,
-        customIgnoreKeywords: effectiveIgnoreKeywords,
         contributionKeywords: referenceData.contributionKeywords,
         learnedAssociations: referenceData.learnedAssociations,
         savedReports: reportManager.savedReports,
@@ -475,7 +470,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { runAiAutoIdentification } = useAiAutoIdentify({
         reconciliation,
         referenceData,
-        effectiveIgnoreKeywords,
         setIsLoading,
         showToast,
         onAfterIdentification: persistActiveReport
@@ -504,7 +498,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const value = useMemo(() => ({
         ...referenceData,
-        effectiveIgnoreKeywords,
         ...reportManager,
         confirmSaveReport: wrappedConfirmSaveReport,
         ...reconciliation,
@@ -524,7 +517,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         viewSavedReport
     }), [
         referenceData,
-        effectiveIgnoreKeywords,
         reportManager,
         wrappedConfirmSaveReport,
         reconciliation,

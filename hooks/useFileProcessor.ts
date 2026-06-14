@@ -8,7 +8,6 @@ interface UseFileProcessorProps {
     banks: any[];
     fileModels: any[];
     fetchModels: () => Promise<void>;
-    customIgnoreKeywords: string[];
     contributionKeywords: string[];
     persistTransactions: (bankId: string, transactions: Transaction[]) => Promise<any>;
     showToast: (msg: string, type: 'success' | 'error') => void;
@@ -25,7 +24,6 @@ export const useFileProcessor = ({
     banks,
     fileModels,
     fetchModels,
-    customIgnoreKeywords,
     contributionKeywords,
     persistTransactions,
     showToast,
@@ -48,7 +46,7 @@ export const useFileProcessor = ({
         try {
             if (fetchModels) await fetchModels();
             const bank = banks?.find(b => b.id === bankId);
-            const executorResult = await processFileContent(content, fileName, fileModels, customIgnoreKeywords, base64, bank);
+            const executorResult = await processFileContent(content, fileName, fileModels, base64, bank);
             const transactions = Array.isArray(executorResult?.transactions) ? executorResult.transactions : [];
             
             const isSicoobBypass = executorResult.strategyName === 'Sicoob Bypass Validation';
@@ -83,7 +81,7 @@ export const useFileProcessor = ({
             processingFilesRef.current.delete(processKey);
             setIsLoading(false);
         }
-    }, [fileModels, fetchModels, customIgnoreKeywords, persistTransactions, showToast, hydrate, setIsLoading, setModelRequiredData, banks]);
+    }, [fileModels, fetchModels, persistTransactions, showToast, hydrate, setIsLoading, setModelRequiredData, banks]);
 
     const importGmailTransactions = useCallback(async (transactions: Transaction[]) => {
         if (!user || transactions.length === 0) return;
@@ -93,7 +91,7 @@ export const useFileProcessor = ({
         processingFilesRef.current.add(gmailKey);
         setIsLoading(true);
         try {
-            const result = await IngestionOrchestrator.processVirtualData('Gmail', transactions, customIgnoreKeywords);
+            const result = await IngestionOrchestrator.processVirtualData('Gmail', transactions);
             const stats = await persistTransactions('gmail-sync', result.transactions);
             showToast(`Gmail sincronizado! Total: ${stats.total}`, "success");
             await hydrate();
@@ -101,7 +99,7 @@ export const useFileProcessor = ({
             processingFilesRef.current.delete(gmailKey);
             setIsLoading(false);
         }
-    }, [user, customIgnoreKeywords, persistTransactions, showToast, setIsLoading, hydrate]);
+    }, [user, persistTransactions, showToast, setIsLoading, hydrate]);
 
     const removeBankStatementFile = useCallback(async (bankId: string) => {
         setIsLoading(true);
@@ -115,10 +113,10 @@ export const useFileProcessor = ({
 
     const handleContributorsUpload = useCallback((content: string, fileName: string, churchId: string) => {
         const church = churches.find((c: any) => c.id === churchId);
-        const contributors = parseContributors(content, customIgnoreKeywords, contributionKeywords);
+        const contributors = parseContributors(content, contributionKeywords);
         setContributorFiles(prev => [...prev.filter(f => f.churchId !== churchId), { church, churchId, contributors, fileName }]);
         showToast(`Lista carregada (${contributors.length} nomes).`, "success");
-    }, [churches, customIgnoreKeywords, contributionKeywords, setContributorFiles, showToast]);
+    }, [churches, contributionKeywords, setContributorFiles, showToast]);
 
     const removeContributorFile = useCallback((churchId: string) => {
         setContributorFiles(prev => prev.filter(f => f.churchId !== churchId));

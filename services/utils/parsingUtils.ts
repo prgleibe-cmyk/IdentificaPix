@@ -43,9 +43,9 @@ export const extractIdentifyingCode = (str: string): string | null => {
 /**
  * Normalização Robusta para Matching Geral.
  */
-export const normalizeString = (str: string, ignoreKeywords: string[] = []): string => {
+export const normalizeString = (str: string): string => {
     if (!str) return '';
-    const cleaned = NameResolver.clean(str, [], ignoreKeywords);
+    const cleaned = NameResolver.clean(str);
     return NameResolver.normalize(cleaned);
 };
 

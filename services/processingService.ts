@@ -67,7 +67,6 @@ export const processFileContent = async (
     content: string, 
     fileName: string, 
     models: FileModel[] = [], 
-    globalKeywords: string[] = [],
     base64?: string,
     bank?: any
 ): Promise<StrategyResult & { appliedModel?: any }> => {
@@ -128,9 +127,7 @@ export const processFileContent = async (
             }
             
             let cleanedDesc = NameResolver.clean(
-                draft.rawDescription,
-                [],
-                globalKeywords
+                draft.rawDescription
             );
 
             if (isSicredi) {
@@ -187,7 +184,6 @@ export const processFileContent = async (
         fileName, 
         adaptedInput, 
         models, 
-        globalKeywords, 
         targetModel
     );
 
@@ -204,7 +200,7 @@ export const processFileContent = async (
     };
 };
 
-export const parseContributors = (content: string, ignoreKeywords: string[] = [], typeKeywords: string[] = []): any[] => {
+export const parseContributors = (content: string, typeKeywords: string[] = []): any[] => {
     const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
     if (lines.length < 2) return [];
     const delimiter = Fingerprinter.detectDelimiter(lines[0]);

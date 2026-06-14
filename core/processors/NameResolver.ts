@@ -24,10 +24,10 @@ export class NameResolver {
 
   /**
    * LIMPEZA DETERMINÍSTICA:
-   * Remove as palavras-chave aprendidas do modelo e as globais do sistema.
+   * Apenas sanitização básica e uniforme.
    * Única fonte da 'Verdade' para a descrição secundária na Lista Viva.
    */
-  static clean(rawName: string, modelKeywords: string[] = [], globalKeywords: string[] = []): string {
+  static clean(rawName: string): string {
     if (!rawName) return '';
     
     let cleaned = rawName.toUpperCase();
@@ -37,24 +37,6 @@ export class NameResolver {
         .replace(/[\t\r\n]/g, ' ') 
         .replace(/\s+/g, ' ')      
         .trim();
-
-    // 2. Remoção de Palavras Ignoradas (O "Aprendizado")
-    // Combina keywords do modelo e globais, removendo duplicatas
-    const allKeywords = Array.from(new Set([
-        ...modelKeywords.map(k => k.toUpperCase()),
-        ...globalKeywords.map(k => k.toUpperCase())
-    ])).filter(k => k.length > 0);
-
-    // Ordena por tamanho descendente para remover termos mais específicos primeiro
-    allKeywords.sort((a, b) => b.length - a.length);
-
-    allKeywords.forEach(keyword => {
-        if (!keyword) return;
-        // Escapa caracteres especiais para Regex e garante match de palavra inteira ou prefixo
-        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escapedKeyword}\\b|${escapedKeyword}\\s+`, 'g');
-        cleaned = cleaned.replace(regex, ' ');
-    });
 
     // 3. Limpeza final de espaços
     return cleaned.replace(/\s+/g, ' ').trim() || rawName.toUpperCase().trim();

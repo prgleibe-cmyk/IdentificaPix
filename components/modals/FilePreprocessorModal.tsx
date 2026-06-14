@@ -33,7 +33,6 @@ export const FilePreprocessorModal: React.FC<{
     const { user } = useAuth(); 
     const context = useContext(AppContext);
     
-    const effectiveIgnoreKeywords = context?.effectiveIgnoreKeywords || [];
     const contributionKeywords = context?.contributionKeywords || [];
     const fetchModels = context?.fetchModels;
 
@@ -53,9 +52,8 @@ export const FilePreprocessorModal: React.FC<{
     const isPdf = useMemo(() => /\.pdf$/i.test(activeFile?.fileName || ''), [activeFile]);
     
     const cleaningKeywords = useMemo(() => [
-        ...(effectiveIgnoreKeywords || []), 
         ...(contributionKeywords || [])
-    ], [effectiveIgnoreKeywords, contributionKeywords]);
+    ], [contributionKeywords]);
 
     const { 
         gridData, setGridData, isGridLoading,
@@ -101,7 +99,6 @@ export const FilePreprocessorModal: React.FC<{
             // CONTRATO DE PERSISTÊNCIA TOTAL (V18):
             // Garante que o mapping state seja a base, preservando o blockContract.
             // Une as regras de parsing originais para não perder seletores ou filtros avançados.
-            const learnedKeywords = activeMapping.ignoredKeywords || [];
             
             const modelData: any = { 
                 name: finalName, 
@@ -113,7 +110,6 @@ export const FilePreprocessorModal: React.FC<{
                 mapping: { ...activeMapping }, // PERSISTÊNCIA INTEGRAL DO OBJETO MAPPING
                 parsingRules: { 
                     ...initialModel?.parsingRules, // Preserva filtros legados
-                    ignoredKeywords: learnedKeywords, 
                     rowFilters: initialModel?.parsingRules?.rowFilters || [] 
                 }, 
                 snippet: finalSnippet, 

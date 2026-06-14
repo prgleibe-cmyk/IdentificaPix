@@ -27,7 +27,7 @@ export const modelService = {
                 // Reidratação segura de campos JSONB
                 const fingerprint = typeof row.fingerprint === 'string' ? JSON.parse(row.fingerprint) : row.fingerprint;
                 const mapping = typeof row.mapping === 'string' ? JSON.parse(row.mapping) : row.mapping;
-                const parsingRules = row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { ignoredKeywords: [], rowFilters: [] };
+                const parsingRules = row.parsing_rules ? (typeof row.parsing_rules === 'string' ? JSON.parse(row.parsing_rules) : row.parsing_rules) : { rowFilters: [] };
 
                 return {
                     ...row, // Preserva campos não mapeados explicitamente (DNA extra, patterns, etc)

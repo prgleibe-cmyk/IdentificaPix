@@ -21,7 +21,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [similarityLevel, setSimilarityLevel] = usePersistentState<number>(`identificapix-similarity${userSuffix}`, 55);
     const [dayTolerance, setDayTolerance] = usePersistentState<number>(`identificapix-daytolerance${userSuffix}`, 2);
     
-    const customIgnoreKeywords = useMemo(() => systemSettings?.ignoredKeywords || [], [systemSettings?.ignoredKeywords]);
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
 
@@ -424,7 +423,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     return useMemo(() => ({
         banks, churches, reports, fileModels, fetchModels, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
-        customIgnoreKeywords, contributionKeywords, addContributionKeyword, removeContributionKeyword,
+        contributionKeywords, addContributionKeyword, removeContributionKeyword,
         paymentMethods, addPaymentMethod, removePaymentMethod,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
@@ -432,7 +431,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, reports, fileModels, fetchModels, similarityLevel, dayTolerance, 
-        customIgnoreKeywords, contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
+        contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,

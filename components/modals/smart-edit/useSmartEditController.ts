@@ -22,7 +22,7 @@ export interface SuggestionItem {
 export const useSmartEditController = () => {
     const { 
         smartEditTarget, closeSmartEdit, saveSmartEdit, contributorFiles, churches,
-        matchResults, effectiveIgnoreKeywords, contributionKeywords, paymentMethods,
+        matchResults, contributionKeywords, paymentMethods,
         aiSuggestion, loadingAiId
     } = useContext(AppContext);
     const { language } = useTranslation();
@@ -131,6 +131,6 @@ export const useSmartEditController = () => {
         manualType, setManualType, manualPaymentMethod, setManualPaymentMethod,
         handleSelect, handleSaveManual, position, handleMouseDown, modalRef, language,
         isReverseMode, isAiProposed, churches, loadingAiId, contributionKeywords, paymentMethods,
-        effectiveIgnoreKeywords, matchResults, contributorFiles
+        matchResults, contributorFiles
     };
 };

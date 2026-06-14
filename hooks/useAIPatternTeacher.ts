@@ -73,8 +73,7 @@ export const useAIPatternTeacher = ({
                     dateColumnIndex: result.dateColumnIndex,
                     descriptionColumnIndex: result.descriptionColumnIndex,
                     amountColumnIndex: result.amountColumnIndex,
-                    paymentMethodColumnIndex: result.paymentMethodColumnIndex ?? -1,
-                    ignoredKeywords: result.ignoredKeywords || []
+                    paymentMethodColumnIndex: result.paymentMethodColumnIndex ?? -1
                 };
             });
 

@@ -8,7 +8,6 @@ import { batchState } from './reconciliation/useCloudSync';
 interface UseAiAutoIdentifyProps {
     reconciliation: any;
     referenceData: any;
-    effectiveIgnoreKeywords: string[];
     setIsLoading: (loading: boolean) => void;
     showToast: (msg: string, type: 'success' | 'error') => void;
     onAfterIdentification?: (results: MatchResult[]) => void;

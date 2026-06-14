@@ -181,7 +181,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
 
         setIsSimulating(true);
         try {
-            const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart, ignoredKeywords } = mapping;
+            const { dateColumnIndex, descriptionColumnIndex, amountColumnIndex, paymentMethodColumnIndex, skipRowsStart } = mapping;
             const newTransactions: SafeTransaction[] = [];
             const yearAnchor = DateResolver.discoverAnchorYear(gridData);
 
@@ -196,7 +196,7 @@ export const useSimulation = ({ gridData, activeMapping, cleaningKeywords, rawBa
                 const isoDate = DateResolver.resolveToISO(rawDate, yearAnchor);
                 const amountStr = AmountResolver.clean(rawAmount);
                 const amountValue = parseFloat(amountStr);
-                const cleanedName = NameResolver.clean(rawDesc, ignoredKeywords || [], cleaningKeywords);
+                const cleanedName = NameResolver.clean(rawDesc);
 
                 newTransactions.push({ 
                     id: `sim-${index}-${Date.now()}`,

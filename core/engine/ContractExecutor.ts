@@ -13,7 +13,7 @@ import { extractTransactionsWithModel } from '../../services/geminiService';
  * a descrição visual baseada nas keywords do Admin.
  */
 export const ContractExecutor = {
-    async apply(model: FileModel, adaptedInput: any, globalKeywords: string[] = []): Promise<Transaction[]> {
+    async apply(model: FileModel, adaptedInput: any): Promise<Transaction[]> {
         if (!model || !model.mapping) return [];
 
         const rawText = adaptedInput?.__rawText || (typeof adaptedInput === 'string' ? adaptedInput : "");
@@ -22,7 +22,6 @@ export const ContractExecutor = {
         if (!rawText.trim() && !rawBase64) return [];
 
         const { mapping } = model;
-        const modelKeywords = mapping.ignoredKeywords || [];
         
         // 🧱 MODO BLOCO (PDF / VISÃO IA)
         if (mapping.extractionMode === 'BLOCK') {
@@ -47,7 +46,7 @@ export const ContractExecutor = {
                      * Aplicamos o NameResolver.clean para remover termos como PIX, TED, etc.
                      * definidos globalmente no Admin ou especificamente no Modelo.
                      */
-                    const cleanedDescription = NameResolver.clean(aiLiteralDesc, modelKeywords, globalKeywords);
+                    const cleanedDescription = NameResolver.clean(aiLiteralDesc);
 
                     const txObj = {
                         id: `viva-block-${model.id}-${idx}-${Date.now()}`,
@@ -134,7 +133,7 @@ export const ContractExecutor = {
 
             if ((rawDate || rawDesc) && !isNaN(numAmount)) {
                 // Aplica a limpeza de palavras-chave ignoradas
-                const learnedDescription = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
+                const learnedDescription = NameResolver.clean(rawDesc);
                 
                 // Captura a linha completa para garantir deduplicação sensível a todas as colunas (ex: Saldo)
                 const fullRawLine = line.trim();
@@ -153,7 +152,7 @@ export const ContractExecutor = {
                 });
             } else if (results.length > 0 && !isoDate && isNaN(numAmount) && rawDesc.trim().length > 0) {
                 const lastResult = results[results.length - 1];
-                const cleanContinuation = NameResolver.clean(rawDesc, modelKeywords, globalKeywords);
+                const cleanContinuation = NameResolver.clean(rawDesc);
                 if (cleanContinuation) {
                     lastResult.description = `${lastResult.description} ${cleanContinuation}`.trim();
                     lastResult.cleanedDescription = `${lastResult.cleanedDescription} ${cleanContinuation}`.trim();

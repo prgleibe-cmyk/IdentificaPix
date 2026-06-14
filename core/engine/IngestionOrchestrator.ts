@@ -28,8 +28,7 @@ export const IngestionOrchestrator = {
 
     async processVirtualData(
         sourceName: string, 
-        transactions: Transaction[], 
-        globalKeywords: string[]
+        transactions: Transaction[]
     ): Promise<any> {
         return {
             source: 'virtual',
@@ -43,8 +42,7 @@ export const IngestionOrchestrator = {
     async processFile(
         file: File, 
         content: string, 
-        models: FileModel[], 
-        globalKeywords: string[]
+        models: FileModel[]
     ): Promise<any> {
         // Usa o conteúdo TOTALMENTE BRUTO para o fingerprinting
         const fingerprint = Fingerprinter.generate(content);
@@ -56,8 +54,7 @@ export const IngestionOrchestrator = {
         const result = await StrategyEngine.process(
             file.name, 
             { __rawText: content, __source: 'file' }, 
-            models, 
-            globalKeywords
+            models
         );
         
         return {

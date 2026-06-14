@@ -25,7 +25,6 @@ export const useReconciliation = (props: any) => {
         fetchModels,
         similarityLevel,
         dayTolerance,
-        customIgnoreKeywords,
         contributionKeywords,
         learnedAssociations,
         savedReports,

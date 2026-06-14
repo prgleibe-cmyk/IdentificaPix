@@ -136,10 +136,8 @@ export interface FileModel {
     skipRowsEnd: number;
     decimalSeparator: ',' | '.';
     thousandsSeparator: '.' | ',' | '';
-    ignoredKeywords?: string[];
   };
   parsingRules: {
-    ignoredKeywords: string[];
     rowFilters: string[];
     dateFormat?: string;
   };

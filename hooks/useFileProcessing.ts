@@ -96,8 +96,7 @@ export const useFileProcessing = ({ activeFile, initialModel, isPdf }: UseFilePr
                     // Carrega o objeto mapping integralmente para preservar o blockContract IA.
                     if (initialModel?.mapping) {
                         setActiveMapping({
-                            ...initialModel.mapping,
-                            ignoredKeywords: initialModel.mapping.ignoredKeywords || initialModel.parsingRules?.ignoredKeywords || []
+                            ...initialModel.mapping
                         });
                     } else {
                         setActiveMapping({
