@@ -111,6 +111,8 @@ export const processFileContent = async (
         };
         const drafts = parser.parse(doc);
         
+        const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
+        
         // Conversor/Adaptador mínimo para transformar TransactionDraft[] em Transaction[]
         const transactions: Transaction[] = drafts.map((draft, index) => {
             const rawAmt = draft.rawAmount || '0';
@@ -125,11 +127,25 @@ export const processFileContent = async (
                 finalDate = `${yyyy}-${mm}-${dd}`;
             }
             
-            const cleanedDesc = NameResolver.clean(
+            let cleanedDesc = NameResolver.clean(
                 draft.rawDescription,
                 [],
                 globalKeywords
             );
+
+            if (isSicredi) {
+                const prefixes = [
+                    /RECEBIMENTO PIX-PIX_CRED/gi,
+                    /PAGAMENTO PIX-PIX_DEB/gi,
+                    /PIX_CRED/gi,
+                    /PIX_DEB/gi
+                ];
+                let tempDesc = cleanedDesc;
+                for (const r of prefixes) {
+                    tempDesc = tempDesc.replace(r, '');
+                }
+                cleanedDesc = tempDesc.trim();
+            }
             
             return {
                 id: `ofx-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
