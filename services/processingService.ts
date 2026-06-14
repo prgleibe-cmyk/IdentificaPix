@@ -168,36 +168,8 @@ export const processFileContent = async (
         };
     }
     
-    // Passamos o fileName para ajudar na disambiguação de PDFs
-    console.log('[SICOOB:BYPASS:ERROR] findMatchingModel reached');
-    const matchResult = findMatchingModel(rawContent, models, fileName);
-    const targetModel = matchResult?.model;
-
-    const adaptedInput = {
-        __rawText: rawContent,
-        __base64: base64, 
-        __source: 'file'
-    };
-
-    console.log('[SICOOB:BYPASS:ERROR] StrategyEngine reached');
-    const result = await StrategyEngine.process(
-        fileName, 
-        adaptedInput, 
-        models, 
-        targetModel
-    );
-
-    if (result.status === 'MODEL_REQUIRED') {
-        return result;
-    }
-
-    const transactions = Array.isArray(result?.transactions) ? result.transactions : [];
-
-    return {
-        ...result,
-        transactions,
-        appliedModel: targetModel ? { id: targetModel.id, name: targetModel.name, confidenceScore: 100 } : undefined
-    };
+    // Se não for Sicoob PDF ou Sicredi/OFX OFX, não prosseguir para o Laboratório ou IA
+    throw new Error("Formato ainda não suportado pelo IdentificaPix.\n\nBancos atualmente suportados:\n• Sicoob (PDF)\n• Sicredi (OFX)");
 };
 
 export const parseContributors = (content: string, typeKeywords: string[] = []): any[] => {

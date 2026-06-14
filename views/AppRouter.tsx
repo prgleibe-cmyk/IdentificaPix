@@ -28,8 +28,6 @@ import { SaveReportModal } from '../components/modals/SaveReportModal';
 import { SearchFiltersModal } from '../components/modals/SearchFiltersModal';
 import { DivergenceConfirmationModal } from '../components/modals/DivergenceConfirmationModal';
 import { PaymentModal } from '../components/modals/PaymentModal';
-import { FilePreprocessorModal } from '../components/modals/FilePreprocessorModal';
-import { ModelRequiredModal } from '../components/modals/ModelRequiredModal';
 
 export const AppRouter: React.FC = () => {
     const { activeView } = useUI();
@@ -67,11 +65,7 @@ export const ModalsRenderer: React.FC = () => {
         savingReportState, 
         isSearchFiltersOpen, 
         divergenceConfirmation,
-        isPaymentModalOpen,
-        pendingTraining,
-        setPendingTraining,
-        handleTrainingSuccess,
-        modelRequiredData
+        isPaymentModalOpen
     } = context;
 
     return (
@@ -85,14 +79,6 @@ export const ModalsRenderer: React.FC = () => {
             {isSearchFiltersOpen && <SearchFiltersModal />}
             {divergenceConfirmation && <DivergenceConfirmationModal />}
             {isPaymentModalOpen && <PaymentModal />}
-            {pendingTraining && (
-                <FilePreprocessorModal 
-                    onClose={() => setPendingTraining(null)}
-                    initialFile={pendingTraining}
-                    onSuccess={handleTrainingSuccess}
-                />
-            )}
-            {modelRequiredData && <ModelRequiredModal />}
         </>
     );
 };

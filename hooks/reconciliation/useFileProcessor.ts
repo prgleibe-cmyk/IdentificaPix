@@ -78,7 +78,7 @@ export const useFileProcessor = ({
             await hydrate();
             
         } catch (error: any) {
-            showToast("Erro no processamento do arquivo.", "error");
+            showToast(error.message || "Erro no processamento do arquivo.", "error");
         } finally {
             processingFilesRef.current.delete(processKey);
             setIsLoading(false);
