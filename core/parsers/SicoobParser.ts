@@ -144,8 +144,14 @@ export class SicoobParser {
         contributorName = details.length > 0 ? details[0] : block.descPart;
       }
 
-      const finalDescription = contributorName;
-      const finalCleanedDescription = contributorName;
+      let finalDescription = contributorName;
+      if (taxIdIndex >= 0) {
+        const taxId = details[taxIdIndex].trim();
+        if (taxId) {
+          finalDescription = `${contributorName} - ${taxId}`;
+        }
+      }
+      const finalCleanedDescription = finalDescription;
 
       // Detecção inteligente da forma de pagamento
       let paymentMethod = 'OUTROS';
