@@ -144,6 +144,10 @@ export const processFileContent = async (
             };
         });
 
+        console.log(`[OFX:AUDIT] Parsed transactions count: ${transactions.length}`);
+        console.log(`[OFX:AUDIT] bank_id: ${bank?.id || 'undefined'}`);
+        console.log(`[OFX:AUDIT] first transaction: ${transactions.length > 0 ? JSON.stringify(transactions[0]) : 'none'}`);
+
         return {
             transactions,
             strategyName: 'OFX Parser Direto',
