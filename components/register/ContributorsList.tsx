@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useUI } from '../../contexts/UIContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
+import { Camera, Trash2 } from 'lucide-react';
 
 export const ContributorsList: React.FC = () => {
     const { showToast } = useUI();
@@ -16,6 +17,11 @@ export const ContributorsList: React.FC = () => {
     const [status, setStatus] = useState<'Ativo' | 'Inativo'>('Ativo');
     const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
+    // Photo States (Client-side visual only, prepared for POST /api/v1/contributors/:id/photo)
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Lista local temporária (preparada para futura substituição pela API da VPS: GET /api/v1/churches)
     const tempChurches = [
         { id: 'church-1', name: 'Selecione uma igreja' },
@@ -27,6 +33,28 @@ export const ContributorsList: React.FC = () => {
         setIsModalOpen(true);
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (photoPreview) {
+                URL.revokeObjectURL(photoPreview);
+            }
+            setPhotoFile(file);
+            setPhotoPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleRemovePhoto = () => {
+        if (photoPreview) {
+            URL.revokeObjectURL(photoPreview);
+        }
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setFullName('');
@@ -36,6 +64,16 @@ export const ContributorsList: React.FC = () => {
         setEmail('');
         setStatus('Ativo');
         setAttemptedSubmit(false);
+
+        // Reset photo state and revoke preview URL
+        if (photoPreview) {
+            URL.revokeObjectURL(photoPreview);
+        }
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     const handleSave = (e: React.FormEvent) => {
@@ -135,8 +173,63 @@ export const ContributorsList: React.FC = () => {
                             </div>
 
                             {/* Modal Body with inputs - Scrollable if small screen */}
-                            <div className="p-6 md:p-8 space-y-4 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                            <div className="p-6 md:p-8 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar">
                                 
+                                {/* FOTO DO CONTRIBUINTE (Visual only, prepared for POST /api/v1/contributors/:id/photo) */}
+                                <div className="flex flex-col items-center justify-center pb-5 border-b border-slate-100 dark:border-slate-800/80" id="photo-section">
+                                    <span className="block text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-3 tracking-wide" id="lbl-photo-section">
+                                        Foto do Contribuinte
+                                    </span>
+                                    
+                                    <div className="relative group mb-3 shadow-md rounded-full" id="photo-avatar-wrapper">
+                                        <div className="w-24 h-24 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center overflow-hidden shadow-inner" id="photo-avatar-container">
+                                            {photoPreview ? (
+                                                <img 
+                                                    src={photoPreview} 
+                                                    alt="Preview do contribuinte" 
+                                                    className="w-full h-full object-cover"
+                                                    id="photo-avatar-preview"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <UsersIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 animate-pulse" />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center justify-center gap-2" id="photo-actions">
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            onChange={handleFileChange} 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            id="photo-file-input"
+                                        />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-all tracking-wide uppercase border border-slate-200 dark:border-slate-700 shadow-sm active:translate-y-0.2"
+                                            id="btn-select-photo"
+                                        >
+                                            <Camera className="w-3.5 h-3.5" />
+                                            <span>Selecionar Foto</span>
+                                        </button>
+                                        
+                                        {photoPreview && (
+                                            <button 
+                                                type="button" 
+                                                onClick={handleRemovePhoto}
+                                                className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50/50 hover:bg-rose-100/50 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 rounded-full transition-all tracking-wide uppercase border border-rose-200 dark:border-rose-900/40 shadow-sm active:translate-y-0.2"
+                                                id="btn-remove-photo"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <span>Remover Foto</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
                                 {/* Nome Completo */}
                                 <div>
                                     <label htmlFor="contributor-fullname" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-fullname">
