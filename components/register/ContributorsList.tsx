@@ -9,11 +9,19 @@ export const ContributorsList: React.FC = () => {
     
     // Form States
     const [fullName, setFullName] = useState('');
+    const [selectedChurchId, setSelectedChurchId] = useState('church-1');
     const [cpf, setCpf] = useState('');
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [status, setStatus] = useState<'Ativo' | 'Inativo'>('Ativo');
     const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+    // Lista local temporária (preparada para futura substituição pela API da VPS: GET /api/v1/churches)
+    const tempChurches = [
+        { id: 'church-1', name: 'Selecione uma igreja' },
+        { id: 'church-2', name: 'Igreja Batista Central' },
+        { id: 'church-3', name: 'Igreja Presbiteriana Renovada' }
+    ];
 
     const handleNewContributorClick = () => {
         setIsModalOpen(true);
@@ -22,6 +30,7 @@ export const ContributorsList: React.FC = () => {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setFullName('');
+        setSelectedChurchId('church-1');
         setCpf('');
         setPhone('');
         setEmail('');
@@ -33,7 +42,7 @@ export const ContributorsList: React.FC = () => {
         e.preventDefault();
         setAttemptedSubmit(true);
 
-        if (!fullName.trim()) {
+        if (!fullName.trim() || !selectedChurchId || selectedChurchId === 'church-1') {
             return; // Show validation error on UI
         }
 
@@ -45,6 +54,7 @@ export const ContributorsList: React.FC = () => {
     };
 
     const isNameInvalid = attemptedSubmit && !fullName.trim();
+    const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
 
     return (
         <div className="h-full flex flex-col animate-fade-in" id="contributors-container">
@@ -147,6 +157,34 @@ export const ContributorsList: React.FC = () => {
                                     {isNameInvalid && (
                                         <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="name-warning">
                                             O nome completo é obrigatório.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Igreja */}
+                                <div>
+                                    <label htmlFor="contributor-church" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-church">
+                                        Igreja <span className="text-rose-500">*</span>
+                                    </label>
+                                    <select 
+                                        id="contributor-church" 
+                                        value={selectedChurchId} 
+                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                        className={`block w-full rounded-2xl bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner text-sm p-3.5 outline-none transition-all cursor-pointer ${
+                                            isChurchInvalid 
+                                                ? 'border border-rose-500 focus:border-rose-500 focus:ring-rose-500' 
+                                                : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-brand-blue'
+                                        }`}
+                                    >
+                                        {tempChurches.map((church) => (
+                                            <option key={church.id} value={church.id}>
+                                                {church.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {isChurchInvalid && (
+                                        <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="church-warning">
+                                            A seleção da igreja é obrigatória.
                                         </p>
                                     )}
                                 </div>
