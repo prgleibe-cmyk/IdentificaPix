@@ -8,7 +8,8 @@ import {
     ArrowsRightLeftIcon, 
     BanknotesIcon, 
     PlusCircleIcon, 
-    CreditCardIcon 
+    CreditCardIcon,
+    UsersIcon
 } from '../components/Icons';
 
 // Subcomponents
@@ -18,8 +19,9 @@ import { ChurchesList } from '../components/register/ChurchesList';
 import { ContributionTypesList } from '../components/register/ContributionTypesList';
 import { PaymentMethodsList } from '../components/register/PaymentMethodsList';
 import { BankModal, ChurchModal } from '../components/register/RegisterModals';
+import { ContributorsList } from '../components/register/ContributorsList';
 
-type RegisterTab = 'banks' | 'churches' | 'contribution' | 'payment';
+type RegisterTab = 'banks' | 'churches' | 'contribution' | 'payment' | 'contributors';
 
 /**
  * REGISTER VIEW (REFACTORED V3)
@@ -55,6 +57,7 @@ export const RegisterView: React.FC = () => {
                     <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
                     <RegisterTabButton id="contribution" label="Tipo Contribuição" icon={BanknotesIcon} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
                     <RegisterTabButton id="payment" label="Forma Recebimento" icon={CreditCardIcon} colorTheme="amber" isActive={activeTab === 'payment'} onClick={setActiveTab} />
+                    <RegisterTabButton id="contributors" label="Contribuintes" icon={UsersIcon} colorTheme="slate" isActive={activeTab === 'contributors'} onClick={setActiveTab} />
                 </div>
 
                 <button 
@@ -111,6 +114,7 @@ export const RegisterView: React.FC = () => {
                         {activeTab === 'churches' && <ChurchesList />}
                         {activeTab === 'contribution' && <ContributionTypesList />}
                         {activeTab === 'payment' && <PaymentMethodsList />}
+                        {activeTab === 'contributors' && <ContributorsList />}
                     </div>
                 </div>
             </div>
