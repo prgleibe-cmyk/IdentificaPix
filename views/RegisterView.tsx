@@ -52,7 +52,7 @@ export const RegisterView: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400 text-[10px]">{t('register.subtitle')}</p>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-[1.5rem] md:rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto md:overflow-visible flex-wrap md:flex-nowrap">
                     <RegisterTabButton id="banks" label={t('register.manageBanks')} icon={BuildingOfficeIcon} colorTheme="blue" isActive={activeTab === 'banks'} onClick={setActiveTab} />
                     <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
                     <RegisterTabButton id="contribution" label="Tipo Contribuição" icon={BanknotesIcon} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
