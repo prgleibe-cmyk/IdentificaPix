@@ -25,8 +25,8 @@ export const ContributorsList: React.FC = () => {
     // Lista local temporária (preparada para futura substituição pela API da VPS: GET /api/v1/churches)
     const tempChurches = [
         { id: 'church-1', name: 'Selecione uma igreja' },
-        { id: 'church-2', name: 'Igreja Batista Central' },
-        { id: 'church-3', name: 'Igreja Presbiteriana Renovada' }
+        { id: 'a5b8f2dd-7ea1-464a-874b-5136ff93e3d4', name: 'Igreja Batista Central' },
+        { id: 'bfa640f3-eecb-4395-888e-73df9ef4a89d', name: 'Igreja Presbiteriana Renovada' }
     ];
 
     const handleNewContributorClick = () => {
@@ -76,19 +76,66 @@ export const ContributorsList: React.FC = () => {
         }
     };
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setAttemptedSubmit(true);
 
-        if (!fullName.trim() || !selectedChurchId || selectedChurchId === 'church-1') {
+        const trimmedName = fullName.trim();
+        const isValidName = trimmedName.length > 0;
+        const isValidChurch = selectedChurchId && selectedChurchId !== 'church-1';
+
+        if (!isValidName || !isValidChurch) {
             return; // Show validation error on UI
         }
 
-        // Show homologation toast
-        showToast("Modo homologação: integração ainda não habilitada.", "success");
-        
-        // Close and reset
-        handleCloseModal();
+        try {
+            // Normalizations as per rules
+            const canonical_name = trimmedName.replace(/\s+/g, ' ').toUpperCase();
+            
+            const rawCpf = cpf.replace(/\D/g, '');
+            const sanitizedCpf = rawCpf.length > 0 ? rawCpf : null;
+
+            const trimmedEmail = email.trim();
+            const sanitizedEmail = trimmedEmail.length > 0 ? trimmedEmail : null;
+
+            const trimmedPhone = phone.trim();
+            const sanitizedPhone = trimmedPhone.length > 0 ? trimmedPhone : null;
+
+            const sanitizedStatus = status === 'Ativo' ? 'active' : 'inactive';
+
+            const payload = {
+                church_id: selectedChurchId,
+                canonical_name,
+                cpf: sanitizedCpf,
+                email: sanitizedEmail,
+                phone: sanitizedPhone,
+                status: sanitizedStatus
+            };
+
+            const response = await fetch('/api/v1/contributors', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.status === 201) {
+                showToast("Contribuinte cadastrado com sucesso.", "success");
+                handleCloseModal();
+            } else if (response.status === 409) {
+                showToast("Já existe um contribuinte ativo com este CPF nesta igreja.", "error");
+            } else if (response.status === 400) {
+                const responseData = await response.json().catch(() => null);
+                const errorMsg = responseData?.error || "Erro de validação. Verifique os dados.";
+                showToast(errorMsg === "VALIDATION_ERROR" ? "Erro de validação nos dados enviados." : errorMsg, "error");
+            } else {
+                showToast("Falha ao cadastrar contribuinte. Tente novamente.", "error");
+            }
+        } catch (error) {
+            console.error('[ContributorsList] Error adding contributor:', error);
+            showToast("Falha ao cadastrar contribuinte. Tente novamente.", "error");
+        }
     };
 
     const isNameInvalid = attemptedSubmit && !fullName.trim();

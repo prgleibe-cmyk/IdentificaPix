@@ -19,6 +19,7 @@ import { GoogleGenAI } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { spawn } from 'child_process';
 
 // Importação das rotas
 import gmailRoutes from './backend/routes/gmail.js';
@@ -31,6 +32,22 @@ import { authMiddleware } from './backend/middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Iniciando Contributors API em segundo plano
+console.log(`[IdentificaPix] Iniciando Contributors API em segundo plano...`);
+const contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
+    cwd: path.join(__dirname, 'contributors-api'),
+    stdio: 'inherit',
+    env: { ...process.env, PORT: '3010' }
+});
+
+contributorsApi.on('error', (err) => {
+    console.error('[IdentificaPix] Erro ao iniciar Contributors API:', err.message);
+});
+
+contributorsApi.on('exit', (code) => {
+    console.log(`[IdentificaPix] Contributors API finalizado com código ${code}`);
+});
 
 const app = express();
 
@@ -76,6 +93,35 @@ try {
     app.use('/api/payment', paymentRoutes);
     app.use('/api/inbox', inboxRoutes(ai));
     app.use('/api/ai', aiRoutes(ai));
+
+    // Proxy para o Contributors API (PG + VPS)
+    app.all('/api/v1/*', async (req, res) => {
+        try {
+            const targetUrl = `http://127.0.0.1:3010${req.originalUrl}`;
+            console.log(`[Proxy] Forwarding ${req.method} ${req.originalUrl} to ${targetUrl}`);
+            
+            const fetchOptions = {
+                method: req.method,
+                headers: {
+                    ...req.headers,
+                    host: '127.0.0.1:3010'
+                }
+            };
+
+            if (req.method !== 'GET' && req.method !== 'HEAD') {
+                fetchOptions.body = JSON.stringify(req.body);
+                fetchOptions.headers['content-type'] = 'application/json';
+            }
+
+            const response = await fetch(targetUrl, fetchOptions);
+            const data = await response.json().catch(() => null);
+
+            res.status(response.status).json(data || { error: 'Invalid Response from contributors-api' });
+        } catch (error) {
+            console.error(`[Proxy Error] Fail to forward to contributors-api:`, error.message);
+            res.status(500).json({ error: 'CONTRIBUTORS_API_UNAVAILABLE' });
+        }
+    });
 
     // Middleware de Autenticação para as demais rotas
     app.use('/api', authMiddleware);
