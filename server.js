@@ -97,14 +97,21 @@ try {
     // Proxy para o Contributors API (PG + VPS)
     app.all('/api/v1/*', async (req, res) => {
         try {
-            const targetUrl = `http://127.0.0.1:3010${req.originalUrl}`;
+            const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            const targetUrl = `${cleanBaseUrl}${req.originalUrl}`;
+            
             console.log(`[Proxy] Forwarding ${req.method} ${req.originalUrl} to ${targetUrl}`);
             
+            // Extrair o hostname correto de destino para evitar rejeição de cabeçalhos
+            const urlObj = new URL(targetUrl);
+            const targetHost = urlObj.host;
+
             const fetchOptions = {
                 method: req.method,
                 headers: {
                     ...req.headers,
-                    host: '127.0.0.1:3010'
+                    host: targetHost
                 }
             };
 
