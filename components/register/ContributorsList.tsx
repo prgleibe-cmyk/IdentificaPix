@@ -1,12 +1,18 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useUI } from '../../contexts/UIContext';
+import { AppContext } from '../../contexts/AppContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
-import { Camera, Trash2 } from 'lucide-react';
+import { Camera, Trash2, Edit2, Loader2 } from 'lucide-react';
 
 export const ContributorsList: React.FC = () => {
     const { showToast } = useUI();
+    const { churches } = useContext(AppContext);
+    
     const [search, setSearch] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [contributors, setContributors] = useState<any[]>([]);
+    const [isLoadingContributors, setIsLoadingContributors] = useState<boolean>(true);
+    const [editingContributor, setEditingContributor] = useState<any | null>(null);
     
     // Form States
     const [fullName, setFullName] = useState('');
@@ -22,15 +28,66 @@ export const ContributorsList: React.FC = () => {
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Lista local temporária (preparada para futura substituição pela API da VPS: GET /api/v1/churches)
+    // Real list of churches from context
     const tempChurches = [
         { id: 'church-1', name: 'Selecione uma igreja' },
-        { id: 'a5b8f2dd-7ea1-464a-874b-5136ff93e3d4', name: 'Igreja Batista Central' },
-        { id: 'bfa640f3-eecb-4395-888e-73df9ef4a89d', name: 'Igreja Presbiteriana Renovada' }
+        ...churches.map((c: any) => ({ id: c.id, name: c.name }))
     ];
+
+    const fetchContributors = async () => {
+        try {
+            setIsLoadingContributors(true);
+            const response = await fetch('/api/v1/contributors');
+            if (response.ok) {
+                const data = await response.json();
+                setContributors(data);
+            } else {
+                console.error('[ContributorsList] Failed to fetch contributors');
+            }
+        } catch (error) {
+            console.error('[ContributorsList] Error fetching contributors:', error);
+        } finally {
+            setIsLoadingContributors(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchContributors();
+    }, []);
 
     const handleNewContributorClick = () => {
         setIsModalOpen(true);
+    };
+
+    const handleEditClick = (contributor: any) => {
+        setEditingContributor(contributor);
+        setFullName(contributor.canonical_name);
+        setSelectedChurchId(contributor.church_id);
+        setCpf(contributor.cpf || '');
+        setEmail(contributor.email || '');
+        setPhone(contributor.phone || '');
+        setStatus(contributor.status === 'inactive' ? 'Inativo' : 'Ativo');
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteContributor = async (id: string, name: string) => {
+        if (!confirm(`Tem certeza que deseja inativar o contribuinte "${name}"?`)) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/v1/contributors/${id}`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                showToast("Contribuinte inativado com sucesso.", "success");
+                fetchContributors();
+            } else {
+                showToast("Falha ao inativar contribuinte.", "error");
+            }
+        } catch (error) {
+            console.error('[ContributorsList] Error deleting contributor:', error);
+            showToast("Falha ao inativar contribuinte.", "error");
+        }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,6 +114,7 @@ export const ContributorsList: React.FC = () => {
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
+        setEditingContributor(null);
         setFullName('');
         setSelectedChurchId('church-1');
         setCpf('');
@@ -112,17 +170,29 @@ export const ContributorsList: React.FC = () => {
                 status: sanitizedStatus
             };
 
-            const response = await fetch('/api/v1/contributors', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
+            let response;
+            if (editingContributor) {
+                response = await fetch(`/api/v1/contributors/${editingContributor.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                response = await fetch('/api/v1/contributors', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+            }
 
-            if (response.status === 201) {
-                showToast("Contribuinte cadastrado com sucesso.", "success");
+            if (response.status === 201 || response.status === 200) {
+                showToast(editingContributor ? "Contribuinte atualizado com sucesso." : "Contribuinte cadastrado com sucesso.", "success");
                 handleCloseModal();
+                fetchContributors();
             } else if (response.status === 409) {
                 showToast("Já existe um contribuinte ativo com este CPF nesta igreja.", "error");
             } else if (response.status === 400) {
@@ -130,16 +200,24 @@ export const ContributorsList: React.FC = () => {
                 const errorMsg = responseData?.error || "Erro de validação. Verifique os dados.";
                 showToast(errorMsg === "VALIDATION_ERROR" ? "Erro de validação nos dados enviados." : errorMsg, "error");
             } else {
-                showToast("Falha ao cadastrar contribuinte. Tente novamente.", "error");
+                showToast("Falha ao salvar contribuinte. Tente novamente.", "error");
             }
         } catch (error) {
-            console.error('[ContributorsList] Error adding contributor:', error);
-            showToast("Falha ao cadastrar contribuinte. Tente novamente.", "error");
+            console.error('[ContributorsList] Error saving contributor:', error);
+            showToast("Falha ao salvar contribuinte. Tente novamente.", "error");
         }
     };
 
     const isNameInvalid = attemptedSubmit && !fullName.trim();
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
+
+    const filteredContributors = contributors.filter(c => {
+        const query = search.toLowerCase().trim();
+        if (!query) return true;
+        const nameMatch = c.canonical_name?.toLowerCase().includes(query);
+        const cpfMatch = c.cpf?.replace(/\D/g, '').includes(query.replace(/\D/g, ''));
+        return nameMatch || cpfMatch;
+    });
 
     return (
         <div className="h-full flex flex-col animate-fade-in" id="contributors-container">
@@ -159,11 +237,11 @@ export const ContributorsList: React.FC = () => {
                     </div>
                 </div>
                 
-                {/* Visual Button: + Novo Contribuinte */}
+                {/* Button: + Novo Contribuinte */}
                 <div className="flex-shrink-0">
                     <button 
                         onClick={handleNewContributorClick}
-                        className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-slate-700 to-slate-500 hover:from-slate-800 hover:to-slate-600 rounded-full shadow-md shadow-slate-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wide uppercase"
+                        className="w-full md:w-auto flex items-center justify-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-slate-700 to-slate-500 hover:from-slate-800 hover:to-slate-600 rounded-full shadow-md shadow-slate-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wide uppercase cursor-pointer"
                         id="new-contributor-btn"
                     >
                         <PlusCircleIcon className="w-3.5 h-3.5" />
@@ -177,28 +255,116 @@ export const ContributorsList: React.FC = () => {
                 <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
                 <input 
                     type="text" 
-                    placeholder="Buscar por nome ou CPF" 
+                    placeholder="Buscar por nome ou CPF..." 
                     value={search} 
                     onChange={e => setSearch(e.target.value)} 
-                    className="pl-8 p-2 block w-full rounded-lg border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-[11px] font-medium outline-none" 
+                    className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
                     id="contributors-search"
                 />
             </div>
 
-            {/* Central Empty State Section */}
-            <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/50 dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl min-h-[250px] animate-fade-in-up">
-                <div className="p-4 bg-slate-100/80 dark:bg-slate-900 rounded-full mb-4">
-                    <UsersIcon className="w-8 h-8 text-slate-400 dark:text-slate-600" />
+            {/* Content list or empty states */}
+            {isLoadingContributors ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 animate-pulse text-center">
+                    <Loader2 className="w-8 h-8 text-brand-blue animate-spin mb-3" />
+                    <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        Carregando contribuintes...
+                    </p>
                 </div>
-                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
-                    Nenhum contribuinte cadastrado.
-                </h4>
-                <p className="max-w-md text-center text-slate-500 dark:text-slate-400 text-xs leading-relaxed" id="contributors-message">
-                    A integração do módulo Contributors será realizada nas próximas etapas.
-                </p>
-            </div>
+            ) : filteredContributors.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/50 dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl min-h-[250px] animate-fade-in-up">
+                    <div className="p-4 bg-slate-100/80 dark:bg-slate-900 rounded-full mb-4">
+                        <UsersIcon className="w-8 h-8 text-slate-400 dark:text-slate-600" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
+                        Nenhum contribuinte encontrado.
+                    </h4>
+                    <p className="max-w-md text-center text-slate-500 dark:text-slate-400 text-xs leading-relaxed" id="contributors-message">
+                        {search ? "Nenhum resultado corresponde à sua busca." : "Cadastre o primeiro contribuinte utilizando o botão no topo direito."}
+                    </p>
+                </div>
+            ) : (
+                <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar" id="contributors-list-flow">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {filteredContributors.map((c) => {
+                            const church = churches.find((ch: any) => ch.id === c.church_id);
+                            return (
+                                <div 
+                                    key={c.id} 
+                                    className="p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-200/80 dark:hover:border-slate-700/80 transition-all duration-200 animate-fade-in"
+                                >
+                                    <div>
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="w-10 h-10 rounded-full bg-brand-blue/5 dark:bg-slate-800/80 flex items-center justify-center font-bold text-brand-blue text-xs uppercase shadow-inner">
+                                                    {c.canonical_name?.substring(0, 2)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight uppercase">
+                                                        {c.canonical_name}
+                                                    </h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-0.5">
+                                                        {church ? church.name : 'Igreja não identificada'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                                                c.status === 'active' 
+                                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400' 
+                                                    : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400'
+                                            }`}>
+                                                {c.status === 'active' ? 'Ativo' : 'Inativo'}
+                                            </span>
+                                        </div>
 
-            {/* NEW CONTRIBUTOR MODAL (Exclusively Visual Modal) */}
+                                        <div className="space-y-1.5 pt-2 border-t border-slate-50 dark:border-slate-800/50">
+                                            {c.cpf && (
+                                                <div className="flex items-center text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                    <span className="font-bold text-slate-400 dark:text-slate-500 mr-1.5 uppercase">CPF:</span>
+                                                    {c.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+                                                </div>
+                                            )}
+                                            {c.email && (
+                                                <div className="flex items-center text-[10px] text-slate-500 dark:text-slate-400">
+                                                    <span className="font-bold text-slate-400 dark:text-slate-500 mr-1.5 uppercase">E-mail:</span>
+                                                    {c.email}
+                                                </div>
+                                            )}
+                                            {c.phone && (
+                                                <div className="flex items-center text-[10px] text-slate-500 dark:text-slate-400">
+                                                    <span className="font-bold text-slate-400 dark:text-slate-500 mr-1.5 uppercase">Fone:</span>
+                                                    {c.phone}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-slate-50 dark:border-slate-800/80">
+                                        <button 
+                                            onClick={() => handleEditClick(c)}
+                                            className="p-1 px-3 rounded-full border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                        >
+                                            <Edit2 className="w-2.5 h-2.5" />
+                                            <span>Editar</span>
+                                        </button>
+                                        {c.status === 'active' && (
+                                            <button 
+                                                onClick={() => handleDeleteContributor(c.id, c.canonical_name)}
+                                                className="p-1 px-3 rounded-full border border-rose-100/50 hover:bg-rose-50 text-rose-500 hover:text-rose-600 dark:border-rose-900/40 dark:hover:bg-rose-950/20 dark:text-rose-400 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                            >
+                                                <Trash2 className="w-2.5 h-2.5" />
+                                                <span>Inativar</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* NEW CONTRIBUTOR MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="contributor-modal-container">
                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 transform transition-all scale-100 flex flex-col max-h-[90vh] overflow-hidden animate-zoom-in" id="contributor-modal-content">
@@ -207,12 +373,12 @@ export const ContributorsList: React.FC = () => {
                             {/* Modal Header */}
                             <div className="p-6 md:p-8 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
                                 <h3 className="text-lg font-bold text-brand-graphite dark:text-white tracking-tight" id="contributor-modal-title">
-                                    Novo Contribuinte
+                                    {editingContributor ? 'Editar Contribuinte' : 'Novo Contribuinte'}
                                 </h3>
                                 <button 
                                     type="button" 
                                     onClick={handleCloseModal} 
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" 
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
                                     id="btn-close-contributor-modal"
                                 >
                                     <XMarkIcon className="w-5 h-5" />
@@ -222,7 +388,7 @@ export const ContributorsList: React.FC = () => {
                             {/* Modal Body with inputs - Scrollable if small screen */}
                             <div className="p-6 md:p-8 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar">
                                 
-                                {/* FOTO DO CONTRIBUINTE (Visual only, prepared for POST /api/v1/contributors/:id/photo) */}
+                                {/* FOTO DO CONTRIBUINTE (Visual only) */}
                                 <div className="flex flex-col items-center justify-center pb-5 border-b border-slate-100 dark:border-slate-800/80" id="photo-section">
                                     <span className="block text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-3 tracking-wide" id="lbl-photo-section">
                                         Foto do Contribuinte
@@ -256,7 +422,7 @@ export const ContributorsList: React.FC = () => {
                                         <button 
                                             type="button" 
                                             onClick={() => fileInputRef.current?.click()}
-                                            className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-all tracking-wide uppercase border border-slate-200 dark:border-slate-700 shadow-sm active:translate-y-0.2"
+                                            className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-all tracking-wide uppercase border border-slate-200 dark:border-slate-700 shadow-sm active:translate-y-0.2 cursor-pointer"
                                             id="btn-select-photo"
                                         >
                                             <Camera className="w-3.5 h-3.5" />
@@ -267,7 +433,7 @@ export const ContributorsList: React.FC = () => {
                                             <button 
                                                 type="button" 
                                                 onClick={handleRemovePhoto}
-                                                className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50/50 hover:bg-rose-100/50 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 rounded-full transition-all tracking-wide uppercase border border-rose-200 dark:border-rose-900/40 shadow-sm active:translate-y-0.2"
+                                                className="flex items-center space-x-1.5 px-3 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50/50 hover:bg-rose-100/50 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 rounded-full transition-all tracking-wide uppercase border border-rose-200 dark:border-rose-900/40 shadow-sm active:translate-y-0.2 cursor-pointer"
                                                 id="btn-remove-photo"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -390,26 +556,26 @@ export const ContributorsList: React.FC = () => {
                                     </select>
                                 </div>
 
-                            </div>
+                             </div>
 
-                            {/* Modal Actions Footer */}
-                            <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50" id="contributor-modal-actions">
+                             {/* Modal Actions Footer */}
+                             <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50" id="contributor-modal-actions">
                                 <button 
                                     type="button" 
                                     onClick={handleCloseModal} 
-                                    className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide" 
+                                    className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide cursor-pointer" 
                                     id="btn-cancel-contributor"
                                 >
                                     Cancelar
                                 </button>
                                 <button 
                                     type="submit" 
-                                    className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide"
+                                    className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide cursor-pointer"
                                     id="btn-save-contributor"
                                 >
                                     Salvar
                                 </button>
-                            </div>
+                             </div>
 
                         </form>
                     </div>

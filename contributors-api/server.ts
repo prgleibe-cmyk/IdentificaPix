@@ -66,6 +66,8 @@ async function initializeDatabase() {
         church_id UUID NOT NULL,
         canonical_name VARCHAR(255) NOT NULL,
         cpf VARCHAR(11),
+        email VARCHAR(255),
+        phone VARCHAR(50),
         status VARCHAR(50) NOT NULL DEFAULT 'active',
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -74,6 +76,8 @@ async function initializeDatabase() {
     
     // Ensure all columns exist (in case the table already existed under an older schema)
     await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS cpf VARCHAR(11);');
+    await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS email VARCHAR(255);');
+    await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS phone VARCHAR(50);');
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
@@ -106,10 +110,40 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// GET /api/v1/contributors
+app.get('/api/v1/contributors', async (req: Request, res: Response) => {
+  try {
+    const { church_id, status } = req.query;
+    let query = 'SELECT id, church_id, canonical_name, cpf, email, phone, status, created_at, updated_at FROM contributors WHERE 1=1';
+    const params: any[] = [];
+    let paramCounter = 1;
+
+    if (church_id && typeof church_id === 'string') {
+      query += ` AND church_id = $${paramCounter}`;
+      params.push(church_id);
+      paramCounter++;
+    }
+
+    if (status && typeof status === 'string') {
+      query += ` AND status = $${paramCounter}`;
+      params.push(status);
+      paramCounter++;
+    }
+
+    query += ' ORDER BY canonical_name ASC';
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error processing get contributors request:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
 // POST /api/v1/contributors
 app.post('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
-    const { church_id, canonical_name, cpf } = req.body;
+    const { church_id, canonical_name, cpf, email, phone, status } = req.body;
 
     // UUID Pattern validation
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -137,6 +171,11 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       sanitizedCpf = String(cpf).replace(/\D/g, '');
     }
 
+    // Email, phone and status normalization
+    const sanitizedEmail = email && typeof email === 'string' ? email.trim() : null;
+    const sanitizedPhone = phone && typeof phone === 'string' ? phone.trim() : null;
+    const sanitizedStatus = status === 'inactive' ? 'inactive' : 'active';
+
     // If CPF was informed, check if there's already an active contributor under the same church_id with that CPF
     if (sanitizedCpf) {
       if (sanitizedCpf.length === 0) {
@@ -153,10 +192,10 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       }
     }
 
-    // Insert contributor record, born as status 'active'
+    // Insert contributor record
     const insertResult = await pool.query(
-      'INSERT INTO contributors (church_id, canonical_name, cpf, status) VALUES ($1, $2, $3, $4) RETURNING id, canonical_name, cpf, status',
-      [church_id, sanitizedName, sanitizedCpf, 'active']
+      'INSERT INTO contributors (church_id, canonical_name, cpf, email, phone, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, canonical_name, cpf, email, phone, status',
+      [church_id, sanitizedName, sanitizedCpf, sanitizedEmail, sanitizedPhone, sanitizedStatus]
     );
 
     const newContributor = insertResult.rows[0];
@@ -165,6 +204,8 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       id: newContributor.id,
       canonical_name: newContributor.canonical_name,
       cpf: newContributor.cpf,
+      email: newContributor.email,
+      phone: newContributor.phone,
       status: newContributor.status
     });
 
@@ -175,6 +216,114 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
     if (pgErr.code === '22P02' || pgErr.code === '23502') {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/contributors/:id
+app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { church_id, canonical_name, cpf, email, phone, status } = req.body;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ error: 'INVALID_ID' });
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [id];
+    let counter = 2;
+
+    if (church_id !== undefined) {
+      if (!uuidRegex.test(church_id)) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR' });
+      }
+      updates.push(`church_id = $${counter}`);
+      params.push(church_id);
+      counter++;
+    }
+
+    if (canonical_name !== undefined) {
+      if (typeof canonical_name !== 'string' || !canonical_name.trim()) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR' });
+      }
+      const sanitizedName = canonical_name.trim().replace(/\s+/g, ' ').toUpperCase();
+      updates.push(`canonical_name = $${counter}`);
+      params.push(sanitizedName);
+      counter++;
+    }
+
+    if (cpf !== undefined) {
+      const sanitizedCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
+      updates.push(`cpf = $${counter}`);
+      params.push(sanitizedCpf);
+      counter++;
+    }
+
+    if (email !== undefined) {
+      const sanitizedEmail = email && typeof email === 'string' ? email.trim() : null;
+      updates.push(`email = $${counter}`);
+      params.push(sanitizedEmail);
+      counter++;
+    }
+
+    if (phone !== undefined) {
+      const sanitizedPhone = phone && typeof phone === 'string' ? phone.trim() : null;
+      updates.push(`phone = $${counter}`);
+      params.push(sanitizedPhone);
+      counter++;
+    }
+
+    if (status !== undefined) {
+      const sanitizedStatus = status === 'inactive' ? 'inactive' : 'active';
+      updates.push(`status = $${counter}`);
+      params.push(sanitizedStatus);
+      counter++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'NO_UPDATES_PROVIDED' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+
+    const query = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING id, church_id, canonical_name, cpf, email, phone, status`;
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error processing put contributor request:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/contributors/:id
+app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ error: 'INVALID_ID' });
+    }
+
+    // Instead of hard deleting, we soft delete by updating status to 'inactive'
+    const result = await pool.query(
+      "UPDATE contributors SET status = 'inactive', updated_at = NOW() WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    return res.json({ success: true, id: id });
+  } catch (err) {
+    console.error('[Contributors API] Error processing delete contributor request:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });
