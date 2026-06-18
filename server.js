@@ -107,17 +107,24 @@ try {
             const urlObj = new URL(targetUrl);
             const targetHost = urlObj.host;
 
+            // Limpar e sanitizar cabeçalhos para evitar erros no fetch (como incompatibilidade de content-length ou host)
+            const cleanHeaders = {};
+            const excludedHeaders = ['content-length', 'connection', 'host', 'keep-alive', 'transfer-encoding', 'accept-encoding'];
+            for (const [key, value] of Object.entries(req.headers)) {
+                if (!excludedHeaders.includes(key.toLowerCase())) {
+                    cleanHeaders[key] = value;
+                }
+            }
+            cleanHeaders['host'] = targetHost;
+
             const fetchOptions = {
                 method: req.method,
-                headers: {
-                    ...req.headers,
-                    host: targetHost
-                }
+                headers: cleanHeaders
             };
 
             if (req.method !== 'GET' && req.method !== 'HEAD') {
                 fetchOptions.body = JSON.stringify(req.body);
-                fetchOptions.headers['content-type'] = 'application/json';
+                cleanHeaders['content-type'] = 'application/json';
             }
 
             let response;
