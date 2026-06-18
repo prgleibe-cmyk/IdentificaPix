@@ -71,6 +71,13 @@ async function initializeDatabase() {
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
     `);
+    
+    // Ensure all columns exist (in case the table already existed under an older schema)
+    await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS cpf VARCHAR(11);');
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
+
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
   } catch (err) {
     console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
