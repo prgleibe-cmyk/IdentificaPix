@@ -120,7 +120,16 @@ try {
                 fetchOptions.headers['content-type'] = 'application/json';
             }
 
-            const response = await fetch(targetUrl, fetchOptions);
+            let response;
+            try {
+                response = await fetch(targetUrl, fetchOptions);
+            } catch (fetchErr) {
+                console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
+                // Fallback para o processo local em segundo plano
+                const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
+                response = await fetch(localUrl, fetchOptions);
+            }
+
             const data = await response.json().catch(() => null);
 
             res.status(response.status).json(data || { error: 'Invalid Response from contributors-api' });
