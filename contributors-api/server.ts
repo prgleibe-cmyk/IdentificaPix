@@ -15,7 +15,11 @@ app.use(cors());
 app.use(express.json());
 
 // Configure PostgreSQL connection
-const connectionString = process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL || process.env.PG_CONN_STRING;
+const rawConnectionString = process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL || process.env.PG_CONN_STRING;
+const isValidConnectionString = typeof rawConnectionString === 'string' && 
+  (rawConnectionString.startsWith('postgres://') || rawConnectionString.startsWith('postgresql://'));
+
+const connectionString = isValidConnectionString ? rawConnectionString : null;
 
 let pool: pg.Pool;
 
@@ -26,7 +30,11 @@ if (connectionString) {
     ssl: connectionString.includes('supabase') || process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined
   });
 } else {
-  console.log('[Contributors API] Using individual parameters for PostgreSQL database connection.');
+  if (rawConnectionString && !isValidConnectionString) {
+    console.warn(`[Contributors API] WARNING: DATABASE_URL is not a valid connection URI ("${rawConnectionString.substring(0, 50)}..."). Using individual parameters instead.`);
+  } else {
+    console.log('[Contributors API] No connection string provided. Using individual parameters for PostgreSQL database connection.');
+  }
   pool = new Pool({
     host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
     port: Number(process.env.PGPORT || process.env.DB_PORT || 5432),

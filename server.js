@@ -35,10 +35,19 @@ const __dirname = path.dirname(__filename);
 
 // Iniciando Contributors API em segundo plano
 console.log(`[IdentificaPix] Iniciando Contributors API em segundo plano...`);
+const childEnv = { ...process.env, PORT: '3010' };
+if (childEnv.DATABASE_URL && !childEnv.DATABASE_URL.startsWith('postgres://') && !childEnv.DATABASE_URL.startsWith('postgresql://')) {
+    console.warn(`[IdentificaPix] ATENÇÃO: DATABASE_URL inválido detectado ("${childEnv.DATABASE_URL.substring(0, 40)}..."). Removendo-o para segurança.`);
+    delete childEnv.DATABASE_URL;
+}
+if (childEnv.DATABASE_PRIVATE_URL && !childEnv.DATABASE_PRIVATE_URL.startsWith('postgres://') && !childEnv.DATABASE_PRIVATE_URL.startsWith('postgresql://')) {
+    delete childEnv.DATABASE_PRIVATE_URL;
+}
+
 const contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
     cwd: path.join(__dirname, 'contributors-api'),
     stdio: 'inherit',
-    env: { ...process.env, PORT: '3010' }
+    env: childEnv
 });
 
 contributorsApi.on('error', (err) => {
