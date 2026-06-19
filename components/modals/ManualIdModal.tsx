@@ -1,5 +1,5 @@
 
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Calendar, FileText, DollarSign } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
@@ -28,6 +28,52 @@ export const ManualIdModal: React.FC = () => {
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
+
+    // Auto-busca de contribuintes cadastrados ao digitar
+    const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const allContributors = useMemo(() => {
+        if (!contributorFiles) return [];
+        return contributorFiles.flatMap(file => {
+            const church = churches.find((c: any) => c.id === file.churchId);
+            return file.contributors?.map(c => ({
+                ...c, _churchName: church?.name || 'Desconhecida', _churchId: church?.id
+            })) || [];
+        });
+    }, [contributorFiles, churches]);
+
+    const filteredContributors = useMemo(() => {
+        if (!manualDescription || manualDescription.trim().length < 2) return [];
+        const query = manualDescription.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        const seenNames = new Set<string>();
+        const matches: any[] = [];
+        
+        for (const c of allContributors) {
+            const name = c.name || '';
+            const normName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (normName.includes(query)) {
+                const key = `${name.toLowerCase().trim()}_${c._churchId || ''}`;
+                if (!seenNames.has(key)) {
+                    seenNames.add(key);
+                    matches.push(c);
+                }
+            }
+            if (matches.length >= 5) break;
+        }
+        return matches;
+    }, [manualDescription, allContributors]);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('#manual-description-container')) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Estados para unificação e similaridade
     const [similarMatches, setSimilarMatches] = useState<any[]>([]);
@@ -175,7 +221,7 @@ export const ManualIdModal: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
+                            <div className="space-y-3" id="manual-description-container">
                                 <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                     Nome / Descrição
                                 </label>
@@ -184,10 +230,40 @@ export const ManualIdModal: React.FC = () => {
                                     <input
                                         type="text"
                                         value={manualDescription}
-                                        onChange={e => setManualDescription(e.target.value)}
+                                        onChange={e => {
+                                            setManualDescription(e.target.value);
+                                            setShowSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowSuggestions(true)}
                                         placeholder="Ex: Doação / Oferta Especial"
                                         className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                     />
+                                    {showSuggestions && filteredContributors.length > 0 && (
+                                        <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2">
+                                                Contribuintes VPS Cadastrados
+                                            </div>
+                                            {filteredContributors.map((col, cIdx) => (
+                                                <button
+                                                    key={col.id || cIdx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setManualDescription(col.name);
+                                                        if (col._churchId) {
+                                                            setSelectedChurchId(col._churchId);
+                                                        }
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none"
+                                                >
+                                                    <span className="truncate">{col.name}</span>
+                                                    <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md truncate max-w-[150px]">
+                                                        {col._churchName}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

@@ -90,6 +90,26 @@ export const ContributorsList: React.FC = () => {
         }
     };
 
+    const handleDeletePermanent = async (id: string, name: string) => {
+        if (!confirm(`ATENÇÃO: Você deseja EXCLUIR DEFINITIVAMENTE o cadastro do contribuinte "${name}"?\nEsta ação é irreversível e removerá permanentemente o cadastro do banco de dados.`)) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/v1/contributors/${id}?hard=true`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                showToast("Contribuinte excluído definitivamente.", "success");
+                fetchContributors();
+            } else {
+                showToast("Falha ao excluir contribuinte definitivamente.", "error");
+            }
+        } catch (error) {
+            console.error('[ContributorsList] Error hard deleting contributor:', error);
+            showToast("Falha ao excluir contribuinte definitivamente.", "error");
+        }
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -284,83 +304,147 @@ export const ContributorsList: React.FC = () => {
                     </p>
                 </div>
             ) : (
-                <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar" id="contributors-list-flow">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {filteredContributors.map((c) => {
-                            const church = churches.find((ch: any) => ch.id === c.church_id);
-                            return (
-                                <div 
-                                    key={c.id} 
-                                    className="p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between hover:shadow-md hover:border-slate-200/80 dark:hover:border-slate-700/80 transition-all duration-200 animate-fade-in"
-                                >
-                                    <div>
-                                        <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 overflow-x-auto overflow-y-auto pr-1 custom-scrollbar" id="contributors-list-flow">
+                    <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                        <thead className="bg-slate-50/50 dark:bg-slate-900/40">
+                            <tr>
+                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    Contribuinte
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    Igreja Vinculada
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    Documento / Contato
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th scope="col" className="px-4 py-3 text-right text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    Ações
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30 font-sans">
+                            {filteredContributors.map((c) => {
+                                const church = churches.find((ch: any) => ch.id === c.church_id);
+                                return (
+                                    <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors animate-fade-in">
+                                        <td className="px-4 py-3.5 whitespace-nowrap">
                                             <div className="flex items-center space-x-3">
-                                                <div className="w-10 h-10 rounded-full bg-brand-blue/5 dark:bg-slate-800/80 flex items-center justify-center font-bold text-brand-blue text-xs uppercase shadow-inner">
+                                                <div className="w-8 h-8 rounded-full bg-brand-blue/5 dark:bg-slate-800/80 flex items-center justify-center font-black text-brand-blue text-[10px] uppercase shrink-0 select-none">
                                                     {c.canonical_name?.substring(0, 2)}
                                                 </div>
-                                                <div>
-                                                    <h4 className="text-xs font-extrabold text-slate-800 dark:text-white tracking-tight uppercase">
+                                                <div className="truncate max-w-[185px]">
+                                                    <h5 className="text-xs font-extrabold text-slate-800 dark:text-white uppercase tracking-tight truncate">
                                                         {c.canonical_name}
-                                                    </h4>
-                                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-0.5">
-                                                        {church ? church.name : 'Igreja não identificada'}
-                                                    </p>
+                                                    </h5>
+                                                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase block mt-0.5">
+                                                        ID: {c.id?.substring(0, 8)}...
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                                        </td>
+                                        
+                                        <td className="px-4 py-3.5 whitespace-nowrap">
+                                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                                {church ? church.name : 'Igreja não identificada'}
+                                            </span>
+                                        </td>
+
+                                        <td className="px-4 py-3.5">
+                                            <div className="space-y-0.5 max-w-[200px] truncate">
+                                                {c.cpf && (
+                                                    <div className="text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400 flex items-center">
+                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">CPF:</span>
+                                                        {c.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+                                                    </div>
+                                                )}
+                                                {c.phone && (
+                                                    <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 flex items-center">
+                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">TEL:</span>
+                                                        {c.phone}
+                                                    </div>
+                                                )}
+                                                {c.email && (
+                                                    <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 flex items-center truncate">
+                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">EMAIL:</span>
+                                                        <span className="truncate">{c.email}</span>
+                                                    </div>
+                                                )}
+                                                {!c.cpf && !c.phone && !c.email && (
+                                                    <span className="text-[10px] italic text-slate-400">-</span>
+                                                )}
+                                            </div>
+                                        </td>
+
+                                        <td className="px-4 py-3.5 whitespace-nowrap">
+                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
                                                 c.status === 'active' 
                                                     ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400' 
                                                     : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400'
                                             }`}>
                                                 {c.status === 'active' ? 'Ativo' : 'Inativo'}
                                             </span>
-                                        </div>
+                                        </td>
 
-                                        <div className="space-y-1.5 pt-2 border-t border-slate-50 dark:border-slate-800/50">
-                                            {c.cpf && (
-                                                <div className="flex items-center text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                                    <span className="font-bold text-slate-400 dark:text-slate-500 mr-1.5 uppercase">CPF:</span>
-                                                    {c.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
-                                                </div>
-                                            )}
-                                            {c.email && (
-                                                <div className="flex items-center text-[10px] text-slate-500 dark:text-slate-400">
-                                                    <span className="font-bold text-slate-400 dark:text-slate-500 mr-1.5 uppercase">E-mail:</span>
-                                                    {c.email}
-                                                </div>
-                                            )}
-                                            {c.phone && (
-                                                <div className="flex items-center text-[10px] text-slate-500 dark:text-slate-400">
-                                                    <span className="font-bold text-slate-400 dark:text-slate-500 mr-1.5 uppercase">Fone:</span>
-                                                    {c.phone}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                        <td className="px-4 py-3.5 whitespace-nowrap text-right">
+                                            <div className="flex items-center justify-end space-x-1.5">
+                                                <button 
+                                                    onClick={() => handleEditClick(c)}
+                                                    className="p-1 px-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                    title="Editar dados"
+                                                >
+                                                    <Edit2 className="w-2.5 h-2.5" />
+                                                    <span>Editar</span>
+                                                </button>
 
-                                    <div className="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-slate-50 dark:border-slate-800/80">
-                                        <button 
-                                            onClick={() => handleEditClick(c)}
-                                            className="p-1 px-3 rounded-full border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
-                                        >
-                                            <Edit2 className="w-2.5 h-2.5" />
-                                            <span>Editar</span>
-                                        </button>
-                                        {c.status === 'active' && (
-                                            <button 
-                                                onClick={() => handleDeleteContributor(c.id, c.canonical_name)}
-                                                className="p-1 px-3 rounded-full border border-rose-100/50 hover:bg-rose-50 text-rose-500 hover:text-rose-600 dark:border-rose-900/40 dark:hover:bg-rose-950/20 dark:text-rose-400 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
-                                            >
-                                                <Trash2 className="w-2.5 h-2.5" />
-                                                <span>Inativar</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                                {c.status === 'active' ? (
+                                                    <button 
+                                                        onClick={() => handleDeleteContributor(c.id, c.canonical_name)}
+                                                        className="p-1 px-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-rose-50/50 hover:text-rose-600 dark:hover:bg-rose-950/20 dark:text-rose-400 text-slate-500 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                        title="Inativar contribuinte"
+                                                    >
+                                                        <Trash2 className="w-2.5 h-2.5" />
+                                                        <span>Inativar</span>
+                                                    </button>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => {
+                                                            fetch(`/api/v1/contributors/${c.id}`, {
+                                                                method: 'PUT',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ status: 'active' })
+                                                            }).then(res => {
+                                                                if (res.ok) {
+                                                                    showToast("Contribuinte reativado com sucesso.", "success");
+                                                                    fetchContributors();
+                                                                }
+                                                            });
+                                                        }}
+                                                        className="p-1 px-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-emerald-50/50 hover:text-emerald-600 dark:hover:bg-emerald-950/20 dark:text-emerald-400 text-slate-500 text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                        title="Ativar contribuinte"
+                                                    >
+                                                        <Loader2 className="w-2.5 h-2.5" />
+                                                        <span>Ativar</span>
+                                                    </button>
+                                                )}
+
+                                                <button 
+                                                    onClick={() => handleDeletePermanent(c.id, c.canonical_name)}
+                                                    className="p-1 px-2.5 rounded-lg border border-red-100/50 hover:bg-red-500 hover:text-white dark:border-red-900/40 dark:hover:bg-red-600 dark:text-red-400 hover:border-red-500 text-red-500 hover:text-white text-[10px] font-bold transition-all flex items-center space-x-1 cursor-pointer"
+                                                    title="Excluir cadastro permanentemente"
+                                                >
+                                                    <Trash2 className="w-2.5 h-2.5" />
+                                                    <span>Excluir</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
 

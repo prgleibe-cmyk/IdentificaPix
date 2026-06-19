@@ -306,22 +306,42 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const hardDelete = req.query.hard === 'true';
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!uuidRegex.test(id)) {
       return res.status(400).json({ error: 'INVALID_ID' });
     }
 
-    // Instead of hard deleting, we soft delete by updating status to 'inactive'
-    const result = await pool.query(
-      "UPDATE contributors SET status = 'inactive', updated_at = NOW() WHERE id = $1 RETURNING id",
-      [id]
-    );
+    let result;
+    if (hardDelete) {
+      // 1. Unlink from consolidated_transactions to avoid foreign key errors
+      await pool.query(
+        "UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id = $1",
+        [id]
+      );
+      // 2. Delete any learned associations linking to this contributor
+      await pool.query(
+        "DELETE FROM learned_associations WHERE contributor_id = $1",
+        [id]
+      );
+      // 3. Delete from contributors table
+      result = await pool.query(
+        "DELETE FROM contributors WHERE id = $1 RETURNING id",
+        [id]
+      );
+    } else {
+      // Instead of hard deleting, we soft delete by updating status to 'inactive'
+      result = await pool.query(
+        "UPDATE contributors SET status = 'inactive', updated_at = NOW() WHERE id = $1 RETURNING id",
+        [id]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
 
-    return res.json({ success: true, id: id });
+    return res.json({ success: true, id: id, hard: hardDelete });
   } catch (err) {
     console.error('[Contributors API] Error processing delete contributor request:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });

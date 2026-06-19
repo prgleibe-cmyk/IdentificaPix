@@ -207,25 +207,34 @@ export const useReconciliationActions = ({
         // 3. Executar o mesmo fluxo oficial já existente de identificação usando o ID REAL
         const contributor = buildSafeContributor(tempOriginal, contributionType, paymentMethod);
 
-        // No fluxo manual: NÃO gerar contributorId fake/temporário
-        if (contributor.id && contributor.id.startsWith('temp-')) {
+        let finalContributorId = unifiedContributorId;
+        if (!finalContributorId && finalDescription) {
+          const { name, cpf } = extractNameAndCpf(finalDescription);
+          if (name) {
+            finalContributorId = await ensureRegisteredContributor(name, churchId, cpf) || undefined;
+          }
+        }
+
+        if (finalContributorId) {
+          contributor.id = finalContributorId;
+        } else if (contributor.id && contributor.id.startsWith('temp-')) {
           delete contributor.id;
         }
 
         const isValidUuid = (id: any) => id && /^[0-9a-fA-F-]{36}$/.test(id);
-        const finalContributorId = isValidUuid(contributor.id) ? contributor.id : undefined;
+        const actualContributorId = isValidUuid(contributor.id) ? contributor.id : undefined;
 
         // 🪵 [TEMPORARY LOGS FOR VALIDATION]
         console.log("[TEMPORARY LOG:MANUAL_TYPE] Tipo detectado:", txType);
         console.log("[TEMPORARY LOG:MANUAL_AMOUNT] Valor final enviado:", finalAmount);
-        console.log("[TEMPORARY LOG:CONTRIBUTOR_ID] contributorId final enviado ao updateTransactionStatus:", finalContributorId);
+        console.log("[TEMPORARY LOG:CONTRIBUTOR_ID] contributorId final enviado ao updateTransactionStatus:", actualContributorId);
 
         const updatePayload = {
           id: realId,
           status: 'identified' as const,
           churchId,
           bankId: undefined,
-          contributorId: finalContributorId,
+          contributorId: actualContributorId,
           isConfirmed: false,
           type: txType,
           paymentMethod
@@ -244,7 +253,7 @@ export const useReconciliationActions = ({
           'identified',
           churchId,
           undefined,
-          finalContributorId,
+          actualContributorId,
           false,
           txType, // 🔥 CORREÇÃO: Passar txType ('income' | 'expense') para garantir validador e tipo corretos!
           paymentMethod,

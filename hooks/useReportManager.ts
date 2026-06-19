@@ -330,7 +330,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         } else {
             showToast("Alterações salvas no servidor.", "success");
         }
-    }, [user, showToast, savedReports]);
+    }, [user, effectiveUserId, showToast, savedReports]);
 
     const saveFilteredReport = useCallback((results: MatchResult[]) => {
         setSavingReportState({
