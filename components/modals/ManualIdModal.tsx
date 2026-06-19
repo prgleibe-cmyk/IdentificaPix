@@ -6,6 +6,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency } from '../../utils/formatters';
 import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon } from '../Icons';
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
+import { extractNameAndCpf, findSimilarContributors } from '../../utils/contributorHelper';
 
 export const ManualIdModal: React.FC = () => {
     const { 
@@ -15,7 +16,8 @@ export const ManualIdModal: React.FC = () => {
         closeManualIdentify,
         findMatchResult,
         contributionKeywords,
-        paymentMethods
+        paymentMethods,
+        contributorFiles
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     
@@ -27,8 +29,48 @@ export const ManualIdModal: React.FC = () => {
     const [manualAmount, setManualAmount] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
 
+    // Estados para unificação e similaridade
+    const [similarMatches, setSimilarMatches] = useState<any[]>([]);
+    const [selectedAssociationType, setSelectedAssociationType] = useState<'create_new' | 'unify'>('create_new');
+    const [selectedUnifiedField, setSelectedUnifiedField] = useState<string>('');
+
     const isBulk = !!bulkIdentificationTxs && bulkIdentificationTxs.length > 0;
     const isManualLaunch = bulkIdentificationTxs?.some(tx => tx.id.startsWith('ghost-manual-'));
+
+    // --- ANALISAR SIMILARIDADE DO LOTE AO DETECTAR ALTERAÇÕES ---
+    useEffect(() => {
+        if (bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && contributorFiles && contributorFiles.length > 0) {
+            const firstTx = bulkIdentificationTxs[0];
+            const { name, cpf } = extractNameAndCpf(firstTx.description);
+            if (name) {
+                // Procurar contribuintes semelhantes nas igrejas cadastradas com pontuação de corte (40%)
+                const matches = findSimilarContributors(name, cpf, contributorFiles, 40);
+                setSimilarMatches(matches);
+                if (matches.length > 0) {
+                    // Se houver um match muito forte (ex: CPF idêntico ou similaridade > 80%), auto-seleciona "unificar"
+                    const best = matches[0];
+                    if (best.score >= 80) {
+                        setSelectedAssociationType('unify');
+                        setSelectedUnifiedField(best.contributor.id);
+                        const chId = best.contributor._churchId || best.contributor.church_id || best.church?.id;
+                        if (chId) {
+                            setSelectedChurchId(chId);
+                        }
+                    } else {
+                        setSelectedAssociationType('create_new');
+                        setSelectedUnifiedField('');
+                    }
+                } else {
+                    setSelectedAssociationType('create_new');
+                    setSelectedUnifiedField('');
+                }
+            }
+        } else {
+            setSimilarMatches([]);
+            setSelectedAssociationType('create_new');
+            setSelectedUnifiedField('');
+        }
+    }, [bulkIdentificationTxs, contributorFiles]);
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -43,11 +85,10 @@ export const ManualIdModal: React.FC = () => {
     useEffect(() => {
         if (churches.length === 1) {
             setSelectedChurchId(churches[0].id);
-        } else {
+        } else if (selectedAssociationType !== 'unify') {
             setSelectedChurchId('');
         }
-        
-    }, [churches, isBulk]);
+    }, [churches, isBulk, selectedAssociationType]);
 
     if (!isBulk) return null;
     
@@ -65,7 +106,8 @@ export const ManualIdModal: React.FC = () => {
                     selectedPaymentMethod,
                     selectedDate,
                     manualDescription,
-                    manualAmount
+                    manualAmount,
+                    selectedAssociationType === 'unify' ? selectedUnifiedField : undefined
                 );
             }
         } catch (error) {
@@ -102,7 +144,7 @@ export const ManualIdModal: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="p-8 space-y-8 flex-1 overflow-y-auto">
+                <div className="p-8 space-y-8 flex-1 overflow-y-auto w-full">
                     <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
                         <div className="flex justify-between items-center">
                             <div>
@@ -165,6 +207,110 @@ export const ManualIdModal: React.FC = () => {
                                 </div>
                             </div>
                         </>
+                    )}
+
+                    {/* SELEÇÃO DE ANÁLISE DE SIMILARIDADE E UNIFICAÇÃO DE CONTRIBUINTES */}
+                    {similarMatches.length > 0 && (
+                        <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-6 rounded-[2.25rem] space-y-4">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600">
+                                    <SparklesIcon className="w-4 h-4" />
+                                </div>
+                                <h4 className="text-xs font-black text-blue-800 dark:text-blue-300 uppercase tracking-wider">
+                                    {similarMatches[0].score >= 80 ? '🎯 Contribuinte Correspondente Encontrado' : '⚡ Semelhança Possível Detectada'}
+                                </h4>
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                                Identificamos contribuintes similares cadastrados na VPS. Quer unificar com um existente ou cadastrar como NOVO?
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-2 bg-slate-100/50 dark:bg-black/30 p-1 rounded-2xl">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedAssociationType('create_new');
+                                        if (churches.length !== 1) {
+                                            setSelectedChurchId('');
+                                        } else {
+                                            setSelectedChurchId(churches[0].id);
+                                        }
+                                    }}
+                                    className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all ${
+                                        selectedAssociationType === 'create_new'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    }`}
+                                >
+                                    Cadastrar Novo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedAssociationType('unify');
+                                        if (similarMatches.length > 0) {
+                                            const match = similarMatches[0];
+                                            setSelectedUnifiedField(match.contributor.id);
+                                            const chId = match.contributor._churchId || match.contributor.church_id || match.church?.id;
+                                            if (chId) setSelectedChurchId(chId);
+                                        }
+                                    }}
+                                    className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all ${
+                                        selectedAssociationType === 'unify'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    }`}
+                                >
+                                    Unificar Cadastro
+                                </button>
+                            </div>
+
+                            {selectedAssociationType === 'unify' && (
+                                <div className="space-y-3 pt-2">
+                                    <label className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                        Selecione o Contribuinte VPS Correspondente:
+                                    </label>
+                                    <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                                        {similarMatches.map((m, idx) => {
+                                            const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
+                                            const churchName = m.church?.name || 'Igreja Vinculada';
+                                            const isSelected = selectedUnifiedField === m.contributor.id;
+                                            
+                                            return (
+                                                <div
+                                                    key={m.contributor.id || idx}
+                                                    onClick={() => {
+                                                        setSelectedUnifiedField(m.contributor.id);
+                                                        if (chId) setSelectedChurchId(chId);
+                                                    }}
+                                                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                                                        isSelected
+                                                            ? 'border-blue-500/85 bg-blue-100/30 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100'
+                                                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-black uppercase tracking-tight">{m.contributor.name || m.contributor.canonical_name}</span>
+                                                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 uppercase">
+                                                            Score: {m.score}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex gap-2 text-[9px] text-slate-400 font-semibold mt-1 uppercase">
+                                                        <span>Igreja: {churchName}</span>
+                                                        {m.contributor.cpf && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span>CPF: {m.contributor.cpf}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     <div className="space-y-3">

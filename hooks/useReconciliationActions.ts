@@ -5,6 +5,7 @@ import { consolidationService } from '../services/ConsolidationService';
 import { batchState } from './reconciliation/useCloudSync';
 import { supabase } from '../services/supabaseClient';
 import { LaunchService } from '../services/LaunchService';
+import { extractNameAndCpf } from '../utils/contributorHelper';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -36,6 +37,63 @@ export const useReconciliationActions = ({
     };
   };
 
+  // 🛡️ CRIAÇÃO AUTOMÁTICA DE CONTRIBUINTES VIA EXTRATO NA VPS
+  const ensureRegisteredContributor = async (
+    name: string,
+    churchId: string,
+    cpf?: string | null
+  ): Promise<string | null> => {
+    try {
+      const canonical_name = name.trim().replace(/\s+/g, ' ').toUpperCase();
+      if (!canonical_name) return null;
+
+      // 1. Evitar duplicar registros buscando na lista atual
+      const listResp = await fetch('/api/v1/contributors');
+      if (listResp.ok) {
+        const list = await listResp.json();
+        const existing = list.find((c: any) => {
+          const sameName = c.canonical_name?.toUpperCase() === canonical_name && c.church_id === churchId;
+          const sameCpf = cpf && c.cpf === cpf.replace(/\D/g, '');
+          return sameName || sameCpf;
+        });
+        if (existing) {
+          console.log('[AutoRegister] Contribuinte já cadastrado na VPS:', existing.canonical_name);
+          return existing.id;
+        }
+      }
+
+      // 2. Realizar cadastro automático por POST
+      console.log('[AutoRegister] Efetuando cadastro automático na VPS para:', canonical_name);
+      const postResp = await fetch('/api/v1/contributors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          church_id: churchId,
+          canonical_name,
+          cpf: cpf || null,
+          status: 'active'
+        })
+      });
+
+      if (postResp.ok) {
+        const result = await postResp.json();
+        console.log('[AutoRegister] Cadastrado com sucesso na VPS com ID:', result.id);
+        
+        // Atualiza a lista na UI re-sincronizando o hook global
+        if (reconciliation.fetchContributorsToFiles) {
+          reconciliation.fetchContributorsToFiles();
+        }
+        
+        return result.id;
+      }
+    } catch (e) {
+      console.error('[ensureRegisteredContributor] erro:', e);
+    }
+    return null;
+  };
+
   const confirmBulkManualIdentification = useCallback(async (
     txIds: string[], 
     churchId: string, 
@@ -43,13 +101,15 @@ export const useReconciliationActions = ({
     paymentMethod?: string,
     selectedDate?: string,
     manualDescription?: string,
-    manualAmount?: string
+    manualAmount?: string,
+    unifiedContributorId?: string
   ) => {
     // 🪵 [TEMPORARY LOG] Validação obrigatória dos dados de lançamento manual
     console.log("[TEMPORARY LOG] Dados do lançamento manual no confirmBulkManualIdentification:", {
       data: selectedDate,
       descricao: manualDescription,
-      valor: manualAmount
+      valor: manualAmount,
+      unifiedContributorId
     });
 
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
@@ -245,6 +305,7 @@ export const useReconciliationActions = ({
     }
 
     batchState.isBatchUpdating = true;
+    const txToContributorIdMap = new Map<string, string>();
 
     try {
       // 1. Persistência Assíncrona (Processamento em Lote)
@@ -252,7 +313,21 @@ export const useReconciliationActions = ({
         const original = reconciliation.fullMatchResults.find((r: MatchResult) => r.transaction.id === id);
         if (!original || original.isConfirmed) continue;
 
-        const contributor = buildSafeContributor(original, contributionType, paymentMethod);
+        let finalContributorId = unifiedContributorId;
+
+        // Se nenhum unificado foi passado de forma explícita, cadastra de forma automática
+        if (!finalContributorId && !id.includes('ghost') && !id.startsWith('sim')) {
+          const { name, cpf } = extractNameAndCpf(original.transaction.description);
+          if (name) {
+            finalContributorId = await ensureRegisteredContributor(name, churchId, cpf) || undefined;
+          }
+        }
+
+        if (finalContributorId) {
+          txToContributorIdMap.set(id, finalContributorId);
+        }
+
+        const contributorIdToUse = finalContributorId || original.contributor?.id;
 
         if (!id.includes('ghost') && !id.startsWith('sim')) {
           const itemType = (original.transaction.amount >= 0) ? 'income' : 'expense';
@@ -261,7 +336,7 @@ export const useReconciliationActions = ({
             'identified', 
             churchId, 
             original.transaction.bank_id,
-            contributor.id,
+            contributorIdToUse,
             false,
             itemType,
             undefined,
@@ -278,7 +353,12 @@ export const useReconciliationActions = ({
         const finalResults = prev.map(r => {
           if (!txIds.includes(r.transaction.id) || r.isConfirmed) return r;
 
-          const contributor = buildSafeContributor(r, contributionType, paymentMethod);
+          const matchingContributorId = txToContributorIdMap.get(r.transaction.id) || unifiedContributorId;
+
+          const contributor = {
+            ...buildSafeContributor(r, contributionType, paymentMethod),
+            ...(matchingContributorId ? { id: matchingContributorId } : {})
+          };
 
           const updated: MatchResult = {
             ...r,

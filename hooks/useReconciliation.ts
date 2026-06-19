@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
@@ -52,6 +52,60 @@ export const useReconciliation = (props: any) => {
     const [loadingAiId, setLoadingAiId] = useState<string | null>(null);
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
+
+    // 🔄 REQUISIÇÃO E SINCRONIZAÇÃO DE CONTRIBUINTES DO BANCO DE DADOS VPS
+    const fetchContributorsToFiles = useCallback(async () => {
+        try {
+            const resp = await fetch('/api/v1/contributors');
+            if (!resp.ok) {
+                console.error('[ContributorSync] Failed to fetch contributors');
+                return;
+            }
+            const data = await resp.json();
+            if (!Array.isArray(data)) return;
+            
+            const grouped = new Map<string, any[]>();
+            data.forEach((c: any) => {
+                if (c.status !== 'inactive') {
+                    const cid = c.church_id;
+                    if (!grouped.has(cid)) {
+                        grouped.set(cid, []);
+                    }
+                    grouped.get(cid)!.push({
+                        id: c.id,
+                        name: c.canonical_name,
+                        cleanedName: c.canonical_name,
+                        _churchId: cid,
+                        cpf: c.cpf,
+                        email: c.email,
+                        phone: c.phone,
+                        amount: 0 // Default amount parsed from transactional matches
+                    });
+                }
+            });
+
+            const newFiles: ContributorFile[] = Array.from(grouped.entries()).map(([cid, list]) => {
+                const church = churches.find((ch: any) => ch.id === cid) || { id: cid, name: 'Igreja Vinculada' };
+                return {
+                    church,
+                    churchId: cid,
+                    contributors: list,
+                    fileName: 'Banco de Dados VPS'
+                };
+            });
+
+            console.log('[ContributorSync] Loaded', data.length, 'contributors across', newFiles.length, 'churches.');
+            setContributorFiles(newFiles);
+        } catch (e) {
+            console.error('[ContributorSync] Error loading contributors:', e);
+        }
+    }, [churches]);
+
+    useEffect(() => {
+        if (churches && churches.length > 0) {
+            fetchContributorsToFiles();
+        }
+    }, [churches, fetchContributorsToFiles]);
 
     // ✅ NORMALIZAÇÃO TOTAL (MESMO PADRÃO DA CONFIRMAÇÃO FINAL)
     const buildCanonicalPayload = useCallback((row: MatchResult) => {
@@ -197,6 +251,7 @@ export const useReconciliation = (props: any) => {
         setMatchResults,
         setReportPreviewData,
         activeSpreadsheetData,
-        setActiveSpreadsheetData
+        setActiveSpreadsheetData,
+        fetchContributorsToFiles
     };
 };
