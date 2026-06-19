@@ -3,6 +3,7 @@ import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
 import { Camera, Trash2, Edit2, Loader2 } from 'lucide-react';
+import { supabase } from '../../services/supabaseClient';
 
 export const ContributorsList: React.FC = () => {
     const { showToast } = useUI();
@@ -95,6 +96,19 @@ export const ContributorsList: React.FC = () => {
             return;
         }
         try {
+            // 1. Unlink in consolidated_transactions inside Supabase
+            await (supabase
+                .from('consolidated_transactions') as any)
+                .update({ contributor_id: null })
+                .eq('contributor_id', id);
+
+            // 2. Clear from learned_associations inside Supabase
+            await (supabase
+                .from('learned_associations') as any)
+                .delete()
+                .eq('contributor_id', id);
+
+            // 3. Clear from the contributors table on VPS
             const response = await fetch(`/api/v1/contributors/${id}?hard=true`, {
                 method: 'DELETE'
             });

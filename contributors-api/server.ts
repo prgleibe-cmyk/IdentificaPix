@@ -314,17 +314,7 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 
     let result;
     if (hardDelete) {
-      // 1. Unlink from consolidated_transactions to avoid foreign key errors
-      await pool.query(
-        "UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id = $1",
-        [id]
-      );
-      // 2. Delete any learned associations linking to this contributor
-      await pool.query(
-        "DELETE FROM learned_associations WHERE contributor_id = $1",
-        [id]
-      );
-      // 3. Delete from contributors table
+      // Delete from contributors table only since other tables reside inside Supabase
       result = await pool.query(
         "DELETE FROM contributors WHERE id = $1 RETURNING id",
         [id]
