@@ -55,6 +55,17 @@ export const useCloudSync = ({
     const isAutoProcessingRef = useRef<boolean>(false);
     const lastAutoProcessTimeRef = useRef<number>(0);
 
+    const churchesRef = useRef(churches);
+    const learnedAssociationsRef = useRef(learnedAssociations);
+
+    useEffect(() => {
+        churchesRef.current = churches;
+    }, [churches]);
+
+    useEffect(() => {
+        learnedAssociationsRef.current = learnedAssociations;
+    }, [learnedAssociations]);
+
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
         !!effectiveUserId &&
@@ -385,8 +396,8 @@ export const useCloudSync = ({
                                 // NUNCA retornar antes ou remover — garantimos que o item sempre entre no array
                                 const t = payload.new;
                                 const normalizedDesc = strictNormalize(t.description);
-                                const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
-                                const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+                                const assoc = (learnedAssociationsRef.current || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                                const church = churchesRef.current.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
 
                                 console.log("[DIAGNOSTIC:REALTIME_NEW_ROW]", {
                                     txId: t.id,
@@ -473,9 +484,9 @@ export const useCloudSync = ({
                             
                             // 🏥 RECONSTRUÇÃO DO CONTRIBUTOR EM TEMPO REAL
                             const normalizedDesc = strictNormalize(current.transaction.description);
-                            const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
+                            const assoc = (learnedAssociationsRef.current || []).find((a: any) => a.normalizedDescription === normalizedDesc);
                             
-                            const dbChurch = church_id ? churches.find(c => c.id === church_id) : null;
+                            const dbChurch = church_id ? churchesRef.current.find(c => c.id === church_id) : null;
                             
                             // 🔥 CORREÇÃO REALTIME: Se o status for 'pending' (undo) ou church_id for explicitamente null,
                             // limpamos a igreja em vez de herdar a antiga (current.church).
@@ -530,7 +541,7 @@ export const useCloudSync = ({
 
                     if (payload.new) {
                         const { normalized_description, church_id, contributor_normalized_name } = payload.new;
-                        const fullChurch = churches.find((c: any) => c.id === church_id);
+                        const fullChurch = churchesRef.current.find((c: any) => c.id === church_id);
                         
                         if (fullChurch) {
                             console.log(`[Realtime:ATOM] Associação aprendida (Event:${payload.eventType}): ${normalized_description} -> ${fullChurch.name}`);
@@ -571,7 +582,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, churches, setMatchResults, learnedAssociations]);
+    }, [effectiveUserId, setMatchResults]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)

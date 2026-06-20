@@ -110,6 +110,11 @@ export const useLiveListSync = ({
         }
     }, [user, subscription, isCleaning, setBankStatementFile, setSelectedBankIds]);
 
+    const hydrateRef = useRef(hydrate);
+    useEffect(() => {
+        hydrateRef.current = hydrate;
+    }, [hydrate]);
+
     /**
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
      */
@@ -128,7 +133,7 @@ export const useLiveListSync = ({
                     filter: `user_id=eq.${ownerId}`
                 },
                 () => {
-                    hydrate(false);
+                    hydrateRef.current(false);
                 }
             )
             .subscribe();
@@ -136,7 +141,7 @@ export const useLiveListSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, subscription?.ownerId, subscription?.role, hydrate]);
+    }, [user?.id, subscription?.ownerId, subscription?.role]);
 
     useEffect(() => {
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
