@@ -194,13 +194,14 @@ export const ConnectorsView: React.FC = () => {
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-start gap-4">
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center font-black text-brand-blue shrink-0">3</div>
                         <div>
-                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Mapear o texto da mensagem</h4>
+                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Mapear Entrada de Mensagem</h4>
                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                Clique em <strong className="text-brand-blue">"Adicionar Novo Campo"</strong>, escolha <strong>Texto</strong> e configure:
+                                No campo cinza ao lado de <strong className="text-rose-500">text</strong> (onde atualmente está escrito <code className="bg-slate-100 px-1 rounded">Texto</code> na sua tela):
                             </p>
-                            <ul className="text-xs text-slate-500 mt-2 list-disc pl-4 space-y-1">
-                                <li>No campo <strong>Chave (Key)</strong>: escreva exatamente <code className="font-mono bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-rose-500 font-bold">text</code></li>
-                                <li>No campo <strong>Valor (Value)</strong>: toque e selecione a variável inteligente <strong className="text-brand-blue">"Mensagem"</strong> ou <strong className="text-brand-blue">"Mensagem de Atalho"</strong> que o iOS já sugere no teclado.</li>
+                            <ul className="text-xs text-slate-500 mt-2 list-disc pl-4 space-y-2">
+                                <li><strong>Toque na palavra "Texto"</strong>: Toque nela para abrir o teclado e a barra de ferramentas do iOS.</li>
+                                <li><strong>Selecione a Variável</strong>: Na barra acima do seu teclado, clique na opção de variável dinâmica chamada <strong className="text-brand-blue font-bold">"Entrada do Atalho"</strong> (ou <strong>"Shortcut Input"</strong>).</li>
+                                <li><strong>E pronto!</strong> O campo automaticamente se transformará em um balão azul indicando que as mensagens recebidas serão enviadas para o nosso sistema.</li>
                             </ul>
                         </div>
                     </div>
