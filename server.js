@@ -138,9 +138,18 @@ try {
 
             let response;
             try {
-                response = await fetch(targetUrl, fetchOptions);
+                // Adiciona timeout rápido (1500ms) para evitar que a requisição fique travada 
+                // caso o domínio do microserviço na VPS esteja inacessível no ambiente local.
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+                response = await fetch(targetUrl, {
+                    ...fetchOptions,
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
             } catch (fetchErr) {
-                console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
+                console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed or timed out: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
                 // Fallback para o processo local em segundo plano
                 const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
                 response = await fetch(localUrl, fetchOptions);
