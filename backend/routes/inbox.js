@@ -1,6 +1,7 @@
 import express from 'express';
 import { getSupabaseAdmin } from '../lib/supabase.js';
 import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -127,8 +128,12 @@ function parseSMS(text) {
 }
 
 export default (ai) => {
+    router.get('/config', authMiddleware, (req, res) => {
+        res.json({ key: process.env.INBOX_API_KEY || '' });
+    });
+
     router.post('/:userId/:bankId', async (req, res) => {
-        const apiKey = req.headers['x-api-key'];
+        const apiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
 
         if (!apiKey || apiKey !== validKey) {

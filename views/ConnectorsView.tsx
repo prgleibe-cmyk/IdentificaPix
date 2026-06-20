@@ -18,12 +18,13 @@ import {
 } from '../components/Icons';
 
 export const ConnectorsView: React.FC = () => {
-    const { user } = useAuth();
+    const { session, user } = useAuth();
     const { showToast, setActiveView } = useUI();
     const { banks } = useContext(AppContext);
     
     const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [copied, setCopied] = useState(false);
+    const [inboxKey, setInboxKey] = useState<string>('');
 
     // Inicializa com o primeiro banco se houver
     useEffect(() => {
@@ -32,9 +33,32 @@ export const ConnectorsView: React.FC = () => {
         }
     }, [banks]);
 
-    // URL de Webhook dinâmica baseada no Banco Selecionado
+    // Busca a chave de segurança do Inbox de forma autenticada do servidor
+    useEffect(() => {
+        const fetchInboxKey = async () => {
+            if (!session?.access_token) return;
+            try {
+                const response = await fetch('/api/inbox/config', {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.key) {
+                        setInboxKey(data.key);
+                    }
+                }
+            } catch (error) {
+                console.error("Erro ao carregar chave de automação:", error);
+            }
+        };
+        fetchInboxKey();
+    }, [session]);
+
+    // URL de Webhook dinâmica baseada no Banco Selecionado com a chave do Inbox embutida
     const webhookUrl = selectedBankId 
-        ? `${window.location.origin}/api/inbox/${user?.id}/${selectedBankId}`
+        ? `${window.location.origin}/api/inbox/${user?.id}/${selectedBankId}${inboxKey ? `?key=${inboxKey}` : ''}`
         : 'Selecione um banco abaixo...';
 
     const handleCopy = () => {
@@ -133,19 +157,22 @@ export const ConnectorsView: React.FC = () => {
                     </div>
                 </div>
 
-                {/* CARD 2: PASSO A PASSO PRÁTICO */}
+                {/* CARD 2: PASSO A PASSO PRÁTICO PARA IPHONE */}
                 <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                        <DevicePhoneMobileIcon className="w-4 h-4 text-brand-blue" />
-                        Passo a Passo no Celular
-                    </h3>
+                    <div className="flex items-center justify-between ml-1">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <DevicePhoneMobileIcon className="w-4 h-4 text-brand-blue" />
+                            Passo de Configuração no iPhone
+                        </h3>
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-brand-blue/10 text-brand-blue px-2.5 py-1 rounded-full">iOS Atalhos</span>
+                    </div>
                     
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-start gap-4">
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center font-black text-brand-blue shrink-0">1</div>
                         <div>
-                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Instale o Aplicativo</h4>
+                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Buscar o serviço de internet</h4>
                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                No Android, baixe o app <strong>"SMS Forwarder"</strong> (ícone azul com seta). No iPhone, usaremos o app <strong>"Atalhos"</strong> que já vem no sistema.
+                                Na tela de <strong>Buscar Ações</strong> do seu iPhone, pesquise por <strong className="text-brand-blue">"URL"</strong>. Na lista que surgir, selecione a ação <strong className="text-brand-blue">"Obter Conteúdo da URL"</strong>.
                             </p>
                         </div>
                     </div>
@@ -153,27 +180,35 @@ export const ConnectorsView: React.FC = () => {
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-start gap-4">
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center font-black text-brand-blue shrink-0">2</div>
                         <div>
-                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Crie uma Regra de Envio</h4>
+                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Colar link e mudar para POST</h4>
                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                Configure para que: "Toda vez que chegar um SMS do Banco X, enviar para um link da internet".
+                                Cole o link copiado no primeiro campo azul. Depois, clique na setinha de expansão <strong className="text-brand-blue">"&gt;"</strong> ao lado da ação e configure:
                             </p>
+                            <ul className="text-xs text-slate-500 mt-2 list-disc pl-4 space-y-1">
+                                <li>Mude o <strong>Método</strong> de <code className="bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded font-mono">GET</code> para <code className="bg-brand-blue/10 text-brand-blue px-1.5 py-0.5 rounded font-mono font-bold">POST</code></li>
+                                <li>Configure o <strong>Corpo da Requisição</strong> para <strong className="text-slate-700 dark:text-slate-300">"JSON"</strong></li>
+                            </ul>
                         </div>
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-start gap-4">
                         <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center font-black text-brand-blue shrink-0">3</div>
                         <div>
-                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Cole o Link e Salve</h4>
+                            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-tight">Mapear o texto da mensagem</h4>
                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                No campo de "URL" ou "Destino" do app, cole o <strong>Link</strong> que você copiou no card ao lado. Salve e pronto!
+                                Clique em <strong className="text-brand-blue">"Adicionar Novo Campo"</strong>, escolha <strong>Texto</strong> e configure:
                             </p>
+                            <ul className="text-xs text-slate-500 mt-2 list-disc pl-4 space-y-1">
+                                <li>No campo <strong>Chave (Key)</strong>: escreva exatamente <code className="font-mono bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-rose-500 font-bold">text</code></li>
+                                <li>No campo <strong>Valor (Value)</strong>: toque e selecione a variável inteligente <strong className="text-brand-blue">"Mensagem"</strong> ou <strong className="text-brand-blue">"Mensagem de Atalho"</strong> que o iOS já sugere no teclado.</li>
+                            </ul>
                         </div>
                     </div>
 
                     <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-2xl flex items-center gap-4">
                         <CheckCircleIcon className="w-8 h-8 text-emerald-500 shrink-0" />
                         <p className="text-xs text-emerald-800 dark:text-emerald-400 font-bold leading-tight">
-                            Agora as doações cairão sozinhas na sua "Lista Viva" dentro da tela de Lançar Dados.
+                            Clique em "OK" no topo do celular para salvar. Agora, toda vez que chegar aviso do Sicredi contendo "Você ", o iPhone processará o SMS de modo 100% automático na sua Lista Viva!
                         </p>
                     </div>
                 </div>
