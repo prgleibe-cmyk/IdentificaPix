@@ -65,11 +65,14 @@ export const LaunchService = {
             
             const toPersist = transactions
                 .map((item, idx) => {
+                    const { finalDate, finalValue } = this.normalizeTriplet(item);
                     const originalRawContent = item.rawDescription || item.description || '';
                     const stableRaw = (originalRawContent || '').replace(/\r\n/g, '\n').trim();
 
                     // Hash GLOBAL (deduplicação entre arquivos e histórico)
-                    const globalHashKey = `U${userId}|B${bankId}|R${stableRaw}`;
+                    // Adicionamos a data (finalDate) e o valor (finalValue) para garantir que transações
+                    // com a mesma descrição mas em datas ou valores diferentes NÃO colidam e sejam descartadas.
+                    const globalHashKey = `U${userId}|B${bankId}|D${finalDate}|V${finalValue}|R${stableRaw}`;
                     const globalHash = this.computeBaseHash(globalHashKey);
 
                     // Hash LOCAL (controle apenas durante o processamento atual)
@@ -82,7 +85,6 @@ export const LaunchService = {
                     }
 
                     hashesInFlight.add(localHash);
-                    const { finalDate } = this.normalizeTriplet(item);
 
                     return {
                         transaction_date: finalDate,

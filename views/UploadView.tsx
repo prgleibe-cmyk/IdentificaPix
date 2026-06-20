@@ -2,7 +2,7 @@
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon } from '../components/Icons';
+import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon, DevicePhoneMobileIcon } from '../components/Icons';
 import { SmartBankCard } from '../components/upload/SmartBankCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -29,6 +29,13 @@ export const UploadView: React.FC = () => {
                     <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">Lançar Dados</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-xs mt-1 font-medium">Selecione seus extratos para identificação automática inteligente.</p>
                 </div>
+                <button
+                    onClick={() => setActiveView('connectors')}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-brand-blue hover:bg-brand-blue/90 dark:bg-slate-800 dark:hover:bg-slate-700 text-white dark:text-slate-200 rounded-full font-black uppercase text-[10px] tracking-widest shadow-md transition-all active:scale-95 border border-white/10 shrink-0"
+                >
+                    <DevicePhoneMobileIcon className="w-4 h-4" />
+                    <span>Conexão SMS em Tempo Real</span>
+                </button>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 flex flex-col">

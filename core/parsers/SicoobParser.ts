@@ -56,12 +56,26 @@ export class SicoobParser {
         const amountPart = match[4].trim();
         const indicator = match[5].toUpperCase();
 
-        // Ignorar linhas puramente administrativas/sistema
+        // Ignorar linhas puramente administrativas/sistema (como saldos ou avisos de rodapé) de forma precisa,
+        // garantindo que transações com palavras comuns como "Sicoob", "Conta", "Tarifa" ou "Encargos" NÃO sejam descartadas.
         const descUpper = descPart.toUpperCase();
-        const isSystemLine = [
-          "SALDO", "SD.", "RESUMO", "ENCARGOS", "LIMITE", "BLOQUEIO", "CONTATOS", 
-          "SAC", "OUVIDORIA", "TELEFONE", "ATENDIMENTO", "CONTA", "EXTRATO", "PERÍODO", "SICOOB"
-        ].some(keyword => descUpper.includes(keyword));
+        const isSystemLine = 
+          descUpper.startsWith("SALDO") ||
+          descUpper.startsWith("SD.") ||
+          descUpper.startsWith("SD ") ||
+          descUpper === "SICOOB" ||
+          descUpper === "EXTRATO" ||
+          descUpper === "RESUMO" ||
+          descUpper.includes("SAC SICOOB") ||
+          descUpper.includes("OUVIDORIA SICOOB") ||
+          descUpper.includes("TELEFONE SICOOB") ||
+          descUpper.includes("ATENDIMENTO SICOOB") ||
+          descUpper.includes("CONTACT-CENTER") ||
+          descUpper.includes("FALE CONOSCO") ||
+          descUpper.includes("SAC:") ||
+          descUpper.includes("OUVIDORIA:") ||
+          descUpper.startsWith("PERÍODO:") ||
+          descUpper.startsWith("DEMONSTRATIVO");
 
         if (!isSystemLine) {
           currentBlock = {
