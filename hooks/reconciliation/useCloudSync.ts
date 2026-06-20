@@ -57,6 +57,7 @@ export const useCloudSync = ({
 
     const churchesRef = useRef(churches);
     const learnedAssociationsRef = useRef(learnedAssociations);
+    const handleCompareRef = useRef(handleCompare);
 
     useEffect(() => {
         churchesRef.current = churches;
@@ -65,6 +66,10 @@ export const useCloudSync = ({
     useEffect(() => {
         learnedAssociationsRef.current = learnedAssociations;
     }, [learnedAssociations]);
+
+    useEffect(() => {
+        handleCompareRef.current = handleCompare;
+    }, [handleCompare]);
 
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
@@ -715,7 +720,7 @@ export const useCloudSync = ({
                 postProcessingSignatureRef.current = currentSignature;
                 lastProcessedLength.current = matchResults.length;
                 
-                if (typeof handleCompare === 'function') {
+                if (typeof handleCompareRef.current === 'function') {
                     if (lastAutoProcessSignatureRef.current === stableSignature) {
                         return;
                     }
@@ -726,7 +731,7 @@ export const useCloudSync = ({
  
                     console.log('[AutoProcess:FINAL_TRIGGER]');
                     try {
-                        await handleCompare(false);
+                        await handleCompareRef.current(false);
                     } catch (err) {
                         console.error('[AutoProcess:ERROR]', err);
                     } finally {
@@ -739,7 +744,7 @@ export const useCloudSync = ({
         return () => {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
-    }, [matchResults, isLoading, handleCompare, isContextReady]);
+    }, [matchResults, isLoading, isContextReady]);
 
     return {
         syncToCloud,

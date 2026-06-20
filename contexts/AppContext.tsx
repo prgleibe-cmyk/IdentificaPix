@@ -337,7 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 reconciliation.setHasActiveSession(true);
             }
         }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation]);
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation.hasActiveSession]);
 
     // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
     useEffect(() => {
@@ -349,7 +349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 reconciliation.setHasActiveSession(true);
             }
         }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation]);
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation.hasActiveSession]);
 
     // 📡 REAL-TIME SYNC: Sincroniza o relatório ativo se houver mudanças remotas
     useEffect(() => {

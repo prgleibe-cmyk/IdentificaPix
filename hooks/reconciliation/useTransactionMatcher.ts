@@ -55,6 +55,37 @@ export const useTransactionMatcher = ({
 
     const syncDebounceRef = useRef<any>(null);
 
+    const matchResultsRef = useRef(matchResults);
+    const activeBankFilesRef = useRef(activeBankFiles);
+    const selectedBankIdsRef = useRef(selectedBankIds);
+    const contributorFilesRef = useRef(contributorFiles);
+    const learnedAssociationsRef = useRef(learnedAssociations);
+    const churchesRef = useRef(churches);
+
+    useEffect(() => {
+        matchResultsRef.current = matchResults;
+    }, [matchResults]);
+
+    useEffect(() => {
+        activeBankFilesRef.current = activeBankFiles;
+    }, [activeBankFiles]);
+
+    useEffect(() => {
+        selectedBankIdsRef.current = selectedBankIds;
+    }, [selectedBankIds]);
+
+    useEffect(() => {
+        contributorFilesRef.current = contributorFiles;
+    }, [contributorFiles]);
+
+    useEffect(() => {
+        learnedAssociationsRef.current = learnedAssociations;
+    }, [learnedAssociations]);
+
+    useEffect(() => {
+        churchesRef.current = churches;
+    }, [churches]);
+
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         let filteredResults = results;
 
@@ -121,21 +152,21 @@ export const useTransactionMatcher = ({
         }
 
         // 🔒 PRESERVA TRANSAÇÕES CONFIRMADAS
-        const confirmedTransactions = matchResults
+        const confirmedTransactions = matchResultsRef.current
             .filter(r => r.isConfirmed)
             .map(r => r.transaction);
 
         let allTransactions = [
-            ...activeBankFiles
-                .filter(f => selectedBankIds.includes(String(f.bankId)))
+            ...activeBankFilesRef.current
+                .filter(f => selectedBankIdsRef.current.includes(String(f.bankId)))
                 .flatMap(f => f.processedTransactions || []),
             ...confirmedTransactions
         ].filter(tx => Number(tx.amount) !== 0);
 
         if (isAuto) {
-            if (allTransactions.length === 0 && matchResults.length > 0) {
+            if (allTransactions.length === 0 && matchResultsRef.current.length > 0) {
                 console.log('[AutoProcess:USING_LIVE_LIST_SOURCE]');
-                allTransactions = matchResults.map(r => r.transaction);
+                allTransactions = matchResultsRef.current.map(r => r.transaction);
             }
         }
 
@@ -150,21 +181,21 @@ export const useTransactionMatcher = ({
         // ✅ CORREÇÃO PRINCIPAL
         // Preserva IDENTIFIED e CONFIRMED no modo automático
         const filteredExistingResults = isAuto
-            ? matchResults.filter(r =>
+            ? matchResultsRef.current.filter(r =>
                 r.isConfirmed ||
                 r.status === ReconciliationStatus.IDENTIFIED ||
                 r.status === ReconciliationStatus.PENDING
             )
-            : matchResults.filter(r =>
-                selectedBankIds.includes(String(r.transaction.bank_id))
+            : matchResultsRef.current.filter(r =>
+                selectedBankIdsRef.current.includes(String(r.transaction.bank_id))
             );
 
         const results = matchTransactions(
             allTransactions,
-            contributorFiles,
+            contributorFilesRef.current,
             { similarityThreshold: similarityLevel, dayTolerance: dayTolerance },
-            learnedAssociations,
-            churches,
+            learnedAssociationsRef.current,
+            churchesRef.current,
             filteredExistingResults
         ).filter(r => Number(r.transaction.amount) !== 0);
 
@@ -202,14 +233,8 @@ export const useTransactionMatcher = ({
         }
 
     }, [
-        activeBankFiles,
-        selectedBankIds,
-        matchResults,
-        contributorFiles,
         similarityLevel,
         dayTolerance,
-        learnedAssociations,
-        churches,
         setMatchResults,
         setHasActiveSession,
         setIsLoading,
