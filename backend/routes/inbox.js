@@ -133,14 +133,28 @@ export default (ai) => {
     });
 
     router.post('/:userId/:bankId', async (req, res) => {
-        const { userId, bankId } = req.params;
+        let { userId, bankId } = req.params;
         const apiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
         const { text } = req.body;
 
+        // 🧽 Robust Sanitization of userId and bankId
+        if (userId) {
+            try {
+                userId = decodeURIComponent(userId);
+            } catch (e) {}
+            userId = userId.replace(/[\s\r\n\t]+/g, '').trim();
+        }
+        if (bankId) {
+            try {
+                bankId = decodeURIComponent(bankId);
+            } catch (e) {}
+            bankId = bankId.replace(/[\s\r\n\t]+/g, '').trim();
+        }
+
         console.log(`\n--- [INCOMING PIX NOTIFICATION] ---`);
         console.log(`[Inbox API] Recebido POST para usuário/owner: "${userId}"`);
-        console.log(`[Inbox API] Banco destino (bank_id): "${bankId}"`);
+        console.log(`[Inbox API] Banco destino (bank_id) original: "${req.params.bankId}" | Sanitizado: "${bankId}"`);
         console.log(`[Inbox API] Conteúdo recebido (text): "${text || '(vazio)'}"`);
         console.log(`[Inbox API] API Key fornecida: "${apiKey || '(ausente)'}" | API Key esperada no servidor: "${validKey || '(não configurada no .env)'}"`);
 
@@ -151,6 +165,31 @@ export default (ai) => {
         }
 
         const supabaseAdmin = getSupabaseAdmin();
+
+        // 🧠 Auto-correction index / bank match fallback for truncated UUIDs in iOS Shortcuts
+        if (bankId && bankId.length < 36 && supabaseAdmin && userId) {
+            console.log(`[Inbox API] 🔍 bankId recebido de tamanho ${bankId.length} ("${bankId}"). Tentando auto-completar com as contas cadastradas do usuário...`);
+            try {
+                const { data: bList } = await supabaseAdmin
+                    .from('banks')
+                    .select('id, name')
+                    .eq('user_id', userId);
+                
+                if (bList && bList.length > 0) {
+                    const match = bList.find(b => b.id.toLowerCase().startsWith(bankId.toLowerCase()) || bankId.toLowerCase().startsWith(b.id.toLowerCase()));
+                    if (match) {
+                        console.log(`[Inbox API] 🩹 AUTO-AJUSTE: bankId inválido/truncado ("${bankId}") auto-corrigido para o banco: "${match.name}" (ID Real: "${match.id}")`);
+                        bankId = match.id;
+                    } else {
+                        console.warn(`[Inbox API] ⚠️ Nenhuma conta do usuário inicia com o prefixo "${bankId}"`);
+                    }
+                } else {
+                    console.warn(`[Inbox API] ⚠️ Nenhuma conta ativa encontrada no Supabase para o usuário ${userId}`);
+                }
+            } catch (e) {
+                console.error(`[Inbox API] Erro ao tentar auto-ajustar bankId:`, e.message);
+            }
+        }
 
         if (req.user) {
             validateOwnerAccess(req, userId);

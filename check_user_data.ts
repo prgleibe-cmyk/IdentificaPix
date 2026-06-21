@@ -27,10 +27,8 @@ async function checkData() {
         .limit(20);
 
     console.log(`Data for user ${userId}:`);
-    console.log("Banks:", banks);
-    console.log("Churches:", churches);
-    console.log("Recent INBOX Transactions:", txs);
-    if (txError) console.error("Error reading txs:", txError);
+    console.log("Banks:", JSON.stringify(banks, null, 2));
+    return;
 }
 
 checkData();
