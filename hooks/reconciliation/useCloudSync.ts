@@ -204,8 +204,8 @@ export const useCloudSync = ({
                     let target = savedReports[0];
                     if (savedReports.length > 1) {
                         target = [...savedReports].sort((a, b) => {
-                            const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-                            const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+                            const dateA = (a.updated_at || a.created_at || a.createdAt) ? new Date(a.updated_at || a.created_at || a.createdAt).getTime() : 0;
+                            const dateB = (b.updated_at || b.created_at || b.createdAt) ? new Date(b.updated_at || b.created_at || b.createdAt).getTime() : 0;
                             return dateB - dateA;
                         })[0];
                     }
