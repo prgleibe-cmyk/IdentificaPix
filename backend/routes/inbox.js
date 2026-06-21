@@ -136,7 +136,18 @@ export default (ai) => {
         let { userId, bankId } = req.params;
         const apiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
-        const { text } = req.body;
+        // Resiliently extract the SMS body text from various potential payload keys or formats
+        let text = req.body?.text || req.body?.message || req.body?.body || req.body?.sms;
+        if (!text && typeof req.body === 'string') {
+            text = req.body;
+        } else if (!text && req.body && typeof req.body === 'object') {
+            // Fallback for form-urlencoded or similar keys
+            const keys = Object.keys(req.body);
+            if (keys.length === 1 && req.body[keys[0]] === '') {
+                // If it was posted as raw text but parsed awkwardly
+                text = keys[0];
+            }
+        }
 
         // 🧽 Robust Sanitization of userId and bankId
         if (userId) {
@@ -228,7 +239,7 @@ export default (ai) => {
                     description: data.description.toUpperCase(),
                     amount: data.amount,
                     type: data.type,
-                    source: 'inbox',
+                    source: 'file', // Adjusted from 'inbox' to respect the database check constraint (file/gmail only)
                     status: 'pending',
                     pix_key: 'AUTO_SMS',
                     row_hash: rowHash
