@@ -133,32 +133,52 @@ export default (ai) => {
     });
 
     router.post('/:userId/:bankId', async (req, res) => {
+        const { userId, bankId } = req.params;
         const apiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
+        const { text } = req.body;
+
+        console.log(`\n--- [INCOMING PIX NOTIFICATION] ---`);
+        console.log(`[Inbox API] Recebido POST para usuário/owner: "${userId}"`);
+        console.log(`[Inbox API] Banco destino (bank_id): "${bankId}"`);
+        console.log(`[Inbox API] Conteúdo recebido (text): "${text || '(vazio)'}"`);
+        console.log(`[Inbox API] API Key fornecida: "${apiKey || '(ausente)'}" | API Key esperada no servidor: "${validKey || '(não configurada no .env)'}"`);
 
         if (!apiKey || apiKey !== validKey) {
+            console.warn(`[Inbox Warning] ❌ Unauthorized: Chave de API inválida ou ausente.`);
+            console.warn(`[Inbox Warning] Certifique-se de que a variável INBOX_API_KEY está configurada no seu arquivo .env e coincide com a usada no celular.`);
             return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
         }
 
-        const { userId, bankId } = req.params;
-        const { text } = req.body;
         const supabaseAdmin = getSupabaseAdmin();
 
         if (req.user) {
             validateOwnerAccess(req, userId);
         }
 
-        if (!supabaseAdmin) return res.status(500).json({ error: "Conexão com banco de dados não configurada." });
-        if (!text) return res.status(400).json({ error: "Conteúdo da mensagem vazio" });
+        if (!supabaseAdmin) {
+            console.error(`[Inbox API] ❌ Erro: Conexão com banco de dados Supabase Admin não configurada.`);
+            return res.status(500).json({ error: "Conexão com banco de dados não configurada." });
+        }
+        if (!text) {
+            console.warn(`[Inbox API] ⚠️ Requisição de notificação barrada: Conteúdo de texto vazio.`);
+            return res.status(400).json({ error: "Conteúdo da mensagem vazio" });
+        }
 
         try {
-            console.log(`[Inbox API] Processando notificação deterministicamente para Usuário: ${userId}`);
+            console.log(`[Inbox API] Iniciando processamento determinístico do SMS/Notificação...`);
 
             const data = parseSMS(text);
 
-            console.log(`[Inbox API] SMS extraído com sucesso:`, JSON.stringify(data));
+            console.log(`[Inbox API] SMS analisado com sucesso! Dados extraídos:`, JSON.stringify(data));
+
+            if (data.amount === 0) {
+                console.warn(`[Inbox API] ⚠️ Atenção: O valor parsed foi 0,00. Certifique-se de que o texto do SMS segue o formato esperado.`);
+            }
 
             const rowHash = `sms_${userId}_${bankId}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
+
+            console.log(`[Inbox API] Gravando transação no banco de dados Supabase... (row_hash: ${rowHash})`);
 
             const { error } = await supabaseAdmin
                 .from('consolidated_transactions')
@@ -177,15 +197,18 @@ export default (ai) => {
 
             if (error) {
                 if (error.code === '23505') {
+                    console.log(`[Inbox API] ℹ️ Transação já cadastrada no banco de dados anteriormente.`);
                     return res.json({ success: true, message: "Transação já registrada." });
                 }
+                console.error(`[Inbox API] ❌ Erro ao inserir transação no banco:`, error);
                 throw error;
             }
 
+            console.log(`[Inbox API] ✅ Transação registrada com sucesso no banco de dados!`);
             res.json({ success: true, message: "Transação recebida e salva com sucesso!" });
 
         } catch (error) {
-            console.error("[Inbox API] Erro no processamento determinístico:", error.message);
+            console.error("[Inbox API] ❌ Erro no processamento do webhook:", error.message);
             res.status(500).json({ error: error.message || "Falha ao processar notificação bancária." });
         }
     });

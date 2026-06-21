@@ -94,7 +94,9 @@ export const useLiveListSync = ({
             } else {
                 setSelectedBankIds((prev: string[]) => {
                     const availableIds = restoredFiles.map(f => f.bankId);
-                    return prev.filter(id => availableIds.includes(id));
+                    const stillAvailable = prev.filter(id => availableIds.includes(id));
+                    const brandNew = availableIds.filter(id => !prev.includes(id));
+                    return [...stillAvailable, ...brandNew];
                 });
             }
             

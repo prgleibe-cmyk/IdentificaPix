@@ -18,9 +18,19 @@ async function checkData() {
         .select('*')
         .eq('user_id', userId);
 
+    const { data: txs, error: txError } = await supabase
+        .from('consolidated_transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('source', 'inbox')
+        .order('id', { ascending: false })
+        .limit(20);
+
     console.log(`Data for user ${userId}:`);
     console.log("Banks:", banks);
     console.log("Churches:", churches);
+    console.log("Recent INBOX Transactions:", txs);
+    if (txError) console.error("Error reading txs:", txError);
 }
 
 checkData();
