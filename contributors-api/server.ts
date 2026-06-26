@@ -8,7 +8,7 @@ dotenv.config();
 
 const { Pool } = pg;
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 3010;
 
 app.use(cors());
@@ -1225,6 +1225,10 @@ app.get('/api/v1/admin/migrate-supabase-to-postgres', async (req: Request, res: 
   }
 });
 
-app.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`[Contributors API] Server running on port ${PORT}`);
-});
+if (process.env.INTEGRATED_MODE !== 'true') {
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`[Contributors API] Server running on port ${PORT}`);
+  });
+} else {
+  console.log(`[Contributors API] Modo integrado ativo. O servidor Express principal lidará com as requisições.`);
+}

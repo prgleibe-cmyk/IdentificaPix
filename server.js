@@ -36,7 +36,7 @@ import { authMiddleware } from './backend/middleware/auth.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Estado global para monitorar a saúde do Contributors API em segundo plano
+// Estado global para monitorar a saúde do Contributors API
 const contributorsApiStatus = {
     started: false,
     pid: null,
@@ -46,11 +46,11 @@ const contributorsApiStatus = {
     spawnCwd: null,
     envPort: '3010',
     precompiledUsed: false,
-    databaseUrlPresent: false
+    databaseUrlPresent: false,
+    integratedMode: false
 };
 
-// Iniciando Contributors API em segundo plano
-console.log(`[IdentificaPix] Iniciando Contributors API em segundo plano...`);
+// Preparando variáveis de ambiente
 const childEnv = { ...process.env, PORT: '3010' };
 if (childEnv.DATABASE_URL && !childEnv.DATABASE_URL.startsWith('postgres://') && !childEnv.DATABASE_URL.startsWith('postgresql://')) {
     console.warn(`[IdentificaPix] ATENÇÃO: DATABASE_URL inválido detectado ("${childEnv.DATABASE_URL.substring(0, 40)}..."). Removendo-o para segurança.`);
@@ -63,45 +63,74 @@ if (childEnv.DATABASE_PRIVATE_URL && !childEnv.DATABASE_PRIVATE_URL.startsWith('
 contributorsApiStatus.databaseUrlPresent = !!(childEnv.DATABASE_URL || childEnv.DATABASE_PRIVATE_URL || childEnv.PG_CONN_STRING);
 
 const distServerPath = path.join(__dirname, 'contributors-api', 'dist', 'server.js');
-let contributorsApi;
-
 const targetCwd = path.join(__dirname, 'contributors-api');
 contributorsApiStatus.spawnCwd = targetCwd;
 
-if (fs.existsSync(distServerPath)) {
-    console.log(`[IdentificaPix] Iniciando Contributors API pré-compilada em: ${distServerPath}`);
-    contributorsApiStatus.precompiledUsed = true;
-    contributorsApiStatus.spawnArgs = ['node', './dist/server.js'];
-    contributorsApi = spawn('node', ['./dist/server.js'], {
-        cwd: targetCwd,
-        env: childEnv,
-        stdio: 'inherit'
-    });
-} else {
-    console.log(`[IdentificaPix] Iniciando Contributors API em desenvolvimento usando tsx...`);
-    contributorsApiStatus.precompiledUsed = false;
-    contributorsApiStatus.spawnArgs = ['npx', 'tsx', 'server.ts'];
-    contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
-        cwd: targetCwd,
-        stdio: 'inherit',
-        env: childEnv
-    });
+let contributorsApp = null;
+let contributorsApi = null;
+
+// Tentar carregar no modo integrado primeiro para evitar problemas de rede local/portas
+try {
+    if (fs.existsSync(distServerPath)) {
+        console.log(`[IdentificaPix] Detectada Contributors API pré-compilada. Ativando modo integrado...`);
+        process.env.INTEGRATED_MODE = 'true';
+        // Importação dinâmica nativa
+        const module = await import('./contributors-api/dist/server.js');
+        contributorsApp = module.app;
+        if (contributorsApp) {
+            contributorsApiStatus.started = true;
+            contributorsApiStatus.pid = process.pid;
+            contributorsApiStatus.envPort = '3000 (Integrado)';
+            contributorsApiStatus.precompiledUsed = true;
+            contributorsApiStatus.integratedMode = true;
+            console.log(`[IdentificaPix] Contributors API carregada com sucesso no modo integrado.`);
+        }
+    } else {
+        console.log(`[IdentificaPix] Arquivo pré-compilado não encontrado em: ${distServerPath}`);
+    }
+} catch (err) {
+    console.error(`[IdentificaPix] Falha ao carregar o modo integrado da Contributors API:`, err.message);
+    contributorsApiStatus.error = `Erro de importação integrada: ${err.message}`;
 }
 
-if (contributorsApi) {
-    contributorsApiStatus.started = true;
-    contributorsApiStatus.pid = contributorsApi.pid;
+// Se o modo integrado não pôde ser ativado, usar fallback spawn (segundo plano)
+if (!contributorsApp) {
+    console.log(`[IdentificaPix] Modo integrado não ativo. Iniciando Contributors API como processo separado...`);
+    if (fs.existsSync(distServerPath)) {
+        console.log(`[IdentificaPix] Iniciando Contributors API pré-compilada em segundo plano...`);
+        contributorsApiStatus.precompiledUsed = true;
+        contributorsApiStatus.spawnArgs = ['node', './dist/server.js'];
+        contributorsApi = spawn('node', ['./dist/server.js'], {
+            cwd: targetCwd,
+            env: childEnv,
+            stdio: 'inherit'
+        });
+    } else {
+        console.log(`[IdentificaPix] Iniciando Contributors API em desenvolvimento usando tsx...`);
+        contributorsApiStatus.precompiledUsed = false;
+        contributorsApiStatus.spawnArgs = ['npx', 'tsx', 'server.ts'];
+        contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
+            cwd: targetCwd,
+            stdio: 'inherit',
+            env: childEnv
+        });
+    }
 
-    contributorsApi.on('error', (err) => {
-        console.error('[IdentificaPix] Erro ao iniciar Contributors API:', err.message);
-        contributorsApiStatus.error = err.message;
-    });
+    if (contributorsApi) {
+        contributorsApiStatus.started = true;
+        contributorsApiStatus.pid = contributorsApi.pid;
 
-    contributorsApi.on('exit', (code) => {
-        console.log(`[IdentificaPix] Contributors API finalizado com código ${code}`);
-        contributorsApiStatus.exitCode = code;
-        contributorsApiStatus.started = false;
-    });
+        contributorsApi.on('error', (err) => {
+            console.error('[IdentificaPix] Erro ao iniciar Contributors API:', err.message);
+            contributorsApiStatus.error = err.message;
+        });
+
+        contributorsApi.on('exit', (code) => {
+            console.log(`[IdentificaPix] Contributors API finalizado com código ${code}`);
+            contributorsApiStatus.exitCode = code;
+            contributorsApiStatus.started = false;
+        });
+    }
 }
 
 const app = express();
@@ -208,84 +237,99 @@ try {
         return res.json(diagnostics);
     });
 
-    // Endpoint de migração administrativa do Supabase para o Postgres do VPS
-    app.get('/api/admin/migrate-supabase-to-postgres', async (req, res) => {
-        try {
-            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
-            const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
-            const targetUrl = `${cleanVpsUrl}/api/v1/admin/migrate-supabase-to-postgres`;
-            
-            console.log(`[Migrate Proxy] Calling VPS migration endpoint at: ${targetUrl}`);
-            const response = await fetch(targetUrl);
-            const data = await response.json();
-            
-            return res.status(response.status).json(data);
-        } catch (err) {
-            console.error("Erro ao chamar endpoint de migração do VPS:", err);
-            return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
-        }
-    });
+    // Integração Inteligente com o Contributors API
+    if (contributorsApp) {
+        console.log(`[IdentificaPix] Usando Contributors API de forma integrada (rodando no mesmo processo da porta 3000).`);
+        app.use(contributorsApp);
 
-    // Proxy para o Contributors API (PG + VPS)
-    app.all('/api/v1/*', async (req, res) => {
-        try {
-            const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
-            const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-            const targetUrl = `${cleanBaseUrl}${req.originalUrl}`;
-            
-            console.log(`[Proxy] Forwarding ${req.method} ${req.originalUrl} to ${targetUrl}`);
-            
-            // Extrair o hostname correto de destino para evitar rejeição de cabeçalhos
-            const urlObj = new URL(targetUrl);
-            const targetHost = urlObj.host;
-
-            // Limpar e sanitizar cabeçalhos para evitar erros no fetch (como incompatibilidade de content-length ou host)
-            const cleanHeaders = {};
-            const excludedHeaders = ['content-length', 'connection', 'host', 'keep-alive', 'transfer-encoding', 'accept-encoding'];
-            for (const [key, value] of Object.entries(req.headers)) {
-                if (!excludedHeaders.includes(key.toLowerCase())) {
-                    cleanHeaders[key] = value;
-                }
-            }
-            cleanHeaders['host'] = targetHost;
-
-            const fetchOptions = {
-                method: req.method,
-                headers: cleanHeaders
-            };
-
-            if (req.method !== 'GET' && req.method !== 'HEAD') {
-                fetchOptions.body = JSON.stringify(req.body);
-                cleanHeaders['content-type'] = 'application/json';
-            }
-
-            let response;
+        // Mapear o endpoint de migração administrativo diretamente na rota principal
+        app.get('/api/admin/migrate-supabase-to-postgres', async (req, res, next) => {
+            console.log(`[IdentificaPix] Executando migração de forma integrada...`);
+            req.url = '/api/v1/admin/migrate-supabase-to-postgres';
+            contributorsApp(req, res, next);
+        });
+    } else {
+        console.log(`[IdentificaPix] Usando modo Proxy de rede para o Contributors API externo/separado.`);
+        
+        // Endpoint de migração administrativa do Supabase para o Postgres do VPS
+        app.get('/api/admin/migrate-supabase-to-postgres', async (req, res) => {
             try {
-                // Adiciona timeout rápido (1500ms) para evitar que a requisição fique travada 
-                // caso o domínio do microserviço na VPS esteja inacessível no ambiente local.
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1500);
-
-                response = await fetch(targetUrl, {
-                    ...fetchOptions,
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-            } catch (fetchErr) {
-                console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed or timed out: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
-                // Fallback para o processo local em segundo plano
-                const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
-                response = await fetch(localUrl, fetchOptions);
+                const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+                const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
+                const targetUrl = `${cleanVpsUrl}/api/v1/admin/migrate-supabase-to-postgres`;
+                
+                console.log(`[Migrate Proxy] Calling VPS migration endpoint at: ${targetUrl}`);
+                const response = await fetch(targetUrl);
+                const data = await response.json();
+                
+                return res.status(response.status).json(data);
+            } catch (err) {
+                console.error("Erro ao chamar endpoint de migração do VPS:", err);
+                return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
             }
+        });
 
-            const data = await response.json().catch(() => null);
+        // Proxy para o Contributors API (PG + VPS)
+        app.all('/api/v1/*', async (req, res) => {
+            try {
+                const baseUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+                const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                const targetUrl = `${cleanBaseUrl}${req.originalUrl}`;
+                
+                console.log(`[Proxy] Forwarding ${req.method} ${req.originalUrl} to ${targetUrl}`);
+                
+                // Extrair o hostname correto de destino para evitar rejeição de cabeçalhos
+                const urlObj = new URL(targetUrl);
+                const targetHost = urlObj.host;
 
-            res.status(response.status).json(data || { error: 'Invalid Response from contributors-api' });
-        } catch (error) {
-            console.error(`[Proxy Error] Fail to forward to contributors-api:`, error.message);
-            res.status(500).json({ error: 'CONTRIBUTORS_API_UNAVAILABLE' });
-        }
-    });
+                // Limpar e sanitizar cabeçalhos para evitar erros no fetch (como incompatibilidade de content-length ou host)
+                const cleanHeaders = {};
+                const excludedHeaders = ['content-length', 'connection', 'host', 'keep-alive', 'transfer-encoding', 'accept-encoding'];
+                for (const [key, value] of Object.entries(req.headers)) {
+                    if (!excludedHeaders.includes(key.toLowerCase())) {
+                        cleanHeaders[key] = value;
+                    }
+                }
+                cleanHeaders['host'] = targetHost;
+
+                const fetchOptions = {
+                    method: req.method,
+                    headers: cleanHeaders
+                };
+
+                if (req.method !== 'GET' && req.method !== 'HEAD') {
+                    fetchOptions.body = JSON.stringify(req.body);
+                    cleanHeaders['content-type'] = 'application/json';
+                }
+
+                let response;
+                try {
+                    // Adiciona timeout rápido (1500ms) para evitar que a requisição fique travada 
+                    // caso o domínio do microserviço na VPS esteja inacessível no ambiente local.
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+                    response = await fetch(targetUrl, {
+                        ...fetchOptions,
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                } catch (fetchErr) {
+                    console.warn(`[Proxy Warning] Direct forward to ${targetUrl} failed or timed out: ${fetchErr.message}. Trying local fallback on http://127.0.0.1:3010...`);
+                    // Fallback para o processo local em segundo plano
+                    const localUrl = `http://127.0.0.1:3010${req.originalUrl}`;
+                    response = await fetch(localUrl, fetchOptions);
+                }
+
+                const data = await response.json().catch(() => null);
+
+                res.status(response.status).json(data || { error: 'Invalid Response from contributors-api' });
+            } catch (error) {
+                console.error(`[Proxy Error] Fail to forward to contributors-api:`, error.message);
+                res.status(500).json({ error: 'CONTRIBUTORS_API_UNAVAILABLE' });
+            }
+        });
+    }
 
     // Middleware de Autenticação para as demais rotas
     app.use('/api', authMiddleware);
