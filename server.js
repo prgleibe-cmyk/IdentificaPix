@@ -36,6 +36,19 @@ import { authMiddleware } from './backend/middleware/auth.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Estado global para monitorar a saúde do Contributors API em segundo plano
+const contributorsApiStatus = {
+    started: false,
+    pid: null,
+    exitCode: null,
+    error: null,
+    spawnArgs: null,
+    spawnCwd: null,
+    envPort: '3010',
+    precompiledUsed: false,
+    databaseUrlPresent: false
+};
+
 // Iniciando Contributors API em segundo plano
 console.log(`[IdentificaPix] Iniciando Contributors API em segundo plano...`);
 const childEnv = { ...process.env, PORT: '3010' };
@@ -47,31 +60,49 @@ if (childEnv.DATABASE_PRIVATE_URL && !childEnv.DATABASE_PRIVATE_URL.startsWith('
     delete childEnv.DATABASE_PRIVATE_URL;
 }
 
+contributorsApiStatus.databaseUrlPresent = !!(childEnv.DATABASE_URL || childEnv.DATABASE_PRIVATE_URL || childEnv.PG_CONN_STRING);
+
 const distServerPath = path.join(__dirname, 'contributors-api', 'dist', 'server.js');
 let contributorsApi;
 
+const targetCwd = path.join(__dirname, 'contributors-api');
+contributorsApiStatus.spawnCwd = targetCwd;
+
 if (fs.existsSync(distServerPath)) {
     console.log(`[IdentificaPix] Iniciando Contributors API pré-compilada em: ${distServerPath}`);
-    contributorsApi = spawn('node', [distServerPath], {
+    contributorsApiStatus.precompiledUsed = true;
+    contributorsApiStatus.spawnArgs = ['node', './dist/server.js'];
+    contributorsApi = spawn('node', ['./dist/server.js'], {
+        cwd: targetCwd,
         env: childEnv,
         stdio: 'inherit'
     });
 } else {
     console.log(`[IdentificaPix] Iniciando Contributors API em desenvolvimento usando tsx...`);
+    contributorsApiStatus.precompiledUsed = false;
+    contributorsApiStatus.spawnArgs = ['npx', 'tsx', 'server.ts'];
     contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
-        cwd: path.join(__dirname, 'contributors-api'),
+        cwd: targetCwd,
         stdio: 'inherit',
         env: childEnv
     });
 }
 
-contributorsApi.on('error', (err) => {
-    console.error('[IdentificaPix] Erro ao iniciar Contributors API:', err.message);
-});
+if (contributorsApi) {
+    contributorsApiStatus.started = true;
+    contributorsApiStatus.pid = contributorsApi.pid;
 
-contributorsApi.on('exit', (code) => {
-    console.log(`[IdentificaPix] Contributors API finalizado com código ${code}`);
-});
+    contributorsApi.on('error', (err) => {
+        console.error('[IdentificaPix] Erro ao iniciar Contributors API:', err.message);
+        contributorsApiStatus.error = err.message;
+    });
+
+    contributorsApi.on('exit', (code) => {
+        console.log(`[IdentificaPix] Contributors API finalizado com código ${code}`);
+        contributorsApiStatus.exitCode = code;
+        contributorsApiStatus.started = false;
+    });
+}
 
 const app = express();
 
@@ -124,6 +155,58 @@ try {
     app.use('/api/payment', paymentRoutes);
     app.use('/api/inbox', inboxRoutes(ai));
     app.use('/api/ai', aiRoutes(ai));
+
+    // Endpoint de depuração do microserviço Contributors API
+    app.get('/api/admin/debug-contributors-api', async (req, res) => {
+        const diagnostics = {
+            status: contributorsApiStatus,
+            currentTime: new Date().toISOString(),
+            files: {
+                contributorsApiFolderExists: fs.existsSync(path.join(__dirname, 'contributors-api')),
+                distFolderExists: fs.existsSync(path.join(__dirname, 'contributors-api', 'dist')),
+                serverJsExists: fs.existsSync(path.join(__dirname, 'contributors-api', 'dist', 'server.js')),
+                serverTsExists: fs.existsSync(path.join(__dirname, 'contributors-api', 'server.ts'))
+            },
+            connectionTests: {}
+        };
+
+        // Testar conexão local com o port 3010
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1000);
+            const response = await fetch('http://127.0.0.1:3010/health', { signal: controller.signal });
+            clearTimeout(timeoutId);
+            diagnostics.connectionTests['127.0.0.1:3010'] = {
+                ok: response.ok,
+                status: response.status,
+                body: await response.json().catch(() => null)
+            };
+        } catch (err) {
+            diagnostics.connectionTests['127.0.0.1:3010'] = {
+                ok: false,
+                error: err.message
+            };
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1000);
+            const response = await fetch('http://localhost:3010/health', { signal: controller.signal });
+            clearTimeout(timeoutId);
+            diagnostics.connectionTests['localhost:3010'] = {
+                ok: response.ok,
+                status: response.status,
+                body: await response.json().catch(() => null)
+            };
+        } catch (err) {
+            diagnostics.connectionTests['localhost:3010'] = {
+                ok: false,
+                error: err.message
+            };
+        }
+
+        return res.json(diagnostics);
+    });
 
     // Endpoint de migração administrativa do Supabase para o Postgres do VPS
     app.get('/api/admin/migrate-supabase-to-postgres', async (req, res) => {

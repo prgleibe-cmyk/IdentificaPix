@@ -183,10 +183,18 @@ async function initializeDatabase() {
       );
     `);
     try {
+      // Remover valor padrão para permitir alteração de UUID para VARCHAR
+      await client.query('ALTER TABLE saved_reports ALTER COLUMN id DROP DEFAULT;');
       await client.query('ALTER TABLE saved_reports ALTER COLUMN id TYPE VARCHAR(255) USING id::varchar;');
       await client.query('ALTER TABLE saved_reports ALTER COLUMN id SET DEFAULT gen_random_uuid()::varchar;');
+      console.log('[Contributors API] Altered saved_reports.id to VARCHAR(255) successfully.');
     } catch (alterErr) {
-      console.warn('[Contributors API] Warning: could not alter saved_reports.id to VARCHAR:', (alterErr as any).message);
+      console.warn('[Contributors API] Warning: could not alter saved_reports.id to VARCHAR, attempting fallback default update:', (alterErr as any).message);
+      try {
+        await client.query('ALTER TABLE saved_reports ALTER COLUMN id SET DEFAULT gen_random_uuid()::varchar;');
+      } catch (fallbackErr) {
+        // Ignora erro no fallback de default
+      }
     }
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS church_id UUID;');
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
