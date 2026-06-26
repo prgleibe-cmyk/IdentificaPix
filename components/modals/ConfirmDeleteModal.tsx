@@ -24,6 +24,8 @@ export const ConfirmDeleteModal: React.FC = () => {
                 return t('settings.confirmDelete.report-saved.message').replace('{itemName}', deletingItem.name);
             case 'report-row':
                 return t('modal.confirmDelete.report-row.message');
+            case 'report-row-bulk':
+                return (t('modal.confirmDelete.report-row-bulk.message') || 'Tem certeza que deseja excluir permanentemente as {count} linhas selecionadas do relatório?').replace('{count}', String(deletingItem.meta?.ids?.length || 0));
             default:
                 return t('modal.confirmDelete.message').replace('{itemName}', deletingItem.name);
         }

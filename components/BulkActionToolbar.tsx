@@ -1,7 +1,7 @@
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { UserPlusIcon, XMarkIcon, LockClosedIcon } from './Icons';
+import { UserPlusIcon, XMarkIcon, LockClosedIcon, TrashIcon } from './Icons';
 import { formatCurrency } from '../utils/formatters';
 
 interface BulkActionToolbarProps {
@@ -11,7 +11,7 @@ interface BulkActionToolbarProps {
 }
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
-    const { setBulkIdentificationTxs, toggleConfirmation } = useContext(AppContext);
+    const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
     // ✅ PROTEÇÃO TOTAL contra undefined
@@ -46,6 +46,15 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     const handleBulkConfirm = async () => {
         await toggleConfirmation(selectedIds, true);
         onClear();
+    };
+
+    const handleBulkDelete = () => {
+        openDeleteConfirmation({
+            type: 'report-row-bulk',
+            id: 'report-row-bulk',
+            name: `${selectedIds.length} transações`,
+            meta: { ids: selectedIds }
+        });
     };
 
     const canConfirm = selectedData.some((r: any) => !(r.transaction?.isConfirmed ?? r.isConfirmed ?? false));
@@ -85,6 +94,14 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                             Confirmar Final
                         </button>
                     )}
+
+                    <button
+                        onClick={handleBulkDelete}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-full text-[8px] font-black uppercase tracking-widest transition-all border border-rose-500/20"
+                    >
+                        <TrashIcon className="w-2.5 h-2.5" />
+                        Excluir
+                    </button>
 
                     <button
                         onClick={onClear}

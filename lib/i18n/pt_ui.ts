@@ -110,6 +110,7 @@ export const ptUi = {
     'modal.confirmDelete.title': 'Confirmar Exclusão',
     'modal.confirmDelete.message': 'Tem certeza de que deseja excluir permanentemente "{itemName}"? Esta ação não pode ser desfeita.',
     'modal.confirmDelete.report-row.message': 'Tem certeza que deseja excluir permanentemente esta linha do relatório?',
+    'modal.confirmDelete.report-row-bulk.message': 'Tem certeza que deseja excluir permanentemente as {count} linhas selecionadas do relatório?',
     'modal.saveReport.title': 'Salvar Planilha',
     'modal.saveReport.nameLabel': 'Nome da Planilha',
 

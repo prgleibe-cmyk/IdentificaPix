@@ -560,6 +560,27 @@ const { data, error } = await (supabase as any)
         }
     },
 
+    deleteTransactionsByIds: async (ids: string[]) => {
+
+        try {
+
+            console.log(`[WRITE:ALREADY_CORRECT] Excluindo múltiplas transações por IDs:`, ids);
+            const { error } = await (supabase as any)
+                .from('consolidated_transactions')
+                .delete()
+                .in('id', ids);
+
+            if (error) throw error;
+
+            return true;
+
+        } catch (error) {
+
+            throw error;
+
+        }
+    },
+
     /**
      * VERIFICAÇÃO DE INTEGRIDADE (Anti-Cache Stale)
      * Retorna apenas os IDs que já estão confirmados no banco.

@@ -339,6 +339,11 @@ export const useTransactionMatcher = ({
         setMatchResults(prev => prev.filter(r => r.transaction.id !== id));
     }, [setMatchResults]);
 
+    const removeTransactions = useCallback((ids: string[]) => {
+        batchState.isAtomicUpdate = true;
+        setMatchResults(prev => prev.filter(r => !ids.includes(r.transaction.id)));
+    }, [setMatchResults]);
+
     return {
         handleCompare,
         regenerateReportPreview,
@@ -349,6 +354,7 @@ export const useTransactionMatcher = ({
         updateReportData,
         revertMatch,
         closeManualIdentify,
-        removeTransaction
+        removeTransaction,
+        removeTransactions
     };
 };

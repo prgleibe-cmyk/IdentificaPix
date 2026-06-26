@@ -27,7 +27,7 @@ export const useDataDeletion = ({
 
     const confirmDeletion = useCallback(async () => {
         if (!modalController.deletingItem) return;
-        const { type, id } = modalController.deletingItem;
+        const { type, id, meta } = modalController.deletingItem;
         
         try {
             switch (type) {
@@ -89,6 +89,26 @@ export const useDataDeletion = ({
                     }
                     
                     showToast("Linha removida permanentemente.", "success");
+                    break;
+                }
+                case 'report-row-bulk': {
+                    const ids: string[] = meta?.ids || [];
+                    if (ids.length > 0) {
+                        const dbIds = ids.filter((x: string) => x && !x.startsWith('ghost-'));
+                        if (dbIds.length > 0) {
+                            await consolidationService.deleteTransactionsByIds(dbIds);
+                        }
+                        
+                        // Remove do estado da reconciliação (UI do relatório)
+                        reconciliation.removeTransactions?.(ids);
+                        
+                        // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
+                        if (reconciliation.hydrate) {
+                            await reconciliation.hydrate();
+                        }
+                        
+                        showToast(`${ids.length} linhas removidas permanentemente.`, "success");
+                    }
                     break;
                 }
                 case 'all-data': {
