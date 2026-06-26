@@ -78,6 +78,9 @@ function parseSMS(text) {
     // 4. EXTRAÇÃO DE NOME / DESCRIÇÃO (A MÁGICA DE PURIFICAÇÃO)
     let matchDesc = null;
     const patterns = [
+        // Padrões específicos para Sicredi / Sicoob / etc (Push app notifications)
+        /recebeu\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
+        /pagou\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
         /recebido\s+de\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
         /enviado\s+por\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
         /enviado\s+para\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
@@ -92,6 +95,10 @@ function parseSMS(text) {
             let candidate = m[1].trim();
             candidate = candidate.replace(/^(UM|UMA|PIX|CONTA|POUPANCA|CORRENTE|VALOR|REAIS|EM|POR|PARA|DE)\s+/i, '');
             candidate = candidate.replace(/\s+(UM|UMA|PIX|CONTA|POUPANCA|CORRENTE|VALOR|REAIS|EM|POR|PARA|DE)$/i, '');
+            
+            // Remove sufixos bancários comuns anexados no final do nome do pagador para deixar o nome limpo
+            candidate = candidate.replace(/\s+(NEON PAGAMENTOS|NU PAGAMENTOS|PICPAY|CREDISIS|BRADESCO|ITAU|ITAÚ|CAIXA ECONOMICA|CAIXA ECONÔMICA|BANCO DO BRASIL|BCO DO BRASIL|SANDER|SANTANDER|SICOOB|SICREDI|PAGSEGURO|PAGBANK|MERCADO PAGO|STONE|INTER|NUBANK|BANCO|COOPERATIVO|COOP\s).*$/i, '');
+            
             if (candidate.length >= 3 && !/^\d+$/.test(candidate)) {
                 description = candidate;
                 break;
@@ -137,7 +144,7 @@ export default (ai) => {
         const apiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
         // Resiliently extract the SMS body text from various potential payload keys or formats
-        let text = req.body?.text || req.body?.message || req.body?.body || req.body?.sms;
+        let text = req.body?.text || req.body?.message || req.body?.body || req.body?.sms || req.query?.text || req.query?.message;
         if (!text && typeof req.body === 'string') {
             text = req.body;
         } else if (!text && req.body && typeof req.body === 'object') {
