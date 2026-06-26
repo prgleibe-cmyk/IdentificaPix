@@ -78,7 +78,14 @@ if (fs.existsSync(distPath)) {
 
 // Middlewares
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+
+// Condicional para aplicar express.json exceto em rotas /api/inbox (que possuem um parser resiliente próprio para evitar erros do MacroDroid)
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/inbox')) {
+        return next();
+    }
+    express.json({ limit: '50mb' })(req, res, next);
+});
 
 // Health check
 app.get('/health', (req, res) => res.status(200).send('OK'));

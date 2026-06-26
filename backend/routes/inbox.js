@@ -134,12 +134,62 @@ function parseSMS(text) {
     };
 }
 
+// Middleware personalizado para consumir o corpo da requisição de forma resiliente
+// Isso previne quebras causadas por novos caracteres de linha do MacroDroid inseridos no JSON
+const resilientBodyParser = (req, res, next) => {
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => {
+        data += chunk;
+    });
+    req.on('end', () => {
+        req.rawBody = data;
+        if (data) {
+            try {
+                // Tenta o parsing padrão JSON primeiro
+                req.body = JSON.parse(data);
+            } catch (e) {
+                console.log('[Resilient Parser] JSON.parse falhou (provavelmente devido a quebras de linha do MacroDroid). Reparando...');
+                
+                // Padrão 1: Tentar extrair o campo "text" via regex lidando com quebras de linha internas [\s\S]*?
+                const textMatch = data.match(/"text"\s*:\s*"([\s\S]*?)"\s*}/) || data.match(/"text"\s*:\s*"([\s\S]*?)"/);
+                if (textMatch) {
+                    req.body = { text: textMatch[1] };
+                    console.log('[Resilient Parser] Texto extraído via Regex com sucesso!');
+                } else {
+                    // Padrão 2: Se não houver campo "text" estruturado, tenta decodificar como formulário x-www-form-urlencoded
+                    if (data.includes('=')) {
+                        try {
+                            const params = new URLSearchParams(data);
+                            const parsed = {};
+                            for (const [key, value] of params.entries()) {
+                                parsed[key] = value;
+                            }
+                            req.body = parsed;
+                            console.log('[Resilient Parser] Decodificado como Form URL Encoded');
+                        } catch (err) {
+                            req.body = { text: data };
+                        }
+                    } else {
+                        // Fallback final: define o corpo inteiro como a mensagem de texto
+                        req.body = { text: data };
+                        console.log('[Resilient Parser] Fallback: Definido corpo bruto como texto');
+                    }
+                }
+            }
+        } else {
+            req.body = {};
+        }
+        next();
+    });
+};
+
 export default (ai) => {
     router.get('/config', authMiddleware, (req, res) => {
         res.json({ key: process.env.INBOX_API_KEY || '' });
     });
 
-    router.post('/:userId/:bankId', async (req, res) => {
+    router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
         const apiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
