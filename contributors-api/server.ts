@@ -174,7 +174,7 @@ async function initializeDatabase() {
     // Create table saved_reports
     await client.query(`
       CREATE TABLE IF NOT EXISTS saved_reports (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
         name VARCHAR(255) NOT NULL,
         record_count INT NOT NULL DEFAULT 0,
         user_id UUID NOT NULL,
@@ -182,6 +182,12 @@ async function initializeDatabase() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
     `);
+    try {
+      await client.query('ALTER TABLE saved_reports ALTER COLUMN id TYPE VARCHAR(255) USING id::varchar;');
+      await client.query('ALTER TABLE saved_reports ALTER COLUMN id SET DEFAULT gen_random_uuid()::varchar;');
+    } catch (alterErr) {
+      console.warn('[Contributors API] Warning: could not alter saved_reports.id to VARCHAR:', (alterErr as any).message);
+    }
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS church_id UUID;');
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS record_count INT DEFAULT 0;');
