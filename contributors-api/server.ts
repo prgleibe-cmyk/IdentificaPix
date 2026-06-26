@@ -81,8 +81,115 @@ async function initializeDatabase() {
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
-
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
+
+    // Create table banks
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS banks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        user_id UUID,
+        bank_key VARCHAR(255),
+        account_name VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS bank_key VARCHAR(255);');
+    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS account_name VARCHAR(255);');
+    await client.query('ALTER TABLE banks ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "banks" verified or successfully created.');
+
+    // Create table churches
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS churches (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        address TEXT NOT NULL,
+        "logoUrl" TEXT NOT NULL,
+        pastor VARCHAR(255) NOT NULL,
+        user_id UUID,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS address TEXT;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pastor VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "churches" verified or successfully created.');
+
+    // Create table consolidated_transactions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS consolidated_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        amount NUMERIC(12, 2) NOT NULL,
+        description TEXT NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        pix_key VARCHAR(255),
+        source VARCHAR(50) NOT NULL DEFAULT 'file',
+        user_id UUID NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        bank_id UUID,
+        row_hash VARCHAR(255),
+        is_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+        transaction_date TIMESTAMP NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2);');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS description TEXT;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS type VARCHAR(50);');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS pix_key VARCHAR(255);');
+    await client.query("ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'file';");
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query("ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending';");
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS bank_id UUID;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS row_hash VARCHAR(255);');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT FALSE;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS transaction_date TIMESTAMP;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "consolidated_transactions" verified or successfully created.');
+
+    // Create table learned_associations
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS learned_associations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        normalized_description TEXT NOT NULL,
+        contributor_normalized_name VARCHAR(255) NOT NULL,
+        church_id UUID NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS normalized_description TEXT;');
+    await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS contributor_normalized_name VARCHAR(255);');
+    await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS church_id UUID;');
+    await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "learned_associations" verified or successfully created.');
+
+    // Create table saved_reports
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS saved_reports (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        record_count INT NOT NULL DEFAULT 0,
+        user_id UUID NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS church_id UUID;');
+    await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS name VARCHAR(255);');
+    await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS record_count INT DEFAULT 0;');
+    await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS data JSONB;');
+    await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "saved_reports" verified or successfully created.');
+
   } catch (err) {
     console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
   } finally {
@@ -334,6 +441,576 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     return res.json({ success: true, id: id, hard: hardDelete });
   } catch (err) {
     console.error('[Contributors API] Error processing delete contributor request:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// ==========================================
+// BANKS ENDPOINTS
+// ==========================================
+
+// GET /api/v1/banks
+app.get('/api/v1/banks', async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.query;
+    let query = 'SELECT id, name, user_id, bank_key, account_name, created_at FROM banks WHERE 1=1';
+    const params: any[] = [];
+    if (user_id) {
+      query += ' AND user_id = $1';
+      params.push(user_id);
+    }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET banks:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/banks
+app.post('/api/v1/banks', async (req: Request, res: Response) => {
+  try {
+    const { name, user_id, bank_key, account_name } = req.body;
+    if (!name || !user_id) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+    const result = await pool.query(
+      'INSERT INTO banks (name, user_id, bank_key, account_name) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, user_id, bank_key || null, account_name || name]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST bank:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/banks/:id
+app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, bank_key, account_name } = req.body;
+    const result = await pool.query(
+      'UPDATE banks SET name = COALESCE($1, name), bank_key = COALESCE($2, bank_key), account_name = COALESCE($3, account_name) WHERE id = $4 RETURNING *',
+      [name, bank_key || null, account_name || null, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error PUT bank:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/banks/:id
+app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM banks WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE bank:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// ==========================================
+// CHURCHES ENDPOINTS
+// ==========================================
+
+// GET /api/v1/churches
+app.get('/api/v1/churches', async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.query;
+    let query = 'SELECT id, name, address, "logoUrl", pastor, user_id, created_at FROM churches WHERE 1=1';
+    const params: any[] = [];
+    if (user_id) {
+      query += ' AND user_id = $1';
+      params.push(user_id);
+    }
+    query += ' ORDER BY name ASC';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET churches:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/churches
+app.post('/api/v1/churches', async (req: Request, res: Response) => {
+  try {
+    const { name, address, logoUrl, pastor, user_id } = req.body;
+    if (!name || !user_id) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+    const result = await pool.query(
+      'INSERT INTO churches (name, address, "logoUrl", pastor, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, address || '', logoUrl || '', pastor || '', user_id]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST church:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/churches/:id
+app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, address, logoUrl, pastor } = req.body;
+    const result = await pool.query(
+      'UPDATE churches SET name = COALESCE($1, name), address = COALESCE($2, address), "logoUrl" = COALESCE($3, "logoUrl"), pastor = COALESCE($4, pastor) WHERE id = $5 RETURNING *',
+      [name, address, logoUrl, pastor, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error PUT church:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/churches/:id
+app.delete('/api/v1/churches/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM churches WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE church:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// ==========================================
+// LEARNED ASSOCIATIONS ENDPOINTS
+// ==========================================
+
+// GET /api/v1/learned_associations
+app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.query;
+    let query = 'SELECT id, user_id, normalized_description, contributor_normalized_name, church_id, created_at FROM learned_associations WHERE 1=1';
+    const params: any[] = [];
+    if (user_id) {
+      query += ' AND user_id = $1';
+      params.push(user_id);
+    }
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET learned associations:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/learned_associations
+app.post('/api/v1/learned_associations', async (req: Request, res: Response) => {
+  try {
+    const { user_id, normalized_description, contributor_normalized_name, church_id } = req.body;
+    if (!user_id || !normalized_description || !contributor_normalized_name || !church_id) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+
+    // Check if duplicate
+    const checkResult = await pool.query(
+      'SELECT id FROM learned_associations WHERE user_id = $1 AND normalized_description = $2 LIMIT 1',
+      [user_id, normalized_description]
+    );
+
+    let result;
+    if (checkResult.rows.length > 0) {
+      // Update
+      result = await pool.query(
+        'UPDATE learned_associations SET contributor_normalized_name = $1, church_id = $2 WHERE id = $3 RETURNING *',
+        [contributor_normalized_name, church_id, checkResult.rows[0].id]
+      );
+    } else {
+      // Insert
+      result = await pool.query(
+        'INSERT INTO learned_associations (user_id, normalized_description, contributor_normalized_name, church_id) VALUES ($1, $2, $3, $4) RETURNING *',
+        [user_id, normalized_description, contributor_normalized_name, church_id]
+      );
+    }
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST learned associations:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/learned_associations/:id
+app.delete('/api/v1/learned_associations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM learned_associations WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE learned association:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/learned_associations/by-user/:user_id
+app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.params;
+    const result = await pool.query('DELETE FROM learned_associations WHERE user_id = $1 RETURNING id', [user_id]);
+    return res.json({ success: true, count: result.rows.length });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE learned associations by user:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// ==========================================
+// SAVED REPORTS ENDPOINTS
+// ==========================================
+
+// GET /api/v1/saved_reports
+app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.query;
+    let query = 'SELECT id, name, record_count, user_id, data, created_at FROM saved_reports WHERE 1=1';
+    const params: any[] = [];
+    if (user_id) {
+      query += ' AND user_id = $1';
+      params.push(user_id);
+    }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET saved reports:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/saved_reports
+app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
+  try {
+    const { id, name, record_count, user_id, data, church_id } = req.body;
+    if (!name || !user_id || !data) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+    const finalId = id || undefined;
+    const finalData = typeof data === 'string' ? data : JSON.stringify(data);
+    let result;
+    if (finalId) {
+      result = await pool.query(
+        `INSERT INTO saved_reports (id, name, record_count, user_id, data, church_id) 
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           record_count = EXCLUDED.record_count,
+           data = EXCLUDED.data,
+           church_id = EXCLUDED.church_id
+         RETURNING *`,
+         [finalId, name, record_count || 0, user_id, finalData, church_id || null]
+      );
+    } else {
+      result = await pool.query(
+        'INSERT INTO saved_reports (name, record_count, user_id, data, church_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [name, record_count || 0, user_id, finalData, church_id || null]
+      );
+    }
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST saved reports:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/saved_reports/:id
+app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, data, record_count, church_id } = req.body;
+    let query = 'UPDATE saved_reports SET ';
+    const params: any[] = [];
+    let counter = 1;
+
+    const fields = [];
+    if (name !== undefined) {
+      fields.push(`name = $${counter}`);
+      params.push(name);
+      counter++;
+    }
+    if (data !== undefined) {
+      fields.push(`data = $${counter}`);
+      params.push(typeof data === 'string' ? data : JSON.stringify(data));
+      counter++;
+    }
+    if (record_count !== undefined) {
+      fields.push(`record_count = $${counter}`);
+      params.push(Number(record_count));
+      counter++;
+    }
+    if (church_id !== undefined) {
+      fields.push(`church_id = $${counter}`);
+      params.push(church_id);
+      counter++;
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'NO_FIELDS_TO_UPDATE' });
+    }
+
+    query += fields.join(', ');
+    query += ` WHERE id = $${counter} RETURNING *`;
+    params.push(id);
+
+    const result = await pool.query(query, params);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error PUT saved report:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/saved_reports/:id
+app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM saved_reports WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE saved report:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// ==========================================
+// CONSOLIDATED TRANSACTIONS ENDPOINTS
+// ==========================================
+
+// GET /api/v1/consolidated_transactions
+app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
+  try {
+    const { user_id, status, type, start_date, end_date, limit, offset, row_hash } = req.query;
+    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at FROM consolidated_transactions WHERE 1=1';
+    const params: any[] = [];
+    let counter = 1;
+
+    if (user_id) {
+      query += ` AND user_id = $${counter}`;
+      params.push(user_id);
+      counter++;
+    }
+
+    if (status) {
+      query += ` AND status = $${counter}`;
+      params.push(status);
+      counter++;
+    }
+
+    if (type) {
+      query += ` AND type = $${counter}`;
+      params.push(type);
+      counter++;
+    }
+
+    if (row_hash) {
+      query += ` AND row_hash = $${counter}`;
+      params.push(row_hash);
+      counter++;
+    }
+
+    if (start_date) {
+      query += ` AND transaction_date >= $${counter}`;
+      params.push(start_date);
+      counter++;
+    }
+
+    if (end_date) {
+      query += ` AND transaction_date <= $${counter}`;
+      params.push(end_date);
+      counter++;
+    }
+
+    query += ' ORDER BY transaction_date DESC';
+
+    if (limit) {
+      query += ` LIMIT $${counter}`;
+      params.push(Number(limit));
+      counter++;
+    }
+
+    if (offset) {
+      query += ` OFFSET $${counter}`;
+      params.push(Number(offset));
+      counter++;
+    }
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET consolidated_transactions:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/consolidated_transactions
+app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
+  try {
+    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date } = req.body;
+    if (amount === undefined || amount === null || !description || !type || !user_id || !transaction_date) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+
+    // Check row_hash duplicate if row_hash is provided
+    if (row_hash) {
+      const dupCheck = await pool.query('SELECT id FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1', [user_id, row_hash]);
+      if (dupCheck.rows.length > 0) {
+        return res.status(409).json({ error: 'ROW_HASH_ALREADY_EXISTS', id: dupCheck.rows[0].id });
+      }
+    }
+
+    const finalId = id || undefined;
+    let query = '';
+    let params: any[] = [];
+    if (finalId) {
+      query = `INSERT INTO consolidated_transactions 
+        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        ON CONFLICT (id) DO UPDATE SET 
+          amount = EXCLUDED.amount, 
+          description = EXCLUDED.description, 
+          status = EXCLUDED.status, 
+          is_confirmed = EXCLUDED.is_confirmed,
+          bank_id = EXCLUDED.bank_id
+        RETURNING *`;
+      params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+    } else {
+      query = `INSERT INTO consolidated_transactions 
+        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`;
+      params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+    }
+
+    const result = await pool.query(query, params);
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST consolidated_transaction:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/consolidated_transactions/bulk
+app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const { transactions } = req.body;
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: Transactions array is required' });
+    }
+
+    await client.query('BEGIN');
+    const inserted: any[] = [];
+
+    for (const tx of transactions) {
+      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date } = tx;
+      
+      const finalId = id || undefined;
+      let query = '';
+      let params: any[] = [];
+      if (finalId) {
+        query = `INSERT INTO consolidated_transactions 
+          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+          ON CONFLICT (id) DO UPDATE SET 
+            amount = EXCLUDED.amount, 
+            description = EXCLUDED.description, 
+            status = EXCLUDED.status, 
+            is_confirmed = EXCLUDED.is_confirmed,
+            bank_id = EXCLUDED.bank_id
+          RETURNING *`;
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+      } else {
+        query = `INSERT INTO consolidated_transactions 
+          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`;
+        params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+      }
+
+      const result = await client.query(query, params);
+      inserted.push(result.rows[0]);
+    }
+
+    await client.query('COMMIT');
+    return res.status(201).json(inserted);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Contributors API] Error POST bulk consolidated_transactions:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  } finally {
+    client.release();
+  }
+});
+
+// PUT /api/v1/consolidated_transactions/:id
+app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE consolidated_transactions SET 
+        amount = COALESCE($1, amount), 
+        description = COALESCE($2, description), 
+        type = COALESCE($3, type), 
+        pix_key = COALESCE($4, pix_key), 
+        source = COALESCE($5, source), 
+        status = COALESCE($6, status), 
+        bank_id = COALESCE($7, bank_id), 
+        row_hash = COALESCE($8, row_hash), 
+        is_confirmed = COALESCE($9, is_confirmed), 
+        transaction_date = COALESCE($10, transaction_date) 
+      WHERE id = $11 RETURNING *`,
+      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error PUT consolidated_transaction:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/consolidated_transactions/:id
+app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE consolidated_transaction:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/consolidated_transactions/bulk-delete
+app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: ids array is required' });
+    }
+    const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = ANY($1) RETURNING id', [ids]);
+    return res.json({ success: true, count: result.rows.length });
+  } catch (err) {
+    console.error('[Contributors API] Error POST bulk-delete consolidated_transactions:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });

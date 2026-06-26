@@ -155,15 +155,11 @@ export const useCloudSync = ({
                 const pageSize = 1000;
 
                 while (true) {
-                    const { data, error } = await supabase
-                        .from('consolidated_transactions')
-                        .select('*')
-                        .eq('user_id', effectiveUserId)
-                        .gte('transaction_date', dateThreshold)
-                        .order('transaction_date', { ascending: false })
-                        .range(from, from + pageSize - 1);
-
-                    if (error) throw error;
+                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${dateThreshold}&limit=${pageSize}&offset=${from}`);
+                    if (!res.ok) {
+                        throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
+                    }
+                    const data = await res.json();
                     if (!data || data.length === 0) break;
 
                     console.log('[RECONSTRUCT:RAW_DATA]', data);

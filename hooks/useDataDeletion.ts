@@ -32,9 +32,9 @@ export const useDataDeletion = ({
         try {
             switch (type) {
                 case 'bank': {
-                    console.log(`[WRITE:FIX] Excluindo banco com effectiveUserId: ${effectiveUserId}`);
-                    const { error } = await supabase.from('banks').delete().eq('id', id).eq('user_id', effectiveUserId);
-                    if (error) throw error;
+                    console.log(`[WRITE:FIX] Excluindo banco com effectiveUserId: ${effectiveUserId} no VPS`);
+                    const res = await fetch(`/api/v1/banks/${id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error("Erro ao excluir banco do VPS");
                     if (referenceData?.setBanks) {
                         referenceData.setBanks((prev: any[]) => prev.filter(b => b.id !== id));
                     }
@@ -42,9 +42,9 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'church': {
-                    console.log(`[WRITE:FIX] Excluindo igreja com effectiveUserId: ${effectiveUserId}`);
-                    const { error } = await supabase.from('churches').delete().eq('id', id).eq('user_id', effectiveUserId);
-                    if (error) throw error;
+                    console.log(`[WRITE:FIX] Excluindo igreja com effectiveUserId: ${effectiveUserId} no VPS`);
+                    const res = await fetch(`/api/v1/churches/${id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error("Erro ao excluir igreja do VPS");
                     if (referenceData?.setChurches) {
                         referenceData.setChurches((prev: any[]) => prev.filter(c => c.id !== id));
                     }
@@ -52,7 +52,7 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'report-saved': {
-                    console.log(`[WRITE:FIX] Excluindo relatório salvo com effectiveUserId: ${effectiveUserId}`);
+                    console.log(`[WRITE:FIX] Excluindo relatório salvo com effectiveUserId: ${effectiveUserId} no VPS`);
                     
                     // 🚩 Se o relatório excluído for o ATIVO, limpa a sessão antes para evitar crash de renderização
                     if (String(reconciliation?.activeReportId) === String(id)) {
@@ -64,8 +64,8 @@ export const useDataDeletion = ({
                         reconciliation.setActiveSpreadsheetData?.(null);
                     }
 
-                    const { error } = await supabase.from('saved_reports').delete().eq('id', id).eq('user_id', effectiveUserId);
-                    if (error) throw error;
+                    const res = await fetch(`/api/v1/saved_reports/${id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error("Erro ao excluir relatório do VPS");
                     
                     if (typeof reportManager?.setSavedReports === 'function') {
                         reportManager.setSavedReports((prev: any[]) => prev.filter(r => r && r.id !== id));
@@ -132,9 +132,9 @@ export const useDataDeletion = ({
                     break;
                 }
                 case 'learned-associations': {
-                    console.log(`[WRITE:FIX] Removendo learned_associations com effectiveUserId: ${effectiveUserId}`);
-                    const { error } = await supabase.from('learned_associations').delete().eq('user_id', effectiveUserId);
-                    if (error) throw error;
+                    console.log(`[WRITE:FIX] Removendo learned_associations com effectiveUserId: ${effectiveUserId} no VPS`);
+                    const res = await fetch(`/api/v1/learned_associations/by-user/${effectiveUserId}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error("Erro ao remover associações do VPS");
                     referenceData.setLearnedAssociations?.([]);
                     showToast("Associações aprendidas removidas.", "success");
                     break;

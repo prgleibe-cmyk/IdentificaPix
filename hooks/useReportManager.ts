@@ -261,22 +261,41 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const updateSavedReportName = useCallback(async (reportId: string, newName: string) => {
         if(!user?.id || !effectiveUserId) return;
         setSavedReports(prev => prev.map(r => r.id === reportId ? { ...r, name: newName } : r));
-        console.log(`[WRITE:ALREADY_CORRECT] Atualizando nome do relatório com effectiveUserId: ${effectiveUserId}`);
-        const { error } = await (supabase.from('saved_reports') as any).update({ name: newName }).eq('id', reportId).eq('user_id', effectiveUserId);
-        if (error) showToast('Erro ao renomear relatório.', 'error');
-        else showToast('Relatório renomeado.', 'success');
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando nome do relatório com effectiveUserId: ${effectiveUserId} no VPS`);
+        try {
+            const res = await fetch(`/api/v1/saved_reports/${reportId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newName })
+            });
+            if (res.ok) {
+                showToast('Relatório renomeado.', 'success');
+            } else {
+                showToast('Erro ao renomear relatório.', 'error');
+            }
+        } catch (err) {
+            console.error("Erro ao renomear relatório no VPS:", err);
+            showToast('Erro ao renomear relatório.', 'error');
+        }
     }, [user?.id, effectiveUserId, showToast]);
 
     const deleteReport = useCallback(async (reportId: string) => {
         if (!user?.id || !effectiveUserId) return;
         
-        console.log(`[WRITE:ALREADY_CORRECT] Excluindo relatório com effectiveUserId: ${effectiveUserId}`);
-        const { error } = await supabase.from('saved_reports').delete().eq('id', reportId).eq('user_id', effectiveUserId);
-        if (error) {
+        console.log(`[WRITE:ALREADY_CORRECT] Excluindo relatório com effectiveUserId: ${effectiveUserId} no VPS`);
+        try {
+            const res = await fetch(`/api/v1/saved_reports/${reportId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                setSavedReports(prev => prev.filter(r => r.id !== reportId));
+                showToast('Relatório excluído.', 'success');
+            } else {
+                showToast('Erro ao excluir relatório.', 'error');
+            }
+        } catch (err) {
+            console.error("Erro ao excluir relatório no VPS:", err);
             showToast('Erro ao excluir relatório.', 'error');
-        } else {
-            setSavedReports(prev => prev.filter(r => r.id !== reportId));
-            showToast('Relatório excluído.', 'success');
         }
     }, [user?.id, effectiveUserId, showToast]);
 
@@ -415,25 +434,36 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 };
             }
 
-            console.log(`[WRITE:ALREADY_CORRECT] Inserindo nova planilha com effectiveUserId: ${effectiveUserId}`);
-            const { error } = await (supabase.from('saved_reports') as any).insert({
-                id: newReport.id,
-                name: newReport.name,
-                record_count: newReport.recordCount,
-                user_id: newReport.user_id,
-                church_id: newReport.church_id,
-                data: newReport.data as any
-            });
+            console.log(`[WRITE:ALREADY_CORRECT] Inserindo nova planilha com effectiveUserId: ${effectiveUserId} no VPS`);
+            try {
+                const res = await fetch('/api/v1/saved_reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: newReport.id,
+                        name: newReport.name,
+                        record_count: newReport.recordCount,
+                        user_id: newReport.user_id,
+                        church_id: newReport.church_id,
+                        data: newReport.data
+                    })
+                });
 
-            if (error) {
-                console.error("Erro ao salvar no banco:", error);
+                if (res.ok) {
+                    setSavedReports(prev => [newReport, ...prev]);
+                    closeSaveReportModal();
+                    showToast('Relatório criado!', 'success');
+                    return newReport.id;
+                } else {
+                    const errText = await res.text();
+                    console.error("Erro ao salvar no VPS:", errText);
+                    showToast('Erro ao salvar relatório.', 'error');
+                    return null;
+                }
+            } catch (err) {
+                console.error("Erro ao salvar no VPS:", err);
                 showToast('Erro ao salvar relatório.', 'error');
                 return null;
-            } else {
-                setSavedReports(prev => [newReport, ...prev]);
-                closeSaveReportModal();
-                showToast('Relatório criado!', 'success');
-                return newReport.id;
             }
         } catch (error) {
             console.error("Erro capturado ao salvar relatório:", error);
@@ -447,9 +477,13 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const reportsToDelete = savedReports.filter(r => new Date(r.createdAt) < dateThreshold);
         if (reportsToDelete.length === 0) return;
         setSavedReports(prev => prev.filter(r => new Date(r.createdAt) >= dateThreshold));
-        console.log(`[WRITE:ALREADY_CORRECT] Faxina de relatórios antigos com effectiveUserId: ${effectiveUserId}`);
-        await supabase.from('saved_reports').delete().lt('created_at', dateThreshold.toISOString()).eq('user_id', effectiveUserId);
-        showToast(`${reportsToDelete.length} itens removidos.`, "success");
+        console.log(`[WRITE:ALREADY_CORRECT] Faxina de relatórios antigos com effectiveUserId: ${effectiveUserId} no VPS`);
+        try {
+            await Promise.all(reportsToDelete.map(r => fetch(`/api/v1/saved_reports/${r.id}`, { method: 'DELETE' })));
+            showToast(`${reportsToDelete.length} itens removidos.`, "success");
+        } catch (err) {
+            console.error("Erro ao faxinar relatórios antigos no VPS:", err);
+        }
     }, [user, effectiveUserId, savedReports, showToast]);
 
     const allHistoricalResults = useMemo(() => {

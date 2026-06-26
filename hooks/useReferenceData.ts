@@ -45,14 +45,20 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             const isOwner = subscription.ownerId === user?.id;
 
             if (isOwner) {
-                let bankQuery = supabase.from('banks').select('*').eq('user_id', user.id);
-                const { data: b } = await bankQuery;
-                if (b && !ignore) setBanks(b);
-                
-                let query = supabase.from('churches').select('*').eq('user_id', user.id);
-                const { data: c } = await query;
-                if (c && !ignore) setChurches(c);
-
+                try {
+                    const banksRes = await fetch(`/api/v1/banks?user_id=${user.id}`);
+                    if (banksRes.ok) {
+                        const b = await banksRes.json();
+                        if (b && !ignore) setBanks(b);
+                    }
+                    const churchesRes = await fetch(`/api/v1/churches?user_id=${user.id}`);
+                    if (churchesRes.ok) {
+                        const c = await churchesRes.json();
+                        if (c && !ignore) setChurches(c);
+                    }
+                } catch (e) {
+                    console.error("[useReferenceData] Erro ao buscar bancos/igrejas do owner:", e);
+                }
             } else {
                 try {
                     const { data: { session } } = await supabase.auth.getSession();
@@ -129,16 +135,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const fetchOwnerExtras = async () => {
             try {
                 // Associações
-                const { data: assocData } = await supabase.from('learned_associations').select('*').eq('user_id', user.id);
-                if (assocData && !ignore) {
-                    setLearnedAssociations(assocData.map((d: any) => ({
-                        id: d.id, 
-                        normalizedDescription: d.normalized_description,
-                        contributorNormalizedName: d.contributor_normalized_name,
-                        churchId: d.church_id, 
-                        bankId: 'global',
-                        user_id: d.user_id
-                    })));
+                const response = await fetch(`/api/v1/learned_associations?user_id=${user.id}`);
+                if (response.ok) {
+                    const assocData = await response.json();
+                    if (assocData && !ignore) {
+                        setLearnedAssociations(assocData.map((d: any) => ({
+                            id: d.id, 
+                            normalizedDescription: d.normalized_description,
+                            contributorNormalizedName: d.contributor_normalized_name,
+                            churchId: d.church_id, 
+                            bankId: 'global',
+                            user_id: d.user_id
+                        })));
+                    }
                 }
             } catch (e) {
                 console.error("[useReferenceData] Erro ao buscar extras do owner:", e);
@@ -251,30 +260,19 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         });
 
         try {
-            const { data: existing } = await supabase
-                .from('learned_associations')
-                .select('id')
-                .eq('normalized_description', normalizedDesc)
-                .eq('user_id', effectiveUserId)
-                .maybeSingle() as { data: any | null };
-
-            if (existing) {
-                console.log(`[WRITE:FIX] Atualizando learned_association com effectiveUserId: ${effectiveUserId}`);
-                await (supabase.from('learned_associations') as any).update({ 
-                    contributor_normalized_name: contributorName, 
+            console.log(`[WRITE:FIX] Persistindo learned_association com effectiveUserId: ${effectiveUserId} no VPS`);
+            await fetch('/api/v1/learned_associations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: effectiveUserId,
+                    normalized_description: normalizedDesc,
+                    contributor_normalized_name: contributorName,
                     church_id: matchResult.church.id
-                }).eq('id', existing.id);
-            } else {
-                console.log(`[WRITE:FIX] Inserindo learned_association com effectiveUserId: ${effectiveUserId}`);
-                await (supabase.from('learned_associations') as any).insert({ 
-                    user_id: effectiveUserId, 
-                    normalized_description: normalizedDesc, 
-                    contributor_normalized_name: contributorName, 
-                    church_id: matchResult.church.id
-                });
-            }
+                })
+            });
         } catch (err) {
-            console.error("Erro ao persistir aprendizado:", err);
+            console.error("Erro ao persistir aprendizado no VPS:", err);
         }
     }, [user, effectiveUserId, isBatchUpdating]);
 
@@ -285,8 +283,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const account_name = name;
         setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name } : b));
         closeEditBank();
-        console.log(`[WRITE:UPDATE] Atualizando banco name e account_name (ID: ${bankId})`);
-        await (supabase.from('banks') as any).update({ name, account_name }).eq('id', bankId);
+        console.log(`[WRITE:UPDATE] Atualizando banco name e account_name (ID: ${bankId}) no VPS`);
+        await fetch(`/api/v1/banks/${bankId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, account_name })
+        });
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 
@@ -326,18 +328,20 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             throw new Error('DUPLICATE_ACCOUNT_NAME');
         }
 
-        console.log(`[WRITE:FIX] Adicionando banco com effectiveUserId: ${effectiveUserId}`);
-        const { data } = await (supabase.from('banks') as any)
-            .insert([{ 
-                name, 
-                user_id: effectiveUserId, 
-                bank_key: bank_key ?? null, 
-                account_name: account_name ?? name 
-            }])
-            .select();
+        console.log(`[WRITE:FIX] Adicionando banco com effectiveUserId: ${effectiveUserId} no VPS`);
+        const res = await fetch('/api/v1/banks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                user_id: effectiveUserId,
+                bank_key: bank_key ?? null,
+                account_name: account_name ?? name
+            })
+        });
 
-        if (data) {
-            const newBank = { ...data[0], bank_key: bank_key || null, account_name: account_name || name };
+        if (res.ok) {
+            const newBank = await res.json();
             setBanks(prev => [...prev, newBank]);
             showToast('Banco adicionado.', 'success');
             return true;
@@ -351,8 +355,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateChurch = useCallback(async (churchId: string, formData: ChurchFormData) => {
         setChurches(prev => prev.map(c => c.id === churchId ? { ...c, ...formData } : c));
         closeEditChurch();
-        console.log(`[WRITE:ALREADY_CORRECT] Atualizando igreja (ID: ${churchId})`);
-        await (supabase.from('churches') as any).update(formData).eq('id', churchId);
+        console.log(`[WRITE:ALREADY_CORRECT] Atualizando igreja (ID: ${churchId}) no VPS`);
+        await fetch(`/api/v1/churches/${churchId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
         showToast('Igreja atualizada.', 'success');
     }, [closeEditChurch, setChurches, showToast]);
 
@@ -362,10 +370,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             showToast(`Limite atingido.`, 'error');
             return false;
         }
-        console.log(`[WRITE:FIX] Adicionando igreja com effectiveUserId: ${effectiveUserId}`);
-        const { data } = await (supabase.from('churches') as any).insert([{ ...formData, user_id: effectiveUserId }]).select();
-        if (data) {
-            setChurches(prev => [...prev, data[0]]);
+        console.log(`[WRITE:FIX] Adicionando igreja com effectiveUserId: ${effectiveUserId} no VPS`);
+        const res = await fetch('/api/v1/churches', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...formData, user_id: effectiveUserId })
+        });
+        if (res.ok) {
+            const newChurch = await res.json();
+            setChurches(prev => [...prev, newChurch]);
             showToast('Igreja adicionada.', 'success');
             return true;
         }

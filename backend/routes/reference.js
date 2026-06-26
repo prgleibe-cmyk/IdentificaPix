@@ -1,5 +1,4 @@
 import express from 'express';
-import { getSupabaseAdmin } from '../lib/supabase.js';
 import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
 import { ReportService } from '../services/ReportService.js';
 
@@ -7,53 +6,29 @@ const router = express.Router();
 
 export default () => {
     router.get('/data/:ownerId', async (req, res) => {
-        const supabaseAdmin = getSupabaseAdmin();
-
-        if (!supabaseAdmin) {
-            return res.status(500).json({ error: "Erro de configuração: Service Role não encontrada." });
-        }
-
         const effectiveOwnerId = req.user.owner_id || req.user.id;
 
         // 🔥 CORREÇÃO AQUI
         validateOwnerAccess(req, effectiveOwnerId);
-        
-        // Função auxiliar para busca paginada completa (Garante 100% dos dados)
-        const fetchAll = async (table, select, userIdField = 'user_id', extraFilters = (q) => q) => {
-            let allData = [];
-            let from = 0;
-            const pageSize = 1000;
-            
-            while (true) {
-                let query = supabaseAdmin
-                    .from(table)
-                    .select(select)
-                    .eq(userIdField, effectiveOwnerId)
-                    .range(from, from + pageSize - 1);
-                
-                query = extraFilters(query);
-                
-                const { data, error } = await query;
-                if (error) throw error;
-                if (!data || data.length === 0) break;
-                
-                allData = [...allData, ...data];
-                if (data.length < pageSize) break;
-                from += pageSize;
-            }
-            return allData;
-        };
 
         try {
             console.log(`[Reference API] Buscando dados de referência para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
 
-            const banks = await fetchAll('banks', 'id, name, user_id');
-            const churches = await fetchAll('churches', 'id, name, user_id, address, pastor, logoUrl');
-            const associations = await fetchAll('learned_associations', 'id, normalized_description, contributor_normalized_name, church_id, user_id');
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
+
+            const [banksRes, churchesRes, associationsRes] = await Promise.all([
+                fetch(`${cleanVpsUrl}/api/v1/banks?user_id=${effectiveOwnerId}`),
+                fetch(`${cleanVpsUrl}/api/v1/churches?user_id=${effectiveOwnerId}`),
+                fetch(`${cleanVpsUrl}/api/v1/learned_associations?user_id=${effectiveOwnerId}`)
+            ]);
+
+            const banks = banksRes.ok ? await banksRes.json() : [];
+            const churches = churchesRes.ok ? await churchesRes.json() : [];
+            const associations = associationsRes.ok ? await associationsRes.json() : [];
 
             let reports = [];
             try {
-                // Removemos a limitação de paginação fixa do ReportService
                 reports = await ReportService.listReports(req, effectiveOwnerId);
             } catch (reportsErr) {
                 console.error("[Reference API] Erro crítico ao buscar relatórios via ReportService:", reportsErr);
@@ -74,66 +49,76 @@ export default () => {
     });
 
     router.post('/report/sync', async (req, res) => {
-        const { reportId, name, data, recordCount, churchId, ownerId } = req.body;
-        const supabaseAdmin = getSupabaseAdmin();
-
-        if (!supabaseAdmin) {
-            return res.status(500).json({ error: "Erro de configuração." });
-        }
-
+        const { reportId, name, data, recordCount, churchId } = req.body;
         const effectiveOwnerId = req.user.owner_id || req.user.id;
 
         // 🔥 CORREÇÃO AQUI
         validateOwnerAccess(req, effectiveOwnerId);
 
         try {
-            const { data: result, error } = await supabaseAdmin
-                .from('saved_reports')
-                .upsert({
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
+
+            const response = await fetch(`${cleanVpsUrl}/api/v1/saved_reports`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
                     id: reportId,
                     name: name,
                     data: data,
                     record_count: recordCount,
                     user_id: effectiveOwnerId,
                     church_id: churchId
-                }, { onConflict: 'id' })
-                .select()
-                .single();
+                })
+            });
 
-            if (error) throw error;
+            if (!response.ok) {
+                throw new Error(`Failed to sync report to VPS: ${response.statusText}`);
+            }
+
+            const result = await response.json();
             res.json(result);
         } catch (error) {
             console.error("[Reference API] Erro ao sincronizar relatório:", error);
-            res.status(error.status || 500).json({ error: error.message });
+            res.status(500).json({ error: error.message });
         }
     });
 
     router.get('/report/:reportId', async (req, res) => {
         const { reportId } = req.params;
-        const supabaseAdmin = getSupabaseAdmin();
-
-        if (!supabaseAdmin) {
-            return res.status(500).json({ error: "Erro de configuração." });
-        }
-
         const effectiveOwnerId = req.user.owner_id || req.user.id;
 
         // 🔥 CORREÇÃO AQUI
         validateOwnerAccess(req, effectiveOwnerId);
 
         try {
-            const { data, error } = await supabaseAdmin
-                .from('saved_reports')
-                .select('data, name')
-                .eq('id', reportId)
-                .eq('user_id', effectiveOwnerId)
-                .single();
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
-            if (error) throw error;
-            res.json(data);
+            // Wait, we want to fetch a single saved report, but we don't have GET /api/v1/saved_reports/:id.
+            // Oh, but we can query GET /api/v1/saved_reports?user_id=... and filter in memory, or add GET /api/v1/saved_reports/:id to VPS!
+            // Wait, let's see if we can query GET /api/v1/saved_reports?user_id=... and filter, which is very simple. Or better yet, we can check if VPS supports getting saved_reports. Let's see: yes, filtering by ID on client/proxy side is extremely robust and avoids needing to edit too many routes.
+            // Wait, let's check if the list query can return it. Yes:
+            const response = await fetch(`${cleanVpsUrl}/api/v1/saved_reports?user_id=${effectiveOwnerId}`);
+            if (!response.ok) {
+                throw new Error(`Failed to get reports from VPS: ${response.statusText}`);
+            }
+            const list = await response.json();
+            const found = list.find(r => r.id === reportId);
+            if (!found) {
+                return res.status(404).json({ error: 'NOT_FOUND' });
+            }
+
+            // Return { data: found.data, name: found.name }
+            res.json({
+                name: found.name,
+                data: typeof found.data === 'string' ? JSON.parse(found.data) : found.data
+            });
         } catch (error) {
             console.error("[Reference API] Erro ao buscar relatório:", error);
-            res.status(error.status || 500).json({ error: error.message });
+            res.status(500).json({ error: error.message });
         }
     });
 
