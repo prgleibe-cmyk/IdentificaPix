@@ -191,8 +191,20 @@ export default (ai) => {
 
     router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
-        const apiKey = req.headers['x-api-key'] || req.query.key;
+        const rawApiKey = req.headers['x-api-key'] || req.query.key;
         const validKey = process.env.INBOX_API_KEY;
+
+        // Resilient check if the provided API key matches the expected one (handling arrays or comma-separated strings from MacroDroid)
+        let isAuthorized = false;
+        if (validKey) {
+            if (Array.isArray(rawApiKey)) {
+                isAuthorized = rawApiKey.some(k => typeof k === 'string' && k.trim() === validKey.trim());
+            } else if (typeof rawApiKey === 'string') {
+                const keys = rawApiKey.split(',').map(k => k.trim());
+                isAuthorized = keys.includes(validKey.trim());
+            }
+        }
+
         // Resiliently extract the SMS body text from various potential payload keys or formats
         let text = req.body?.text || req.body?.message || req.body?.body || req.body?.sms || req.query?.text || req.query?.message;
         if (!text && typeof req.body === 'string') {
@@ -224,9 +236,9 @@ export default (ai) => {
         console.log(`[Inbox API] Recebido POST para usuário/owner: "${userId}"`);
         console.log(`[Inbox API] Banco destino (bank_id) original: "${req.params.bankId}" | Sanitizado: "${bankId}"`);
         console.log(`[Inbox API] Conteúdo recebido (text): "${text || '(vazio)'}"`);
-        console.log(`[Inbox API] API Key fornecida: "${apiKey || '(ausente)'}" | API Key esperada no servidor: "${validKey || '(não configurada no .env)'}"`);
+        console.log(`[Inbox API] API Key fornecida: "${rawApiKey || '(ausente)'}" | API Key esperada no servidor: "${validKey || '(não configurada no .env)'}"`);
 
-        if (!apiKey || apiKey !== validKey) {
+        if (!isAuthorized) {
             console.warn(`[Inbox Warning] ❌ Unauthorized: Chave de API inválida ou ausente.`);
             console.warn(`[Inbox Warning] Certifique-se de que a variável INBOX_API_KEY está configurada no seu arquivo .env e coincide com a usada no celular.`);
             return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
