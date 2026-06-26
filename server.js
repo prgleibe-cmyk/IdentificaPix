@@ -240,10 +240,15 @@ try {
     // Integração Inteligente com o Contributors API
     if (contributorsApp) {
         console.log(`[IdentificaPix] Usando Contributors API de forma integrada (rodando no mesmo processo da porta 3000).`);
-        app.use(contributorsApp);
+        
+        // Mapear as rotas da Contributors API sob /api/v1 preservando o caminho original completo
+        app.use('/api/v1', (req, res, next) => {
+            req.url = req.originalUrl;
+            contributorsApp(req, res, next);
+        });
 
         // Mapear o endpoint de migração administrativo diretamente na rota principal
-        app.get('/api/admin/migrate-supabase-to-postgres', async (req, res, next) => {
+        app.get('/api/admin/migrate-supabase-to-postgres', (req, res, next) => {
             console.log(`[IdentificaPix] Executando migração de forma integrada...`);
             req.url = '/api/v1/admin/migrate-supabase-to-postgres';
             contributorsApp(req, res, next);
