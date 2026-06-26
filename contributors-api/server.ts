@@ -1015,6 +1015,202 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
   }
 });
 
+// GET /api/v1/admin/migrate-supabase-to-postgres
+app.get('/api/v1/admin/migrate-supabase-to-postgres', async (req: Request, res: Response) => {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
+                     process.env.SERVICE_ROLE_KEY ||
+                     process.env.SUPABASE_SERVICE_KEY;
+
+  if (!serviceKey) {
+    return res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY not configured in environment" });
+  }
+
+  const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
+  const stats = {
+    banks: 0,
+    churches: 0,
+    learned_associations: 0,
+    saved_reports: 0,
+    consolidated_transactions: 0
+  };
+
+  let pgClient;
+  try {
+    pgClient = await pool.connect();
+
+    // Helper to fetch all rows paginated from Supabase REST API
+    const fetchAll = async (table: string) => {
+      let allData: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const url = `${supabaseUrl}/rest/v1/${table}?select=*&limit=${pageSize}&offset=${from}`;
+        const response = await fetch(url, {
+          headers: {
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${serviceKey}`
+          }
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Failed to fetch ${table} from Supabase: ${response.statusText} - ${errText}`);
+        }
+
+        const data = await response.json();
+        if (!data || data.length === 0) break;
+        allData = [...allData, ...data];
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return allData;
+    };
+
+    // 1. Banks
+    const banks = await fetchAll('banks');
+    for (const bank of banks) {
+      await pgClient.query(`
+        INSERT INTO banks (id, name, user_id, bank_key, account_name, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          user_id = EXCLUDED.user_id,
+          bank_key = EXCLUDED.bank_key,
+          account_name = EXCLUDED.account_name,
+          created_at = EXCLUDED.created_at;
+      `, [
+        bank.id,
+        bank.name,
+        bank.user_id,
+        bank.bank_key || null,
+        bank.account_name || bank.name,
+        bank.created_at || new Date()
+      ]);
+      stats.banks++;
+    }
+
+    // 2. Churches
+    const churches = await fetchAll('churches');
+    for (const church of churches) {
+      await pgClient.query(`
+        INSERT INTO churches (id, name, address, "logoUrl", pastor, user_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          address = EXCLUDED.address,
+          "logoUrl" = EXCLUDED."logoUrl",
+          pastor = EXCLUDED.pastor,
+          user_id = EXCLUDED.user_id,
+          created_at = EXCLUDED.created_at;
+      `, [
+        church.id,
+        church.name,
+        church.address || '',
+        church.logoUrl || '',
+        church.pastor || '',
+        church.user_id,
+        church.created_at || new Date()
+      ]);
+      stats.churches++;
+    }
+
+    // 3. Learned Associations
+    const associations = await fetchAll('learned_associations');
+    for (const assoc of associations) {
+      await pgClient.query(`
+        INSERT INTO learned_associations (id, user_id, normalized_description, contributor_normalized_name, church_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          normalized_description = EXCLUDED.normalized_description,
+          contributor_normalized_name = EXCLUDED.contributor_normalized_name,
+          church_id = EXCLUDED.church_id,
+          created_at = EXCLUDED.created_at;
+      `, [
+        assoc.id,
+        assoc.user_id,
+        assoc.normalized_description,
+        assoc.contributor_normalized_name,
+        assoc.church_id,
+        assoc.created_at || new Date()
+      ]);
+      stats.learned_associations++;
+    }
+
+    // 4. Saved Reports
+    const savedReports = await fetchAll('saved_reports');
+    for (const report of savedReports) {
+      await pgClient.query(`
+        INSERT INTO saved_reports (id, name, record_count, user_id, data, church_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          record_count = EXCLUDED.record_count,
+          user_id = EXCLUDED.user_id,
+          data = EXCLUDED.data,
+          church_id = EXCLUDED.church_id,
+          created_at = EXCLUDED.created_at;
+      `, [
+        report.id,
+        report.name,
+        report.record_count || 0,
+        report.user_id,
+        typeof report.data === 'string' ? report.data : JSON.stringify(report.data),
+        report.church_id || null,
+        report.created_at || new Date()
+      ]);
+      stats.saved_reports++;
+    }
+
+    // 5. Consolidated Transactions
+    const transactions = await fetchAll('consolidated_transactions');
+    for (const tx of transactions) {
+      await pgClient.query(`
+        INSERT INTO consolidated_transactions (
+          id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (id) DO UPDATE SET
+          amount = EXCLUDED.amount,
+          description = EXCLUDED.description,
+          type = EXCLUDED.type,
+          pix_key = EXCLUDED.pix_key,
+          source = EXCLUDED.source,
+          user_id = EXCLUDED.user_id,
+          status = EXCLUDED.status,
+          bank_id = EXCLUDED.bank_id,
+          row_hash = EXCLUDED.row_hash,
+          is_confirmed = EXCLUDED.is_confirmed,
+          transaction_date = EXCLUDED.transaction_date,
+          created_at = EXCLUDED.created_at;
+      `, [
+        tx.id,
+        tx.amount,
+        tx.description,
+        tx.type,
+        tx.pix_key || null,
+        tx.source || 'file',
+        tx.user_id,
+        tx.status || 'pending',
+        tx.bank_id || null,
+        tx.row_hash || null,
+        tx.is_confirmed !== undefined ? tx.is_confirmed : false,
+        tx.transaction_date,
+        tx.created_at || new Date()
+      ]);
+      stats.consolidated_transactions++;
+    }
+
+    return res.json({ success: true, message: "Migração executada com sucesso no Postgres do VPS", stats });
+  } catch (err: any) {
+    console.error('[Contributors API] Error running migration:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  } finally {
+    if (pgClient) pgClient.release();
+  }
+});
+
 app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`[Contributors API] Server running on port ${PORT}`);
 });
