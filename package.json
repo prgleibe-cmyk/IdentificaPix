@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npx tsc -p contributors-api/tsconfig.json",
     "type-check": "tsc",
     "lint": "tsc --noEmit",
     "start": "node server.js",

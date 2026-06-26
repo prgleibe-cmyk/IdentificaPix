@@ -47,11 +47,23 @@ if (childEnv.DATABASE_PRIVATE_URL && !childEnv.DATABASE_PRIVATE_URL.startsWith('
     delete childEnv.DATABASE_PRIVATE_URL;
 }
 
-const contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
-    cwd: path.join(__dirname, 'contributors-api'),
-    stdio: 'inherit',
-    env: childEnv
-});
+const distServerPath = path.join(__dirname, 'contributors-api', 'dist', 'server.js');
+let contributorsApi;
+
+if (fs.existsSync(distServerPath)) {
+    console.log(`[IdentificaPix] Iniciando Contributors API pré-compilada em: ${distServerPath}`);
+    contributorsApi = spawn('node', [distServerPath], {
+        env: childEnv,
+        stdio: 'inherit'
+    });
+} else {
+    console.log(`[IdentificaPix] Iniciando Contributors API em desenvolvimento usando tsx...`);
+    contributorsApi = spawn('npx', ['tsx', 'server.ts'], {
+        cwd: path.join(__dirname, 'contributors-api'),
+        stdio: 'inherit',
+        env: childEnv
+    });
+}
 
 contributorsApi.on('error', (err) => {
     console.error('[IdentificaPix] Erro ao iniciar Contributors API:', err.message);
