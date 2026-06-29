@@ -25,7 +25,7 @@ export const ConnectorsView: React.FC = () => {
     const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [copied, setCopied] = useState(false);
     const [inboxKey, setInboxKey] = useState<string>('');
-    const [selectedOS, setSelectedOS] = useState<'android' | 'ios'>('android');
+    const [selectedOS] = useState<'android'>('android');
     const [activeStep, setActiveStep] = useState<number>(1);
 
     // Inicializa com o primeiro banco se houver
@@ -158,35 +158,13 @@ export const ConnectorsView: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                    {/* CARD 2: PASSO A PASSO PRÁTICO PARA ANDROID / IPHONE */}
+                    {/* CARD 2: PASSO A PASSO PRÁTICO PARA ANDROID */}
                 <div className="space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 ml-1">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <DevicePhoneMobileIcon className="w-4 h-4 text-brand-blue" />
-                            Manual de Configuração Celular
+                            Manual de Configuração Celular (Android)
                         </h3>
-                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 w-fit">
-                            <button
-                                onClick={() => { setSelectedOS('android'); setActiveStep(1); }}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                                    selectedOS === 'android'
-                                        ? 'bg-brand-blue text-white shadow-md'
-                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
-                            >
-                                Android (MacroDroid)
-                            </button>
-                            <button
-                                onClick={() => { setSelectedOS('ios'); setActiveStep(1); }}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                                    selectedOS === 'ios'
-                                        ? 'bg-brand-blue text-white shadow-md'
-                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                }`}
-                            >
-                                iPhone (iOS Shortcuts)
-                            </button>
-                        </div>
                     </div>
 
                      {/* INTERACTIVE WIZARD STEPPERS */}
