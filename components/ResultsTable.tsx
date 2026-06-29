@@ -116,7 +116,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed }) => {
+                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed, contributionType }) => {
                             const isSelected = selectedIds.includes(transaction.id);
 
                             // 🧠 Fonte única de verdade
@@ -124,6 +124,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const confirmed = transaction.isConfirmed ?? isConfirmed ?? false;
 
                             const displayAmount = status === 'PENDENTE' ? (contributorAmount || contributor?.amount || 0) : transaction.amount;
+                            const isExpense = displayAmount < 0 || 
+                                              transaction.type?.toLowerCase() === 'expense' || 
+                                              transaction.type?.toLowerCase() === 'saida' || 
+                                              contributionType?.toLowerCase() === 'saída' || 
+                                              contributionType?.toLowerCase() === 'saida';
                             const displayDate = formatDate(status === 'PENDENTE' ? (contributor?.date || transaction.date) : transaction.date);
                             
                             const bankDescription = transaction.description;
@@ -158,7 +163,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                     <td className="px-4 py-2.5">
                                         <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase italic">{paymentMethod || transaction.paymentMethod || '---'}</span>
                                     </td>
-                                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-bold ${displayAmount < 0 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
+                                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-bold ${isExpense ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                                         {formatCurrency(displayAmount, language)}
                                     </td>
                                     <td className="px-4 py-2.5 text-center">

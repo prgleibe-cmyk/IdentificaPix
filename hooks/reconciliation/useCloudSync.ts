@@ -234,7 +234,8 @@ export const useCloudSync = ({
                         rawDescription: t.description,
                         amount: t.amount,
                         bank_id: t.bank_id,
-                        isConfirmed: t.is_confirmed
+                        isConfirmed: t.is_confirmed,
+                        type: t.type
                     };
 
                     const contributor: Contributor | null = assoc ? {
@@ -251,6 +252,21 @@ export const useCloudSync = ({
                     let status = ReconciliationStatus.UNIDENTIFIED;
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
                     else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
+
+                    // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
+                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
+                    // promovemos localmente para IDENTIFIED e atualizamos no banco em segundo plano.
+                    if (assoc && t.status === 'pending') {
+                        status = ReconciliationStatus.IDENTIFIED;
+                        consolidationService.updateTransactionStatus(
+                            t.id, 
+                            'identified', 
+                            church.id, 
+                            t.bank_id,
+                            undefined,
+                            false
+                        ).catch(e => console.error("[Auto-promote] Erro ao salvar auto-vínculo no banco:", e));
+                    }
 
                     return {
                         transaction,
@@ -417,7 +433,8 @@ export const useCloudSync = ({
                                     rawDescription: t.description,
                                     amount: t.amount,
                                     bank_id: t.bank_id,
-                                    isConfirmed: !!t.is_confirmed
+                                    isConfirmed: !!t.is_confirmed,
+                                    type: t.type
                                 };
 
                                 const contributor: Contributor | null = assoc ? {
@@ -434,6 +451,19 @@ export const useCloudSync = ({
                                 let matchStatus = ReconciliationStatus.UNIDENTIFIED;
                                 if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
                                 else if (t.status === 'identified') matchStatus = ReconciliationStatus.IDENTIFIED;
+
+                                // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS EM TEMPO REAL
+                                if (assoc && t.status === 'pending') {
+                                    matchStatus = ReconciliationStatus.IDENTIFIED;
+                                    consolidationService.updateTransactionStatus(
+                                        t.id, 
+                                        'identified', 
+                                        church.id, 
+                                        t.bank_id,
+                                        undefined,
+                                        false
+                                    ).catch(e => console.error("[Realtime Auto-promote] Erro:", e));
+                                }
 
                                 const newItem: MatchResult = {
                                     transaction,

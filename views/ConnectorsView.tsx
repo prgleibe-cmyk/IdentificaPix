@@ -324,22 +324,27 @@ export const ConnectorsView: React.FC = () => {
                                         {activeStep === 11 && (
                                             <div className="space-y-3 animate-fade-in">
                                                 <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 11: Parâmetros de Envio</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar os Dados do Pix</h4>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar os Parâmetros de Query</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Para enviar o conteúdo da notificação recebida, você pode usar uma de duas formas suportadas:
+                                                    Para que o servidor do IdentificaPix autorize a sua requisição com segurança e processe o texto recebido, você **precisa configurar dois parâmetros** na aba **"Parâmetros de query"**:
                                                 </p>
-                                                <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
-                                                    <p>
-                                                        <strong>Opção A (Parâmetros de Query - Recomendado):</strong> Acesse a aba **"Parâmetros de query"**, clique no botão <strong className="text-blue-500 font-bold">"+"</strong>, configure o Nome do parâmetro como <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-rose-500 font-bold font-mono">text</code> (ou `texto`), e no campo **Valor** clique no botão de três pontinhos <strong className="text-brand-blue font-bold">"..."</strong> à direita e escolha <strong className="text-brand-blue">"Texto da notificação"</strong> para inserir <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-emerald-500 font-mono">{"{notification}"}</code>.
-                                                    </p>
-                                                    <p>
-                                                        <strong>Opção B (Corpo JSON):</strong> Acesse a aba **"Corpo da requisição"**, configure o Tipo do conteúdo como **"Indefinido"**, marque **"Texto"** e cole o seguinte código na caixa de texto:
-                                                    </p>
-                                                    <pre className="p-2 bg-slate-950 text-[10px] text-teal-400 font-mono rounded-lg">
-{`{
-  "text": "{notification}"
-}`}
-                                                    </pre>
+                                                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                                    <div>
+                                                        <div className="font-bold text-slate-800 dark:text-white mb-1">1º Parâmetro (Texto da Notificação):</div>
+                                                        <ul className="list-disc pl-4 space-y-1">
+                                                            <li>Toque no botão <strong className="text-blue-500 font-bold">"+"</strong> no canto inferior direito para adicionar um parâmetro.</li>
+                                                            <li>Nome do parâmetro: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-rose-500 font-bold font-mono">text</code></li>
+                                                            <li>No campo **Valor**, clique no botão de três pontinhos <strong className="text-brand-blue font-bold">"..."</strong> à direita e escolha <strong className="text-brand-blue">"Texto da notificação"</strong> para inserir <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-emerald-500 font-mono">{"{notification}"}</code>. Clique em **OK**.</li>
+                                                        </ul>
+                                                    </div>
+                                                    <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
+                                                        <div className="font-bold text-slate-800 dark:text-white mb-1">2º Parâmetro (Chave de Segurança - CRÍTICO):</div>
+                                                        <ul className="list-disc pl-4 space-y-1">
+                                                            <li>Toque no botão <strong className="text-blue-500 font-bold">"+"</strong> novamente.</li>
+                                                            <li>Nome do parâmetro: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-rose-500 font-bold font-mono">key</code></li>
+                                                            <li>No campo **Valor**, digite exatamente o seu código de segurança único: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-amber-500 font-mono font-bold select-all">{inboxKey || 'identificapix_sms_2026'}</code>. Clique em **OK**.</li>
+                                                        </ul>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -806,17 +811,32 @@ export const ConnectorsView: React.FC = () => {
                                                         <div className="bg-[#1b2a4a] px-2.5 py-1.5 opacity-30 text-[8px]">Configurar Parâmetros</div>
                                                         
                                                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-1.5 z-10">
-                                                            <div className="bg-[#242424] rounded-xl p-2.5 border border-slate-700 w-full max-w-[200px] space-y-2 text-slate-200">
+                                                            <div className="bg-[#242424] rounded-xl p-2 px-2.5 border border-slate-700 w-full max-w-[200px] space-y-1.5 text-slate-200">
                                                                 <div className="font-bold text-[7px] text-blue-400 border-b border-slate-700 pb-1">Parâmetros de query</div>
                                                                 
-                                                                <div className="bg-slate-900 p-1.5 rounded text-[5.5px] space-y-1">
-                                                                    <div className="flex justify-between">
-                                                                        <span className="text-slate-400">Nome:</span>
-                                                                        <strong className="text-rose-400">text</strong>
+                                                                <div className="space-y-1.5 max-h-[100px] overflow-y-auto">
+                                                                    {/* Param 1 */}
+                                                                    <div className="bg-slate-900 p-1 rounded text-[5px] space-y-0.5">
+                                                                        <div className="flex justify-between">
+                                                                            <span className="text-slate-400">Nome:</span>
+                                                                            <strong className="text-rose-400">text</strong>
+                                                                        </div>
+                                                                        <div className="flex justify-between">
+                                                                            <span className="text-slate-400">Valor:</span>
+                                                                            <strong className="text-emerald-400">{"{notification}"}</strong>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="flex justify-between">
-                                                                        <span className="text-slate-400">Valor:</span>
-                                                                        <strong className="text-emerald-400">{`{notification}`}</strong>
+
+                                                                    {/* Param 2 */}
+                                                                    <div className="bg-slate-900 p-1 rounded text-[5px] space-y-0.5">
+                                                                        <div className="flex justify-between">
+                                                                            <span className="text-slate-400">Nome:</span>
+                                                                            <strong className="text-rose-400 font-bold">key</strong>
+                                                                        </div>
+                                                                        <div className="flex justify-between items-center gap-1">
+                                                                            <span className="text-slate-400">Valor:</span>
+                                                                            <strong className="text-amber-400 truncate max-w-[100px]">{inboxKey || 'identificapix_sms_2026'}</strong>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
 

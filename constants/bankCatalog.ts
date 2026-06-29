@@ -22,30 +22,30 @@ export const BANK_CATALOG: BankCatalogItem[] = [
     key: "caixa",
     name: "Caixa",
     formats: [],
-    active: true
+    active: false
   },
   {
     key: "banco_do_brasil",
     name: "Banco do Brasil",
     formats: [],
-    active: true
+    active: false
   },
   {
     key: "itau",
     name: "Itaú",
     formats: [],
-    active: true
+    active: false
   },
   {
     key: "bradesco",
     name: "Bradesco",
     formats: [],
-    active: true
+    active: false
   },
   {
     key: "nubank",
     name: "Nubank",
     formats: [],
-    active: true
+    active: false
   }
 ];

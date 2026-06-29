@@ -81,7 +81,11 @@ const MobileCard = memo(({
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
     const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
-    const isExpense = displayAmount < 0;
+    const isExpense = displayAmount < 0 || 
+                      row.transaction?.type?.toLowerCase() === 'expense' || 
+                      row.transaction?.type?.toLowerCase() === 'saida' || 
+                      row.contributionType?.toLowerCase() === 'saída' || 
+                      row.contributionType?.toLowerCase() === 'saida';
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
     const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
@@ -168,7 +172,11 @@ const IncomeRow = memo(({
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
     const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
-    const isExpense = displayAmount < 0;
+    const isExpense = displayAmount < 0 || 
+                      row.transaction?.type?.toLowerCase() === 'expense' || 
+                      row.transaction?.type?.toLowerCase() === 'saida' || 
+                      row.contributionType?.toLowerCase() === 'saída' || 
+                      row.contributionType?.toLowerCase() === 'saida';
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     
     // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo/IA
