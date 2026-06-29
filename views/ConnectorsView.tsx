@@ -198,11 +198,11 @@ export const ConnectorsView: React.FC = () => {
                             <div className="absolute left-0 right-0 h-0.5 bg-slate-100 dark:bg-slate-700 -translate-y-1/2 top-1/2 z-0"></div>
                             <div 
                                 className="absolute left-0 h-0.5 bg-brand-blue -translate-y-1/2 top-1/2 z-0 transition-all duration-300"
-                                style={{ width: `${((activeStep - 1) / ((selectedOS === 'android' ? 10 : 3) - 1)) * 100}%` }}
+                                style={{ width: `${((activeStep - 1) / ((selectedOS === 'android' ? 12 : 3) - 1)) * 100}%` }}
                             ></div>
 
                             {/* Step Indicators */}
-                            {Array.from({ length: selectedOS === 'android' ? 10 : 3 }).map((_, idx) => {
+                            {Array.from({ length: selectedOS === 'android' ? 12 : 3 }).map((_, idx) => {
                                 const stepNum = idx + 1;
                                 const isCompleted = activeStep > stepNum;
                                 const isActive = activeStep === stepNum;
@@ -251,7 +251,7 @@ export const ConnectorsView: React.FC = () => {
                                                 <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Criar uma Nova Macro e Nomear</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                                                     Na tela de edição, escreva no topo o nome da sua automação para identificá-la facilmente, por exemplo: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">IdentificaPix - Sicredi</code>. 
-                                                    Você notará três blocos vazios na tela: **Gatilhos** (Vermelho), **Ações** (Azul) e **Restrições** (Verde). Toque no sinal de mais <strong className="text-rose-500">"+"</strong> localizado no canto superior direito do bloco **Gatilhos** vermelho.
+                                                    Você notará três blocos vazios na tela: **Gatilhos** (Vermelho), **Ações** (Azul) e **Restrições** (Verde). Toque no sinal de mais <strong className="text-rose-500 font-bold">"+"</strong> localizado no bloco **Gatilhos** vermelho.
                                                 </p>
                                             </div>
                                         )}
@@ -261,7 +261,7 @@ export const ConnectorsView: React.FC = () => {
                                                 <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 3: Selecionar Categoria</span>
                                                 <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Escolher Categoria "Eventos do Dispositivo"</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    A tela "Adicionar Gatilho" exibe diversas categorias organizadas em cores. Desça um pouco a tela e procure pela opção **"Eventos do Dispositivo"** (a sétima opção, marcada por um ícone de celular com engrenagem). Dê um toque nela para expandir as opções.
+                                                    A tela "Adicionar Gatilho" exibe diversas categorias organizadas em cores. Desça um pouco a tela e procure pela opção **"Eventos do Dispositivo"** (marcada por um ícone de celular com engrenagem). Dê um toque nela para expandir as opções.
                                                 </p>
                                             </div>
                                         )}
@@ -298,60 +298,86 @@ export const ConnectorsView: React.FC = () => {
 
                                         {activeStep === 7 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 7: Configurar Detalhes do Gatilho</span>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 7: Detalhes do Gatilho</span>
                                                 <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Selecionar o Banco e Texto Detectado</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Após retornar ao aplicativo, escolha a opção **"Notificação Recebida"** e clique em **OK**. Em seguida:
+                                                    Ao voltar ao aplicativo, escolha a opção **"Notificação Recebida"** e clique em **OK**. Em seguida:
                                                 </p>
                                                 <ul className="text-xs text-slate-500 dark:text-slate-400 list-decimal pl-4 space-y-1.5 leading-relaxed">
-                                                    <li>Marque a opção **"Apenas do aplicativo selecionado"** e clique em OK. Selecione o aplicativo do seu banco (ex: **Sicredi**, **Inter**, **Nubank**, etc.).</li>
-                                                    <li>Na tela seguinte, em **Conteúdo do texto**, selecione **"Contém"** e digite o texto de identificação padrão de Pix do seu banco (ex: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">recebeu um Pix</code>, <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">Pix recebido</code> ou <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">recebeu uma transferência</code>). Clique em **OK**.</li>
+                                                    <li>Marque **"Apenas do aplicativo selecionado"** e clique em OK. Selecione o aplicativo do seu banco (ex: **Sicredi**, **Inter**, **Nubank**, etc.).</li>
+                                                    <li>Na tela do diálogo, marque **"Ignorar maiúsculas/minúsculas"**. Em **Conteúdo do texto**, marque **"Contém"** e digite o texto de identificação padrão do Pix recebido do seu banco (ex: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">recebeu um Pix</code> ou <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">Pix recebido</code>). Clique em **OK**.</li>
                                                 </ul>
                                             </div>
                                         )}
 
                                         {activeStep === 8 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 8: Escolher Ação Correta</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Selecionar "Requisição HTTP" (HTTP Request)</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 8: Adicionar Ação</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Abrir o Menu de Categorias de Ação</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Agora que o gatilho está verde, toque no sinal de mais <strong className="text-brand-blue font-black">"+"</strong> no bloco azul **"Ações"**.
-                                                </p>
-                                                <div className="p-3 bg-rose-50 dark:bg-rose-950/20 rounded-xl border border-rose-100 dark:border-rose-800/40 text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
-                                                    ⚠️ <strong>Atenção:</strong> Não utilize "Abrir site/Comando HTTP" pois ele foi descontinuado pelo MacroDroid para envios POST e não mostrará a opção de mudar o método. Use a opção correta recomendada.
-                                                </div>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    <strong>Como fazer:</strong> Toque no ícone de lupa <strong>"🔍"</strong> no topo direito da tela, digite <strong className="text-brand-blue">"Requisição HTTP"</strong> (ou "HTTP Request") e toque nela para abrir.
+                                                    Agora com o gatilho configurado, toque no sinal de mais <strong className="text-brand-blue font-black">"+"</strong> no bloco azul **"Ações"**.
+                                                    A tela **Adicionar Ação** abrirá com uma lista completa de categorias do sistema, como *Ações do dispositivo*, *Aplicativos*, *Conectividade*, *Interação Web*, entre outras.
                                                 </p>
                                             </div>
                                         )}
 
                                         {activeStep === 9 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 9: Configurar Parâmetros</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar Envio como POST</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 9: Buscar "Requisição HTTP"</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Pesquisar pela Ação Correta</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Na tela da **Requisição HTTP**, configure exatamente conforme as instruções:
+                                                    Toque no ícone de lupa <strong>"🔍"</strong> no topo direito da tela, digite <strong className="text-brand-blue font-bold">"req"</strong> ou <strong className="text-brand-blue font-bold">"Requisição HTTP"</strong>.
+                                                    Embaixo da categoria **"Interação Web"**, surgirá a opção <strong className="text-brand-blue">"Requisição HTTP"</strong>. Dê um toque nela para abrir suas configurações.
                                                 </p>
-                                                <ul className="text-xs text-slate-500 dark:text-slate-400 list-decimal pl-4 space-y-1.5 leading-relaxed">
-                                                    <li>Em <strong>Método</strong>, selecione <strong className="text-brand-blue">POST</strong>.</li>
-                                                    <li>No campo <strong>URL</strong>, cole o link exclusivo que você copiou no Card ao lado.</li>
-                                                    <li>Adicione um parâmetro de corpo (Body) com Chave: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-rose-500">text</code>.</li>
-                                                    <li>No campo <strong>Valor</strong>, clique no botão de três pontinhos <strong className="text-brand-blue font-bold">"..."</strong> à direita e escolha <strong className="text-brand-blue">"Texto da notificação"</strong> (ou <code>[notification_text]</code>). Clique em **OK** para salvar.</li>
-                                                </ul>
                                             </div>
                                         )}
 
                                         {activeStep === 10 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full w-fit">Passo 10: Ativar e Concluir</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Salvar e Iniciar o Monitoramento</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 10: Método e URL</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar Envio como POST</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Verifique se as informações estão corretas. Para finalizar, clique no **ícone de disquete flutuante** (ou botão de confirmação) localizado no canto inferior direito da tela. 
-                                                    A automação será gravada e ativada imediatamente!
+                                                    Dentro da configuração da Requisição HTTP, altere o campo **Método da requisição** de `GET` para <strong className="text-brand-blue">POST</strong>. 
+                                                    No campo **Digite a URL**, cole exatamente o link exclusivo que você copiou no Card acima. Mantenha a opção **"Seguir redirecionamentos"** marcada.
                                                 </p>
-                                                <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100/30 text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
-                                                    🎉 <strong>Excelente Trabalho!</strong> Toda vez que seu aplicativo bancário enviar uma notificação contendo o Pix recebido, o MacroDroid identificará o texto e lançará na sua Lista Viva em menos de 1 segundo!
+                                            </div>
+                                        )}
+
+                                        {activeStep === 11 && (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 11: Parâmetros de Envio</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar os Dados do Pix</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Para enviar o conteúdo da notificação recebida, você pode usar uma de duas formas suportadas:
+                                                </p>
+                                                <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                                                    <p>
+                                                        <strong>Opção A (Parâmetros de Query - Recomendado):</strong> Acesse a aba **"Parâmetros de query"**, clique no botão <strong className="text-blue-500 font-bold">"+"</strong>, configure o Nome do parâmetro como <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-rose-500 font-bold font-mono">text</code> (ou `texto`), e no campo **Valor** clique no botão de três pontinhos <strong className="text-brand-blue font-bold">"..."</strong> à direita e escolha <strong className="text-brand-blue">"Texto da notificação"</strong> para inserir <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-emerald-500 font-mono">{"{notification}"}</code>.
+                                                    </p>
+                                                    <p>
+                                                        <strong>Opção B (Corpo JSON):</strong> Acesse a aba **"Corpo da requisição"**, configure o Tipo do conteúdo como **"Indefinido"**, marque **"Texto"** e cole o seguinte código na caixa de texto:
+                                                    </p>
+                                                    <pre className="p-2 bg-slate-950 text-[10px] text-teal-400 font-mono rounded-lg">
+{`{
+  "text": "{notification}"
+}`}
+                                                    </pre>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {activeStep === 12 && (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full w-fit">Passo 12: Salvar e Ativar</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Salvar e Concluir a Configuração</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Na seção inferior das configurações da Requisição HTTP, certifique-se de que "Salvar código de retorno HTTP" esteja como **"Não salvar saída"** e marque a opção **"Não salvar resposta HTTP"** para otimizar o consumo de memória do celular.
+                                                </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Clique no botão de **✓** no topo ou no ícone de disquete flutuante no canto inferior direito para salvar a Ação. Depois, clique no **ícone de disquete** na tela da Macro para gravar e ativar o monitoramento instantaneamente!
+                                                </p>
+                                                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100/30 text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                                                    🎉 <strong>Excelente Trabalho!</strong> Toda vez que seu aplicativo bancário enviar uma notificação de Pix, o MacroDroid enviará os detalhes e o IdentificaPix fará a identificação em menos de 1 segundo!
                                                 </div>
                                             </div>
                                         )}
@@ -409,7 +435,7 @@ export const ConnectorsView: React.FC = () => {
                                         Anterior
                                     </button>
                                     <button
-                                        disabled={activeStep === (selectedOS === 'android' ? 10 : 3)}
+                                        disabled={activeStep === (selectedOS === 'android' ? 12 : 3)}
                                         onClick={() => setActiveStep(prev => prev + 1)}
                                         className="px-4 py-2 bg-brand-blue hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                                     >
@@ -704,10 +730,48 @@ export const ConnectorsView: React.FC = () => {
 
                                                 {activeStep === 8 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between">
+                                                        <div className="bg-[#1e293b] px-2.5 py-2 rounded-lg flex items-center justify-between text-slate-200 border-b border-slate-700">
+                                                            <span className="text-[7px]">←</span>
+                                                            <span className="text-white font-bold text-[8px]">IdentificaPix - Sicredi</span>
+                                                            <div className="flex gap-1.5 opacity-85 text-[7px]">
+                                                                <span>💾</span>
+                                                                <span>⋮</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex-1 py-2 space-y-2">
+                                                            {/* Gatilho configured */}
+                                                            <div className="bg-rose-950/25 border border-rose-500/40 p-1.5 rounded-lg text-[6.5px]">
+                                                                <span className="text-rose-400 font-bold block mb-0.5">🔴 Gatilhos</span>
+                                                                <div className="text-white">Notificação Recebida (Sicredi, "recebeu um Pix")</div>
+                                                            </div>
+
+                                                            {/* Highlighting Ações "+" */}
+                                                            <div className="bg-blue-950/20 border border-blue-500/40 p-1.5 rounded-lg">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-[7px] font-black text-blue-400 uppercase tracking-widest">🔵 Ações</span>
+                                                                    <div className="relative">
+                                                                        <span className="absolute -left-1 -top-1 inline-flex h-4 w-4 rounded-full bg-blue-400 opacity-75 animate-ping"></span>
+                                                                        <button onClick={() => setActiveStep(9)} className="w-3.5 h-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center justify-center text-[8px]">+</button>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-[5.5px] text-blue-400/60 italic text-center py-1">Sem ações configuradas</div>
+                                                            </div>
+
+                                                            {/* Restrições */}
+                                                            <div className="bg-emerald-950/10 border border-emerald-500/10 p-1.5 rounded-lg opacity-30 text-[6.5px]">
+                                                                <span className="text-emerald-400 font-bold block">🟢 Restrições</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {activeStep === 9 && (
+                                                    <div className="flex flex-col h-full animate-fade-in justify-between">
                                                         <div className="bg-[#1b2a4a] px-2.5 py-1.5 rounded-lg flex items-center justify-between text-blue-200">
                                                             <span className="font-bold text-[8px]">Adicionar Ação</span>
                                                             <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded text-[6px] text-slate-300">
-                                                                <span>🔍 requisi</span>
+                                                                <span>🔍 req</span>
                                                             </div>
                                                         </div>
                                                         <div className="flex-1 py-1.5 space-y-2 p-1">
@@ -715,7 +779,7 @@ export const ConnectorsView: React.FC = () => {
                                                             <div className="relative">
                                                                 <span className="absolute -inset-0.5 rounded-lg bg-blue-500 opacity-40 animate-pulse"></span>
                                                                 <button 
-                                                                    onClick={() => setActiveStep(9)} 
+                                                                    onClick={() => setActiveStep(10)} 
                                                                     className="relative w-full p-2 bg-blue-600 text-white text-[7px] rounded-lg font-black text-left flex justify-between items-center"
                                                                 >
                                                                     <span>🌐 Requisição HTTP</span>
@@ -723,13 +787,13 @@ export const ConnectorsView: React.FC = () => {
                                                                 </button>
                                                             </div>
                                                             <div className="text-[5.5px] text-slate-400 p-1 bg-slate-900/40 rounded italic leading-normal">
-                                                                💡 Use sempre "Requisição HTTP". Não selecione "Abrir site" pois ele não suporta o método POST exigido para segurança.
+                                                                💡 Selecione "Requisição HTTP" para podermos enviar os parâmetros do Pix via POST.
                                                             </div>
                                                         </div>
                                                     </div>
                                                 )}
 
-                                                {activeStep === 9 && (
+                                                {activeStep === 10 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between relative">
                                                         <div className="bg-[#1b2a4a] px-2.5 py-1.5 opacity-30 text-[8px]">Nova Ação</div>
                                                         
@@ -740,23 +804,16 @@ export const ConnectorsView: React.FC = () => {
                                                                 <div className="space-y-1 text-[6px]">
                                                                     <div className="flex items-center gap-1">
                                                                         <span className="text-slate-400">Método:</span>
-                                                                        <span className="bg-blue-600 text-white px-1 rounded font-bold text-[6px]">POST</span>
+                                                                        <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded font-bold text-[6px] animate-pulse">POST</span>
                                                                     </div>
                                                                     <div className="flex flex-col gap-0.5">
-                                                                        <span className="text-slate-400">URL:</span>
-                                                                        <span className="bg-slate-950 p-0.5 rounded text-[5px] text-slate-400 truncate">{webhookUrl}</span>
-                                                                    </div>
-                                                                    <div className="bg-slate-900 p-1 rounded text-[5px] space-y-0.5">
-                                                                        <span className="text-slate-400 block font-bold">Parâmetros do Corpo (POST):</span>
-                                                                        <div className="flex justify-between text-slate-300">
-                                                                            <span>Chave: <strong className="text-rose-400">text</strong></span>
-                                                                            <span>Valor: <strong className="text-emerald-400">[notification_text]</strong></span>
-                                                                        </div>
+                                                                        <span className="text-slate-400 font-bold">Digite a URL:</span>
+                                                                        <span className="bg-slate-950 p-1 rounded text-[5px] text-slate-300 truncate border border-blue-500/40">{webhookUrl}</span>
                                                                     </div>
                                                                 </div>
 
                                                                 <button 
-                                                                    onClick={() => setActiveStep(10)}
+                                                                    onClick={() => setActiveStep(11)}
                                                                     className="w-full py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[7px] rounded text-center animate-pulse"
                                                                 >
                                                                     Confirmar (OK)
@@ -766,7 +823,37 @@ export const ConnectorsView: React.FC = () => {
                                                     </div>
                                                 )}
 
-                                                {activeStep === 10 && (
+                                                {activeStep === 11 && (
+                                                    <div className="flex flex-col h-full animate-fade-in justify-between relative">
+                                                        <div className="bg-[#1b2a4a] px-2.5 py-1.5 opacity-30 text-[8px]">Configurar Parâmetros</div>
+                                                        
+                                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-1.5 z-10">
+                                                            <div className="bg-[#242424] rounded-xl p-2.5 border border-slate-700 w-full max-w-[200px] space-y-2 text-slate-200">
+                                                                <div className="font-bold text-[7px] text-blue-400 border-b border-slate-700 pb-1">Parâmetros de query</div>
+                                                                
+                                                                <div className="bg-slate-900 p-1.5 rounded text-[5.5px] space-y-1">
+                                                                    <div className="flex justify-between">
+                                                                        <span className="text-slate-400">Nome:</span>
+                                                                        <strong className="text-rose-400">text</strong>
+                                                                    </div>
+                                                                    <div className="flex justify-between">
+                                                                        <span className="text-slate-400">Valor:</span>
+                                                                        <strong className="text-emerald-400">{`{notification}`}</strong>
+                                                                    </div>
+                                                                </div>
+
+                                                                <button 
+                                                                    onClick={() => setActiveStep(12)}
+                                                                    className="w-full py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[7px] rounded text-center animate-pulse"
+                                                                >
+                                                                    Salvar Parâmetro (OK)
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {activeStep === 12 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between relative">
                                                         <div className="bg-[#1e293b] p-1.5 text-[7px] flex justify-between items-center text-slate-300 border-b border-slate-700">
                                                             <span>IdentificaPix - Sicredi</span>
@@ -785,11 +872,11 @@ export const ConnectorsView: React.FC = () => {
                                                             </div>
                                                         </div>
 
-                                                        {/* Floater Success Button */}
+                                                        {/* Floater Save Button with highlight/ping */}
                                                         <div className="absolute bottom-4 right-4 z-10 flex items-center justify-center">
                                                             <span className="absolute inline-flex h-8 w-8 rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
-                                                            <div className="relative w-8 h-8 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40 flex items-center justify-center font-bold text-white text-[12px]">
-                                                                ✓
+                                                            <div className="relative w-8 h-8 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40 flex items-center justify-center font-bold text-white text-[12px] cursor-pointer">
+                                                                💾
                                                             </div>
                                                         </div>
                                                     </div>

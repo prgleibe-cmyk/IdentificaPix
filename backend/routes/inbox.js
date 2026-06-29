@@ -206,7 +206,7 @@ export default (ai) => {
         }
 
         // Resiliently extract the SMS body text from various potential payload keys or formats
-        let text = req.body?.text || req.body?.message || req.body?.body || req.body?.sms || req.query?.text || req.query?.message;
+        let text = req.body?.text || req.body?.texto || req.body?.message || req.body?.body || req.body?.sms || req.query?.text || req.query?.texto || req.query?.message;
         if (!text && typeof req.body === 'string') {
             text = req.body;
         } else if (!text && req.body && typeof req.body === 'object') {
