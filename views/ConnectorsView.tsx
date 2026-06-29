@@ -189,20 +189,20 @@ export const ConnectorsView: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* INTERACTIVE WIZARD STEPPERS */}
+                     {/* INTERACTIVE WIZARD STEPPERS */}
                     <div className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2.5rem] shadow-card border border-slate-100 dark:border-slate-700 flex flex-col gap-6">
                         
                         {/* Stepper Dots & Labels */}
-                        <div className="relative flex items-center justify-between w-full max-w-md mx-auto mb-2">
+                        <div className="relative flex items-center justify-between w-full max-w-xl mx-auto mb-2">
                             {/* Line behind */}
                             <div className="absolute left-0 right-0 h-0.5 bg-slate-100 dark:bg-slate-700 -translate-y-1/2 top-1/2 z-0"></div>
                             <div 
                                 className="absolute left-0 h-0.5 bg-brand-blue -translate-y-1/2 top-1/2 z-0 transition-all duration-300"
-                                style={{ width: `${((activeStep - 1) / ((selectedOS === 'android' ? 5 : 3) - 1)) * 100}%` }}
+                                style={{ width: `${((activeStep - 1) / ((selectedOS === 'android' ? 9 : 3) - 1)) * 100}%` }}
                             ></div>
 
                             {/* Step Indicators */}
-                            {Array.from({ length: selectedOS === 'android' ? 5 : 3 }).map((_, idx) => {
+                            {Array.from({ length: selectedOS === 'android' ? 9 : 3 }).map((_, idx) => {
                                 const stepNum = idx + 1;
                                 const isCompleted = activeStep > stepNum;
                                 const isActive = activeStep === stepNum;
@@ -233,70 +233,109 @@ export const ConnectorsView: React.FC = () => {
                                     <>
                                         {activeStep === 1 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 1: Instalar o App</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Instalar o MacroDroid no Celular</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 1: Instalação e Acesso Inicial</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Instalar e Abrir o MacroDroid</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Abra a <strong>Google Play Store</strong> no seu celular Android, procure pelo aplicativo gratuito <strong className="text-brand-blue">"MacroDroid"</strong> e instale-o. Ele monitorará as notificações de Pix do banco e enviará ao sistema.
+                                                    Abra a <strong>Google Play Store</strong> no seu celular, procure pelo aplicativo gratuito <strong className="text-brand-blue">"MacroDroid"</strong> e faça a instalação. 
+                                                    Ao abri-lo pela primeira vez, você verá a tela principal vazia. Dê um toque no botão redondo branco com o sinal de mais <strong className="text-brand-blue font-bold">"+"</strong> no canto inferior direito para iniciar a criação da sua automação.
                                                 </p>
                                                 <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                                                    💡 <strong>Dica de ouro:</strong> O MacroDroid é extremamente seguro, super leve e possui mais de 10 milhões de downloads no mundo todo.
+                                                    💡 <strong>Aviso Importante:</strong> O aplicativo é totalmente grátis. Se aparecerem banners de assinatura Premium, basta clicar no "X" ou em "continuar grátis". A versão gratuita atende perfeitamente ao nosso sistema.
                                                 </div>
                                             </div>
                                         )}
 
                                         {activeStep === 2 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 2: Nova Automação</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Adicionar uma Nova Macro</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 2: Nova Automação (Macro)</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Criar uma Nova Macro e Nomear</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    Ao abrir o MacroDroid, toque no botão quadrado vermelho escrito <strong className="text-rose-500">"Adicionar Macro"</strong>. É aqui que vamos ensinar o celular a identificar os recebimentos.
+                                                    Na tela de edição, escreva no topo o nome da sua automação para identificá-la facilmente, por exemplo: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">IdentificaPix - Sicredi</code>. 
+                                                    Você notará três blocos vazios na tela: **Gatilhos** (Vermelho), **Ações** (Azul) e **Restrições** (Verde). Toque no sinal de mais <strong className="text-rose-500">"+"</strong> localizado no canto superior direito do bloco **Gatilhos** vermelho.
                                                 </p>
-                                                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-100/30 text-[11px] text-amber-800 dark:text-amber-300 leading-normal">
-                                                    ⚠️ Se o aplicativo mostrar anúncios ou oferecer planos, basta fechar ou clicar em "continuar grátis". A versão gratuita atende 100% o nosso sistema.
-                                                </div>
                                             </div>
                                         )}
 
                                         {activeStep === 3 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 3: Criar o Gatilho</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar o Gatilho de Notificação</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 3: Selecionar Categoria</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Escolher Categoria "Eventos do Dispositivo"</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    O Gatilho (Trigger) define quando agir. Toque no botão <strong className="text-rose-500">"+"</strong> no topo da área vermelha <strong>"Gatilhos"</strong> e siga este caminho:
+                                                    A tela "Adicionar Gatilho" exibe diversas categorias organizadas em cores. Desça um pouco a tela e procure pela opção **"Eventos do Dispositivo"** (a sétima opção, marcada por um ícone de celular com engrenagem). Dê um toque nela para expandir as opções.
                                                 </p>
-                                                <ul className="text-xs text-slate-500 dark:text-slate-400 list-decimal pl-4 space-y-1.5 leading-relaxed">
-                                                    <li>Vá em <strong>Eventos do Dispositivo</strong> ➔ <strong>Notificação</strong> ➔ <strong>Notificação Recebida</strong>.</li>
-                                                    <li>Selecione <strong>"Apenas do aplicativo selecionado"</strong>, clique em OK e escolha o aplicativo do seu banco (ex: <strong>Sicredi</strong>, <strong>Inter</strong>, etc.).</li>
-                                                    <li>Em <strong>Conteúdo do texto</strong>, mude para <strong>"Contém"</strong> e digite exatamente: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">recebeu um Pix</code> ou <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">Pix recebido</code>.</li>
-                                                </ul>
                                             </div>
                                         )}
 
                                         {activeStep === 4 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 4: Configurar o Envio</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar a Ação de Envio (POST HTTP)</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 4: Selecionar Tipo de Evento</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Escolher o Gatilho de "Notificação"</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    A Ação envia a notificação para nós. Toque no botão <strong className="text-brand-blue font-bold">"+"</strong> na área azul <strong>"Ações"</strong> e faça o seguinte:
+                                                    Nas subcategorias em vermelho de Eventos do Dispositivo, role a lista até o final e toque na opção <strong className="text-rose-500">"Notificação"</strong> (que contém um ícone de sininho/aviso de atenção amarelo).
                                                 </p>
-                                                <ul className="text-xs text-slate-500 dark:text-slate-400 list-decimal pl-4 space-y-1.5 leading-relaxed">
-                                                    <li>Vá em <strong>Aplicativo</strong> ➔ toque em <strong>"Abrir Site / Comando HTTP"</strong> (ou <strong>"HTTP GET/POST"</strong>).</li>
-                                                    <li>Mude o Método de GET para <strong className="text-brand-blue">POST</strong>.</li>
-                                                    <li>Cole no campo <strong>URL</strong> o link exclusivo que você copiou no Card ao lado.</li>
-                                                    <li>Adicione o parâmetro de corpo com Chave: <code className="bg-slate-150 px-1 py-0.5 rounded font-mono font-bold text-rose-500">text</code> e no Valor clique nos três pontinhos <strong className="text-brand-blue font-bold">"..."</strong> para escolher a variável dinâmica de sistema <code className="bg-slate-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-500">[notification_text]</code>.</li>
-                                                </ul>
                                             </div>
                                         )}
 
                                         {activeStep === 5 && (
                                             <div className="space-y-3 animate-fade-in">
-                                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full w-fit">Passo 5: Salvar e Ativar</span>
-                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Dar Nome e Ativar a Automação</h4>
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 5: Solicitação de Permissão</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Habilitar Acesso do Aplicativo ao Celular</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                    No topo da tela de edição do MacroDroid, dê um nome para sua automação (ex: <code className="bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded font-mono font-bold text-slate-700 dark:text-slate-200">IdentificaPix Automação</code>) e clique no ícone de check/disquete flutuante no canto inferior direito para salvar.
+                                                    O Android protege suas mensagens, por isso o MacroDroid mostrará o aviso **"Acesso às Notificações Exigido"** explicando que o sistema precisa de permissão de leitura de notificações. Toque no botão <strong className="text-brand-blue font-bold">"OK"</strong> na caixa de diálogo para ir às configurações do aparelho celular.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {activeStep === 6 && (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 6: Permitir no Android</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Ativar Chave de Leitura de Notificações</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Na tela de configurações do Android, procure pela opção **"MacroDroid"** (que estará marcada como Não permitida/Inativa). Toque no interruptor ao lado para <strong className="text-emerald-500 font-bold">Ativá-lo</strong> e, na mensagem de segurança que surgir, clique em **"Permitir"** ou **"Autorizar"**. Depois, volte para o MacroDroid usando a seta de retorno.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {activeStep === 7 && (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 7: Configurar Detalhes do Gatilho</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Selecionar o Banco e Texto Detectado</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Após retornar ao aplicativo, escolha a opção **"Notificação Recebida"** e clique em **OK**. Em seguida:
+                                                </p>
+                                                <ul className="text-xs text-slate-500 dark:text-slate-400 list-decimal pl-4 space-y-1.5 leading-relaxed">
+                                                    <li>Marque a opção **"Apenas do aplicativo selecionado"** e clique em OK. Selecione o aplicativo do seu banco (ex: **Sicredi**, **Inter**, **Nubank**, etc.).</li>
+                                                    <li>Na tela seguinte, em **Conteúdo do texto**, selecione **"Contém"** e digite o texto de identificação padrão de Pix do seu banco (ex: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">recebeu um Pix</code>, <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">Pix recebido</code> ou <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-brand-blue">recebeu uma transferência</code>). Clique em **OK**.</li>
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {activeStep === 8 && (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest block bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full w-fit">Passo 8: Configurar Envio (Ação)</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Configurar Comando HTTP POST</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Agora que o gatilho está verde, toque no sinal de mais <strong className="text-brand-blue font-bold font-black">"+"</strong> no bloco azul **"Ações"**. Siga as configurações abaixo:
+                                                </p>
+                                                <ul className="text-xs text-slate-500 dark:text-slate-400 list-decimal pl-4 space-y-1.5 leading-relaxed">
+                                                    <li>Vá em <strong>Aplicativo</strong> ➔ toque em <strong>"Abrir Site / Comando HTTP"</strong>.</li>
+                                                    <li>Mude o Método de GET para <strong className="text-brand-blue">POST</strong>.</li>
+                                                    <li>Cole no campo <strong>URL</strong> o link exclusivo gerado que você copiou no Card ao lado.</li>
+                                                    <li>No campo de parâmetro de corpo, adicione uma linha com Chave: <code className="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded font-mono font-bold text-rose-500">text</code> e no campo Valor clique nos três pontinhos <strong className="text-brand-blue font-bold">"..."</strong> à direita para selecionar a variável dinâmica do sistema <code className="bg-slate-150 px-1 py-0.5 rounded font-mono font-bold text-emerald-500">[notification_text]</code>. Clique em **OK**.</li>
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {activeStep === 9 && (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full w-fit">Passo 9: Ativar e Concluir</span>
+                                                <h4 className="font-bold text-base text-slate-800 dark:text-white leading-tight">Salvar e Iniciar do Monitoramento</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                    Verifique se as informações estão corretas. Para finalizar, clique no **ícone de disquete flutuante** (ou botão de confirmação) localizado no canto inferior direito da tela. 
+                                                    A automação será gravada e ativada imediatamente!
                                                 </p>
                                                 <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100/30 text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
-                                                    🎉 <strong>Tudo Pronto!</strong> O Android solicitará algumas permissões de acesso às notificações e economia de energia. Certifique-se de autorizar todas para que as notificações rodem em segundo plano com o celular bloqueado!
+                                                    🎉 <strong>Excelente Trabalho!</strong> Toda vez que seu aplicativo bancário enviar uma notificação contendo o Pix recebido, o MacroDroid identificará o texto e lançará na sua Lista Viva em menos de 1 segundo!
                                                 </div>
                                             </div>
                                         )}
@@ -354,7 +393,7 @@ export const ConnectorsView: React.FC = () => {
                                         Anterior
                                     </button>
                                     <button
-                                        disabled={activeStep === (selectedOS === 'android' ? 5 : 3)}
+                                        disabled={activeStep === (selectedOS === 'android' ? 9 : 3)}
                                         onClick={() => setActiveStep(prev => prev + 1)}
                                         className="px-4 py-2 bg-brand-blue hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                                     >
@@ -376,149 +415,338 @@ export const ConnectorsView: React.FC = () => {
                                         {selectedOS === 'android' ? (
                                             <>
                                                 {/* ANDROID SIMULATOR SCREENS */}
+                                                
+                                                {/* Status Bar */}
+                                                <div className="flex justify-between items-center text-[7px] text-slate-400 mb-2 font-mono px-1">
+                                                    <div className="flex items-center gap-1">
+                                                        <span>15:26</span>
+                                                        <span className="text-[6px] opacity-75">💬</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <span>📶</span>
+                                                        <span>5G</span>
+                                                        <span>🔋 21%⚡</span>
+                                                    </div>
+                                                </div>
+
                                                 {activeStep === 1 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between">
-                                                        <div className="flex justify-between items-center text-[7px] text-slate-400 mb-2 font-mono">
-                                                            <span>15:00</span>
-                                                            <div className="flex items-center gap-1">
-                                                                <span>5G</span>
-                                                                <span>24%</span>
+                                                        <div className="bg-[#1b2a4a] px-2 py-1.5 rounded-lg flex justify-between items-center text-slate-200 font-bold text-[8px] mb-1">
+                                                            <span>⭐ Macros (0)</span>
+                                                            <div className="flex gap-1.5 opacity-80">
+                                                                <span>🔍</span>
+                                                                <span>⚙️</span>
+                                                                <span>⋮</span>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-2 bg-slate-900 border border-slate-850 px-2 py-1.5 rounded-full text-[8px] text-slate-400 mb-2">
-                                                            <span>🔍</span>
-                                                            <span className="flex-1 font-bold text-slate-300">macrodroid</span>
-                                                        </div>
-                                                        <div className="flex gap-2 items-center mt-1">
-                                                            <div className="w-10 h-10 bg-indigo-900/60 border border-indigo-500/30 rounded-xl flex items-center justify-center text-lg shrink-0">
+                                                        
+                                                        <div className="flex-1 flex flex-col items-center justify-center text-center p-2">
+                                                            <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-xl mb-2 animate-bounce">
                                                                 🤖
                                                             </div>
-                                                            <div>
-                                                                <h4 className="text-[9px] font-bold leading-tight">MacroDroid</h4>
-                                                                <span className="text-[7px] text-emerald-400 font-bold block mt-0.5">✓ Instalado</span>
-                                                            </div>
+                                                            <div className="text-[8px] font-bold text-slate-300">Sem macros configuradas</div>
+                                                            <div className="text-[6px] text-slate-500 mt-0.5">Use o botão + para criar uma nova</div>
                                                         </div>
-                                                        <div className="grid grid-cols-3 gap-1 border-y border-slate-900 py-1.5 my-2 text-center text-slate-400 text-[7px]">
-                                                            <div>
-                                                                <span className="font-bold text-slate-200 block text-[8px]">4,1 ★</span>
-                                                                <span>89 mil aval.</span>
-                                                            </div>
-                                                            <div className="border-x border-slate-900">
-                                                                <span className="font-bold text-slate-200 block text-[8px]">Livre</span>
-                                                                <span>Classificação</span>
-                                                            </div>
-                                                            <div>
-                                                                <span className="font-bold text-slate-200 block text-[8px]">+10 mi</span>
-                                                                <span>Downloads</span>
-                                                            </div>
+
+                                                        {/* Bottom Tab Menu */}
+                                                        <div className="grid grid-cols-4 gap-1 border-t border-slate-900 py-1.5 text-center text-[5px] text-slate-400 font-bold bg-[#111]">
+                                                            <div>Início</div>
+                                                            <div className="text-white">Macros</div>
+                                                            <div>Modelos</div>
+                                                            <div>Config.</div>
                                                         </div>
-                                                        <button 
-                                                            onClick={() => setActiveStep(2)}
-                                                            className="w-full py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold text-[9px] rounded-full text-center shadow-lg transition-transform active:scale-95 mt-auto"
-                                                        >
-                                                            Abrir (Toque Aqui)
-                                                        </button>
+
+                                                        {/* Floating Action Button Highlight */}
+                                                        <div className="absolute bottom-6 right-4 z-10 flex items-center justify-center">
+                                                            <span className="absolute inline-flex h-8 w-8 rounded-full bg-blue-400 opacity-75 animate-ping"></span>
+                                                            <button 
+                                                                onClick={() => setActiveStep(2)}
+                                                                className="relative w-8 h-8 rounded-full bg-white text-slate-900 font-black flex items-center justify-center text-xs shadow-lg active:scale-95 hover:bg-slate-100"
+                                                            >
+                                                                +
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 )}
 
                                                 {activeStep === 2 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between">
-                                                        <div className="flex justify-between items-center text-[7px] text-slate-400 mb-2 font-mono">
-                                                            <span>15:02</span>
-                                                            <span>24%</span>
+                                                        <div className="bg-[#1e293b] px-2.5 py-2 rounded-lg flex items-center justify-between text-slate-200 border-b border-slate-700">
+                                                            <span className="text-[7px]">←</span>
+                                                            <input 
+                                                                type="text" 
+                                                                value="IdentificaPix - Sicredi" 
+                                                                disabled
+                                                                className="bg-transparent text-white font-bold text-[8px] text-center border-b border-blue-400 w-28 outline-none ml-1"
+                                                            />
+                                                            <div className="flex gap-1.5 opacity-80 text-[7px]">
+                                                                <span>💾</span>
+                                                                <span>⋮</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-[8px] font-black tracking-wider uppercase text-slate-400 mb-2 text-center">MACRODROID</div>
-                                                        
-                                                        <div className="grid grid-cols-2 gap-1.5 flex-1 items-center">
-                                                            <button 
-                                                                onClick={() => setActiveStep(3)}
-                                                                className="p-3 bg-rose-950/30 hover:bg-rose-900/30 border-2 border-rose-500/80 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 transition-all group animate-pulse"
-                                                            >
-                                                                <span className="text-base">➕</span>
-                                                                <span className="text-[8px] font-black uppercase text-rose-300 leading-tight">Adicionar Macro</span>
-                                                                <span className="text-[6px] text-rose-400/80">Toque aqui</span>
-                                                            </button>
-                                                            <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl flex flex-col items-center justify-center text-slate-600 text-[7px] uppercase font-bold">
-                                                                <span>Modelos</span>
+
+                                                        <div className="flex-1 py-2 space-y-2">
+                                                            {/* Red Block Gatilhos */}
+                                                            <div className="bg-rose-950/20 border border-rose-500/40 p-1.5 rounded-lg">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="text-[7px] font-black text-rose-400 uppercase tracking-widest">🔴 Gatilhos</span>
+                                                                    <div className="relative">
+                                                                        <span className="absolute -left-1 -top-1 inline-flex h-4 w-4 rounded-full bg-rose-400 opacity-75 animate-ping"></span>
+                                                                        <button onClick={() => setActiveStep(3)} className="w-3.5 h-3.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold flex items-center justify-center text-[8px]">+</button>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-[6px] text-rose-400/60 italic text-center py-1">Sem gatilhos configurados</div>
                                                             </div>
-                                                            <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl flex flex-col items-center justify-center text-slate-600 text-[7px] uppercase font-bold">
-                                                                <span>Configurações</span>
+
+                                                            {/* Blue Block Ações */}
+                                                            <div className="bg-blue-950/20 border border-blue-500/10 p-1.5 rounded-lg opacity-40">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-[7px] font-black text-blue-400 uppercase tracking-widest">🔵 Ações</span>
+                                                                    <span className="w-3.5 h-3.5 rounded-full bg-blue-600/40 text-white font-bold flex items-center justify-center text-[8px]">+</span>
+                                                                </div>
                                                             </div>
-                                                            <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl flex flex-col items-center justify-center text-slate-600 text-[7px] uppercase font-bold">
-                                                                <span>Fórum</span>
+
+                                                            {/* Green Block Restrições */}
+                                                            <div className="bg-emerald-950/20 border border-emerald-500/10 p-1.5 rounded-lg opacity-40">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-[7px] font-black text-emerald-400 uppercase tracking-widest">🟢 Restrições</span>
+                                                                    <span className="w-3.5 h-3.5 rounded-full bg-emerald-600/40 text-white font-bold flex items-center justify-center text-[8px]">+</span>
+                                                                </div>
                                                             </div>
+                                                        </div>
+
+                                                        <div className="bg-[#101c2a] p-1 text-[6px] rounded flex justify-between items-center text-teal-400 border border-teal-900/30">
+                                                            <span>Variáveis locais</span>
+                                                            <span>➕</span>
                                                         </div>
                                                     </div>
                                                 )}
 
                                                 {activeStep === 3 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between">
-                                                        <div className="flex justify-between items-center text-[7px] text-slate-400 mb-2 font-mono">
-                                                            <span>15:05</span>
-                                                            <span>24%</span>
-                                                        </div>
-                                                        <div className="bg-rose-950/30 border border-rose-500/30 p-2.5 rounded-xl mb-2">
-                                                            <div className="flex justify-between items-center mb-1.5">
-                                                                <span className="text-[8px] font-black uppercase tracking-widest text-rose-400">🔴 Gatilhos</span>
-                                                                <button onClick={() => setActiveStep(4)} className="w-4.5 h-4.5 rounded-full bg-rose-600 text-white font-bold flex items-center justify-center text-[10px] animate-pulse">+</button>
-                                                            </div>
-                                                            <div className="bg-slate-900 border border-slate-850 p-2 rounded-lg text-[7px] text-slate-300 space-y-1">
-                                                                <div className="font-bold text-[8px] text-rose-300">✓ Notificação Recebida</div>
-                                                                <div>App: <strong className="text-white">Seu Banco</strong></div>
-                                                                <div>Contém: <strong className="text-white">"recebeu um Pix"</strong></div>
+                                                        <div className="bg-rose-950 px-2.5 py-1.5 rounded-lg flex items-center justify-between text-rose-200">
+                                                            <span className="font-bold text-[8px]">Adicionar Gatilho</span>
+                                                            <div className="flex gap-1.5">
+                                                                <span>🔍</span>
+                                                                <span>⋮</span>
                                                             </div>
                                                         </div>
-                                                        <div className="bg-blue-950/10 border border-blue-900/10 p-2 rounded-lg opacity-30 text-[7px] mb-1">
-                                                            🔵 Ações
-                                                        </div>
-                                                        <div className="bg-slate-900/20 border border-slate-850/10 p-2 rounded-lg opacity-30 text-[7px]">
-                                                            🟢 Restrições
+
+                                                        <div className="flex-1 py-1.5 space-y-1 overflow-y-auto">
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">::: Aplicativos</div>
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">🔋 Bateria / Energia</div>
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">📞 Chamadas / SMS</div>
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">📶 Conectividade</div>
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">📅 Data / Hora</div>
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">〰️ Específico do MacroDroid</div>
+                                                            
+                                                            {/* Highlight Target */}
+                                                            <div className="relative">
+                                                                <span className="absolute -inset-0.5 rounded-lg bg-rose-500 opacity-40 animate-pulse"></span>
+                                                                <button 
+                                                                    onClick={() => setActiveStep(4)} 
+                                                                    className="relative w-full p-1.5 px-2 bg-rose-600 text-white text-[7px] rounded-lg font-black text-left flex justify-between items-center"
+                                                                >
+                                                                    <span>📱 Eventos do Dispositivo</span>
+                                                                    <span className="animate-ping">👈</span>
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">👥 Interação do Usuário</div>
+                                                            <div className="p-1 px-2 bg-slate-900 text-slate-400 text-[6px] rounded">📍 Localização</div>
                                                         </div>
                                                     </div>
                                                 )}
 
                                                 {activeStep === 4 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between">
-                                                        <div className="flex justify-between items-center text-[7px] text-slate-400 mb-2 font-mono">
-                                                            <span>15:08</span>
-                                                            <span>24%</span>
+                                                        <div className="bg-rose-950 px-2.5 py-1.5 rounded-lg flex items-center justify-between text-rose-200">
+                                                            <span className="font-bold text-[8px]">Eventos do Dispositivo</span>
+                                                            <span>←</span>
                                                         </div>
-                                                        <div className="bg-rose-950/10 border border-rose-900/10 p-1.5 rounded-lg opacity-30 text-[7px] mb-2">
-                                                            🔴 Gatilhos (Notificação Recebida)
-                                                        </div>
-                                                        <div className="bg-blue-950/30 border border-blue-500/30 p-2.5 rounded-xl mb-2 flex-1">
-                                                            <div className="flex justify-between items-center mb-1.5">
-                                                                <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">🔵 Ações</span>
-                                                                <button onClick={() => setActiveStep(5)} className="w-4.5 h-4.5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[10px] animate-pulse">+</button>
+
+                                                        <div className="flex-1 py-2 space-y-1 overflow-y-auto">
+                                                            <div className="p-1 bg-slate-900/60 text-slate-500 text-[6px] rounded">Arquivo alterado</div>
+                                                            <div className="p-1 bg-slate-900/60 text-slate-500 text-[6px] rounded">Botão de mídia pressionado</div>
+                                                            <div className="p-1 bg-slate-900/60 text-slate-500 text-[6px] rounded">Câmara em uso</div>
+                                                            <div className="p-1 bg-slate-900/60 text-slate-500 text-[6px] rounded">IP do dispositivo alterado</div>
+                                                            
+                                                            {/* Highlight Target */}
+                                                            <div className="relative">
+                                                                <span className="absolute -inset-0.5 rounded-lg bg-rose-500 opacity-40 animate-pulse"></span>
+                                                                <button 
+                                                                    onClick={() => setActiveStep(5)} 
+                                                                    className="relative w-full p-2 bg-rose-700 text-white text-[7px] rounded-lg font-black text-left flex justify-between items-center"
+                                                                >
+                                                                    <span>🔔 Notificação</span>
+                                                                    <span className="animate-ping">👈</span>
+                                                                </button>
                                                             </div>
-                                                            <div className="bg-slate-900 border border-slate-850 p-2 rounded-lg text-[7px] text-slate-300 space-y-1.5">
-                                                                <div className="font-bold text-[8px] text-blue-300">✓ HTTP POST</div>
-                                                                <div className="truncate text-slate-500 text-[6px]">{webhookUrl}</div>
-                                                                <div>Corpo: <strong className="text-white">text = [notification_text]</strong></div>
-                                                            </div>
+
+                                                            <div className="p-1 bg-slate-900/60 text-slate-500 text-[6px] rounded">Sinal de celular alterado</div>
                                                         </div>
                                                     </div>
                                                 )}
 
                                                 {activeStep === 5 && (
                                                     <div className="flex flex-col h-full animate-fade-in justify-between relative">
-                                                        <div className="flex justify-between items-center text-[7px] text-slate-400 mb-2 font-mono">
-                                                            <span>15:10</span>
-                                                            <span>24%</span>
+                                                        <div className="bg-rose-950 px-2.5 py-1.5 rounded-lg opacity-30 flex items-center justify-between">
+                                                            <span className="font-bold text-[8px]">Eventos do Dispositivo</span>
+                                                            <span>←</span>
                                                         </div>
-                                                        
-                                                        <div className="text-[8px] text-slate-400 mb-1">Nome da macro:</div>
-                                                        <div className="bg-slate-900 border border-slate-850 px-2 py-1 rounded-lg text-[9px] font-bold text-white mb-2">
-                                                            IdentificaPix Automação
+                                                        <div className="flex-1 opacity-35 py-2 space-y-1">
+                                                            <div className="p-1 bg-slate-900 text-[6px]">Arquivo alterado</div>
+                                                            <div className="p-1 bg-slate-900 text-[6px]">Câmara em uso</div>
                                                         </div>
-                                                        
-                                                        <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-850 text-[7px] space-y-1 mb-2 flex-1">
-                                                            <div className="text-rose-400 font-bold">🔴 Gatilho: Notificação do Banco</div>
-                                                            <div className="text-blue-400 font-bold">🔵 Ação: HTTP POST para o sistema</div>
+
+                                                        {/* Permission Required System Modal Popup (Acesso as Notificações Exigido) */}
+                                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-2 z-20">
+                                                            <div className="bg-[#2a2a2a] rounded-xl border border-slate-700 p-3 text-slate-100 flex flex-col gap-2 max-w-[190px] shadow-2xl animate-fade-in">
+                                                                <h5 className="font-bold text-[8px] text-white">Acesso às Notificações Exigido</h5>
+                                                                <p className="text-[6px] text-slate-400 leading-tight">
+                                                                    Para usar esse recurso, é necessário habilitar a opção de acesso às Notificações nas configurações do dispositivo.
+                                                                </p>
+                                                                <div className="flex justify-end gap-2 text-[7px] font-black mt-1">
+                                                                    <span className="text-slate-400 px-1 py-0.5">CANCELAR</span>
+                                                                    <button 
+                                                                        onClick={() => setActiveStep(6)}
+                                                                        className="text-blue-400 font-bold px-1 py-0.5 bg-blue-500/10 rounded animate-pulse"
+                                                                    >
+                                                                        OK
+                                                                    </button>
+                                                                </div>
+                                                            </div>
                                                         </div>
+                                                    </div>
+                                                )}
+
+                                                {activeStep === 6 && (
+                                                    <div className="flex flex-col h-full animate-fade-in justify-between">
+                                                        <div className="px-2 py-2 flex items-center gap-1.5 border-b border-slate-850">
+                                                            <span className="text-[10px]">←</span>
+                                                            <span className="font-bold text-[8px] text-white">Acesso a Notificações</span>
+                                                        </div>
+
+                                                        <div className="flex-1 py-2 space-y-2">
+                                                            <div className="text-[6px] uppercase text-slate-500 font-bold ml-1">Permitidos</div>
+                                                            <div className="bg-slate-900 px-2 py-1 rounded flex justify-between items-center">
+                                                                <span className="text-[7px]">Sicredi</span>
+                                                                <span className="text-emerald-500 text-[7px]">ON ●</span>
+                                                            </div>
+
+                                                            <div className="text-[6px] uppercase text-slate-500 font-bold ml-1 pt-1">Não Permitidos</div>
+                                                            
+                                                            {/* MacroDroid Inactive Permission Switch */}
+                                                            <div className="relative">
+                                                                <span className="absolute -inset-1 rounded bg-blue-500/25 opacity-50 animate-pulse"></span>
+                                                                <div 
+                                                                    onClick={() => setActiveStep(7)}
+                                                                    className="relative bg-slate-900 hover:bg-slate-850 px-2 py-1.5 rounded flex justify-between items-center cursor-pointer border border-blue-500/50"
+                                                                >
+                                                                    <span className="text-[7.5px] font-bold text-white">MacroDroid</span>
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="w-6 h-3.5 bg-slate-700 rounded-full flex items-center p-0.5">
+                                                                            <span className="w-2.5 h-2.5 bg-slate-300 rounded-full"></span>
+                                                                        </span>
+                                                                        <span className="animate-bounce">👈</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {activeStep === 7 && (
+                                                    <div className="flex flex-col h-full animate-fade-in justify-between relative">
+                                                        <div className="bg-[#1b2a4a] px-2 py-1.5 opacity-30 text-[8px]">Configure a Notificação</div>
                                                         
-                                                        <div className="absolute bottom-2 right-2">
-                                                            <div className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/40 flex items-center justify-center font-bold text-white text-[12px] animate-bounce">
+                                                        {/* Configuration Overlay Panel */}
+                                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-2 z-10">
+                                                            <div className="bg-[#242424] rounded-xl p-3 border border-slate-700 w-full max-w-[190px] space-y-2.5 text-slate-200">
+                                                                <div className="font-bold text-[8px] text-rose-400">Opções de Notificação</div>
+                                                                
+                                                                <div className="space-y-1 text-[6.5px]">
+                                                                    <div className="text-emerald-400">● Notificação Recebida</div>
+                                                                    <div className="text-slate-400">○ Notificação Removida</div>
+                                                                </div>
+
+                                                                <div className="bg-slate-900 p-1.5 rounded text-[6px] space-y-1">
+                                                                    <div>App: <strong className="text-white">Sicredi</strong></div>
+                                                                    <div>Texto: <strong className="text-white">Contém: "recebeu um Pix"</strong></div>
+                                                                </div>
+
+                                                                <button 
+                                                                    onClick={() => setActiveStep(8)}
+                                                                    className="w-full py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[7.5px] rounded animate-pulse"
+                                                                >
+                                                                    Confirmar OK
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {activeStep === 8 && (
+                                                    <div className="flex flex-col h-full animate-fade-in justify-between">
+                                                        <div className="bg-[#1e293b] p-1.5 text-[7px] flex justify-between">
+                                                            <span className="font-bold">Editar Automação</span>
+                                                            <span>💾</span>
+                                                        </div>
+
+                                                        <div className="flex-1 py-1.5 space-y-2">
+                                                            {/* Gatilho Configured */}
+                                                            <div className="bg-rose-950/20 border border-rose-500/50 p-2 rounded-lg text-[6px] space-y-0.5">
+                                                                <span className="text-rose-400 font-bold uppercase tracking-wider block">🔴 Gatilhos</span>
+                                                                <div className="text-slate-200 font-bold">✓ Notificação do Sicredi</div>
+                                                                <div className="text-slate-400 font-mono">Texto contém: "recebeu um Pix"</div>
+                                                            </div>
+
+                                                            {/* Action configuration setup */}
+                                                            <div className="bg-blue-950/30 border border-blue-500/80 p-2 rounded-lg space-y-1">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-blue-400 font-bold uppercase tracking-wider block text-[6px]">🔵 Ações</span>
+                                                                    <span className="text-[6px] text-blue-300">HTTP POST</span>
+                                                                </div>
+                                                                <div className="bg-slate-950 p-1 rounded font-mono text-[5px] text-slate-400 truncate">
+                                                                    {webhookUrl}
+                                                                </div>
+                                                                <div className="text-[6px] text-slate-300">
+                                                                    Corpo: <span className="text-emerald-400">text = [notification_text]</span>
+                                                                </div>
+                                                                
+                                                                <button 
+                                                                    onClick={() => setActiveStep(9)}
+                                                                    className="w-full mt-1.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[7px] rounded text-center animate-pulse"
+                                                                >
+                                                                    Avançar
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {activeStep === 9 && (
+                                                    <div className="flex flex-col h-full animate-fade-in justify-between relative">
+                                                        <div className="bg-[#1e293b] p-1.5 text-[7px] flex justify-between items-center text-slate-300">
+                                                            <span>IdentificaPix - Sicredi</span>
+                                                            <span className="text-emerald-500 font-bold">● Ativa</span>
+                                                        </div>
+
+                                                        <div className="flex-1 py-2 space-y-2">
+                                                            <div className="bg-rose-950/15 border border-rose-500/30 p-2 rounded-lg text-[6px]">
+                                                                <span className="text-rose-400 font-bold block mb-0.5">🔴 GATILHO</span>
+                                                                <span className="text-slate-200">Notificação Recebida (Sicredi, "recebeu um Pix")</span>
+                                                            </div>
+
+                                                            <div className="bg-blue-950/15 border border-blue-500/30 p-2 rounded-lg text-[6px]">
+                                                                <span className="text-blue-400 font-bold block mb-0.5">🔵 AÇÃO</span>
+                                                                <span className="text-slate-200">HTTP POST ➔ IdentificaPix API</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Floater Success Button */}
+                                                        <div className="absolute bottom-4 right-4 animate-bounce">
+                                                            <div className="w-8 h-8 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40 flex items-center justify-center font-bold text-white text-[12px]">
                                                                 ✓
                                                             </div>
                                                         </div>
@@ -581,7 +809,7 @@ export const ConnectorsView: React.FC = () => {
                                                             <div className="font-bold text-[8px] text-blue-400">Adicionar Novo Campo</div>
                                                             <div className="flex items-center gap-1.5 pt-1">
                                                                 <span className="text-rose-400 font-mono">text</span>
-                                                                <span className="bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold">Entrada do Atalho</span>
+                                                                <span className="bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold font-sans">Entrada do Atalho</span>
                                                             </div>
                                                         </div>
                                                         <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[7px] rounded-lg mt-auto text-center font-bold">
