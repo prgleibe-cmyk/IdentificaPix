@@ -21,6 +21,7 @@ export const useReportsController = () => {
         updateReportData,
         runAiAutoIdentification,
         searchFilters,
+        setSearchFilters,
         selectedBankId,
         setSelectedBankId,
         bankList,
@@ -415,6 +416,6 @@ export const useReportsController = () => {
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
         handleDownload, handlePrint, handleSaveReport, updateReportData,
         setActiveView, reportPreviewData,
-        searchFilters
+        searchFilters, setSearchFilters
     };
 };

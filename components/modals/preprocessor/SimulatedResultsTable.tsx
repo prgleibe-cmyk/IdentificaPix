@@ -41,9 +41,9 @@ export const SimulatedResultsTable: React.FC<SimulatedResultsTableProps> = ({
                     <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-xl animate-pulse"></div>
                     <ArrowPathIcon className="w-12 h-12 text-indigo-500 animate-spin relative z-10" />
                 </div>
-                <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-[0.2em] mb-2">IA Lendo Documento</h5>
+                <h5 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-[0.2em] mb-2">Processando Documento</h5>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 max-w-[200px] mx-auto leading-relaxed font-bold">
-                    Aguarde enquanto o Gemini extrai as transações do seu extrato visualmente.
+                    Aguarde enquanto o sistema analisa e extrai as transações do seu extrato de forma determinística e segura.
                 </p>
             </div>
         );

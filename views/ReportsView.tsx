@@ -1,5 +1,4 @@
-
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { EditableReportTable } from '../components/reports/EditableReportTable';
 import { ChartBarIcon } from '../components/Icons';
 import { useReportsController } from '../hooks/useReportsController';
+import { Calendar, Check } from 'lucide-react';
 
 // Sub-componentes modulares
 import { CategoryPills } from '../components/reports/CategoryPills';
@@ -14,6 +14,20 @@ import { ReportToolbar } from '../components/reports/ReportToolbar';
 import { ChurchChipsList } from '../components/reports/ChurchChipsList';
 import { BankChipsList } from '../components/reports/BankChipsList';
 import { StatsStrip } from '../components/reports/StatsStrip';
+
+const formatDateBRL = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
+const getDatesFromMonthYear = (month: number, year: number) => {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    return { start: startDate, end: endDate };
+};
 
 /**
  * REPORTS VIEW (V3 - MODULAR)
@@ -24,6 +38,160 @@ export const ReportsView: React.FC = () => {
     const { t, language } = useTranslation();
     const { loadingAiId } = useContext(AppContext);
     const { subscription } = useAuth();
+
+    // Estados locais para controle do período
+    const [selectionMode, setSelectionMode] = useState<'month' | 'dates'>('month');
+    const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [customStart, setCustomStart] = useState<string>('');
+    const [customEnd, setCustomEnd] = useState<string>('');
+
+    const startSelected = ctrl.searchFilters?.dateRange?.start;
+    const endSelected = ctrl.searchFilters?.dateRange?.end;
+
+    // Se o período não estiver selecionado (carregamento zerado por padrão para alta performance)
+    if (!startSelected || !endSelected) {
+        const handleConfirmPeriod = () => {
+            if (selectionMode === 'month') {
+                const { start, end } = getDatesFromMonthYear(selectedMonth, selectedYear);
+                ctrl.setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dateRange: { start, end }
+                }));
+            } else {
+                if (!customStart || !customEnd) {
+                    alert('Por favor, selecione ambas as datas de início e fim.');
+                    return;
+                }
+                ctrl.setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dateRange: { start: customStart, end: customEnd }
+                }));
+            }
+        };
+
+        const monthsList = [
+            { val: 1, name: 'Janeiro' },
+            { val: 2, name: 'Fevereiro' },
+            { val: 3, name: 'Março' },
+            { val: 4, name: 'Abril' },
+            { val: 5, name: 'Maio' },
+            { val: 6, name: 'Junho' },
+            { val: 7, name: 'Julho' },
+            { val: 8, name: 'Agosto' },
+            { val: 9, name: 'Setembro' },
+            { val: 10, name: 'Outubro' },
+            { val: 11, name: 'Novembro' },
+            { val: 12, name: 'Dezembro' }
+        ];
+
+        const yearsList = [2027, 2026, 2025, 2024];
+
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-3xl animate-fade-in">
+                <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 p-8 flex flex-col gap-6">
+                    <div className="flex flex-col items-center text-center gap-2">
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-full text-blue-600 dark:text-blue-400">
+                            <Calendar className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Selecione o Período</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium max-w-sm leading-relaxed">
+                            Para garantir máxima velocidade e precisão nos relatórios, selecione o período desejado abaixo para carregar os dados.
+                        </p>
+                    </div>
+
+                    {/* Botões de Seleção de Modo */}
+                    <div className="flex p-1 bg-slate-100 dark:bg-slate-700/50 rounded-2xl">
+                        <button
+                            type="button"
+                            onClick={() => setSelectionMode('month')}
+                            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                                selectionMode === 'month'
+                                    ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Mês e Ano
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSelectionMode('dates')}
+                            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                                selectionMode === 'dates'
+                                    ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Intervalo de Datas
+                        </button>
+                    </div>
+
+                    {/* Inputs baseados no modo */}
+                    {selectionMode === 'month' ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Mês</label>
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {monthsList.map(m => (
+                                        <option key={m.val} value={m.val}>{m.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Ano</label>
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {yearsList.map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Início</label>
+                                    <input
+                                        type="date"
+                                        value={customStart}
+                                        onChange={(e) => setCustomStart(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Fim</label>
+                                    <input
+                                        type="date"
+                                        value={customEnd}
+                                        onChange={(e) => setCustomEnd(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Botão de confirmação */}
+                    <button
+                        type="button"
+                        onClick={handleConfirmPeriod}
+                        className="w-full h-12 flex items-center justify-center gap-2 text-xs font-black text-white rounded-2xl shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 active:scale-95 transition-all bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 uppercase tracking-widest cursor-pointer"
+                    >
+                        <Check className="w-4 h-4" />
+                        Carregar Período
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (!ctrl.reportPreviewData) {
         return (
@@ -62,6 +230,27 @@ export const ReportsView: React.FC = () => {
                     role={subscription.role}
                 />
             </div>
+
+            {/* Barra de Período Selecionado com opção de alteração */}
+            {startSelected && endSelected && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/80 rounded-xl text-xs text-slate-600 dark:text-slate-300 w-fit shrink-0">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>
+                        Período: <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(startSelected)}</strong> até <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(endSelected)}</strong>
+                    </span>
+                    <button 
+                        onClick={() => {
+                            ctrl.setSearchFilters((prev: any) => ({
+                                ...prev,
+                                dateRange: { start: '', end: '' }
+                            }));
+                        }}
+                        className="ml-2 text-[10px] font-black uppercase text-blue-600 hover:text-red-500 transition-colors cursor-pointer"
+                    >
+                        Alterar
+                    </button>
+                </div>
+            )}
 
             {ctrl.activeCategory === 'churches' && (
                 <ChurchChipsList list={ctrl.churchList} selectedId={ctrl.selectedReportId} onSelect={setSelectedIdSafe(ctrl)} />

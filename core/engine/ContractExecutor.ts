@@ -3,7 +3,87 @@ import { Transaction, FileModel } from '../../types';
 import { DateResolver } from '../processors/DateResolver';
 import { AmountResolver } from '../processors/AmountResolver';
 import { NameResolver } from '../processors/NameResolver';
-import { extractTransactionsWithModel } from '../../services/geminiService';
+
+/**
+ * 🛠️ EXTRATOR DE BLOCO DETERMINÍSTICO LOCAL (SEM IA)
+ */
+function deterministicBlockExtraction(rawText: string): any[] {
+    const lines = rawText.split(/\r?\n/).filter(l => l.trim().length > 0);
+    const rows: any[] = [];
+    
+    // Data: DD/MM ou DD/MM/AAAA ou DD/MM/AA
+    const dateRegex = /\b(\d{2})\/(\d{2})(?:\/(\d{2,4}))?\b/;
+    
+    // Valor: número com vírgula de duas casas decimais no final, opcionalmente negativo ou seguido de C/D
+    const amountRegex = /(?:-|R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2})\s*([CDcd])?\b/;
+
+    for (const line of lines) {
+        const upperLine = line.toUpperCase();
+        if (upperLine.includes('SALDO ANTERIOR') || upperLine.includes('SALDO ATUAL') || upperLine.includes('EXTRATO DE CONTA')) {
+            continue;
+        }
+
+        const dateMatch = line.match(dateRegex);
+        if (!dateMatch) continue;
+
+        const amountMatch = line.match(amountRegex);
+        if (!amountMatch) continue;
+
+        const rawDate = dateMatch[0];
+        const rawAmountStr = amountMatch[1];
+        
+        // Determina se é débito (negativo)
+        const isDebit = line.includes('-') || 
+                        amountMatch[0].startsWith('-') || 
+                        (amountMatch[2] && amountMatch[2].toUpperCase() === 'D') || 
+                        upperLine.includes('DEBITO') || 
+                        upperLine.includes('DÉBITO') ||
+                        upperLine.includes('SAQUE') ||
+                        upperLine.includes('PAGTO') ||
+                        upperLine.includes('DESPESA') ||
+                        upperLine.includes('TARIFA');
+
+        let cleanAmountStr = rawAmountStr.replace(/\./g, '').replace(',', '.');
+        let amount = parseFloat(cleanAmountStr);
+        if (isNaN(amount)) continue;
+        
+        if (isDebit) {
+            amount = -Math.abs(amount);
+        } else {
+            amount = Math.abs(amount);
+        }
+
+        // Descrição é o que sobra excluindo data e valor
+        let description = line
+            .replace(dateRegex, '')
+            .replace(amountRegex, '')
+            .replace(/R\$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (description.length < 3) {
+            description = "TRANSAÇÃO BANCÁRIA";
+        }
+
+        // Tenta inferir forma de pagamento
+        let forma = "PIX";
+        if (upperLine.includes("BOLETO") || upperLine.includes("COBRANCA") || upperLine.includes("COBRANÇA")) forma = "BOLETO";
+        else if (upperLine.includes("TED")) forma = "TED";
+        else if (upperLine.includes("DOC")) forma = "DOC";
+        else if (upperLine.includes("CARTAO") || upperLine.includes("CARTÃO")) forma = "CARTÃO";
+        else if (upperLine.includes("TRANSF") || upperLine.includes("TRANSFERENCIA")) forma = "TRANSFERÊNCIA";
+
+        rows.push({
+            date: rawDate,
+            description: description.toUpperCase(),
+            amount: amount,
+            forma,
+            tipo: amount >= 0 ? "ENTRADA" : "SAÍDA"
+        });
+    }
+
+    return rows;
+}
 
 /**
  * 📜 CONTRACT EXECUTOR (V63 - KEYWORD CLEANING RESTORED)
@@ -23,28 +103,22 @@ export const ContractExecutor = {
 
         const { mapping } = model;
         
-        // 🧱 MODO BLOCO (PDF / VISÃO IA)
+        // 🧱 MODO BLOCO (PROCESSAMENTO DETERMINÍSTICO LOCAL DE ALTA FIDELIDADE)
         if (mapping.extractionMode === 'BLOCK') {
-            const trainingContext = mapping.blockContract || 'Extração fiel conforme modelo.';
-
             try {
                 if (rawBase64) {
-                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> CLEANING_ACTIVE`);
+                    console.log(`[PDF:PHASE:6:CONTRACT_APPLY] MODEL:"${model.name}" -> DETERMINISTIC_BLOCK_ACTIVE`);
                 }
                 
-                const aiResult = await extractTransactionsWithModel(rawText, trainingContext, rawBase64);
-                const rows = Array.isArray(aiResult) ? aiResult : (aiResult?.rows || []);
+                const rows = deterministicBlockExtraction(rawText);
                 
                 const finalRows = rows.map((tx: any, idx: number) => {
                     const aiLiteralDesc = String(tx.description || "");
-                    
-                    // Para PDF/IA, tentamos compor uma "identidade bruta" única se houver metadados extras
                     const rawIdentity = tx.raw_line || aiLiteralDesc;
 
                     /**
-                     * 🎯 REATIVAÇÃO DA LIMPEZA:
-                     * Aplicamos o NameResolver.clean para remover termos como PIX, TED, etc.
-                     * definidos globalmente no Admin ou especificamente no Modelo.
+                     * 🎯 LIMPEZA DETERMINÍSTICA LOCAL:
+                     * Aplicamos o NameResolver.clean para remover termos definidos globalmente.
                      */
                     const cleanedDescription = NameResolver.clean(aiLiteralDesc);
 
@@ -70,7 +144,7 @@ export const ContractExecutor = {
 
                 return finalRows;
             } catch (e) { 
-                console.error("[ContractExecutor] Erro na leitura IA:", e);
+                console.error("[ContractExecutor] Erro na leitura determinística de bloco:", e);
                 return []; 
             }
         }

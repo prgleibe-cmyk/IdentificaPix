@@ -3,7 +3,7 @@ import { MatchResult } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
-import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon } from './Icons';
+import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
 
 interface ResultsTableProps {
@@ -38,7 +38,7 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
 
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
-    const { toggleConfirmation } = useContext(AppContext);
+    const { toggleConfirmation, setBulkIdentificationTxs } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     useEffect(() => { 
@@ -177,15 +177,23 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                             {confirmed ? (
                                                 <button 
                                                     onClick={() => toggleConfirmation([transaction.id], false)}
-                                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
+                                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
                                                     title="Remover Bloqueio"
                                                 >
                                                     <LockOpenIcon className="w-3.5 h-3.5" />
                                                 </button>
                                             ) : (
-                                                status === 'NÃO IDENTIFICADO' && (
-                                                    <div className="w-8 h-8" />
-                                                )
+                                                <button 
+                                                    onClick={() => setBulkIdentificationTxs([transaction])}
+                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                                        status === 'IDENTIFICADO'
+                                                            ? 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
+                                                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                                                    }`}
+                                                    title={status === 'IDENTIFICADO' ? "Corrigir Identificação" : "Identificar Lançamento"}
+                                                >
+                                                    <PencilIcon className="w-3.5 h-3.5" />
+                                                </button>
                                             )}
                                         </div>
                                     </td>

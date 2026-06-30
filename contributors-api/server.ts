@@ -204,6 +204,44 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     console.log('[Contributors API] Table "saved_reports" verified or successfully created.');
 
+    // Create table financial_records
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS financial_records (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        church_id UUID,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        amount NUMERIC(12, 2) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        recipient_name VARCHAR(255),
+        recipient_type VARCHAR(50),
+        due_date TIMESTAMP,
+        payment_date TIMESTAMP,
+        recurrence VARCHAR(50) DEFAULT 'none',
+        parent_id UUID,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS church_id UUID;');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS title VARCHAR(255);');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS description TEXT;');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2);');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS type VARCHAR(50);');
+    await client.query("ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending';");
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(255);');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS recipient_type VARCHAR(50);');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS due_date TIMESTAMP;');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS payment_date TIMESTAMP;');
+    await client.query("ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS recurrence VARCHAR(50) DEFAULT 'none';");
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS parent_id UUID;');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    console.log('[Contributors API] Table "financial_records" verified or successfully created.');
+
   } catch (err) {
     console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
   } finally {
@@ -690,8 +728,12 @@ app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request,
 // GET /api/v1/saved_reports
 app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
-    const { user_id } = req.query;
-    let query = 'SELECT id, name, record_count, user_id, data, created_at FROM saved_reports WHERE 1=1';
+    const { user_id, exclude_data } = req.query;
+    let selectFields = 'id, name, record_count, user_id, church_id, created_at';
+    if (exclude_data !== 'true') {
+      selectFields += ', data';
+    }
+    let query = `SELECT ${selectFields} FROM saved_reports WHERE 1=1`;
     const params: any[] = [];
     if (user_id) {
       query += ' AND user_id = $1';

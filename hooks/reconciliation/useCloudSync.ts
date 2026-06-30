@@ -21,6 +21,9 @@ interface UseCloudSyncProps {
     isLoading?: boolean;
     activeBankFiles?: any[];
     selectedBankIds?: string[];
+    searchFilters?: any;
+    setSearchFilters?: any;
+    realtimeRefreshKey?: number;
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
@@ -41,7 +44,10 @@ export const useCloudSync = ({
     handleCompare,
     isLoading,
     activeBankFiles,
-    selectedBankIds
+    selectedBankIds,
+    searchFilters,
+    setSearchFilters,
+    realtimeRefreshKey
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -81,9 +87,15 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}`;
+    const dataReadyKey = `${effectiveUserId}-${searchFilters?.dateRange?.start || ''}-${searchFilters?.dateRange?.end || ''}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
+
+    useEffect(() => {
+        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
+            lastDataReadyKeyRef.current = '';
+        }
+    }, [realtimeRefreshKey]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -124,6 +136,16 @@ export const useCloudSync = ({
 
         if (!isReady || activeReportId) return;
 
+        // ⚡ SE NENHUM PERÍODO FOR SELECIONADO, DEIXA CARREGAMENTO ZERADO (SUPER LEVE)
+        if (!searchFilters?.dateRange?.start || !searchFilters?.dateRange?.end) {
+            console.log("[CloudSync] Carregamento zerado: aguardando seleção de período pelo usuário.");
+            if (matchResults.length > 0) {
+                setMatchResults(() => []);
+            }
+            setHasActiveSession(false);
+            return;
+        }
+
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
         lastDataReadyKeyRef.current = dataReadyKey;
@@ -140,14 +162,14 @@ export const useCloudSync = ({
             needsRetry.current = false;
 
             try {
-                // 1. Busca as transações que não estão pendentes (últimos 30 dias) - Loop paginado para trazer 100% dos dados
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const dateThreshold = thirtyDaysAgo.toISOString().split('T')[0];
+                // 1. Busca as transações que estão dentro do período selecionado
+                const startDate = searchFilters.dateRange.start;
+                const endDate = searchFilters.dateRange.end;
 
                 console.log('[RECONSTRUCT:FILTER]', {
                     effectiveUserId,
-                    dateThreshold
+                    startDate,
+                    endDate
                 });
 
                 let allTxs: any[] = [];
@@ -155,7 +177,7 @@ export const useCloudSync = ({
                 const pageSize = 1000;
 
                 while (true) {
-                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${dateThreshold}&limit=${pageSize}&offset=${from}`);
+                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${from}`);
                     if (!res.ok) {
                         throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                     }
@@ -357,7 +379,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading, searchFilters, realtimeRefreshKey]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
@@ -613,7 +635,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, setMatchResults]);
+    }, [effectiveUserId, setMatchResults, realtimeRefreshKey]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)

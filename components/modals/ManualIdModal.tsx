@@ -204,6 +204,48 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     </div>
 
+                    {count === 1 && !isManualLaunch && (
+                        <div className="bg-slate-50 dark:bg-black/25 p-5 rounded-[2rem] border border-slate-100 dark:border-white/5 space-y-3">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                Dados Recebidos do Banco
+                            </h4>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="col-span-2">
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Descrição</span>
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase break-all block">
+                                        {bulkIdentificationTxs[0].description}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Valor</span>
+                                    <span className={`text-xs font-black font-mono block ${bulkIdentificationTxs[0].amount < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                        {formatCurrency(bulkIdentificationTxs[0].amount, language)}
+                                    </span>
+                                </div>
+                            </div>
+                            {/* Mostrar destinação atual se já estiver identificado */}
+                            {(() => {
+                                const matchedResult = findMatchResult ? findMatchResult(bulkIdentificationTxs[0].id) : null;
+                                if (matchedResult && matchedResult.contributor) {
+                                    return (
+                                        <div className="pt-2 border-t border-slate-200/50 dark:border-white/5 flex flex-col gap-1">
+                                            <span className="text-[8px] font-black text-indigo-400 uppercase tracking-wider">
+                                                Lançamento Atual (Pode Corrigir abaixo)
+                                            </span>
+                                            <div className="flex justify-between items-center text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                <span className="uppercase">{matchedResult.contributor.name}</span>
+                                                <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded uppercase">
+                                                    {matchedResult.church?.name || '---'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
+                        </div>
+                    )}
+
                     {isManualLaunch && (
                         <>
                             <div className="space-y-3">

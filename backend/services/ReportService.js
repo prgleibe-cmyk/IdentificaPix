@@ -5,7 +5,7 @@ export class ReportService {
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
             // Fetch saved reports from VPS
-            let url = `${cleanVpsUrl}/api/v1/saved_reports?user_id=${effectiveOwnerId}`;
+            let url = `${cleanVpsUrl}/api/v1/saved_reports?user_id=${effectiveOwnerId}&exclude_data=true`;
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Failed to fetch from VPS saved_reports: ${response.statusText}`);

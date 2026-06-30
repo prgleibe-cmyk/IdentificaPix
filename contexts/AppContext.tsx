@@ -35,9 +35,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
 
+    const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
+
+    // 📡 ESCUTA DE VISIBILIDADE / CONEXÃO (ROBUSTEZ PARA CELULAR, TABLET E NOTEBOOK)
+    useEffect(() => {
+        let lastTriggerTime = 0;
+        const triggerRefresh = () => {
+            const now = Date.now();
+            if (now - lastTriggerTime < 1500) return; // debounce de 1.5s
+            lastTriggerTime = now;
+            
+            console.log("[AppContext:RealtimeRefresh] Dispositivos / Foco reativado. Sincronizando canais de tempo real e forçando hidratação.");
+            setRealtimeRefreshKey(prev => prev + 1);
+            
+            if (supabase && (supabase as any).realtime) {
+                try {
+                    (supabase as any).realtime.disconnect();
+                    (supabase as any).realtime.connect();
+                } catch (e) {
+                    console.error("[AppContext:RealtimeRefresh] Erro ao reconectar cliente Supabase:", e);
+                }
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                triggerRefresh();
+            }
+        };
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', triggerRefresh);
+        window.addEventListener('online', triggerRefresh);
+
+        return () => {
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', triggerRefresh);
+            window.removeEventListener('online', triggerRefresh);
+        };
+    }, []);
+
     const modalController = useModalController();
-    const referenceData = useReferenceData(user, showToast);
-    const reportManager = useReportManager(user, showToast, referenceData.reports);
+    const referenceData = useReferenceData(user, showToast, realtimeRefreshKey);
+    const reportManager = useReportManager(user, showToast, referenceData.reports, realtimeRefreshKey);
 
     const reconciliation = useReconciliation({
         user: user,
@@ -53,7 +93,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast,
         isLoading,
         setIsLoading,
-        setActiveView
+        setActiveView,
+        searchFilters: reportManager.searchFilters,
+        setSearchFilters: reportManager.setSearchFilters,
+        realtimeRefreshKey
     });
 
     // 🔄 SINCRONIZAÇÃO DE DADOS DO RELATÓRIO ATIVO
@@ -331,13 +374,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
             const savedReport = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
-            if (savedReport && savedReport.data?.results?.length > 0) {
-                console.log("[AppContext] Auto-carregando dados do relatório ativo:", reconciliation.activeReportId);
-                reconciliation.setMatchResults(() => savedReport.data.results);
-                reconciliation.setHasActiveSession(true);
+            if (savedReport) {
+                if (savedReport.data?.results?.length > 0) {
+                    console.log("[AppContext] Auto-carregando dados do relatório ativo:", reconciliation.activeReportId);
+                    reconciliation.setMatchResults(() => savedReport.data.results);
+                    reconciliation.setHasActiveSession(true);
+                } else {
+                    console.log("[AppContext] Dados do relatório vazios na lista, buscando detalhes sob demanda para:", reconciliation.activeReportId);
+                    viewSavedReport(reconciliation.activeReportId).catch(err => {
+                        console.error("[AppContext] Erro ao carregar detalhes do relatório atômico:", err);
+                    });
+                }
             }
         }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation.hasActiveSession]);
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation.hasActiveSession, viewSavedReport]);
 
     // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
     useEffect(() => {
