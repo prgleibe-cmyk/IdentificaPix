@@ -82,16 +82,6 @@ export const useDataDeletion = ({
                     
                     // Remove do estado da reconciliação (UI do relatório)
                     reconciliation.removeTransaction?.(id);
-
-                    // Persiste a mudança no relatório salvo ou na nuvem
-                    const activeReportId = reconciliation.activeReportId;
-                    const currentResults = reconciliation.fullMatchResults || [];
-                    const nextResults = currentResults.filter((r: any) => r.transaction.id !== id);
-                    if (activeReportId) {
-                        await reportManager.overwriteSavedReport(activeReportId, nextResults);
-                    } else {
-                        await reconciliation.syncToCloud?.(nextResults);
-                    }
                     
                     // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
                     if (reconciliation.hydrate) {
@@ -111,16 +101,6 @@ export const useDataDeletion = ({
                         
                         // Remove do estado da reconciliação (UI do relatório)
                         reconciliation.removeTransactions?.(ids);
-
-                        // Persiste a mudança no relatório salvo ou na nuvem
-                        const activeReportId = reconciliation.activeReportId;
-                        const currentResults = reconciliation.fullMatchResults || [];
-                        const nextResults = currentResults.filter((r: any) => !ids.includes(r.transaction.id));
-                        if (activeReportId) {
-                            await reportManager.overwriteSavedReport(activeReportId, nextResults);
-                        } else {
-                            await reconciliation.syncToCloud?.(nextResults);
-                        }
                         
                         // Força a sincronização da Lista Viva para atualizar os contadores no UploadView
                         if (reconciliation.hydrate) {

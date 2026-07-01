@@ -1,7 +1,6 @@
 
 import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, MatchMethod } from '../../types';
 import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString } from '../utils/parsingUtils';
-import { extractNameAndCpf, isCpfCompatible } from '../../utils/contributorHelper';
 
 /**
  * Calcula a similaridade valorizando códigos identificadores (DNA Numérico).
@@ -113,34 +112,18 @@ export const matchTransactions = (
             }
         }
 
-        // PRIORIDADE 2: Match por Similaridade com DNA Numérico (Lógica Fuzzy) ou Compatibilidade de CPF
+        // PRIORIDADE 2: Match por Similaridade com DNA Numérico (Lógica Fuzzy)
         if (allContributorsFlat.length > 0) {
             let bestMatch: any = null;
             let highestScore = 0;
 
-            const { cpf: extractedCpf } = extractNameAndCpf(tx.description);
-
-            // ⚡ Prioridade: Match por CPF compatível (incluindo máscaras)
-            if (extractedCpf) {
-                const cpfMatch = allContributorsFlat.find((contrib: any) => 
-                    isCpfCompatible(extractedCpf, contrib.cpf)
-                );
-                if (cpfMatch) {
-                    bestMatch = cpfMatch;
-                    highestScore = 100;
+            allContributorsFlat.forEach((contrib: any) => {
+                const score = calculateNameSimilarity(tx.description, contrib);
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestMatch = contrib;
                 }
-            }
-
-            // Fallback para similaridade de nome se não achou por CPF
-            if (!bestMatch) {
-                allContributorsFlat.forEach((contrib: any) => {
-                    const score = calculateNameSimilarity(tx.description, contrib);
-                    if (score > highestScore) {
-                        highestScore = score;
-                        bestMatch = contrib;
-                    }
-                });
-            }
+            });
 
             if (bestMatch && highestScore >= (options.similarityThreshold || 55)) {
                 usedContributors.add(bestMatch._internalId);

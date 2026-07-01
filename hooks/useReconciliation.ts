@@ -30,9 +30,7 @@ export const useReconciliation = (props: any) => {
         showToast,
         isLoading,
         setIsLoading,
-        setActiveView,
-        searchFilters,
-        setSearchFilters
+        setActiveView
     } = props;
 
     const effectiveUserId = subscription?.ownerId || user?.id;
@@ -177,8 +175,7 @@ export const useReconciliation = (props: any) => {
         user,
         subscription,
         setBankStatementFile,
-        setSelectedBankIds,
-        realtimeRefreshKey: props.realtimeRefreshKey
+        setSelectedBankIds
     });
 
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });

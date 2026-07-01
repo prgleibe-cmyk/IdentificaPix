@@ -7,9 +7,12 @@ import { SavedReport, SearchFilters, SavingReportState, MatchResult, Spreadsheet
 const ENABLE_HEAVY_LOGS = false;
 
 const getInitialDateRange = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
     return {
-        start: '',
-        end: ''
+        start: thirtyDaysAgo.toISOString().split('T')[0],
+        end: today.toISOString().split('T')[0]
     };
 };
 
@@ -26,7 +29,7 @@ const DEFAULT_SEARCH_FILTERS: SearchFilters = {
 
 const MAX_REPORTS_PER_USER = 60;
 
-export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[], realtimeRefreshKey?: number) => {
+export const useReportManager = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, initialReports?: any[]) => {
     const { subscription } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.id;
     const executionId = useRef(Math.random().toString(36).substring(7));
@@ -34,12 +37,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const hasHydratedRef = useRef(false);
-
-    useEffect(() => {
-        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
-            hasHydratedRef.current = false;
-        }
-    }, [realtimeRefreshKey]);
 
     // 🛡️ RESET DE FILTROS NO LOGIN: Garante que cada nova sessão comece com o padrão de 30 dias
     useEffect(() => {
@@ -189,7 +186,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         fetchReports();
         return () => { ignore = true; };
-    }, [user, effectiveUserId, initialReports, realtimeRefreshKey]);
+    }, [user, effectiveUserId, initialReports]);
 
     /**
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
@@ -255,7 +252,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, subscription.ownerId, realtimeRefreshKey]);
+    }, [user, subscription.ownerId]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);
     const closeSearchFilters = useCallback(() => setIsSearchFiltersOpen(false), []);

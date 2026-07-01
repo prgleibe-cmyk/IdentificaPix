@@ -17,7 +17,6 @@ export const ptUi = {
     'nav.settings': 'Configurações',
     'nav.smart_analysis': 'Gerador de Planilha',
     'nav.launched': 'Lançados',
-    'nav.financial': 'Controle Financeiro',
 
     // Common
     'common.save': 'Salvar',

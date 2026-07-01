@@ -41,7 +41,7 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
                 </div>
             )}
 
-            <button onClick={onAiClick} className="relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-md transition-all active:scale-95 group border border-white/10" title="Conciliação Automática de Vínculos">
+            <button onClick={onAiClick} className="relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-md transition-all active:scale-95 group border border-white/10" title="Conciliação Inteligente IA">
                 <SparklesIcon className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
                 <span>Conciliação Inteligente</span>
             </button>

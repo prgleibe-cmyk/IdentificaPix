@@ -3,7 +3,7 @@ import { MatchResult } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
-import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
+import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
 
 interface ResultsTableProps {
@@ -38,7 +38,7 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
 
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
-    const { toggleConfirmation, setBulkIdentificationTxs } = useContext(AppContext);
+    const { toggleConfirmation } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     useEffect(() => { 
@@ -116,7 +116,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed, contributionType }) => {
+                        {results.map(({ transaction, contributor, status, matchMethod, contributorAmount, paymentMethod, church, isConfirmed }) => {
                             const isSelected = selectedIds.includes(transaction.id);
 
                             // 🧠 Fonte única de verdade
@@ -124,11 +124,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             const confirmed = transaction.isConfirmed ?? isConfirmed ?? false;
 
                             const displayAmount = status === 'PENDENTE' ? (contributorAmount || contributor?.amount || 0) : transaction.amount;
-                            const isExpense = displayAmount < 0 || 
-                                              transaction.type?.toLowerCase() === 'expense' || 
-                                              transaction.type?.toLowerCase() === 'saida' || 
-                                              contributionType?.toLowerCase() === 'saída' || 
-                                              contributionType?.toLowerCase() === 'saida';
                             const displayDate = formatDate(status === 'PENDENTE' ? (contributor?.date || transaction.date) : transaction.date);
                             
                             const bankDescription = transaction.description;
@@ -163,7 +158,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                     <td className="px-4 py-2.5">
                                         <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase italic">{paymentMethod || transaction.paymentMethod || '---'}</span>
                                     </td>
-                                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-bold ${isExpense ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
+                                    <td className={`px-4 py-2.5 text-right font-mono text-xs font-bold ${displayAmount < 0 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                                         {formatCurrency(displayAmount, language)}
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
@@ -177,23 +172,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                             {confirmed ? (
                                                 <button 
                                                     onClick={() => toggleConfirmation([transaction.id], false)}
-                                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
+                                                    className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
                                                     title="Remover Bloqueio"
                                                 >
                                                     <LockOpenIcon className="w-3.5 h-3.5" />
                                                 </button>
                                             ) : (
-                                                <button 
-                                                    onClick={() => setBulkIdentificationTxs([transaction])}
-                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                                        status === 'IDENTIFICADO'
-                                                            ? 'bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white'
-                                                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white'
-                                                    }`}
-                                                    title={status === 'IDENTIFICADO' ? "Corrigir Identificação" : "Identificar Lançamento"}
-                                                >
-                                                    <PencilIcon className="w-3.5 h-3.5" />
-                                                </button>
+                                                status === 'NÃO IDENTIFICADO' && (
+                                                    <div className="w-8 h-8" />
+                                                )
                                             )}
                                         </div>
                                     </td>

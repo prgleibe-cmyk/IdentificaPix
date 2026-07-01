@@ -2,7 +2,6 @@ import { useState, useMemo, useContext, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { SavedReport, Language } from '../types';
-import { supabase } from '../services/supabaseClient';
 
 export type SortKey = 'name' | 'createdAt' | 'recordCount';
 export type SortDirection = 'asc' | 'desc';
@@ -103,35 +102,16 @@ export const useSavedReportsController = () => {
     }, []);
 
     const handleDuplicate = useCallback(async (report: SavedReport) => {
-        let spreadsheet = report?.data?.spreadsheet;
-
-        if (!spreadsheet) {
-            try {
-                const { data, error } = await supabase
-                    .from('saved_reports')
-                    .select('data')
-                    .eq('id', report.id)
-                    .single();
-
-                if (error) throw error;
-                if (data) {
-                    const rawData = (data as any).data;
-                    const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                    spreadsheet = parsedData?.spreadsheet;
-                }
-            } catch (err) {
-                console.error("Erro ao carregar detalhes para duplicação:", err);
-            }
-        }
-
-        if (!spreadsheet) {
+        if (!report?.data?.spreadsheet) {
             console.error("Planilha sem dados para duplicação", report);
             return;
         }
 
+        const duplicatedSpreadsheet = report.data.spreadsheet;
+
         await confirmSaveReport({
             name: `${report.name} (cópia)`,
-            spreadsheetData: spreadsheet
+            spreadsheetData: duplicatedSpreadsheet
         });
     }, [confirmSaveReport]);
 

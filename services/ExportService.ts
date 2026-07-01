@@ -11,7 +11,7 @@ export const ExportService = {
         const headers = ["Data", "Descrição", "Tipo", "Status", "Valor", "Igreja"];
         const csvContent = [
             headers.join(";"),
-            ...data.flatMap(r => {
+            ...data.map(r => {
                 const isGhost = r.status === 'PENDENTE';
                 const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
                 
@@ -19,23 +19,13 @@ export const ExportService = {
                 const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
                 const desc = String(rawName).replace(/;/g, ' ').toUpperCase();
                 
+                const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
                 const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
                 const church = (r.church?.name || '---').replace(/;/g, ' ');
-
-                if (r.splits && r.splits.length > 0) {
-                    return r.splits.map(s => {
-                        const splitDesc = s.description ? `${desc} - ${s.description.replace(/;/g, ' ').toUpperCase()}` : desc;
-                        const splitType = s.contributionType.replace(/;/g, ' ');
-                        const splitAmountVal = s.amount;
-                        const splitAmount = Number(splitAmountVal).toFixed(2).replace('.', ',');
-                        return [`"${date}"`, `"${splitDesc}"`, `"${splitType}"`, `"${status} (RATEADO)"`, `"${splitAmount}"`, `"${church}"`].join(";");
-                    });
-                } else {
-                    const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
-                    const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
-                    const amount = Number(rawAmount).toFixed(2).replace('.', ',');
-                    return [`"${date}"`, `"${desc}"`, `"${type}"`, `"${status}"`, `"${amount}"`, `"${church}"`].join(";");
-                }
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const amount = Number(rawAmount).toFixed(2).replace('.', ',');
+                
+                return [`"${date}"`, `"${desc}"`, `"${type}"`, `"${status}"`, `"${amount}"`, `"${church}"`].join(";");
             })
         ].join("\n");
 
@@ -56,15 +46,19 @@ export const ExportService = {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const tableRows = data.flatMap(r => {
+        const tableRows = data.map(r => {
             const isGhost = r.status === 'PENDENTE';
             const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             
             // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
             const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
             const name = String(rawName).toUpperCase();
-            const churchName = r.church?.name || '-';
 
+            const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+            const isNegative = amountVal < 0;
+            const amount = formatCurrency(amountVal, language);
+            const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
+            
             // Cores baseadas no Status
             let statusLabel = r.status as string;
             let statusColor = '#64748b'; // Slate 500 (Padrão)
@@ -77,40 +71,18 @@ export const ExportService = {
                 statusColor = '#d97706'; // Amber 600
             }
 
-            if (r.splits && r.splits.length > 0) {
-                return r.splits.map(s => {
-                    const splitName = s.description ? `${name} [${s.description.toUpperCase()}]` : name;
-                    const isNegative = s.amount < 0;
-                    const amount = formatCurrency(s.amount, language);
-                    const type = s.contributionType;
-                    return `
-                        <tr>
-                            <td>${date}</td>
-                            <td style="font-weight: 600;">${splitName} <span style="font-size: 8px; font-weight: 800; color: #4f46e5; background: #e0e7ff; padding: 2px 5px; border-radius: 4px; margin-left: 5px;">RATEADO</span></td>
-                            <td style="font-size: 9px; color: #475569;">${churchName}</td>
-                            <td style="text-align: center; font-size: 9px; font-weight: bold;">${type}</td>
-                            <td style="text-align: center; font-weight: 800; color: ${statusColor}; font-size: 9px;">${statusLabel}</td>
-                            <td style="text-align: right; font-weight: 900; font-family: monospace; color: ${isNegative ? '#dc2626' : '#059669'};">${amount}</td>
-                        </tr>
-                    `;
-                });
-            } else {
-                const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
-                const isNegative = amountVal < 0;
-                const amount = formatCurrency(amountVal, language);
-                const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
+            const churchName = r.church?.name || '-';
 
-                return `
-                    <tr>
-                        <td>${date}</td>
-                        <td style="font-weight: 600;">${name}</td>
-                        <td style="font-size: 9px; color: #475569;">${churchName}</td>
-                        <td style="text-align: center; font-size: 9px; font-weight: bold;">${type}</td>
-                        <td style="text-align: center; font-weight: 800; color: ${statusColor}; font-size: 9px;">${statusLabel}</td>
-                        <td style="text-align: right; font-weight: 900; font-family: monospace; color: ${isNegative ? '#dc2626' : '#059669'};">${amount}</td>
-                    </tr>
-                `;
-            }
+            return `
+                <tr>
+                    <td>${date}</td>
+                    <td style="font-weight: 600;">${name}</td>
+                    <td style="font-size: 9px; color: #475569;">${churchName}</td>
+                    <td style="text-align: center; font-size: 9px; font-weight: bold;">${type}</td>
+                    <td style="text-align: center; font-weight: 800; color: ${statusColor}; font-size: 9px;">${statusLabel}</td>
+                    <td style="text-align: right; font-weight: 900; font-family: monospace; color: ${isNegative ? '#dc2626' : '#059669'};">${amount}</td>
+                </tr>
+            `;
         }).join('');
 
         printWindow.document.write(`

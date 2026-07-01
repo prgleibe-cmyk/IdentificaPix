@@ -21,7 +21,6 @@ export const useReportsController = () => {
         updateReportData,
         runAiAutoIdentification,
         searchFilters,
-        setSearchFilters,
         selectedBankId,
         setSelectedBankId,
         bankList,
@@ -192,13 +191,7 @@ export const useReportsController = () => {
             const filteredResults = (matchResults || []).filter(r => allowedIds.includes(r.church?.id || r._churchId));
             const general = filteredResults.length;
             const pending = filteredResults.filter(r => r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING).length;
-            const expenses = filteredResults.filter(r => 
-                (r.transaction?.amount || 0) < 0 || 
-                r.transaction?.type?.toLowerCase() === 'expense' || 
-                r.transaction?.type?.toLowerCase() === 'saida' || 
-                r.contributionType?.toLowerCase() === 'saída' || 
-                r.contributionType?.toLowerCase() === 'saida'
-            ).length;
+            const expenses = filteredResults.filter(r => (r.transaction?.amount || 0) < 0).length;
             return { general, churches: churchesCount, pending, expenses };
         }
 
@@ -208,13 +201,7 @@ export const useReportsController = () => {
             r.status === ReconciliationStatus.UNIDENTIFIED || 
             r.status === ReconciliationStatus.PENDING
         ).length;
-        const expenses = (matchResults || []).filter(r => 
-            (r.transaction?.amount || 0) < 0 || 
-            r.transaction?.type?.toLowerCase() === 'expense' || 
-            r.transaction?.type?.toLowerCase() === 'saida' || 
-            r.contributionType?.toLowerCase() === 'saída' || 
-            r.contributionType?.toLowerCase() === 'saida'
-        ).length;
+        const expenses = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0).length;
         return { general, churches: churchesCount, pending, expenses };
     }, [churchList, reportPreviewData, subscription, matchResults]);
 
@@ -235,13 +222,7 @@ export const useReportsController = () => {
                     r.status === ReconciliationStatus.PENDING
                 );
             } else if (activeCategory === 'expenses') {
-                data = (matchResults || []).filter(r => 
-                    (r.transaction?.amount || 0) < 0 || 
-                    r.transaction?.type?.toLowerCase() === 'expense' || 
-                    r.transaction?.type?.toLowerCase() === 'saida' || 
-                    r.contributionType?.toLowerCase() === 'saída' || 
-                    r.contributionType?.toLowerCase() === 'saida'
-                );
+                data = (matchResults || []).filter(r => (r.transaction?.amount || 0) < 0);
             } else {
                 // Para igrejas, mantemos a base do reportPreviewData para respeitar o agrupamento granular
                 if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
@@ -267,9 +248,7 @@ export const useReportsController = () => {
                                 contributor: live.contributor,
                                 church: live.church,
                                 _churchId: live._churchId,
-                                updatedAt: live.updatedAt,
-                                splits: live.splits,
-                                contributionType: live.contributionType
+                                updatedAt: live.updatedAt
                             };
                         }
                         return r;
@@ -375,26 +354,16 @@ export const useReportsController = () => {
             return { count: 0, total: 0, auto: 0, autoValue: 0, manual: 0, manualValue: 0, pending: 0, pendingValue: 0 };
         }
 
-        const getFinalAmount = (r: MatchResult) => {
-            const amount = r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0);
-            const isExp = amount < 0 || 
-                          r.transaction?.type?.toLowerCase() === 'expense' || 
-                          r.transaction?.type?.toLowerCase() === 'saida' || 
-                          r.contributionType?.toLowerCase() === 'saída' || 
-                          r.contributionType?.toLowerCase() === 'saida';
-            return isExp ? -Math.abs(amount) : amount;
-        };
-
-        const total = activeData.reduce((sum, r) => sum + getFinalAmount(r), 0);
+        const total = activeData.reduce((sum, r) => sum + (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0)), 0);
         const autoTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE'));
         const manualTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
         const pendingTxs = activeData.filter(r => r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO');
 
         return { 
             count: (activeData || []).length, total, 
-            auto: (autoTxs || []).length, autoValue: autoTxs.reduce((s, r) => s + getFinalAmount(r), 0),
-            manual: (manualTxs || []).length, manualValue: manualTxs.reduce((s, r) => s + getFinalAmount(r), 0),
-            pending: (pendingTxs || []).length, pendingValue: pendingTxs.reduce((s, r) => s + getFinalAmount(r), 0)
+            auto: (autoTxs || []).length, autoValue: autoTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
+            manual: (manualTxs || []).length, manualValue: manualTxs.reduce((s, r) => s + (r.transaction?.amount || 0), 0),
+            pending: (pendingTxs || []).length, pendingValue: pendingTxs.reduce((s, r) => s + (r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0)), 0)
         };
     }, [activeData]);
 
@@ -418,6 +387,6 @@ export const useReportsController = () => {
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
         handleDownload, handlePrint, handleSaveReport, updateReportData,
         setActiveView, reportPreviewData,
-        searchFilters, setSearchFilters
+        searchFilters
     };
 };

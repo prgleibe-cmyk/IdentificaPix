@@ -48,7 +48,6 @@ export interface Transaction {
   bank_id?: string;
   // Fix: Added isConfirmed to Transaction interface to resolve property missing errors
   isConfirmed?: boolean;
-  type?: string;
 }
 
 export interface Contributor {
@@ -64,13 +63,6 @@ export interface Contributor {
   _churchName?: string;
   _churchId?: string;
   _internalId?: string;
-}
-
-export interface TransactionSplit {
-  id: string;
-  amount: number;
-  contributionType: string;
-  description?: string;
 }
 
 export interface MatchResult {
@@ -94,7 +86,6 @@ export interface MatchResult {
   _injectedId?: string;
   _churchId?: string;
   launchedAt?: string;
-  splits?: TransactionSplit[];
 }
 
 export interface LearnedAssociation {

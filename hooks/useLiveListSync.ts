@@ -9,8 +9,7 @@ export const useLiveListSync = ({
     user,
     subscription,
     setBankStatementFile,
-    setSelectedBankIds,
-    realtimeRefreshKey
+    setSelectedBankIds
 }: any) => {
     const { showToast } = useUI();
     const isHydrating = useRef(false);
@@ -122,12 +121,6 @@ export const useLiveListSync = ({
      * 📡 REALTIME SYNC (ESCUTA MULTI-SESSÃO)
      */
     useEffect(() => {
-        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
-            hydrate(false);
-        }
-    }, [realtimeRefreshKey, hydrate]);
-
-    useEffect(() => {
         const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
         if (!ownerId) return;
 
@@ -150,7 +143,7 @@ export const useLiveListSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user?.id, subscription?.ownerId, subscription?.role, realtimeRefreshKey]);
+    }, [user?.id, subscription?.ownerId, subscription?.role]);
 
     useEffect(() => {
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;

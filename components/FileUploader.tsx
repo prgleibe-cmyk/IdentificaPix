@@ -128,18 +128,25 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
 
         if (fileNameLower.endsWith('.pdf')) {
              console.log(`[PDF:PHASE:1:READING] START -> ${file.name} (${file.size} bytes)`);
-             console.log(`[PDF:PHASE:1:READING] Extracting text locally using PDFAdapter.`);
-             try {
-                 await ensurePdfjsLoaded();
-                 const adapter = new PDFAdapter();
-                 const rawDoc = await adapter.readRaw(file);
-                 extractedText = rawDoc.content.join('\n');
-                 console.log(`[PDF:PHASE:1:READING] PDF text extracted successfully (${extractedText.length} chars)`);
-             } catch (adapterError: any) {
-                 console.error("[PDFAdapter] Error extracting PDF text:", adapterError);
-                 throw new Error("Não foi possível ler as linhas do PDF localmente de forma determinística.");
+             const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
+             if (isSicoob) {
+                 console.log(`[PDF:PHASE:1:READING] SICOOB DETECTED. Extracting text locally using PDFAdapter.`);
+                 try {
+                     await ensurePdfjsLoaded();
+                     const adapter = new PDFAdapter();
+                     const rawDoc = await adapter.readRaw(file);
+                     extractedText = rawDoc.content.join('\n');
+                     console.log(`[PDF:PHASE:1:READING] SICOOB PDF text extracted successfully (${extractedText.length} chars)`);
+                 } catch (adapterError: any) {
+                     console.error("[PDFAdapter] Error extracting SICOOB PDF text:", adapterError);
+                     // Fallback to visual placeholder if adapter fails
+                     extractedText = '[DOCUMENTO_PDF_VISUAL]';
+                 }
+             } else {
+                 // PDFs são enviados sem texto pré-extraído para forçar a IA a usar visão computacional
+                 extractedText = '[DOCUMENTO_PDF_VISUAL]'; 
              }
-             console.log(`[PDF:PHASE:2:RAW_TEXT] PDF_TEXT -> (length: ${extractedText.length})`);
+             console.log(`[PDF:PHASE:2:RAW_TEXT] PDF_BINARY -> ${extractedText}`);
         } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
             if (!XLSX) throw new Error("Excel lib missing");
             const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });

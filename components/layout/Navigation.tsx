@@ -4,7 +4,7 @@ import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ViewType } from '../../types';
-import { HomeIcon, SearchIcon, UploadIcon, PlusCircleIcon, ChartBarIcon, Cog6ToothIcon, ShieldCheckIcon, DocumentDuplicateIcon, CreditCardIcon } from '../Icons';
+import { HomeIcon, SearchIcon, UploadIcon, PlusCircleIcon, ChartBarIcon, Cog6ToothIcon, ShieldCheckIcon, DocumentDuplicateIcon } from '../Icons';
 
 // Sub-component for individual navigation items
 interface NavItemProps {
@@ -75,7 +75,6 @@ export const Navigation: React.FC = () => {
         { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> },
         { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-4 h-4"/> },
         { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-4 h-4"/> },
-        { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> },
         { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> },
     ];
 

@@ -8,7 +8,7 @@ import { batchState } from './reconciliation/useCloudSync';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
 
-export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, realtimeRefreshKey?: number) => {
+export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void) => {
     const { subscription, systemSettings } = useAuth();
     const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;
     const userSuffix = user ? `-${user.id}` : '-guest';
@@ -29,12 +29,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ CONTROLE DE EXECUÇÃO (NOVO - mínimo necessário)
     const lastOwnerIdRef = useRef<string | null>(null);
-
-    useEffect(() => {
-        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
-            lastOwnerIdRef.current = null;
-        }
-    }, [realtimeRefreshKey]);
 
     useEffect(() => {
         let ignore = false;
@@ -131,7 +125,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         return () => { ignore = true; };
 
     // ✅ dependências corrigidas (cirúrgico)
-    }, [user?.id, subscription?.role, subscription?.ownerId, realtimeRefreshKey]);
+    }, [user?.id, subscription?.role, subscription?.ownerId]);
 
     // ✅ Carregamento inicial de associações para OWNER (Membros já recebem via API consolidada)
     useEffect(() => {
@@ -162,7 +156,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         fetchOwnerExtras();
         return () => { ignore = true; };
-    }, [user?.id, subscription?.ownerId, realtimeRefreshKey]);
+    }, [user?.id, subscription?.ownerId]);
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
