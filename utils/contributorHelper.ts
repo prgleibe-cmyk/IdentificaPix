@@ -85,12 +85,15 @@ export function extractNameAndCpf(description: string): { name: string; cpf: str
   }
 
   // Remove trailing/leading "CPF", "CPF:", "CPF/CNPJ", etc from name and description
-  name = name.replace(/(CPF|CNPJ|CPF\/CNPJ|DOCUMENTO|DOC):?\s*$/i, '').trim();
+  name = name.replace(/(CPF|CNPJ|CPF\/CNPJ|DOCUMENTO|DOC):?\s*[\d*xX.#_-]*\s*\**\*?\s*$/i, '').trim();
   name = name.replace(/,\s*$/, '').trim(); // remove trailing comma
 
   // Basic cleanup of name (remove words like PIX, RECEBIMENTO, etc)
-  const prefixRegex = /^(RECEBIMENTO PIX|PAGAMENTO PIX|TED|DOC|PIX RECEB|PIX TRANSF|PIX ENTRADA)\s+/i;
+  const prefixRegex = /^(RECEBIMENTO PIX|PAGAMENTO PIX|TED|DOC|PIX RECEB|PIX TRANSF|PIX ENTRADA|PIX DE RECEBIDO DE|PIX DE RECEBIDO|PIX RECEBIDO DE|PIX RECEBIDO|PIX DE|RECEBIDO DE|TRANSFERIDO POR|PIX ENTRADA DE|PIX ENVIADO POR|PAGTO|PAGAMENTO|TRANSF|TRANSFERENCIA DE|TRANSFERENCIA)\s+/i;
   name = name.replace(prefixRegex, '').trim();
+
+  // Strip trailing punctuation or special non-alphanumeric chars
+  name = name.replace(/[^a-zA-Z0-9À-ÿ\s]+$/, '').trim();
 
   return { name, cpf };
 }

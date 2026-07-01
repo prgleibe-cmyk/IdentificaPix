@@ -66,6 +66,13 @@ export interface Contributor {
   _internalId?: string;
 }
 
+export interface TransactionSplit {
+  id: string;
+  amount: number;
+  contributionType: string;
+  description?: string;
+}
+
 export interface MatchResult {
   transaction: Transaction;
   contributor: Contributor | null;
@@ -87,6 +94,7 @@ export interface MatchResult {
   _injectedId?: string;
   _churchId?: string;
   launchedAt?: string;
+  splits?: TransactionSplit[];
 }
 
 export interface LearnedAssociation {

@@ -24,7 +24,8 @@ import {
     CloudArrowUpIcon,
     LinkIcon,
     UserIcon,
-    XMarkIcon
+    XMarkIcon,
+    CreditCardIcon
 } from '../Icons';
 
 export const Sidebar: React.FC = () => {
@@ -122,6 +123,7 @@ export const Sidebar: React.FC = () => {
             { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
+            { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-5 h-5"/> },
         );
 
         // Configurações apenas para o proprietário (Owner)

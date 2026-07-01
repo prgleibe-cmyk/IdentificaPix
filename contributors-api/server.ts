@@ -238,6 +238,8 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS payment_date TIMESTAMP;');
     await client.query("ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS recurrence VARCHAR(50) DEFAULT 'none';");
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS parent_id UUID;');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS bank_transaction_id VARCHAR(255);');
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS bank_transaction_desc VARCHAR(255);');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
     console.log('[Contributors API] Table "financial_records" verified or successfully created.');
@@ -1068,6 +1070,183 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
   } catch (err) {
     console.error('[Contributors API] Error POST bulk-delete consolidated_transactions:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// GET /api/v1/financial_records
+app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
+  try {
+    const { user_id, church_id, type, status } = req.query;
+    if (!user_id) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
+    }
+
+    let query = 'SELECT * FROM financial_records WHERE user_id = $1';
+    const params: any[] = [user_id];
+    let count = 2;
+
+    if (church_id) {
+      query += ` AND church_id = $${count}`;
+      params.push(church_id);
+      count++;
+    }
+    if (type) {
+      query += ` AND type = $${count}`;
+      params.push(type);
+      count++;
+    }
+    if (status) {
+      query += ` AND status = $${count}`;
+      params.push(status);
+      count++;
+    }
+
+    query += ' ORDER BY due_date ASC, created_at DESC';
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error GET financial_records:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// POST /api/v1/financial_records
+app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
+  try {
+    const {
+      user_id,
+      church_id,
+      title,
+      description,
+      amount,
+      type,
+      status,
+      recipient_name,
+      recipient_type,
+      due_date,
+      payment_date,
+      recurrence,
+      parent_id,
+      bank_transaction_id,
+      bank_transaction_desc
+    } = req.body;
+
+    if (!user_id || !title || amount === undefined || !type) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, title, amount, and type are required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO financial_records (
+        user_id, church_id, title, description, amount, type, status, 
+        recipient_name, recipient_type, due_date, payment_date, recurrence, parent_id,
+        bank_transaction_id, bank_transaction_desc
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      [
+        user_id,
+        church_id || null,
+        title,
+        description || '',
+        amount,
+        type,
+        status || 'pending',
+        recipient_name || '',
+        recipient_type || 'supplier',
+        due_date || null,
+        payment_date || null,
+        recurrence || 'none',
+        parent_id || null,
+        bank_transaction_id || null,
+        bank_transaction_desc || null
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error POST financial_records:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// PUT /api/v1/financial_records/:id
+app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      church_id,
+      title,
+      description,
+      amount,
+      type,
+      status,
+      recipient_name,
+      recipient_type,
+      due_date,
+      payment_date,
+      recurrence,
+      parent_id,
+      bank_transaction_id,
+      bank_transaction_desc
+    } = req.body;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let placeholderIndex = 1;
+
+    const fields = [
+      { name: 'church_id', value: church_id },
+      { name: 'title', value: title },
+      { name: 'description', value: description },
+      { name: 'amount', value: amount },
+      { name: 'type', value: type },
+      { name: 'status', value: status },
+      { name: 'recipient_name', value: recipient_name },
+      { name: 'recipient_type', value: recipient_type },
+      { name: 'due_date', value: due_date },
+      { name: 'payment_date', value: payment_date },
+      { name: 'recurrence', value: recurrence },
+      { name: 'parent_id', value: parent_id },
+      { name: 'bank_transaction_id', value: bank_transaction_id },
+      { name: 'bank_transaction_desc', value: bank_transaction_desc }
+    ];
+
+    fields.forEach(f => {
+      if (f.value !== undefined) {
+        updates.push(`${f.name} = $${placeholderIndex}`);
+        values.push(f.value);
+        placeholderIndex++;
+      }
+    });
+
+    if (updates.length === 0) {
+      updates.push('updated_at = NOW()');
+    } else {
+      updates.push('updated_at = NOW()');
+    }
+
+    values.push(id);
+    const query = `UPDATE financial_records SET ${updates.join(', ')} WHERE id = $${placeholderIndex} RETURNING *`;
+    
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error PUT financial_records:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// DELETE /api/v1/financial_records/:id
+app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM financial_records WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    console.error('[Contributors API] Error DELETE financial_records:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
   }
 });
 

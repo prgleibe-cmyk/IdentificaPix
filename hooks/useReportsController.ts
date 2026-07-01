@@ -267,7 +267,9 @@ export const useReportsController = () => {
                                 contributor: live.contributor,
                                 church: live.church,
                                 _churchId: live._churchId,
-                                updatedAt: live.updatedAt
+                                updatedAt: live.updatedAt,
+                                splits: live.splits,
+                                contributionType: live.contributionType
                             };
                         }
                         return r;

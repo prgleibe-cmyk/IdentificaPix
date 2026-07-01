@@ -7,6 +7,8 @@ import { EditableReportTable } from '../components/reports/EditableReportTable';
 import { ChartBarIcon } from '../components/Icons';
 import { useReportsController } from '../hooks/useReportsController';
 import { Calendar, Check } from 'lucide-react';
+import { MatchResult } from '../types';
+import { SplitTransactionModal } from '../components/modals/SplitTransactionModal';
 
 // Sub-componentes modulares
 import { CategoryPills } from '../components/reports/CategoryPills';
@@ -45,6 +47,7 @@ export const ReportsView: React.FC = () => {
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [customStart, setCustomStart] = useState<string>('');
     const [customEnd, setCustomEnd] = useState<string>('');
+    const [splitRow, setSplitRow] = useState<MatchResult | null>(null);
 
     const startSelected = ctrl.searchFilters?.dateRange?.start;
     const endSelected = ctrl.searchFilters?.dateRange?.end;
@@ -282,6 +285,7 @@ export const ReportsView: React.FC = () => {
                                 reportType={ctrl.activeCategory === 'expenses' ? 'expenses' : 'income'}
                                 sortConfig={ctrl.sortConfig}
                                 onSort={ctrl.handleSort}
+                                onSplit={setSplitRow}
                                 loadingAiId={loadingAiId}
                             />
                         </div>
@@ -292,6 +296,22 @@ export const ReportsView: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {splitRow && (
+                <SplitTransactionModal 
+                    isOpen={!!splitRow}
+                    onClose={() => setSplitRow(null)}
+                    matchResult={splitRow}
+                    onSave={(splits) => {
+                        const updatedRow: MatchResult = {
+                            ...splitRow,
+                            splits: splits
+                        };
+                        ctrl.updateReportData(updatedRow);
+                        setSplitRow(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
