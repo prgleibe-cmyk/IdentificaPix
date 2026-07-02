@@ -118,6 +118,31 @@ export const ManualIdModal: React.FC = () => {
         }
     }, [bulkIdentificationTxs, contributorFiles]);
 
+    // --- INICIALIZAR MANUAL DESCRIPTION COM O NOME JÁ IDENTIFICADO OU EXTRAÍDO DO PIX ---
+    useEffect(() => {
+        if (bulkIdentificationTxs && bulkIdentificationTxs.length === 1) {
+            const tx = bulkIdentificationTxs[0];
+            const isManual = tx.id.startsWith('ghost-manual-');
+            if (isManual) {
+                setManualDescription(tx.description || '');
+                setManualAmount(tx.amount ? Math.abs(tx.amount).toString().replace('.', ',') : '');
+            } else {
+                // É transação bancária original. Vamos carregar o nome já identificado se houver, ou extrair do PIX.
+                const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
+                if (matchedResult && matchedResult.contributor) {
+                    setManualDescription(matchedResult.contributor.name || matchedResult.contributor.cleanedName || '');
+                } else {
+                    const { name } = extractNameAndCpf(tx.description);
+                    setManualDescription(name || '');
+                }
+                setManualAmount('');
+            }
+        } else {
+            setManualDescription('');
+            setManualAmount('');
+        }
+    }, [bulkIdentificationTxs, findMatchResult]);
+
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -203,6 +228,101 @@ export const ManualIdModal: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {count === 1 && !isManualLaunch && (
+                        <div className="space-y-4">
+                            <div className="bg-slate-50 dark:bg-black/25 p-5 rounded-[2rem] border border-slate-100 dark:border-white/5 space-y-3">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                    Dados Recebidos do Banco
+                                </h4>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="col-span-2">
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Descrição</span>
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase break-all block">
+                                            {bulkIdentificationTxs[0].description}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider block">Valor</span>
+                                        <span className={`text-xs font-black font-mono block ${bulkIdentificationTxs[0].amount < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                            {formatCurrency(bulkIdentificationTxs[0].amount, language)}
+                                        </span>
+                                    </div>
+                                </div>
+                                {/* Mostrar destinação atual se já estiver identificado */}
+                                {(() => {
+                                    const matchedResult = findMatchResult ? findMatchResult(bulkIdentificationTxs[0].id) : null;
+                                    if (matchedResult && matchedResult.contributor) {
+                                        return (
+                                            <div className="pt-2 border-t border-slate-200/50 dark:border-white/5 flex flex-col gap-1">
+                                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-wider">
+                                                    Lançamento Atual (Pode Corrigir abaixo)
+                                                </span>
+                                                <div className="flex justify-between items-center text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    <span className="uppercase">{matchedResult.contributor.name}</span>
+                                                    <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded uppercase">
+                                                        {matchedResult.church?.name || '---'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                            </div>
+
+                            <div className="space-y-3" id="manual-description-container">
+                                <label className="block text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.25em] ml-1">
+                                    Identificar Verdadeiro Contribuinte
+                                </label>
+                                <div className="relative group">
+                                    <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={manualDescription}
+                                        onChange={e => {
+                                            setManualDescription(e.target.value);
+                                            setShowSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowSuggestions(true)}
+                                        placeholder="Digite o nome do verdadeiro contribuinte"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    />
+                                    {showSuggestions && filteredContributors.length > 0 && (
+                                        <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                                            <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2">
+                                                Contribuintes VPS Cadastrados
+                                            </div>
+                                            {filteredContributors.map((col, cIdx) => (
+                                                <button
+                                                    key={col.id || cIdx}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setManualDescription(col.name);
+                                                        if (col._churchId) {
+                                                            setSelectedChurchId(col._churchId);
+                                                        }
+                                                        setSelectedAssociationType('unify');
+                                                        setSelectedUnifiedField(col.id);
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none"
+                                                >
+                                                    <span className="truncate">{col.name}</span>
+                                                    <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md truncate max-w-[150px]">
+                                                        {col._churchName}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                                    Se o PIX recebido está no nome de um terceiro, altere ou selecione o nome do verdadeiro contribuinte acima. Ambos os registros serão mantidos.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {isManualLaunch && (
                         <>

@@ -1,5 +1,4 @@
 
-import { Type } from "@google/genai";
 
 export async function fetchGmailMessages(accessToken, query, maxResults = 400) {
     const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
@@ -36,32 +35,77 @@ export async function fetchGmailMessages(accessToken, query, maxResults = 400) {
 }
 
 export async function extractTransactionsFromEmails(ai, emails) {
-    if (!ai) throw new Error("AI Client missing");
-    const emailContext = emails.map(e => `ID: ${e.id}\nDATA: ${e.date}\nCORPO: ${e.body}`).join('\n---\n');
+    const transactions = [];
+    
+    // Expressões regulares para achar valores, datas e descrições no e-mail
+    const amountRegex = /(?:-|R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2})\s*([CDcd])?\b/;
+    const dateRegex = /\b(\d{2})\/(\d{2})(?:\/(\d{2,4}))?\b/;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Extraia transações financeiras destes e-mails para um JSON array:\n\n${emailContext}`,
-        config: {
-            temperature: 0,
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        date: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        amount: { type: Type.NUMBER },
-                        type: { type: Type.STRING }
-                    },
-                    required: ["date", "description", "amount"]
-                }
+    for (const email of emails) {
+        const body = email.body || '';
+        
+        let amount = 0;
+        let date = email.date ? new Date(email.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        let description = email.subject || "Notificação de e-mail";
+        let type = "income";
+
+        // Analisa o assunto e o corpo para detectar entradas ou saídas
+        const textToAnalyze = `${email.subject} ${body}`.toUpperCase();
+        if (
+            textToAnalyze.includes("RECEB") || 
+            textToAnalyze.includes("CREDIT") || 
+            textToAnalyze.includes("ENTRADA") ||
+            textToAnalyze.includes("RECEBEU")
+        ) {
+            type = "income";
+        } else if (
+            textToAnalyze.includes("ENVI") || 
+            textToAnalyze.includes("PAGO") || 
+            textToAnalyze.includes("DEBIT") || 
+            textToAnalyze.includes("SAIDA") ||
+            textToAnalyze.includes("SAÍDA")
+        ) {
+            type = "expense";
+        }
+
+        // Tenta achar valor no e-mail
+        const amountMatch = body.match(amountRegex) || email.subject.match(amountRegex);
+        if (amountMatch) {
+            let rawAmount = amountMatch[1];
+            rawAmount = rawAmount.replace(/\./g, '').replace(',', '.');
+            const parsed = parseFloat(rawAmount);
+            if (!isNaN(parsed)) {
+                amount = parsed;
             }
         }
-    });
 
-    return response.text ? JSON.parse(response.text) : [];
+        // Tenta achar data no e-mail
+        const dateMatch = body.match(dateRegex);
+        if (dateMatch) {
+            let day = dateMatch[1];
+            let month = dateMatch[2];
+            let year = dateMatch[3] || new Date().getFullYear();
+            if (String(year).length === 2) year = "20" + year;
+            date = `${year}-${month}-${day}`;
+        }
+
+        // Tenta extrair quem enviou ou recebeu
+        const senderMatch = body.match(/(?:de|por)\s+([A-Z\s\u00C0-\u00FF]{3,30})/i);
+        if (senderMatch && senderMatch[1]) {
+            description = senderMatch[1].trim().toUpperCase();
+        }
+
+        if (amount > 0) {
+            transactions.push({
+                date,
+                description,
+                amount: type === 'expense' ? -amount : amount,
+                type: 'GMAIL'
+            });
+        }
+    }
+
+    return transactions;
 }
 
 export function convertToCsv(transactions) {
@@ -76,13 +120,48 @@ export function convertToCsv(transactions) {
 }
 
 export async function generateAiSuggestion(ai, transactionDescription, contributorNames) {
-    if (!ai) throw new Error("AI Client missing");
-    const response = await ai.models.generateContent({ 
-        model: 'gemini-3-pro-preview', 
-        contents: `Descrição: "${transactionDescription}". Qual destes é o melhor match? [${contributorNames.join(', ')}]. Responda apenas o nome.`,
-        config: { temperature: 0.1 }
-    });
-    return response.text ? response.text.trim() : "Nenhuma sugestão clara";
+    if (!transactionDescription || !contributorNames || contributorNames.length === 0) {
+        return "Nenhuma sugestão clara";
+    }
+
+    const cleanText = (str) => str.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+        .replace(/[^a-z0-9\s]/g, "") // remove pontuacao
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const descClean = cleanText(transactionDescription);
+    let bestMatch = "Nenhuma sugestão clara";
+    let highestScore = 0;
+
+    for (const name of contributorNames) {
+        const nameClean = cleanText(name);
+        if (!nameClean) continue;
+
+        // Se o nome está contido na descrição ou vice-versa, ganha pontuação alta
+        if (descClean.includes(nameClean) || nameClean.includes(descClean)) {
+            const score = Math.min(nameClean.length, descClean.length) / Math.max(nameClean.length, descClean.length) * 100;
+            if (score > highestScore) {
+                highestScore = score;
+                bestMatch = name;
+            }
+        } else {
+            // Conta quantas palavras em comum existem
+            const descWords = descClean.split(' ');
+            const nameWords = nameClean.split(' ');
+            const commonWords = descWords.filter(w => w.length > 2 && nameWords.includes(w));
+            
+            if (commonWords.length > 0) {
+                const score = (commonWords.length / nameWords.length) * 80;
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestMatch = name;
+                }
+            }
+        }
+    }
+
+    return bestMatch;
 }
 
 // --- INTEGRAÇÃO ASAAS ---

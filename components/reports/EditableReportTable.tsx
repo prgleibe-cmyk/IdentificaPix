@@ -3,6 +3,7 @@ import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { GitFork } from 'lucide-react';
 import { 
     PencilIcon, 
     ChevronUpIcon, 
@@ -36,6 +37,7 @@ interface EditableReportTableProps {
     onSort: (key: string) => void;
     loadingAiId: string | null; 
     onEdit?: (row: MatchResult) => void;
+    onSplit?: (row: MatchResult) => void;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -73,6 +75,7 @@ const MobileCard = memo(({
     onDelete, 
     onUndo,
     onToggleLock,
+    onSplit,
     isSelected,
     onToggleSelection
 }: any) => {
@@ -81,7 +84,11 @@ const MobileCard = memo(({
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
     const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
-    const isExpense = displayAmount < 0;
+    const isExpense = displayAmount < 0 || 
+                      row.transaction?.type?.toLowerCase() === 'expense' || 
+                      row.transaction?.type?.toLowerCase() === 'saida' || 
+                      row.contributionType?.toLowerCase() === 'saída' || 
+                      row.contributionType?.toLowerCase() === 'saida';
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
     const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
@@ -104,6 +111,18 @@ const MobileCard = memo(({
                                 {displayName}
                             </span>
                         </div>
+                        {row.splits && row.splits.length > 0 && (
+                            <div className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[8px]">Distribuição:</span>
+                                <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                                    {row.splits.map((s, idx) => (
+                                        <li key={s.id || idx}>
+                                            <span className="uppercase text-slate-600 dark:text-slate-300">{s.contributionType}</span>: <span className="font-bold text-slate-900 dark:text-white tabular-nums">{formatCurrency(s.amount, language)}</span> {s.description ? `(${s.description})` : ''}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="text-right">
@@ -130,7 +149,11 @@ const MobileCard = memo(({
                     <span className="truncate">{row.church?.name || '---'}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                    <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span>
+                    {row.splits && row.splits.length > 0 ? (
+                        <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30 font-bold uppercase text-[9px]">Rateado</span>
+                    ) : (
+                        <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span>
+                    )}
                     <span>{displayForm}</span>
                 </div>
             </div>
@@ -142,8 +165,16 @@ const MobileCard = memo(({
                     </button>
                 ) : (
                     <>
-                        <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50"><TrashIcon className="w-4 h-4" /></button>
-                        {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
+                        <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
+                        {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
+                        {onSplit && (
+                            <button 
+                                onClick={() => onSplit(row)} 
+                                className="px-3.5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                            >
+                                <GitFork className="w-3.5 h-3.5" /> Ratear
+                            </button>
+                        )}
                         <div className="flex-1" />
                     </>
                 )}
@@ -159,6 +190,7 @@ const IncomeRow = memo(({
     onDelete, 
     onUndo,
     onToggleLock,
+    onSplit,
     isSelected,
     onToggleSelection
 }: any) => {
@@ -168,7 +200,11 @@ const IncomeRow = memo(({
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
     const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
-    const isExpense = displayAmount < 0;
+    const isExpense = displayAmount < 0 || 
+                      row.transaction?.type?.toLowerCase() === 'expense' || 
+                      row.transaction?.type?.toLowerCase() === 'saida' || 
+                      row.contributionType?.toLowerCase() === 'saída' || 
+                      row.contributionType?.toLowerCase() === 'saida';
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     
     // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo/IA
@@ -193,6 +229,18 @@ const IncomeRow = memo(({
                         {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
                         <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
+                    {row.splits && row.splits.length > 0 && (
+                        <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[8px]">Distribuição:</span>
+                            <ul className="list-disc list-inside mt-0.5 space-y-0.5">
+                                {row.splits.map((s, idx) => (
+                                    <li key={s.id || idx}>
+                                        <span className="uppercase text-slate-600 dark:text-slate-300">{s.contributionType}</span>: <span className="font-bold text-slate-900 dark:text-white tabular-nums">{formatCurrency(s.amount, language)}</span> {s.description ? `(${s.description})` : ''}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                 </div>
             </td>
             <td className="px-4 py-2.5">
@@ -214,7 +262,13 @@ const IncomeRow = memo(({
                     <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 uppercase">Pendente</span>
                 )}
             </td>
-            <td className="px-4 py-2.5"><span className="text-[9px] font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span></td>
+            <td className="px-4 py-2.5">
+                {row.splits && row.splits.length > 0 ? (
+                    <span className="text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">Rateado</span>
+                ) : (
+                    <span className="text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span>
+                )}
+            </td>
             <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
             <td className="px-4 py-2.5 text-right font-mono text-xs font-bold tabular-nums">
                 <span className={isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}>
@@ -229,8 +283,17 @@ const IncomeRow = memo(({
                         </button>
                     ) : (
                         <>
-                            {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
-                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50"><TrashIcon className="w-3.5 h-3.5" /></button>
+                            {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
+                            {onSplit && (
+                                <button 
+                                    onClick={() => onSplit(row)} 
+                                    className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors" 
+                                    title="Desmembrar / Ratear Lançamento"
+                                >
+                                    <GitFork className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                         </>
                     )}
                 </div>
@@ -239,7 +302,7 @@ const IncomeRow = memo(({
     );
 });
 
-export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit }) => {
+export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit }) => {
     const { t, language } = useTranslation();
     const { openDeleteConfirmation, undoIdentification, toggleConfirmation } = useContext(AppContext);
     
@@ -312,6 +375,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                                 onUndo={undoIdentification}
                                 onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                                onSplit={onSplit}
                             />
                         ))}
                     </tbody>
@@ -342,6 +406,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
                             onUndo={undoIdentification}
                             onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                            onSplit={onSplit}
                         />
                     ))}
                 </div>

@@ -21,6 +21,10 @@ interface UseCloudSyncProps {
     isLoading?: boolean;
     activeBankFiles?: any[];
     selectedBankIds?: string[];
+    searchFilters?: any;
+    setSearchFilters?: any;
+    realtimeRefreshKey?: number;
+    contributorFiles?: any[];
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
@@ -41,7 +45,11 @@ export const useCloudSync = ({
     handleCompare,
     isLoading,
     activeBankFiles,
-    selectedBankIds
+    selectedBankIds,
+    searchFilters,
+    setSearchFilters,
+    realtimeRefreshKey,
+    contributorFiles
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -58,6 +66,7 @@ export const useCloudSync = ({
     const churchesRef = useRef(churches);
     const learnedAssociationsRef = useRef(learnedAssociations);
     const handleCompareRef = useRef(handleCompare);
+    const contributorFilesRef = useRef(contributorFiles);
 
     useEffect(() => {
         churchesRef.current = churches;
@@ -71,6 +80,18 @@ export const useCloudSync = ({
         handleCompareRef.current = handleCompare;
     }, [handleCompare]);
 
+    useEffect(() => {
+        contributorFilesRef.current = contributorFiles;
+    }, [contributorFiles]);
+
+    const getRegisteredContributorName = (contributorId: string | null | undefined): string | null => {
+        if (!contributorId || !contributorFilesRef.current) return null;
+        const found = contributorFilesRef.current
+            .flatMap((f: any) => f.contributors || [])
+            .find((c: any) => c.id === contributorId);
+        return found ? (found.name || found.cleanedName || found.canonical_name || null) : null;
+    };
+
     // 🚀 CONTROLE DE PRONTIDÃO PARA HIDRATAÇÃO
     const isReady =
         !!effectiveUserId &&
@@ -81,9 +102,15 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}`;
+    const dataReadyKey = `${effectiveUserId}-${searchFilters?.dateRange?.start || ''}-${searchFilters?.dateRange?.end || ''}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
+
+    useEffect(() => {
+        if (realtimeRefreshKey && realtimeRefreshKey > 0) {
+            lastDataReadyKeyRef.current = '';
+        }
+    }, [realtimeRefreshKey]);
 
     // ☁️ SINCRONIZAÇÃO COM A NUVEM (Trabalho Vivo)
     // Desativado o "blocão" JSON para sessões ativas para favorecer a atomização
@@ -124,6 +151,16 @@ export const useCloudSync = ({
 
         if (!isReady || activeReportId) return;
 
+        // ⚡ SE NENHUM PERÍODO FOR SELECIONADO, DEIXA CARREGAMENTO ZERADO (SUPER LEVE)
+        if (!searchFilters?.dateRange?.start || !searchFilters?.dateRange?.end) {
+            console.log("[CloudSync] Carregamento zerado: aguardando seleção de período pelo usuário.");
+            if (matchResults.length > 0) {
+                setMatchResults(() => []);
+            }
+            setHasActiveSession(false);
+            return;
+        }
+
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
         lastDataReadyKeyRef.current = dataReadyKey;
@@ -140,14 +177,14 @@ export const useCloudSync = ({
             needsRetry.current = false;
 
             try {
-                // 1. Busca as transações que não estão pendentes (últimos 30 dias) - Loop paginado para trazer 100% dos dados
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                const dateThreshold = thirtyDaysAgo.toISOString().split('T')[0];
+                // 1. Busca as transações que estão dentro do período selecionado
+                const startDate = searchFilters.dateRange.start;
+                const endDate = searchFilters.dateRange.end;
 
                 console.log('[RECONSTRUCT:FILTER]', {
                     effectiveUserId,
-                    dateThreshold
+                    startDate,
+                    endDate
                 });
 
                 let allTxs: any[] = [];
@@ -155,7 +192,7 @@ export const useCloudSync = ({
                 const pageSize = 1000;
 
                 while (true) {
-                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${dateThreshold}&limit=${pageSize}&offset=${from}`);
+                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${from}`);
                     if (!res.ok) {
                         throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                     }
@@ -234,23 +271,42 @@ export const useCloudSync = ({
                         rawDescription: t.description,
                         amount: t.amount,
                         bank_id: t.bank_id,
-                        isConfirmed: t.is_confirmed
+                        isConfirmed: t.is_confirmed,
+                        type: t.type
                     };
+
+                    const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
 
                     const contributor: Contributor | null = assoc ? {
                         id: t.contributor_id || undefined,
-                        name: assoc.contributorNormalizedName || t.description,
+                        name: regName || assoc.contributorNormalizedName || t.description,
                         amount: t.amount,
-                        cleanedName: assoc.contributorNormalizedName || t.description
+                        cleanedName: regName || assoc.contributorNormalizedName || t.description
                     } : (t.contributor_id ? {
                         id: t.contributor_id,
-                        name: t.description,
-                        amount: t.amount
+                        name: regName || t.description,
+                        amount: t.amount,
+                        cleanedName: regName || t.description
                     } : null);
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
                     else if (t.status === 'identified') status = ReconciliationStatus.IDENTIFIED;
+
+                    // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
+                    // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
+                    // promovemos localmente para IDENTIFIED e atualizamos no banco em segundo plano.
+                    if (assoc && t.status === 'pending') {
+                        status = ReconciliationStatus.IDENTIFIED;
+                        consolidationService.updateTransactionStatus(
+                            t.id, 
+                            'identified', 
+                            church.id, 
+                            t.bank_id,
+                            undefined,
+                            false
+                        ).catch(e => console.error("[Auto-promote] Erro ao salvar auto-vínculo no banco:", e));
+                    }
 
                     return {
                         transaction,
@@ -341,7 +397,7 @@ export const useCloudSync = ({
         };
 
         reconstructSession();
-    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading]);
+    }, [isReady, dataReadyKey, effectiveUserId, activeReportId, setActiveReportId, savedReports, churches, learnedAssociations, setMatchResults, setHasActiveSession, overwriteSavedReport, showToast, handleCompare, isLoading, searchFilters, realtimeRefreshKey]);
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
@@ -417,23 +473,40 @@ export const useCloudSync = ({
                                     rawDescription: t.description,
                                     amount: t.amount,
                                     bank_id: t.bank_id,
-                                    isConfirmed: !!t.is_confirmed
+                                    isConfirmed: !!t.is_confirmed,
+                                    type: t.type
                                 };
+
+                                const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
 
                                 const contributor: Contributor | null = assoc ? {
                                     id: t.contributor_id || undefined,
-                                    name: assoc.contributorNormalizedName || t.description,
+                                    name: regName || assoc.contributorNormalizedName || t.description,
                                     amount: t.amount,
-                                    cleanedName: assoc.contributorNormalizedName || t.description
+                                    cleanedName: regName || assoc.contributorNormalizedName || t.description
                                 } : (t.contributor_id ? {
                                     id: t.contributor_id,
-                                    name: t.description,
-                                    amount: t.amount
+                                    name: regName || t.description,
+                                    amount: t.amount,
+                                    cleanedName: regName || t.description
                                 } : null);
 
                                 let matchStatus = ReconciliationStatus.UNIDENTIFIED;
                                 if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
                                 else if (t.status === 'identified') matchStatus = ReconciliationStatus.IDENTIFIED;
+
+                                // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS EM TEMPO REAL
+                                if (assoc && t.status === 'pending') {
+                                    matchStatus = ReconciliationStatus.IDENTIFIED;
+                                    consolidationService.updateTransactionStatus(
+                                        t.id, 
+                                        'identified', 
+                                        church.id, 
+                                        t.bank_id,
+                                        undefined,
+                                        false
+                                    ).catch(e => console.error("[Realtime Auto-promote] Erro:", e));
+                                }
 
                                 const newItem: MatchResult = {
                                     transaction,
@@ -495,15 +568,18 @@ export const useCloudSync = ({
                                 ? null 
                                 : (dbChurch || (church_id ? PLACEHOLDER_CHURCH : current.church));
                             
+                            const regName = contributor_id ? getRegisteredContributorName(contributor_id) : null;
+
                             const newContributor: Contributor | null = assoc ? {
                                 id: contributor_id || undefined,
-                                name: assoc.contributorNormalizedName || current.transaction.description,
+                                name: regName || assoc.contributorNormalizedName || current.transaction.description,
                                 amount: current.transaction.amount,
-                                cleanedName: assoc.contributorNormalizedName || current.transaction.description
+                                cleanedName: regName || assoc.contributorNormalizedName || current.transaction.description
                             } : (contributor_id ? {
                                 id: contributor_id,
-                                name: current.transaction.description,
-                                amount: current.transaction.amount
+                                name: regName || current.transaction.description,
+                                amount: current.transaction.amount,
+                                cleanedName: regName || current.transaction.description
                             } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
@@ -583,7 +659,7 @@ export const useCloudSync = ({
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [effectiveUserId, setMatchResults]);
+    }, [effectiveUserId, setMatchResults, realtimeRefreshKey]);
 
     /**
      * 🛡️ INTEGRIDADE DO CACHE (Anti-Stale)

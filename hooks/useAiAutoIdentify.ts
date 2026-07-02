@@ -121,10 +121,10 @@ export const useAiAutoIdentify = ({
                 expenses: { 'all_expenses_group': expenseResults }
             });
 
-            showToast(`Sucesso: ${identifiedCount} itens identificados pela IA!`, "success");
+            showToast(`Sucesso: ${identifiedCount} itens identificados automaticamente!`, "success");
             if (onAfterIdentification) onAfterIdentification(nextResults);
         } else {
-            showToast("IA: Nenhuma linha coincide com o aprendizado salvo.", "error");
+            showToast("Vínculos: Nenhuma linha coincide com o aprendizado salvo.", "error");
         }
         
         setIsLoading(false);
