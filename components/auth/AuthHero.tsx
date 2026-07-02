@@ -12,11 +12,11 @@ export const AuthHero: React.FC = () => {
                     <img 
                         src="/logo.png" 
                         className="h-52 w-auto object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.6)] transform rotate-y-12 rotate-x-6 group-hover:rotate-0 transition-all duration-700 ease-out" 
-                        alt="Logo IdentificaPix" 
+                        alt="Logo IgGestor" 
                     />
                 </div>
                 <div>
-                    <h1 className="text-5xl font-black text-white tracking-tighter leading-none mb-1 drop-shadow-xl">IdentificaPix</h1>
+                    <h1 className="text-5xl font-black text-white tracking-tighter leading-none mb-1 drop-shadow-xl">IgGestor</h1>
                     <span className="text-sm uppercase tracking-[0.4em] text-cyan-400 font-bold block ml-1">Enterprise System</span>
                 </div>
             </div>
@@ -53,7 +53,7 @@ export const AuthHero: React.FC = () => {
             </div>
             
             <div className="hidden lg:block pt-8">
-                <p className="text-slate-600 text-xs font-medium">© 2025 IdentificaPix Enterprise. Segurança garantida.</p>
+                <p className="text-slate-600 text-xs font-medium">© 2026 IgGestor. Segurança garantida.</p>
             </div>
         </div>
     );

@@ -63,7 +63,7 @@ export const DashboardView: React.FC = () => {
                             <img 
                                 src="/logo.png" 
                                 className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
-                                alt="IdentificaPix Logo" 
+                                alt="IgGestor Logo" 
                             />
                         </div>
                         <div>

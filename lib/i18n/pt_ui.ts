@@ -4,8 +4,8 @@
 
 export const ptUi = {
     // App
-    'app.title': 'IdentificaPix',
-    'app.subtitle': 'Sistema de Conciliação Bancária PIX',
+    'app.title': 'IgGestor',
+    'app.subtitle': 'Gestão Financeira para Igrejas',
 
     // Nav
     'nav.dashboard': 'Dashboard',
@@ -116,7 +116,7 @@ export const ptUi = {
     'modal.saveReport.nameLabel': 'Nome da Planilha',
 
     // Empty States
-    'empty.dashboard.title': 'Bem-vindo ao IdentificaPix!',
+    'empty.dashboard.title': 'Bem-vindo ao IgGestor!',
     'empty.dashboard.message': 'Comece a conciliação carregando seu extrato bancário e as listas de contribuintes.',
     'empty.dashboard.action': 'Carregar Arquivos',
     'empty.dashboard.saved.title': 'Seu Dashboard está pronto para análise',

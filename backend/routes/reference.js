@@ -14,7 +14,8 @@ export default () => {
         try {
             console.log(`[Reference API] Buscando dados de referência para owner ${effectiveOwnerId} (requisitado por ${req.user.id})`);
 
-            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const defaultPort = process.env.PORT || '3000';
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
             const [banksRes, churchesRes, associationsRes] = await Promise.all([
@@ -56,7 +57,8 @@ export default () => {
         validateOwnerAccess(req, effectiveOwnerId);
 
         try {
-            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const defaultPort = process.env.PORT || '3000';
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
             const response = await fetch(`${cleanVpsUrl}/api/v1/saved_reports`, {
@@ -94,7 +96,8 @@ export default () => {
         validateOwnerAccess(req, effectiveOwnerId);
 
         try {
-            const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
+            const defaultPort = process.env.PORT || '3000';
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
             // Wait, we want to fetch a single saved report, but we don't have GET /api/v1/saved_reports/:id.

@@ -165,7 +165,7 @@ export const Sidebar: React.FC = () => {
                 <div className="flex items-center gap-2" onClick={() => setActiveView('dashboard')}>
                     <img src="/logo.png" className="h-8 w-auto object-contain" alt="Logo" />
                     <span className="font-display font-black text-lg tracking-tight text-white">
-                        Identifica<span className="text-cyan-400">Pix</span>
+                        Ig<span className="text-cyan-400">Gestor</span>
                     </span>
                 </div>
                 <button 
@@ -213,7 +213,7 @@ export const Sidebar: React.FC = () => {
                     {!isCollapsed && (
                         <div className="mt-1 text-center">
                             <span className="font-display font-black text-2xl tracking-tight text-white block leading-none">
-                                Identifica<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Pix</span>
+                                Ig<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Gestor</span>
                             </span>
                         </div>
                     )}
@@ -279,7 +279,7 @@ export const Sidebar: React.FC = () => {
                         <button 
                             onClick={handleInstallApp}
                             className={`flex items-center justify-center rounded-full text-brand-teal hover:text-white bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500 transition-all animate-pulse ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
-                            title="Instalar IdentificaPix como App"
+                            title="Instalar IgGestor como App"
                         >
                             <CloudArrowUpIcon className="w-4 h-4" />
                             {!isCollapsed && <span className="text-[9px] font-black uppercase tracking-widest">Instalar App</span>}
