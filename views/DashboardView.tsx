@@ -20,10 +20,10 @@ export const DashboardView: React.FC = () => {
     const { 
         summary, user, setActiveView, t, language, identificationRate, 
         pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession,
-        selectedBankId, setSelectedBankId, bankList
+        selectedBankId, setSelectedBankId, bankList, isLoading
     } = useDashboardController();
 
-    if (hasActiveSession && !hasData) {
+    if (hasActiveSession && !hasData && isLoading) {
         return <DashboardSkeleton />;
     }
 

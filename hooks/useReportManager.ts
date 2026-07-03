@@ -108,17 +108,17 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 });
             }
 
-            if (!hasHydratedRef.current || savedReportsRef.current.length === 0) {
+            // Atualiza se estiver vazio ou se o tamanho/conteúdo mudou
+            if (savedReportsRef.current.length === 0 || savedReportsRef.current.length !== hydrated.length) {
                 setSavedReports(hydrated);
-                hasHydratedRef.current = true;
-            } else {
-                console.log('[ReportManager] Ignorando sobrescrita de relatórios já hidratados (initialReports)');
             }
+            hasHydratedRef.current = true;
             return;
         }
 
         const fetchReports = async () => {
-            if (hasHydratedRef.current && savedReportsRef.current.length > 0) {
+            // Evita buscar duplicado se já foi hidratado e não houve alteração por refresh key
+            if (hasHydratedRef.current && savedReportsRef.current.length > 0 && (!realtimeRefreshKey || realtimeRefreshKey === 0)) {
                 if (ENABLE_HEAVY_LOGS) {
                     console.log('[ReportManager] Já hidratado. Ignorando fetchReports redundante.');
                 }
@@ -190,12 +190,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         });
                     }
 
-                    if (!hasHydratedRef.current || savedReportsRef.current.length === 0) {
-                        setSavedReports(hydrated);
-                        hasHydratedRef.current = true;
-                    } else {
-                        console.log('[ReportManager] Ignorando sobrescrita de relatórios já hidratados (fetchReports)');
-                    }
+                    setSavedReports(hydrated);
+                    hasHydratedRef.current = true;
                 }
             } catch (err) {
                 if (!ignore) {

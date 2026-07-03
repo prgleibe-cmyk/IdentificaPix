@@ -16,7 +16,7 @@ export const useDashboardController = () => {
         bankList
     } = useContext(AppContext);
     const { user } = useAuth();
-    const { setActiveView } = useUI();
+    const { setActiveView, isLoading } = useUI();
     const { t, language } = useTranslation();
 
     const identificationRate = useMemo(() => {
@@ -67,6 +67,7 @@ export const useDashboardController = () => {
         hasActiveSession,
         selectedBankId,
         setSelectedBankId,
-        bankList
+        bankList,
+        isLoading
     };
 };

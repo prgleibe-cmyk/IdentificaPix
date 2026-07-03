@@ -29,6 +29,9 @@ export const validateOwnerAccess = (req, ownerId) => {
   // 1. Validação por Papel (Role)
   if (user.role === 'owner' && user.id === ownerId) {
     hasAccess = true;
+  } else if (user.id === ownerId) {
+    // 🛡️ Fallback de segurança para Owners caso a tabela de profiles falhe ou esteja sendo sincronizada
+    hasAccess = true;
   } else if (user.role === 'admin' && user.owner_id === ownerId) {
     hasAccess = true;
   } else if (
