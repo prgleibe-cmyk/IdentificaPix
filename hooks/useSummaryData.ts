@@ -32,7 +32,10 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary) {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
-                results = results.filter((r: any) => subscription.congregationIds.includes(r.church?.id || r._churchId));
+                results = results.filter((r: any) => {
+                    const churchId = r.church?.id || r._churchId || 'unidentified';
+                    return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+                });
             }
             if (subscription.bankIds && subscription.bankIds.length > 0) {
                 results = results.filter((r: any) => subscription.bankIds.includes(String(r.transaction.bank_id)));

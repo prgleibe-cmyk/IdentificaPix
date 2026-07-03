@@ -195,8 +195,8 @@ export const useReconciliation = (props: any) => {
 
         if (subscription.congregationIds?.length > 0) {
             filtered = filtered.filter(r => {
-                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id;
-                return subscription.congregationIds.includes(churchId);
+                const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id || 'unidentified';
+                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
             });
         }
 

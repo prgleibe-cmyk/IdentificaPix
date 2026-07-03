@@ -194,7 +194,10 @@ export const useReportsController = () => {
         if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             const allowedIds = subscription.congregationIds || [];
             const churchesCount = allowedIds.length;
-            const filteredResults = (matchResults || []).filter(r => allowedIds.includes(r.church?.id || r._churchId));
+            const filteredResults = (matchResults || []).filter(r => {
+                const churchId = r.church?.id || r._churchId || 'unidentified';
+                return churchId === 'unidentified' || allowedIds.includes(churchId);
+            });
             const general = filteredResults.length;
             const pending = filteredResults.filter(r => r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING).length;
             const expenses = filteredResults.filter(r => 

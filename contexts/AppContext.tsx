@@ -191,9 +191,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary && subscription.congregationIds?.length > 0) {
-            hydrated = hydrated.filter((r: any) =>
-                subscription.congregationIds.includes(r.church?.id || r._churchId)
-            );
+            hydrated = hydrated.filter((r: any) => {
+                const churchId = r.church?.id || r._churchId || 'unidentified';
+                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+            });
         }
 
         if (ENABLE_HEAVY_LOGS) {
@@ -283,9 +284,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                     const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
                     if (isSecondary && (subscription.congregationIds || []).length > 0) {
-                        hydrated = (hydrated || []).filter((r: any) =>
-                            (subscription.congregationIds || []).includes(r.church?.id || r._churchId)
-                        );
+                        hydrated = (hydrated || []).filter((r: any) => {
+                            const churchId = r.church?.id || r._churchId || 'unidentified';
+                            return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
+                        });
                     }
 
                     reconciliation.setMatchResults(hydrated);

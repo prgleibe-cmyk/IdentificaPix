@@ -33,6 +33,11 @@ export const useSavedReportsController = () => {
     const processedReports = useMemo(() => {
         let result = (savedReports || []).filter(r => r && r.name && r.name !== '[SESSÃO_ATIVA]');
 
+        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+            result = result.filter(r => !r.church_id || (subscription.congregationIds || []).includes(r.church_id));
+        }
+
         if (searchQuery) {
             const lowerQ = searchQuery.toLowerCase();
             result = result.filter(report =>

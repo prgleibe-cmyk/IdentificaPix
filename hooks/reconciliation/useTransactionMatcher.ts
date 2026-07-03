@@ -91,9 +91,10 @@ export const useTransactionMatcher = ({
 
         const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
         if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r =>
-                subscription.congregationIds.includes(r.church?.id || r._churchId)
-            );
+            filteredResults = results.filter(r => {
+                const churchId = r.church?.id || r._churchId || 'unidentified';
+                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+            });
         }
 
         const uniqueResults = Array.from(
