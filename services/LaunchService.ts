@@ -63,6 +63,8 @@ export const LaunchService = {
             const existingData = await consolidationService.getExistingTransactionsForDedup(userId);
             const existingHashes = new Set(existingData.map(t => t.row_hash).filter(Boolean));
             
+            const currentFileOccurrenceCounters = new Map<string, number>();
+            
             const toPersist = transactions
                 .map((item, idx) => {
                     const { finalDate, finalValue } = this.normalizeTriplet(item);
@@ -72,7 +74,17 @@ export const LaunchService = {
                     // Hash GLOBAL (deduplicação entre arquivos e histórico)
                     // Adicionamos a data (finalDate) e o valor (finalValue) para garantir que transações
                     // com a mesma descrição mas em datas ou valores diferentes NÃO colidam e sejam descartadas.
-                    const globalHashKey = `U${userId}|B${bankId}|D${finalDate}|V${finalValue}|R${stableRaw}`;
+                    const baseKey = `U${userId}|B${bankId}|D${finalDate}|V${finalValue}|R${stableRaw}`;
+                    
+                    // Contador de ocorrências dentro do mesmo lote/arquivo de upload
+                    const occurrenceIndex = currentFileOccurrenceCounters.get(baseKey) || 0;
+                    currentFileOccurrenceCounters.set(baseKey, occurrenceIndex + 1);
+
+                    // Chave de hash compatível com versões anteriores
+                    const globalHashKey = occurrenceIndex === 0
+                        ? baseKey
+                        : `${baseKey}|O${occurrenceIndex}`;
+
                     const globalHash = this.computeBaseHash(globalHashKey);
 
                     // Hash LOCAL (controle apenas durante o processamento atual)

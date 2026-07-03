@@ -31,7 +31,8 @@ export class SicoobParser {
 
     // O formato padrão de início de transação é "DD/MM DESCRICAO VALOR_INDICADOR"
     // Exemplo: "01/06 PIX RECEB.OUTRA IF 145,00C" ou "03/06 TARIFA EXTRATO 5,00D"
-    const txStartRegex = /^(\d{2})\/(\d{2})\s+(.+?)\s+([\d.,]+)([CDcd])$/;
+    // Atualizado para suportar anos opcionais, espaços antes do indicador, e sinais de negativo/positivo diretos.
+    const txStartRegex = /^(\d{2})\/(\d{2})(?:\/\d{2,4})?\s+(.+?)\s+(-?[\d.,]+)\s*([CDcd])?$/;
 
     interface SicoobBlock {
       headerLine: string;
@@ -54,7 +55,7 @@ export class SicoobParser {
         const month = match[2];
         const descPart = match[3].trim();
         const amountPart = match[4].trim();
-        const indicator = match[5].toUpperCase();
+        const indicator = (match[5] || '').toUpperCase();
 
         // Ignorar linhas puramente administrativas/sistema (como saldos ou avisos de rodapé) de forma precisa,
         // garantindo que transações com palavras comuns como "Sicoob", "Conta", "Tarifa" ou "Encargos" NÃO sejam descartadas.
@@ -113,8 +114,10 @@ export class SicoobParser {
       // Conversão do valor financeiro: "145,00" -> 145.00 | "50,00D" -> -50.00
       let cleanAmountStr = block.amountPart.replace(/\./g, '').replace(',', '.');
       let amount = parseFloat(cleanAmountStr);
-      if (block.indicator === 'D') {
-        amount = -amount;
+      if (block.indicator === 'D' || block.indicator === 'd') {
+        amount = -Math.abs(amount);
+      } else if (block.indicator === 'C' || block.indicator === 'c') {
+        amount = Math.abs(amount);
       }
 
       // Montagem da data ISO: YYYY-MM-DD
