@@ -142,7 +142,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     });
                 }
 
-                const response = await fetch(`/api/reference/data/${apiOwnerId}?limit=50&offset=0`, {
+                const response = await fetch(`/api/v1/saved_reports?user_id=${apiOwnerId}&exclude_data=true`, {
                     method: 'GET',
                     cache: 'no-store',
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -155,15 +155,14 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         console.log("[AUDIT][FETCH_END]", {
                             userId: user?.id,
                             effectiveUserId,
-                            reports: resData.reports?.length,
-                            churches: resData.churches?.length,
+                            reports: resData?.length,
                             executionId: executionId.current,
                             timestamp: Date.now()
                         });
                     }
 
                     if (ignore) return;
-                    data = resData.reports || [];
+                    data = resData || [];
                 } else {
                     throw new Error("Falha ao buscar relatórios via API.");
                 }
@@ -349,21 +348,27 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             data: mergedData
         } : r));
 
-        console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId}`);
-        const { error } = await (supabase
-            .from('saved_reports') as any)
-            .update({ 
-                data: mergedData as any,
-                record_count: recordCount 
-            })
-            .eq('id', reportId)
-            .eq('user_id', effectiveUserId);
+        console.log(`[WRITE:ALREADY_CORRECT] Sobrescrevendo relatório com effectiveUserId: ${effectiveUserId} no VPS`);
+        try {
+            const res = await fetch(`/api/v1/saved_reports/${reportId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: mergedData,
+                    record_count: recordCount
+                })
+            });
 
-        if (error) {
-            console.error("[AutoSave] Erro ao persistir no Supabase:", error);
+            if (res.ok) {
+                showToast("Alterações salvas no servidor.", "success");
+            } else {
+                const errText = await res.text();
+                console.error("[AutoSave] Erro ao persistir no VPS:", errText);
+                showToast("Falha ao salvar alterações no servidor.", "error");
+            }
+        } catch (err) {
+            console.error("[AutoSave] Erro de rede ao persistir no VPS:", err);
             showToast("Falha ao salvar alterações no servidor.", "error");
-        } else {
-            showToast("Alterações salvas no servidor.", "success");
         }
     }, [user, effectiveUserId, showToast, savedReports]);
 

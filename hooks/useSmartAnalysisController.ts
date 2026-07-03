@@ -14,7 +14,8 @@ export const useSmartAnalysisController = () => {
     const { 
         matchResults, setMatchResults, setReportPreviewData, setHasActiveSession,
         savedReports, openSaveReportModal, activeSpreadsheetData, activeReportId,
-        setActiveReportId, overwriteSavedReport, churches 
+        setActiveReportId, overwriteSavedReport, churches,
+        user, subscription
     } = useContext(AppContext);
     const { showToast, setIsLoading } = useUI();
 
@@ -124,22 +125,32 @@ export const useSmartAnalysisController = () => {
             let spreadsheet = report.data?.spreadsheet;
 
             if (!results && !spreadsheet) {
-                const { data } = await supabase.from('saved_reports').select('data').eq('id', report.id).single();
-                
-                const rawData = data ? (data as any).data : null;
-                let parsedData;
-                try {
-                    parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                } catch (error) {
-                    console.error("JSON corrompido detectado:", error);
-                    parsedData = {
-                        results: [],
-                        spreadsheet: null
-                    };
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const ownerId = subscription.ownerId || user?.id;
+
+                const response = await fetch(`/api/reference/report/${report.id}?ownerId=${ownerId}`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const resData = await response.json();
+                    const rawData = resData.data;
+                    let parsedData;
+                    try {
+                        parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                    } catch (error) {
+                        console.error("JSON corrompido detectado:", error);
+                        parsedData = {
+                            results: [],
+                            spreadsheet: null
+                        };
+                    }
+                    results = parsedData?.results;
+                    spreadsheet = parsedData?.spreadsheet;
                 }
-                
-                results = parsedData?.results;
-                spreadsheet = parsedData?.spreadsheet;
             }
 
             if ((results || []).length > 0 || spreadsheet) {

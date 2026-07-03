@@ -231,18 +231,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const { data: { user: currentUser } } = await supabase.auth.getUser();
             const ownerId = subscription.ownerId || currentUser?.id;
 
-            const isOwner = subscription.ownerId === user?.id;
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
 
-            if (isOwner) {
-                const { data, error } = await (supabase.from('saved_reports') as any)
-                    .select('data')
-                    .eq('id', reportId)
-                    .single();
+            const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
+                method: 'GET',
+                cache: 'no-store',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
 
-                if (error) throw error;
-                if (!data) throw new Error('Report not found');
-
-                const rawData = data.data;
+            if (response.ok) {
+                const resData = await response.json();
+                const rawData = resData.data;
                 let parsedData;
                 try {
                     parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
@@ -257,34 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 results = Array.isArray(parsedData) ? parsedData : parsedData?.transactions || parsedData?.results;
                 spreadsheet = parsedData?.spreadsheet;
             } else {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
-
-                const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
-                    method: 'GET',
-                    cache: 'no-store',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const resData = await response.json();
-                    const rawData = resData.data;
-                    let parsedData;
-                    try {
-                        parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-                    } catch (error) {
-                        console.error("JSON corrompido detectado:", error);
-                        parsedData = {
-                            results: [],
-                            spreadsheet: null
-                        };
-                    }
-
-                    results = Array.isArray(parsedData) ? parsedData : parsedData?.transactions || parsedData?.results;
-                    spreadsheet = parsedData?.spreadsheet;
-                } else {
-                    throw new Error("Falha ao buscar detalhes do relatório via API.");
-                }
+                throw new Error("Falha ao buscar detalhes do relatório via API.");
             }
 
             if (((results || []).length > 0) || spreadsheet) {

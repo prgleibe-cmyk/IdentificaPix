@@ -14,7 +14,9 @@ export const useSavedReportsController = () => {
         openDeleteConfirmation, 
         updateSavedReportName, 
         maxSavedReports,
-        confirmSaveReport
+        confirmSaveReport,
+        user,
+        subscription
     } = useContext(AppContext);
     
     const { t, language } = useTranslation();
@@ -107,15 +109,19 @@ export const useSavedReportsController = () => {
 
         if (!spreadsheet) {
             try {
-                const { data, error } = await supabase
-                    .from('saved_reports')
-                    .select('data')
-                    .eq('id', report.id)
-                    .single();
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const ownerId = subscription.ownerId || user?.id;
 
-                if (error) throw error;
-                if (data) {
-                    const rawData = (data as any).data;
+                const response = await fetch(`/api/reference/report/${report.id}?ownerId=${ownerId}`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const resData = await response.json();
+                    const rawData = resData.data;
                     const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
                     spreadsheet = parsedData?.spreadsheet;
                 }
