@@ -107,6 +107,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
+            if (hasHydratedRef.current) {
+                if (ENABLE_HEAVY_LOGS) {
+                    console.log('[ReportManager] Já hidratado. Ignorando fetchReports redundante.');
+                }
+                return;
+            }
             // Para a API, precisamos do ownerId para passar na validação de permissão
             const apiOwnerId = effectiveUserId;
             let data: any[] = [];
