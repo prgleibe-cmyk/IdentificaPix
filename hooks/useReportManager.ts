@@ -34,6 +34,12 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [searchFilters, setSearchFilters] = usePersistentState<SearchFilters>(`identificapix-search-filters${userSuffix}`, DEFAULT_SEARCH_FILTERS);
     const hasHydratedRef = useRef(false);
+    const savedReportsRef = useRef<SavedReport[]>([]);
+    const lastEffectiveUserIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        savedReportsRef.current = savedReports;
+    }, [savedReports]);
 
     useEffect(() => {
         if (realtimeRefreshKey && realtimeRefreshKey > 0) {
@@ -73,6 +79,11 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             return;
         }
 
+        if (lastEffectiveUserIdRef.current !== effectiveUserId) {
+            hasHydratedRef.current = false;
+            lastEffectiveUserIdRef.current = effectiveUserId;
+        }
+
         // Se já recebemos relatórios iniciais (ex: via useReferenceData no AppContext),
         // evitamos a chamada duplicada ao endpoint /api/reference/data/:ownerId
         if (initialReports && initialReports.length > 0) {
@@ -97,7 +108,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 });
             }
 
-            if (!hasHydratedRef.current) {
+            if (!hasHydratedRef.current || savedReportsRef.current.length === 0) {
                 setSavedReports(hydrated);
                 hasHydratedRef.current = true;
             } else {
@@ -107,7 +118,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         }
 
         const fetchReports = async () => {
-            if (hasHydratedRef.current) {
+            if (hasHydratedRef.current && savedReportsRef.current.length > 0) {
                 if (ENABLE_HEAVY_LOGS) {
                     console.log('[ReportManager] Já hidratado. Ignorando fetchReports redundante.');
                 }
@@ -179,7 +190,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                         });
                     }
 
-                    if (!hasHydratedRef.current) {
+                    if (!hasHydratedRef.current || savedReportsRef.current.length === 0) {
                         setSavedReports(hydrated);
                         hasHydratedRef.current = true;
                     } else {
