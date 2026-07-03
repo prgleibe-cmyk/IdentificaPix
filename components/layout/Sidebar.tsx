@@ -104,7 +104,10 @@ export const Sidebar: React.FC = () => {
         setBulkIdentificationTxs([newTx]);
     };
 
-    const isSecondaryUser = subscription.ownerId && subscription.ownerId !== user?.id;
+    const isSecondaryUser = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+        subscription.role !== 'owner' &&
+        subscription.role !== 'admin' &&
+        subscription.role !== 'principal';
 
     const navItems = useMemo(() => {
         const items: { view: ViewType, labelKey: string, icon: React.ReactNode, special?: boolean }[] = [];

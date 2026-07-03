@@ -15,8 +15,11 @@ export const PaymentModal: React.FC = () => {
 
     if (!controller.isPaymentModalOpen) return null;
 
-    // 🔗 HIERARCHY LOGIC: Secondary users don't pay
-    const isSecondaryUser = controller.subscription.ownerId && controller.subscription.ownerId !== user?.id;
+    // 🔗 HIERARCHY LOGIC: Secondary users don't pay (Principal Admin is NOT secondary)
+    const isSecondaryUser = (controller.subscription.ownerId && controller.subscription.ownerId !== user?.id) &&
+        controller.subscription.role !== 'owner' &&
+        controller.subscription.role !== 'admin' &&
+        controller.subscription.role !== 'principal';
 
     if (isSecondaryUser) {
         return (

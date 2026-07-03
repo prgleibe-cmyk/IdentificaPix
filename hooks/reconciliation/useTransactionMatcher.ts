@@ -89,7 +89,10 @@ export const useTransactionMatcher = ({
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
         let filteredResults = results;
 
-        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
             filteredResults = results.filter(r => {
                 const churchId = r.church?.id || r._churchId || 'unidentified';

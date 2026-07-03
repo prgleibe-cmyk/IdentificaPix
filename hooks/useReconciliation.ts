@@ -188,7 +188,10 @@ export const useReconciliation = (props: any) => {
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
 
     const applySecurityFilters = useCallback((results: MatchResult[]) => {
-        const isSecondary = subscription?.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         if (!isSecondary) return results;
 
         let filtered = results;

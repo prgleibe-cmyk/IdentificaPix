@@ -29,7 +29,10 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
 
         // 2. Filtro de Segurança para Usuários Secundários: Apenas dados da sua congregação e bancos autorizados
         const { user } = useAuth();
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         if (isSecondary) {
             if (subscription.congregationIds && subscription.congregationIds.length > 0) {
                 results = results.filter((r: any) => {

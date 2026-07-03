@@ -189,7 +189,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 PLACEHOLDER_CHURCH
         }));
 
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         if (isSecondary && subscription.congregationIds?.length > 0) {
             hydrated = hydrated.filter((r: any) => {
                 const churchId = r.church?.id || r._churchId || 'unidentified';
@@ -282,7 +285,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                             PLACEHOLDER_CHURCH
                     }));
 
-                    const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+                    const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+                        subscription.role !== 'owner' &&
+                        subscription.role !== 'admin' &&
+                        subscription.role !== 'principal';
                     if (isSecondary && (subscription.congregationIds || []).length > 0) {
                         hydrated = (hydrated || []).filter((r: any) => {
                             const churchId = r.church?.id || r._churchId || 'unidentified';
@@ -504,7 +510,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!referenceData.banks) return [];
         let list = referenceData.banks.map((b: any) => ({ id: b.id, name: b.account_name ?? b.name }));
 
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         if (isSecondary) {
             const allowedIds = subscription.bankIds || [];
             if (allowedIds.length > 0) {

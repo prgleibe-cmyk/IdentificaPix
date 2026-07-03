@@ -101,7 +101,10 @@ export const useReportsController = () => {
 
     // Forçar categoria para membros
     useEffect(() => {
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             setActiveCategory('churches');
             if (!selectedReportId || !(subscription.congregationIds || []).includes(selectedReportId)) {
@@ -113,7 +116,10 @@ export const useReportsController = () => {
     useEffect(() => {
         if (!reportPreviewData) return;
         
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         // Se for membro, garante que está na categoria correta e com uma igreja válida
         if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             setActiveCategory('churches');
@@ -147,7 +153,10 @@ export const useReportsController = () => {
         // sem depender do reportPreviewData debouncado/bloqueado.
         const results = (matchResults || []);
         
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         const allowedIds = isSecondary ? (subscription.congregationIds || []) : null;
 
         const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
@@ -189,7 +198,10 @@ export const useReportsController = () => {
     const counts = useMemo(() => {
         // 🛡️ CONTABILIDADE LOCAL (FASE 2.2): Usamos matchResults diretamente para os contadores das abas
         // Isso garante que os números nos botões de categoria reflitam as mudanças atômicas instantaneamente
-        const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
         
         if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
             const allowedIds = subscription.congregationIds || [];
@@ -231,7 +243,10 @@ export const useReportsController = () => {
         let data: MatchResult[] = [];
         
         try {
-            const isSecondary = subscription.ownerId && subscription.ownerId !== user?.id;
+            const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+                subscription.role !== 'owner' &&
+                subscription.role !== 'admin' &&
+                subscription.role !== 'principal';
             
             // 🛡️ REINSERÇÃO LOCAL (FASE 2.2): Usamos matchResults diretamente para categorias simples
             // Isso garante que mudanças atômicas (realtime, toggle) reflitam instantaneamente sem rebuild global

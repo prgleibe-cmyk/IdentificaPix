@@ -398,7 +398,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 const newReportId = `rep-${Date.now()}`;
                 
                 let churchId = null;
-                const isSecondary = subscription?.ownerId && subscription?.ownerId !== user?.id;
+                const isSecondary = (subscription?.ownerId && subscription?.ownerId !== user?.id) &&
+                    subscription.role !== 'owner' &&
+                    subscription.role !== 'admin' &&
+                    subscription.role !== 'principal';
                 if (isSecondary) {
                     churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
                 } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
@@ -433,7 +436,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 const newReportId = `rep-${Date.now()}`;
                 
                 let churchId = null;
-                const isSecondary = subscription?.ownerId && subscription?.ownerId !== user?.id;
+                const isSecondary = (subscription?.ownerId && subscription?.ownerId !== user?.id) &&
+                    subscription.role !== 'owner' &&
+                    subscription.role !== 'admin' &&
+                    subscription.role !== 'principal';
                 if (isSecondary) {
                     churchId = subscription.congregationId || (subscription.congregationIds && subscription.congregationIds[0]);
                 } else if (searchFilters.churchIds && searchFilters.churchIds.length === 1) {
