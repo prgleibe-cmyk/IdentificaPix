@@ -66,10 +66,14 @@ export const useReconciliation = (props: any) => {
             const data = await resp.json();
             if (!Array.isArray(data)) return;
             
+            const allowedChurchIds = new Set((churches || []).map((ch: any) => ch.id));
+            
             const grouped = new Map<string, any[]>();
             data.forEach((c: any) => {
                 if (c.status !== 'inactive') {
                     const cid = c.church_id;
+                    if (!allowedChurchIds.has(cid)) return; // Ignora contribuintes de igrejas não cadastradas
+                    
                     if (!grouped.has(cid)) {
                         grouped.set(cid, []);
                     }
@@ -87,7 +91,7 @@ export const useReconciliation = (props: any) => {
             });
 
             const newFiles: ContributorFile[] = Array.from(grouped.entries()).map(([cid, list]) => {
-                const church = churches.find((ch: any) => ch.id === cid) || { id: cid, name: 'Igreja Vinculada' };
+                const church = churches.find((ch: any) => ch.id === cid)!;
                 return {
                     church,
                     churchId: cid,

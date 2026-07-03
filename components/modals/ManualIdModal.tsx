@@ -469,7 +469,7 @@ export const ManualIdModal: React.FC = () => {
                                     <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
                                         {similarMatches.map((m, idx) => {
                                             const chId = m.contributor._churchId || m.contributor.church_id || m.church?.id;
-                                            const churchName = m.church?.name || 'Igreja Vinculada';
+                                            const churchName = m.church?.name || 'Igreja Desconhecida';
                                             const isSelected = selectedUnifiedField === m.contributor.id;
                                             
                                             return (

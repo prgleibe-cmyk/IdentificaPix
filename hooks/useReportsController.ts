@@ -26,7 +26,8 @@ export const useReportsController = () => {
         setSelectedBankId,
         bankList,
         hydrate,
-        regenerateReportPreview
+        regenerateReportPreview,
+        churches
     } = useContext(AppContext);
     
     const { language } = useTranslation();
@@ -161,8 +162,12 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
                 if (allowedIds && !allowedIds.includes(churchId)) return;
                 
+                // 🔥 SÓ EXIBIR IGREJAS REALMENTE CADASTRADAS NO USUÁRIO (NADA DE SIMULAÇÃO OU GHOST NAMES)
+                const realChurch = (churches || []).find((c: any) => c.id === churchId);
+                if (!realChurch) return; // Ignora se a igreja não está na lista oficial de igrejas cadastradas do usuário
+                
                 const existing = churchMap.get(churchId);
-                const churchName = r.church?.name || 'Igreja Desconhecida';
+                const churchName = realChurch.name;
                 
                 if (existing) {
                     existing.count++;
@@ -179,7 +184,7 @@ export const useReportsController = () => {
         });
 
         return Array.from(churchMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [matchResults, subscription, user?.id]);
+    }, [matchResults, subscription, user?.id, churches]);
 
     const counts = useMemo(() => {
         // 🛡️ CONTABILIDADE LOCAL (FASE 2.2): Usamos matchResults diretamente para os contadores das abas

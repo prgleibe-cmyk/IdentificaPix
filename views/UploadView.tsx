@@ -13,7 +13,7 @@ import { usePersistentState } from '../hooks/usePersistentState';
  */
 export const UploadView: React.FC = () => {
     const { 
-        banks, activeReportId, selectedBankIds, handleCompare
+        banks
     } = useContext(AppContext);
     const { systemSettings } = useAuth();
     const { setActiveView } = useUI();
@@ -21,9 +21,6 @@ export const UploadView: React.FC = () => {
 
     // Estado persistente para o modo de alimentação (arquivo vs android)
     const [feedingMode, setFeedingMode] = usePersistentState<'file' | 'android'>('identificapix-feeding-mode', 'file');
-
-    const hasSelection = selectedBankIds.length > 0;
-    const canProcess = hasSelection || !!activeReportId;
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-6 pb-4 px-2 md:px-4">
@@ -185,24 +182,13 @@ export const UploadView: React.FC = () => {
             </div>
             
             <div className="flex justify-center pt-2 flex-shrink-0">
-                {feedingMode === 'android' ? (
-                    <button 
-                        onClick={() => setActiveView('dashboard')} 
-                        className="flex items-center gap-3 px-8 py-3 text-white rounded-full shadow-2xl hover:-translate-y-1 transition-all text-[11px] font-black uppercase tracking-widest bg-gradient-to-r from-emerald-500 to-teal-600 border border-white/20 group"
-                    >
-                        <SparklesIcon className="w-5 h-5 group-hover:rotate-12 transition-transform animate-pulse" />
-                        <span>Ver Lista Viva em Tempo Real</span>
-                    </button>
-                ) : (
-                    <button 
-                        onClick={handleCompare} 
-                        disabled={!canProcess} 
-                        className="flex items-center gap-3 px-8 py-3 text-white rounded-full shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-50 text-[11px] font-black uppercase tracking-widest bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 border border-white/20 group"
-                    >
-                        <SparklesIcon className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                        {activeReportId ? "Atualizar Relatório" : "Processar com Inteligência"}
-                    </button>
-                )}
+                <button 
+                    onClick={() => setActiveView('dashboard')} 
+                    className="flex items-center gap-3 px-8 py-3 text-white rounded-full shadow-2xl hover:-translate-y-1 transition-all text-[11px] font-black uppercase tracking-widest bg-gradient-to-r from-emerald-500 to-teal-600 border border-white/20 group animate-pulse-slow"
+                >
+                    <SparklesIcon className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                    <span>Ver Lista Viva (Painel)</span>
+                </button>
             </div>
         </div>
     );

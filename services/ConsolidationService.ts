@@ -2,6 +2,23 @@ import { supabase } from './supabaseClient';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
 
+const ownerIdCache = new Map<string, string>();
+
+const getEffectiveUserId = async (currentUserId: string | undefined): Promise<string | undefined> => {
+    if (!currentUserId) return undefined;
+    if (ownerIdCache.has(currentUserId)) {
+        return ownerIdCache.get(currentUserId);
+    }
+    const { data: profile } = await (supabase as any)
+        .from('profiles')
+        .select('owner_id')
+        .eq('id', currentUserId)
+        .maybeSingle();
+    const ownerId = profile?.owner_id || currentUserId;
+    ownerIdCache.set(currentUserId, ownerId);
+    return ownerId;
+};
+
 type ConsolidatedTransactionInsert = Database['public']['Tables']['consolidated_transactions']['Insert'];
 
 export const consolidationService = {
@@ -36,15 +53,7 @@ export const consolidationService = {
             const currentUserId = session?.user.id;
             
             // Busca o owner_id para garantir que usamos o ID do proprietário da conta
-            let effectiveUserId = currentUserId;
-            if (currentUserId) {
-                const { data: profile } = await (supabase as any)
-                    .from('profiles')
-                    .select('owner_id')
-                    .eq('id', currentUserId)
-                    .maybeSingle();
-                if (profile?.owner_id) effectiveUserId = profile.owner_id;
-            }
+            const effectiveUserId = await getEffectiveUserId(currentUserId);
 
             const sanitizedPayload = transactions
                 .map(t => {
@@ -179,15 +188,7 @@ export const consolidationService = {
             const currentUserId = session?.user.id;
 
             // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
-            let effectiveUserId = currentUserId;
-            if (currentUserId) {
-                const { data: profile } = await (supabase as any)
-                    .from('profiles')
-                    .select('owner_id')
-                    .eq('id', currentUserId)
-                    .maybeSingle();
-                if (profile?.owner_id) effectiveUserId = profile.owner_id;
-            }
+            const effectiveUserId = await getEffectiveUserId(currentUserId);
 
             const updateData: any = { 
                 status,
@@ -347,15 +348,7 @@ const { data, error } = await (supabase as any)
         const currentUserId = session?.user.id;
 
         // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
-        let effectiveUserId = currentUserId;
-        if (currentUserId) {
-            const { data: profile } = await (supabase as any)
-                .from('profiles')
-                .select('owner_id')
-                .eq('id', currentUserId)
-                .maybeSingle();
-            if (profile?.owner_id) effectiveUserId = profile.owner_id;
-        }
+        const effectiveUserId = await getEffectiveUserId(currentUserId);
 
         if (!ids || ids.length === 0) return true;
 

@@ -494,12 +494,14 @@ export const useReconciliationActions = ({
             const allIds = resultsToUpdate.map(r => r.transaction.id);
             await consolidationService.updateConfirmationStatus(allIds, confirmed, firstChurchId, firstBankId, firstContributorId);
           } else {
-            for (const result of resultsToUpdate) {
-              const churchId = result.church?.id || result._churchId;
-              const bankId = result.transaction.bank_id;
-              const contributorId = result.contributor?.id;
-              await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId);
-            }
+            await Promise.all(
+              resultsToUpdate.map(async (result) => {
+                const churchId = result.church?.id || result._churchId;
+                const bankId = result.transaction.bank_id;
+                const contributorId = result.contributor?.id;
+                await consolidationService.updateConfirmationStatus([result.transaction.id], confirmed, churchId, bankId, contributorId);
+              })
+            );
           }
         }
       } finally {
