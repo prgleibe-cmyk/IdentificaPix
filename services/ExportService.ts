@@ -2,6 +2,9 @@
 import { MatchResult, Language } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { NameResolver } from '../core/processors/NameResolver';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export const ExportService = {
     /**
@@ -192,5 +195,112 @@ export const ExportService = {
             </html>
         `);
         printWindow.document.close();
+    },
+
+    /**
+     * Gera e dispara o download de um arquivo Excel (.xlsx) a partir dos resultados da conciliação.
+     */
+    downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
+        const rows = data.flatMap(r => {
+            const isGhost = r.status === 'PENDENTE';
+            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
+            
+            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
+            const desc = String(rawName).toUpperCase();
+            
+            const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
+            const church = r.church?.name || '---';
+
+            if (r.splits && r.splits.length > 0) {
+                return r.splits.map(s => {
+                    const splitDesc = s.description ? `${desc} - ${s.description.toUpperCase()}` : desc;
+                    const splitType = s.contributionType;
+                    const splitAmount = Number(s.amount);
+                    return {
+                        "Data": date,
+                        "Descrição do Lançamento": splitDesc,
+                        "Tipo": `${splitType} (RATEADO)`,
+                        "Status": status,
+                        "Valor": splitAmount,
+                        "Igreja / Unidade": church
+                    };
+                });
+            } else {
+                const type = r.contributor?.contributionType || r.transaction.contributionType || "---";
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const amount = Number(rawAmount);
+                return {
+                    "Data": date,
+                    "Descrição do Lançamento": desc,
+                    "Tipo": type,
+                    "Status": status,
+                    "Valor": amount,
+                    "Igreja / Unidade": church
+                };
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Conciliação");
+        XLSX.writeFile(wb, filename);
+    },
+
+    /**
+     * Gera e dispara o download de um arquivo PDF (.pdf) formatado com jspdf e jspdf-autotable.
+     */
+    downloadPdf: (data: MatchResult[], title: string, filename: string = 'relatorio_conciliacao.pdf') => {
+        const doc = new jsPDF();
+        
+        // Cabeçalho elegante
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text(title.toUpperCase(), 14, 15);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 20);
+        
+        const headers = [["Data", "Descrição do Lançamento", "Igreja / Unidade", "Tipo", "Status", "Valor"]];
+        
+        const rows: any[] = data.flatMap((r: MatchResult) => {
+            const isGhost = r.status === 'PENDENTE';
+            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
+            
+            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
+            const desc = String(rawName).toUpperCase();
+            
+            const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
+            const church = r.church?.name || '---';
+
+            if (r.splits && r.splits.length > 0) {
+                return r.splits.map(s => {
+                    const splitDesc = s.description ? `${desc} - ${s.description.toUpperCase()}` : desc;
+                    const splitType = s.contributionType;
+                    const splitAmount = Number(s.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    return [date, splitDesc, church, `${splitType} (RATEADO)`, status, splitAmount];
+                });
+            } else {
+                const type = r.contributor?.contributionType || r.transaction.contributionType || "---";
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const amount = Number(rawAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                return [[date, desc, church, type, status, amount]];
+            }
+        });
+
+        autoTable(doc, {
+            head: headers,
+            body: rows,
+            startY: 25,
+            theme: 'striped',
+            headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' }, // Slate 900
+            bodyStyles: { fontSize: 7 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }, // Slate 50
+            margin: { top: 25 },
+            styles: { overflow: 'linebreak', cellPadding: 2 }
+        });
+
+        doc.save(filename);
     }
 };

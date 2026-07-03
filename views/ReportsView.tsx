@@ -229,6 +229,8 @@ export const ReportsView: React.FC = () => {
                     onAiClick={ctrl.runAiAutoIdentification} 
                     onUpdateSource={() => ctrl.setActiveView('upload')}
                     onDownload={ctrl.handleDownload} 
+                    onDownloadExcel={ctrl.handleDownloadExcel}
+                    onDownloadPdf={ctrl.handleDownloadPdf}
                     onPrint={ctrl.handlePrint}
                     onSaveReport={ctrl.handleSaveReport}
                     hasActiveReport={!!ctrl.activeReportId}

@@ -404,6 +404,16 @@ export const useReportsController = () => {
     }, [activeData]);
 
     const handleDownload = () => ExportService.downloadCsv(sortedData, `relatorio_${new Date().toISOString().slice(0,10)}.csv`);
+
+    const handleDownloadExcel = () => {
+        const title = activeCategory === 'general' ? 'Relatório Geral' : activeCategory === 'churches' ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório') : activeCategory === 'unidentified' ? 'Pendentes' : 'Saídas';
+        ExportService.downloadExcel(sortedData, `relatorio_${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
+    const handleDownloadPdf = () => {
+        const title = activeCategory === 'general' ? 'Relatório Geral' : activeCategory === 'churches' ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório') : activeCategory === 'unidentified' ? 'Pendentes' : 'Saídas';
+        ExportService.downloadPdf(sortedData, title, `relatorio_${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`);
+    };
     
     const handlePrint = () => {
         const title = activeCategory === 'general' ? 'Relatório Geral' : activeCategory === 'churches' ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório') : activeCategory === 'unidentified' ? 'Pendentes' : 'Saídas';
@@ -421,7 +431,7 @@ export const useReportsController = () => {
         handleSort,
         churchList, bankList, counts, activeSummary, sortedData,
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
-        handleDownload, handlePrint, handleSaveReport, updateReportData,
+        handleDownload, handleDownloadExcel, handleDownloadPdf, handlePrint, handleSaveReport, updateReportData,
         setActiveView, reportPreviewData,
         searchFilters, setSearchFilters
     };

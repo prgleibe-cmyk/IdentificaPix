@@ -232,21 +232,7 @@ export const useCloudSync = ({
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
                 
-                // 🛡️ RESTAURAÇÃO AUTOMÁTICA DE REPORT_ID (Se não houver um ativo)
-                if (!activeReportId && savedReports && savedReports.length > 0) {
-                    let target = savedReports[0];
-                    if (savedReports.length > 1) {
-                        target = [...savedReports].sort((a, b) => {
-                            const dateA = (a.updated_at || a.created_at || a.createdAt) ? new Date(a.updated_at || a.created_at || a.createdAt).getTime() : 0;
-                            const dateB = (b.updated_at || b.created_at || b.createdAt) ? new Date(b.updated_at || b.created_at || b.createdAt).getTime() : 0;
-                            return dateB - dateA;
-                        })[0];
-                    }
-                    if (target && target.id) {
-                        console.log('[REPORT:RESTORED]', { activeReportId: target.id });
-                        setActiveReportId(target.id);
-                    }
-                }
+
 
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
