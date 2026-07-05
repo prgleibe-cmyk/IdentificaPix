@@ -34,7 +34,7 @@ export const AppRouter: React.FC = () => {
     const { activeView } = useUI();
     const { user, subscription } = useAuth();
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
-    const isOwner = subscription.role === 'owner';
+    const isOwner = subscription.role === 'owner' || subscription.role === 'admin' || subscription.role === 'principal';
     
     switch (activeView) {
         case 'dashboard': return <DashboardView />;

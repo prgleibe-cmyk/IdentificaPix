@@ -70,7 +70,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     let fetchedReports = data.reports || [];
                     let fetchedAssociations = data.associations || [];
                     
-                    const isOwner = subscription.ownerId === user?.id;
+                    const isOwner = subscription.ownerId === user?.id || 
+                                    subscription.role === 'owner' || 
+                                    subscription.role === 'admin' || 
+                                    subscription.role === 'principal';
                     
                     if (!isOwner) {
                         const allowedBankIds = subscription.bankIds || [];
