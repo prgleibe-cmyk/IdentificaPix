@@ -16,10 +16,10 @@ export const ExportService = {
             headers.join(";"),
             ...data.flatMap(r => {
                 const isGhost = r.status === 'PENDENTE';
-                const date = formatDate(isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date);
+                const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
                 
                 // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
-                const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '';
+                const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
                 const desc = String(rawName).replace(/;/g, ' ').toUpperCase();
                 
                 const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
@@ -34,9 +34,9 @@ export const ExportService = {
                         return [`"${date}"`, `"${splitDesc}"`, `"${splitType}"`, `"${status} (RATEADO)"`, `"${splitAmount}"`, `"${church}"`].join(";");
                     });
                 } else {
-                    const type = (r.contributor?.contributionType || r.transaction?.contributionType || "").replace(/;/g, ' ');
-                    const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : (r.transaction?.amount || 0);
-                    const amount = Number(rawAmount || 0).toFixed(2).replace('.', ',');
+                    const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
+                    const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                    const amount = Number(rawAmount).toFixed(2).replace('.', ',');
                     return [`"${date}"`, `"${desc}"`, `"${type}"`, `"${status}"`, `"${amount}"`, `"${church}"`].join(";");
                 }
             })
@@ -61,10 +61,10 @@ export const ExportService = {
 
         const tableRows = data.flatMap(r => {
             const isGhost = r.status === 'PENDENTE';
-            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date);
+            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             
             // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '';
+            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
             const name = String(rawName).toUpperCase();
             const churchName = r.church?.name || '-';
 
@@ -98,10 +98,10 @@ export const ExportService = {
                     `;
                 });
             } else {
-                const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : (r.transaction?.amount || 0);
+                const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
                 const isNegative = amountVal < 0;
                 const amount = formatCurrency(amountVal, language);
-                const type = r.contributor?.contributionType || r.transaction?.contributionType || '---';
+                const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
 
                 return `
                     <tr>
@@ -203,9 +203,9 @@ export const ExportService = {
     downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
         const rows = data.flatMap(r => {
             const isGhost = r.status === 'PENDENTE';
-            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date);
+            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '';
+            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
             const desc = String(rawName).toUpperCase();
             
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
@@ -226,8 +226,8 @@ export const ExportService = {
                     };
                 });
             } else {
-                const type = r.contributor?.contributionType || r.transaction?.contributionType || "---";
-                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : (r.transaction?.amount || 0);
+                const type = r.contributor?.contributionType || r.transaction.contributionType || "---";
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
                 const amount = Number(rawAmount);
                 return {
                     "Data": date,
@@ -266,9 +266,9 @@ export const ExportService = {
         
         const rows: any[] = data.flatMap((r: MatchResult) => {
             const isGhost = r.status === 'PENDENTE';
-            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date);
+            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
             
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '';
+            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
             const desc = String(rawName).toUpperCase();
             
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
@@ -282,8 +282,8 @@ export const ExportService = {
                     return [date, splitDesc, church, `${splitType} (RATEADO)`, status, splitAmount];
                 });
             } else {
-                const type = r.contributor?.contributionType || r.transaction?.contributionType || "---";
-                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : (r.transaction?.amount || 0);
+                const type = r.contributor?.contributionType || r.transaction.contributionType || "---";
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
                 const amount = Number(rawAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                 return [[date, desc, church, type, status, amount]];
             }

@@ -7,9 +7,7 @@ import { parseDate } from '../utils/parsingUtils';
  */
 export const filterTransactionByUniversalQuery = (tx: Transaction, query: string): boolean => {
     if (!query || !query.trim() || !tx) return true;
-    
-    const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    const terms = normalizedQuery.split(/\s+/).filter(t => t.length > 0);
+    const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
 
     const rawDate = tx.date || '';
     const dateNormalized = rawDate.replace(/-/g, '/');
@@ -33,7 +31,7 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
     const amountStrComma = amountStrFixed.replace('.', ',');
 
     // 🧬 DNA Search Scope (Prioridade ao Raw)
-    const rawContent = [
+    const searchableContent = [
         (tx as any).rawContent || tx.rawDescription || '',
         tx.cleanedDescription || '',
         tx.description || '',
@@ -44,8 +42,6 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
         dateShort,
         rawDate
     ].join(' ').toLowerCase().trim();
-
-    const searchableContent = rawContent.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
     return terms.every(term => {
         const dateTerm = term.replace(/[-.]/g, '/');
@@ -60,8 +56,7 @@ export const filterTransactionByUniversalQuery = (tx: Transaction, query: string
 export const filterByUniversalQuery = (result: MatchResult, query: string): boolean => {
     if (!query || !query.trim() || !result) return true;
     
-    const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    const terms = normalizedQuery.split(/\s+/).filter(t => t.length > 0);
+    const terms = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
     const tx = result.transaction;
     
     const amount = Math.abs(tx?.amount || 0);
@@ -84,7 +79,7 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
     }
 
     // 🧬 DNA Search Scope (Prioridade ao Raw e Identificação)
-    const rawContent = [
+    const searchableContent = [
         (tx as any)?.rawContent || tx?.rawDescription || '',
         result.contributor?.cleanedName || result.contributor?.name || '',
         result.church?.name || '',
@@ -97,8 +92,6 @@ export const filterByUniversalQuery = (result: MatchResult, query: string): bool
         dateShort,
         rawDate
     ].join(' ').toLowerCase().trim();
-
-    const searchableContent = rawContent.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
     return terms.every(term => {
         const dateTerm = term.replace(/[-.]/g, '/');
@@ -151,12 +144,9 @@ export const applyAdvancedFilters = (results: MatchResult[], filters: SearchFilt
 
         // 3. Categoria
         if (filters.filterBy === 'contributor' && filters.contributorName?.trim()) {
-            const query = filters.contributorName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            const query = filters.contributorName.toLowerCase().trim();
             data = data.filter(r => {
-                const name = (r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '')
-                    .toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '');
+                const name = (r.contributor?.cleanedName || r.contributor?.name || r.transaction?.cleanedDescription || r.transaction?.description || '').toLowerCase();
                 return name.includes(query);
             });
         }

@@ -70,7 +70,7 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
     role
 }) => {
     const { t } = useTranslation();
-    const isOwner = role === 'owner' || role === 'admin' || role === 'principal';
+    const isOwner = role === 'owner';
 
     return (
         <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">

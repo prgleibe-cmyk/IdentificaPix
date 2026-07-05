@@ -117,8 +117,8 @@ export const Sidebar: React.FC = () => {
             items.push({ view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> });
         }
 
-        // Cadastro para proprietário, admin e principal
-        if (subscription.role === 'owner' || subscription.role === 'admin' || subscription.role === 'principal') {
+        // Cadastro apenas para o proprietário (Owner)
+        if (subscription.role === 'owner') {
             items.push({ view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> });
         }
 
@@ -155,7 +155,7 @@ export const Sidebar: React.FC = () => {
     };
 
     // --- USER_MANAGEMENT_BLOCK ---
-    const showUsersButton = (subscription.role === 'owner' || subscription.role === 'admin' || subscription.role === 'principal') && !isSecondaryUser;
+    const showUsersButton = subscription.role === 'owner' && !isSecondaryUser;
     const handleUsersClick = () => {
         setActiveView('users');
     };
