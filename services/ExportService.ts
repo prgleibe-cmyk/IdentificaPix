@@ -198,7 +198,9 @@ export const ExportService = {
     },
 
     /**
-     * Gera e dispara o download de um arquivo Excel (.xlsx) a partir dos resultados da conciliaç�    downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
+     * Gera e dispara o download de um arquivo Excel (.xlsx) a partir dos resultados da conciliação.
+     */
+    downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
         const rows = data.flatMap(r => {
             const isGhost = r.status === 'PENDENTE';
             const date = formatDate(isGhost ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date);
@@ -285,7 +287,6 @@ export const ExportService = {
                 const amount = Number(rawAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                 return [[date, desc, church, type, status, amount]];
             }
-        });           }
         });
 
         autoTable(doc, {
