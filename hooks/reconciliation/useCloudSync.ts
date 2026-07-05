@@ -96,9 +96,7 @@ export const useCloudSync = ({
     const isReady =
         !!effectiveUserId &&
         Array.isArray(churches) &&
-        Array.isArray(learnedAssociations) &&
-        churches.length > 0 &&
-        learnedAssociations.length > 0;
+        Array.isArray(learnedAssociations);
 
     const isContextReady = isReady && activeReportId !== null;
 

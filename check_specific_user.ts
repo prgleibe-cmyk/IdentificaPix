@@ -9,9 +9,11 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 async function checkSpecificUser() {
-    const userId = '0d7941a5-33e8-4b55-b937-e4e80704fa08';
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    console.log("Profile for inconsistent user:", profile);
+    const userIds = ['a90f4896-34e1-4b43-aa67-a959106e781c', '2df49a21-9522-4c27-bf83-61bcdda9f0c3'];
+    for (const userId of userIds) {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+        console.log(`Profile for user ${userId}:`, profile);
+    }
 }
 
 checkSpecificUser();
