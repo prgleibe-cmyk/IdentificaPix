@@ -48,46 +48,31 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         if (lastOwnerIdRef.current === user.id) return;
 
         const syncData = async () => {
-            const isOwner = subscription.ownerId === user?.id;
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const ownerId = subscription.ownerId || user.id;
 
-            if (isOwner) {
-                try {
-                    const banksRes = await fetch(`/api/v1/banks?user_id=${user.id}`);
-                    if (banksRes.ok) {
-                        const b = await banksRes.json();
-                        if (b && !ignore) setBanks(b);
+                const response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
                     }
-                    const churchesRes = await fetch(`/api/v1/churches?user_id=${user.id}`);
-                    if (churchesRes.ok) {
-                        const c = await churchesRes.json();
-                        if (c && !ignore) setChurches(c);
-                    }
-                } catch (e) {
-                    console.error("[useReferenceData] Erro ao buscar bancos/igrejas do owner:", e);
-                }
-            } else {
-                try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token;
-                    const ownerId = subscription.ownerId || user.id;
+                });
 
-                    const response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
-                        method: 'GET',
-                        cache: 'no-store',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (ignore) return;
-                        
-                        let filteredBanks = data.banks || [];
-                        let filteredChurches = data.churches || [];
-                        let fetchedReports = data.reports || [];
-                        let fetchedAssociations = data.associations || [];
-                        
+                if (response.ok) {
+                    const data = await response.json();
+                    if (ignore) return;
+                    
+                    let filteredBanks = data.banks || [];
+                    let filteredChurches = data.churches || [];
+                    let fetchedReports = data.reports || [];
+                    let fetchedAssociations = data.associations || [];
+                    
+                    const isOwner = subscription.ownerId === user?.id;
+                    
+                    if (!isOwner) {
                         const allowedBankIds = subscription.bankIds || [];
                         const allowedChurchIds = subscription.congregationIds || [];
                         
@@ -97,28 +82,28 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                         if (allowedChurchIds.length > 0) {
                             filteredChurches = filteredChurches.filter((c: any) => allowedChurchIds.includes(c.id));
                         }
-                        
-                        if (!ignore) {
-                            setBanks(filteredBanks);
-                            setChurches(filteredChurches);
-                            setReports(fetchedReports);
-                            
-                            // ✅ Consumindo associações consolidadas
-                            setLearnedAssociations(fetchedAssociations.map((d: any) => ({
-                                id: d.id, 
-                                normalizedDescription: d.normalized_description,
-                                contributorNormalizedName: d.contributor_normalized_name,
-                                churchId: d.church_id, 
-                                bankId: 'global',
-                                user_id: d.user_id
-                            })));
-                        }
                     }
-
-                } catch (error) {
+                    
                     if (!ignore) {
-                        console.error("[useReferenceData] Erro ao buscar dados via API:", error);
+                        setBanks(filteredBanks);
+                        setChurches(filteredChurches);
+                        setReports(fetchedReports);
+                        
+                        // ✅ Consumindo associações consolidadas
+                        setLearnedAssociations(fetchedAssociations.map((d: any) => ({
+                            id: d.id, 
+                            normalizedDescription: d.normalized_description,
+                            contributorNormalizedName: d.contributor_normalized_name,
+                            churchId: d.church_id, 
+                            bankId: 'global',
+                            user_id: d.user_id
+                        })));
                     }
+                }
+
+            } catch (error) {
+                if (!ignore) {
+                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                 }
             }
 
@@ -132,37 +117,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ dependências corrigidas (cirúrgico)
     }, [user?.id, subscription?.role, subscription?.ownerId, realtimeRefreshKey]);
-
-    // ✅ Carregamento inicial de associações para OWNER (Membros já recebem via API consolidada)
-    useEffect(() => {
-        let ignore = false;
-        if (!user || subscription.ownerId !== user.id) return;
-
-        const fetchOwnerExtras = async () => {
-            try {
-                // Associações
-                const response = await fetch(`/api/v1/learned_associations?user_id=${user.id}`);
-                if (response.ok) {
-                    const assocData = await response.json();
-                    if (assocData && !ignore) {
-                        setLearnedAssociations(assocData.map((d: any) => ({
-                            id: d.id, 
-                            normalizedDescription: d.normalized_description,
-                            contributorNormalizedName: d.contributor_normalized_name,
-                            churchId: d.church_id, 
-                            bankId: 'global',
-                            user_id: d.user_id
-                        })));
-                    }
-                }
-            } catch (e) {
-                console.error("[useReferenceData] Erro ao buscar extras do owner:", e);
-            }
-        };
-
-        fetchOwnerExtras();
-        return () => { ignore = true; };
-    }, [user?.id, subscription?.ownerId, realtimeRefreshKey]);
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
