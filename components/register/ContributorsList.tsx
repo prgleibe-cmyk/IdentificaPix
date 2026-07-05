@@ -523,9 +523,10 @@ export const ContributorsList: React.FC = () => {
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
 
     const filteredContributors = contributors.filter(c => {
-        const query = search.toLowerCase().trim();
+        const query = search.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
         if (!query) return true;
-        const nameMatch = c.canonical_name?.toLowerCase().includes(query);
+        const normName = (c.canonical_name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const nameMatch = normName.includes(query);
         const cpfMatch = c.cpf?.replace(/\D/g, '').includes(query.replace(/\D/g, ''));
         return nameMatch || cpfMatch;
     });

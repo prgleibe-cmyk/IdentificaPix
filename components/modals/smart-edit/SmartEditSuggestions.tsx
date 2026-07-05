@@ -56,8 +56,11 @@ export const SmartEditSuggestions: React.FC<SmartEditSuggestionsProps> = ({
         }
 
         if (searchQuery.trim()) {
-            const lq = searchQuery.toLowerCase();
-            items = items.filter(i => i.primaryText.toLowerCase().includes(lq) || String(i.amount).includes(lq));
+            const lq = searchQuery.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+            items = items.filter(i => {
+                const normText = (i.primaryText || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                return normText.includes(lq) || String(i.amount).includes(lq);
+            });
         }
 
         let final = items.filter(i => i.score > 20 || searchQuery.trim()).sort((a, b) => b.score - a.score).slice(0, 15);
