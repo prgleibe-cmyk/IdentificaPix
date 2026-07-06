@@ -159,6 +159,11 @@ export const useReportsController = () => {
             subscription.role !== 'principal';
         const allowedIds = isSecondary ? (subscription.congregationIds || []) : null;
 
+        const churchesMap = new Map<string, any>();
+        (churches || []).forEach((c: any) => {
+            if (c.id) churchesMap.set(c.id, c);
+        });
+
         const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
         
         results.forEach(r => {
@@ -172,7 +177,7 @@ export const useReportsController = () => {
                 if (allowedIds && !allowedIds.includes(churchId)) return;
                 
                 // 🔥 SÓ EXIBIR IGREJAS REALMENTE CADASTRADAS NO USUÁRIO (NADA DE SIMULAÇÃO OU GHOST NAMES)
-                const realChurch = (churches || []).find((c: any) => c.id === churchId);
+                const realChurch = churchesMap.get(churchId);
                 if (!realChurch) return; // Ignora se a igreja não está na lista oficial de igrejas cadastradas do usuário
                 
                 const existing = churchMap.get(churchId);

@@ -28,6 +28,7 @@ interface UseCloudSyncProps {
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
+const ENABLE_HEAVY_LOGS = false;
 
 export const useCloudSync = ({
     user,
@@ -230,23 +231,38 @@ export const useCloudSync = ({
                 // 2. Mapeia para MatchResults usando as associações aprendidas
                 console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
                 
+                // Pre-build Maps for O(1) lookups to optimize from O(N * M) to O(N + M)
+                const assocMap = new Map<string, any>();
+                (learnedAssociations || []).forEach((a: any) => {
+                    if (a.normalizedDescription) {
+                        assocMap.set(a.normalizedDescription, a);
+                    }
+                });
 
+                const churchMap = new Map<string, any>();
+                (churches || []).forEach((c: any) => {
+                    if (c.id) {
+                        churchMap.set(c.id, c);
+                    }
+                });
 
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
-                    const assoc = (learnedAssociations || []).find((a: any) => a.normalizedDescription === normalizedDesc);
-                    const church = churches.find(c => c.id === (assoc?.churchId || (t as any).church_id)) || PLACEHOLDER_CHURCH;
+                    const assoc = assocMap.get(normalizedDesc);
+                    const church = churchMap.get(assoc?.churchId || (t as any).church_id) || PLACEHOLDER_CHURCH;
 
-                    console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
-                        txId: t.id,
-                        description: t.description,
-                        t_type: t.type,
-                        t_pix_key: t.pix_key,
-                        t_church_id: t.church_id,
-                        assoc_found: !!assoc,
-                        assoc_churchId: assoc?.churchId,
-                        church_resolved: church?.name,
-                    });
+                    if (ENABLE_HEAVY_LOGS) {
+                        console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
+                            txId: t.id,
+                            description: t.description,
+                            t_type: t.type,
+                            t_pix_key: t.pix_key,
+                            t_church_id: t.church_id,
+                            assoc_found: !!assoc,
+                            assoc_churchId: assoc?.churchId,
+                            church_resolved: church?.name,
+                        });
+                    }
 
                     const transaction: Transaction = {
                         id: t.id,

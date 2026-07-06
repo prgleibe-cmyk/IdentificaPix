@@ -181,10 +181,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             || data?.results
             || [];
 
+        const churchMap = new Map<string, any>();
+        (referenceData.churches || []).forEach((c: any) => {
+            if (c.id) churchMap.set(c.id, c);
+        });
+
         let hydrated = rawData.map((r: any) => ({
             ...r,
             church:
-                referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                churchMap.get(r.church?.id || r._churchId) ||
                 r.church ||
                 PLACEHOLDER_CHURCH
         }));
@@ -277,10 +282,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
 
                 if ((results || []).length > 0) {
+                    const churchMap = new Map<string, any>();
+                    (referenceData.churches || []).forEach((c: any) => {
+                        if (c.id) churchMap.set(c.id, c);
+                    });
+
                     let hydrated = (results || []).map((r: any) => ({
                         ...r,
                         church:
-                            referenceData.churches.find((c: any) => c.id === (r.church?.id || r._churchId)) ||
+                            churchMap.get(r.church?.id || r._churchId) ||
                             r.church ||
                             PLACEHOLDER_CHURCH
                     }));
