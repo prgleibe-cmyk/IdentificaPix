@@ -177,6 +177,8 @@ export const useCloudSync = ({
             needsRetry.current = false;
 
             try {
+                const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
+
                 // 1. Busca as transações que estão dentro do período selecionado
                 const startDate = searchFilters.dateRange.start;
                 const endDate = searchFilters.dateRange.end;
@@ -296,17 +298,14 @@ export const useCloudSync = ({
 
                     // ⚡ AUTO-IDENTIFICAÇÃO DE VÍNCULOS SALVOS (SEM IA)
                     // Se a transação no banco está 'pending', mas existe uma associação aprendida (assoc),
-                    // promovemos localmente para IDENTIFIED e atualizamos no banco em segundo plano.
+                    // promovemos localmente para IDENTIFIED e agendamos a atualização no banco em segundo plano (sequencialmente).
                     if (assoc && t.status === 'pending') {
                         status = ReconciliationStatus.IDENTIFIED;
-                        consolidationService.updateTransactionStatus(
-                            t.id, 
-                            'identified', 
-                            church.id, 
-                            t.bank_id,
-                            undefined,
-                            false
-                        ).catch(e => console.error("[Auto-promote] Erro ao salvar auto-vínculo no banco:", e));
+                        pendingPromotions.push({
+                            id: t.id,
+                            churchId: church.id,
+                            bankId: t.bank_id
+                        });
                     }
 
                     return {
@@ -383,6 +382,29 @@ export const useCloudSync = ({
 
                 if (reconstructed.length > 0) {
                     showToast("Sessão ativa sincronizada.", "success");
+                }
+
+                if (pendingPromotions.length > 0) {
+                    console.log(`[CloudSync] Agendando auto-promoção sequencial de ${pendingPromotions.length} transações...`);
+                    (async () => {
+                        for (let i = 0; i < pendingPromotions.length; i++) {
+                            const p = pendingPromotions[i];
+                            try {
+                                await consolidationService.updateTransactionStatus(
+                                    p.id,
+                                    'identified',
+                                    p.churchId,
+                                    p.bankId,
+                                    undefined,
+                                    false
+                                );
+                                // Espera 100ms entre as requisições para espalhar a carga de IO
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                            } catch (err) {
+                                console.error(`[Auto-promote] Erro ao salvar transação ${p.id}:`, err);
+                            }
+                        }
+                    })();
                 }
             } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
