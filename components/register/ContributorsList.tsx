@@ -373,19 +373,7 @@ export const ContributorsList: React.FC = () => {
             return;
         }
         try {
-            // 1. Unlink in consolidated_transactions inside Supabase
-            await (supabase
-                .from('consolidated_transactions') as any)
-                .update({ contributor_id: null })
-                .eq('contributor_id', id);
-
-            // 2. Clear from learned_associations inside Supabase
-            await (supabase
-                .from('learned_associations') as any)
-                .delete()
-                .eq('contributor_id', id);
-
-            // 3. Clear from the contributors table on VPS
+            // Clear from the contributors table on VPS (which now internally unlinks transactions and deletes learned associations)
             const response = await fetch(`/api/v1/contributors/${id}?hard=true`, {
                 method: 'DELETE'
             });

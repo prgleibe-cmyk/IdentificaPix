@@ -24,19 +24,23 @@ type ConsolidatedTransactionInsert = Database['public']['Tables']['consolidated_
 export const consolidationService = {
 
     /**
-     * Helper genérico para busca paginada (Centralização de Lógica)
+     * Helper genérico para busca paginada (Centralização de Lógica) utilizando a API da VPS
      */
-    _fetchPaginated: async (queryFn: (from: number, to: number) => Promise<{data: any[] | null, error: any}>, step: number = 1000, maxRecords?: number) => {
+    _fetchPaginated: async (urlBuilder: (offset: number, limit: number) => string, step: number = 1000, maxRecords?: number) => {
         let allData: any[] = [];
-        let from = 0;
+        let offset = 0;
         let hasMore = true;
 
         while (hasMore && (!maxRecords || allData.length < maxRecords)) {
-            const { data, error } = await queryFn(from, from + step - 1);
-            if (error) throw error;
+            const url = urlBuilder(offset, step);
+            const res = await fetch(url);
+            if (!res.ok) {
+                throw new Error(`Erro ao buscar dados paginados da VPS: ${res.statusText}`);
+            }
+            const data = await res.json();
             if (data && data.length > 0) {
                 allData = [...allData, ...data];
-                from += step;
+                offset += step;
                 if (data.length < step) hasMore = false;
             } else {
                 hasMore = false;
@@ -127,58 +131,23 @@ export const consolidationService = {
             // Log do primeiro item para amostragem
             console.log(`[WRITE:FIX] Inserindo transações com effectiveUserId: ${sanitizedPayload[0].user_id}`);
 
-            const CHUNK_SIZE = 100;
-            const results: any[] = [];
+            const response = await fetch('/api/v1/consolidated_transactions/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactions: sanitizedPayload })
+            });
 
-            for (let i = 0; i < sanitizedPayload.length; i += CHUNK_SIZE) {
-
-                const chunk = sanitizedPayload.slice(i, i + CHUNK_SIZE);
-
-                const { data, error } = await (supabase as any)
-                    .from('consolidated_transactions')
-                    .insert(chunk)
-                    .select('*');
-
-                if (error) {
-
-                    console.error("[Consolidation:INSERT_ERROR]", error);
-
-                    if (
-                        error.message.includes("is_confirmed") ||
-                        error.code === 'PGRST204' ||
-                        error.message.includes("column \"is_confirmed\"")
-                    ) {
-
-                        console.warn("[Consolidation] Fallback sem is_confirmed");
-
-                        const recoveryChunk = chunk.map(({ is_confirmed, ...rest }: any) => rest);
-
-                        const { data: recData, error: recError } = await (supabase as any)
-                            .from('consolidated_transactions')
-                            .insert(recoveryChunk)
-                            .select('*');
-
-                        if (recError) throw new Error(recError.message);
-                        if (recData) results.push(...recData);
-
-                    } else {
-                        throw new Error(error.message);
-                    }
-
-                } else if (data) {
-
-                    results.push(...data);
-
-                }
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erro ao inserir transações em lote na VPS: ${errorText}`);
             }
 
+            const results = await response.json();
             return results;
 
         } catch (e: any) {
-
             console.error("[Consolidation:CRITICAL_FAIL]", e);
             throw e;
-
         }
     },
 
@@ -217,124 +186,120 @@ export const consolidationService = {
               payload: updateData
             });
 
-const safeUpdateData: any = {
-    ...updateData,
-    ...(updateData.contributor_id !== undefined && {
-        contributor_id:
-            updateData.contributor_id &&
-            !String(updateData.contributor_id).startsWith('temp-')
-                ? updateData.contributor_id
-                : null
-    })
-};
+            const safeUpdateData: any = {
+                ...updateData,
+                ...(updateData.contributor_id !== undefined && {
+                    contributor_id:
+                        updateData.contributor_id &&
+                        !String(updateData.contributor_id).startsWith('temp-')
+                            ? updateData.contributor_id
+                            : null
+                })
+            };
 
-// Validação preventiva contra consolidated_transactions_type_check
-const errors: string[] = [];
-const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+            // Validação preventiva contra consolidated_transactions_type_check
+            const errors: string[] = [];
+            const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
 
-// 🪵 [DIAGNOSTIC LOGS: BEFORE TYPE_CHECK]
-console.log("[DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:");
-console.log("- transactionId:", id);
-console.log("- status:", status);
-console.log("- churchId:", churchId);
-console.log("- bankId:", bankId);
-console.log("- contributorId:", contributorId);
-console.log("- type (financeiro):", type);
-console.log("- pixKey:", pix_key);
-console.log("- contribution_type (religioso):", contribution_type);
-console.log("- payment_method (forma):", payment_method);
+            // 🪵 [DIAGNOSTIC LOGS: BEFORE TYPE_CHECK]
+            console.log("[DIAGNOSTIC] EXPLICIT PARAMETERS PASSED TO updateTransactionStatus:");
+            console.log("- transactionId:", id);
+            console.log("- status:", status);
+            console.log("- churchId:", churchId);
+            console.log("- bankId:", bankId);
+            console.log("- contributorId:", contributorId);
+            console.log("- type (financeiro):", type);
+            console.log("- pixKey:", pix_key);
+            console.log("- contribution_type (religioso):", contribution_type);
+            console.log("- payment_method (forma):", payment_method);
 
-if (safeUpdateData.type !== undefined && !['income', 'expense'].includes(safeUpdateData.type)) {
-    errors.push(`Type inválido (deve ser income ou expense): ${safeUpdateData.type}`);
-}
-if (safeUpdateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(safeUpdateData.status)) {
-    errors.push(`Status inválido: ${safeUpdateData.status}`);
-}
-// Checa consistência no payload de update
-if (safeUpdateData.status === 'resolved' && safeUpdateData.is_confirmed === false) {
-    errors.push('Inconsistência: tentativa de definir status=resolved com is_confirmed=false');
-}
-if (safeUpdateData.is_confirmed === false && safeUpdateData.status === 'resolved') {
-    errors.push('Inconsistência: tentativa de desconfirmar mantendo status=resolved');
-}
+            if (safeUpdateData.type !== undefined && !['income', 'expense'].includes(safeUpdateData.type)) {
+                errors.push(`Type inválido (deve ser income ou expense): ${safeUpdateData.type}`);
+            }
+            if (safeUpdateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(safeUpdateData.status)) {
+                errors.push(`Status inválido: ${safeUpdateData.status}`);
+            }
+            // Checa consistência no payload de update
+            if (safeUpdateData.status === 'resolved' && safeUpdateData.is_confirmed === false) {
+                errors.push('Inconsistência: tentativa de definir status=resolved com is_confirmed=false');
+            }
+            if (safeUpdateData.is_confirmed === false && safeUpdateData.status === 'resolved') {
+                errors.push('Inconsistência: tentativa de desconfirmar mantendo status=resolved');
+            }
 
-// Validação de UUIDs
-if (safeUpdateData.church_id !== undefined && !isUuid(safeUpdateData.church_id)) {
-    errors.push(`church_id inválido: ${safeUpdateData.church_id}`);
-}
-if (safeUpdateData.contributor_id !== undefined && !isUuid(safeUpdateData.contributor_id)) {
-    errors.push(`contributor_id inválido: ${safeUpdateData.contributor_id}`);
-}
-if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
-    errors.push(`bank_id inválido: ${safeUpdateData.bank_id}`);
-}
+            // Validação de UUIDs
+            if (safeUpdateData.church_id !== undefined && !isUuid(safeUpdateData.church_id)) {
+                errors.push(`church_id inválido: ${safeUpdateData.church_id}`);
+            }
+            if (safeUpdateData.contributor_id !== undefined && !isUuid(safeUpdateData.contributor_id)) {
+                errors.push(`contributor_id inválido: ${safeUpdateData.contributor_id}`);
+            }
+            if (safeUpdateData.bank_id !== undefined && !isUuid(safeUpdateData.bank_id)) {
+                errors.push(`bank_id inválido: ${safeUpdateData.bank_id}`);
+            }
 
-// 🪵 [DIAGNOSTIC LOGS: TYPE_CHECK RESULT]
-console.log("[DIAGNOSTIC] safeUpdateData final:", safeUpdateData);
-console.log("[DIAGNOSTIC] TYPE_CHECK Errors Detected:", errors);
-if (errors.length > 0) {
-    errors.forEach((err, idx) => {
-        console.error(`[DIAGNOSTIC] ERROR #${idx + 1}: ${err}`);
-        if (err.includes('Type inválido')) {
-            console.error(`- Campo falho: type (contributionType ou tipo de lançamento)`);
-            console.error(`- Motivo: O valor "${safeUpdateData.type}" não é "income" ou "expense"`);
-        } else if (err.includes('status')) {
-            console.error(`- Campo falho: status`);
-            console.error(`- Motivo: O valor "${safeUpdateData.status}" é inválido`);
-        } else if (err.includes('Inconsistência')) {
-            console.error(`- Campo falho: status / is_confirmed`);
-            console.error(`- Motivo: Relação inconsistente entre status e is_confirmed`);
-        } else if (err.includes('church_id')) {
-            console.error(`- Campo falho: church_id`);
-            console.error(`- Motivo: O valor "${safeUpdateData.church_id}" não é um UUID válido`);
-        } else if (err.includes('contributor_id')) {
-            console.error(`- Campo falho: contributor_id`);
-            console.error(`- Motivo: O valor "${safeUpdateData.contributor_id}" não é um UUID válido`);
-        } else if (err.includes('bank_id')) {
-            console.error(`- Campo falho: bank_id`);
-            console.error(`- Motivo: O valor "${safeUpdateData.bank_id}" não é um UUID válido`);
-        }
-    });
-} else {
-    console.log("[DIAGNOSTIC] TYPE_CHECK passed successfully with 0 errors!");
-}
+            // 🪵 [DIAGNOSTIC LOGS: TYPE_CHECK RESULT]
+            console.log("[DIAGNOSTIC] safeUpdateData final:", safeUpdateData);
+            console.log("[DIAGNOSTIC] TYPE_CHECK Errors Detected:", errors);
+            if (errors.length > 0) {
+                errors.forEach((err, idx) => {
+                    console.error(`[DIAGNOSTIC] ERROR #${idx + 1}: ${err}`);
+                    if (err.includes('Type inválido')) {
+                        console.error(`- Campo falho: type (contributionType ou tipo de lançamento)`);
+                        console.error(`- Motivo: O valor "${safeUpdateData.type}" não é "income" ou "expense"`);
+                    } else if (err.includes('status')) {
+                        console.error(`- Campo falho: status`);
+                        console.error(`- Motivo: O valor "${safeUpdateData.status}" é inválido`);
+                    } else if (err.includes('Inconsistência')) {
+                        console.error(`- Campo falho: status / is_confirmed`);
+                        console.error(`- Motivo: Relação inconsistente entre status e is_confirmed`);
+                    } else if (err.includes('church_id')) {
+                        console.error(`- Campo falho: church_id`);
+                        console.error(`- Motivo: O valor "${safeUpdateData.church_id}" não é um UUID válido`);
+                    } else if (err.includes('contributor_id')) {
+                        console.error(`- Campo falho: contributor_id`);
+                        console.error(`- Motivo: O valor "${safeUpdateData.contributor_id}" não é um UUID válido`);
+                    } else if (err.includes('bank_id')) {
+                        console.error(`- Campo falho: bank_id`);
+                        console.error(`- Motivo: O valor "${safeUpdateData.bank_id}" não é um UUID válido`);
+                    }
+                });
+            } else {
+                console.log("[DIAGNOSTIC] TYPE_CHECK passed successfully with 0 errors!");
+            }
 
-if (errors.length > 0) {
-    console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
-    return false; // Bloqueia o PATCH
-}
+            if (errors.length > 0) {
+                console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateTransactionStatus]', { errors, safeUpdateData });
+                return false; // Bloqueia o PATCH
+            }
 
-console.log('[FIX:PERSIST_FIELDS]', {
-    type: safeUpdateData.type,
-    contribution_type: safeUpdateData.contribution_type,
-    payment_method: safeUpdateData.payment_method
-});
-
-console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
-
-// Remove contribution_type and payment_method strictly for the database update payload
-const { contribution_type: _unused1, payment_method: _unused2, ...dbUpdatePayload } = safeUpdateData;
-
-const { data, error } = await (supabase as any)
-    .from('consolidated_transactions')
-    .update(dbUpdatePayload)
-    .eq('id', id)
-    .select();
-
-            console.log('[WRITE:RESULT]', {
-              data,
-              error
+            console.log('[FIX:PERSIST_FIELDS]', {
+                type: safeUpdateData.type,
+                contribution_type: safeUpdateData.contribution_type,
+                payment_method: safeUpdateData.payment_method
             });
 
-            if (error) throw error;
+            console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
+
+            // Remove contribution_type and payment_method strictly for the database update payload
+            const { contribution_type: _unused1, payment_method: _unused2, ...dbUpdatePayload } = safeUpdateData;
+
+            const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dbUpdatePayload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erro ao atualizar transação na VPS: ${errorText}`);
+            }
 
             return true;
 
         } catch (error) {
-
             console.error("[Consolidation] Erro ao atualizar status:", error);
             return false;
-
         }
     },
 
@@ -342,112 +307,108 @@ const { data, error } = await (supabase as any)
      * CONFIRMAÇÃO FINAL
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const currentUserId = session?.user.id;
 
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const currentUserId = session?.user.id;
+            // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
+            const effectiveUserId = await getEffectiveUserId(currentUserId);
 
-        // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
-        const effectiveUserId = await getEffectiveUserId(currentUserId);
+            if (!ids || ids.length === 0) return true;
 
-        if (!ids || ids.length === 0) return true;
+            const updateData: any = {
+                is_confirmed,
+                user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
+                updated_at: new Date().toISOString()
+            };
 
-        const updateData: any = {
-            is_confirmed,
-            user_id: effectiveUserId, // FORÇAMOS O ID CORRETO NA ESCRITA
-            updated_at: new Date().toISOString()
-        };
+            // AO confirmar: status='resolved'
+            if (is_confirmed) {
+                updateData.status = 'resolved';
+            } else if (contributorId || churchId) {
+                // AO desfazer: restaurar status=identified se houver vínculo
+                updateData.status = 'identified';
+            }
 
-        // AO confirmar: status='resolved'
-        if (is_confirmed) {
-            updateData.status = 'resolved';
-        } else if (contributorId || churchId) {
-            // AO desfazer: restaurar status=identified se houver vínculo
-            updateData.status = 'identified';
+            if (churchId !== undefined) updateData.church_id = churchId;
+            if (bankId !== undefined) updateData.bank_id = bankId;
+            
+            // Limpeza de contributorId para evitar erros de FK com IDs temporários (Padrão de Segurança)
+            if (contributorId !== undefined) {
+                updateData.contributor_id = (contributorId && !String(contributorId).startsWith('temp-')) 
+                    ? contributorId 
+                    : null;
+            }
+
+            console.log('[ID:WRITE]', {
+              userId: currentUserId,
+              effectiveUserId,
+              payloadUserId: updateData.user_id
+            });
+
+            console.log('[WRITE:START]', {
+              userId: effectiveUserId,
+              transactionId: ids,
+              payload: updateData
+            });
+
+            console.log('💾 SALVANDO MATCH (ConfirmationStatus)', updateData);
+
+            // Validação preventiva contra consolidated_transactions_type_check
+            const errors: string[] = [];
+            const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
+
+            if (updateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(updateData.status)) {
+                errors.push(`Status inválido: ${updateData.status}`);
+            }
+            if (updateData.status === 'resolved' && updateData.is_confirmed === false) {
+                errors.push('Inconsistência: status=resolved exige is_confirmed=true');
+            }
+            if (updateData.is_confirmed === false && updateData.status === 'resolved') {
+                errors.push('Inconsistência: is_confirmed=false não permite status=resolved');
+            }
+
+            // Validação de UUIDs
+            if (updateData.church_id !== undefined && !isUuid(updateData.church_id)) {
+                errors.push(`church_id inválido: ${updateData.church_id}`);
+            }
+            if (updateData.contributor_id !== undefined && !isUuid(updateData.contributor_id)) {
+                errors.push(`contributor_id inválido: ${updateData.contributor_id}`);
+            }
+
+            if (errors.length > 0) {
+                console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateConfirmationStatus]', { errors, updateData });
+                return false; // Bloqueia o PATCH
+            }
+
+            // Executa as atualizações em paralelo via VPS PUT
+            const updatePromises = ids.map(async (id) => {
+                const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Erro ao atualizar confirmação para ID ${id}: ${errorText}`);
+                }
+            });
+
+            await Promise.all(updatePromises);
+            return true;
+
+        } catch (error) {
+            console.error("[Consolidation] Erro ao atualizar confirmação:", error);
+            return false;
         }
-        // Se is_confirmed=false e não houver vínculos, NÃO incluímos 'status' (REMOVIDO PENDING FALLBACK)
-
-        if (churchId !== undefined) updateData.church_id = churchId;
-        if (bankId !== undefined) updateData.bank_id = bankId;
-        
-        // Limpeza de contributorId para evitar erros de FK com IDs temporários (Padrão de Segurança)
-        if (contributorId !== undefined) {
-            updateData.contributor_id = (contributorId && !String(contributorId).startsWith('temp-')) 
-                ? contributorId 
-                : null;
-        }
-
-        console.log('[ID:WRITE]', {
-          userId: currentUserId,
-          effectiveUserId,
-          payloadUserId: updateData.user_id
-        });
-
-        console.log('[WRITE:START]', {
-          userId: effectiveUserId,
-          transactionId: ids,
-          payload: updateData
-        });
-
-        console.log('💾 SALVANDO MATCH (ConfirmationStatus)', updateData);
-
-        // Validação preventiva contra consolidated_transactions_type_check
-        const errors: string[] = [];
-        const isUuid = (id: any) => !id || id === null || /^[0-9a-fA-F-]{36}$/.test(id);
-
-        if (updateData.status !== undefined && !['pending', 'identified', 'resolved'].includes(updateData.status)) {
-            errors.push(`Status inválido: ${updateData.status}`);
-        }
-        if (updateData.status === 'resolved' && updateData.is_confirmed === false) {
-            errors.push('Inconsistência: status=resolved exige is_confirmed=true');
-        }
-        if (updateData.is_confirmed === false && updateData.status === 'resolved') {
-            errors.push('Inconsistência: is_confirmed=false não permite status=resolved');
-        }
-
-        // Validação de UUIDs
-        if (updateData.church_id !== undefined && !isUuid(updateData.church_id)) {
-            errors.push(`church_id inválido: ${updateData.church_id}`);
-        }
-        if (updateData.contributor_id !== undefined && !isUuid(updateData.contributor_id)) {
-            errors.push(`contributor_id inválido: ${updateData.contributor_id}`);
-        }
-
-        if (errors.length > 0) {
-            console.error('[TYPE_CHECK:BLOCKED_PAYLOAD] [updateConfirmationStatus]', { errors, updateData });
-            return false; // Bloqueia o PATCH
-        }
-
-        const { data, error } = await (supabase as any)
-            .from('consolidated_transactions')
-            .update(updateData)
-            .in('id', ids)
-            .select();
-
-        console.log('[WRITE:RESULT]', {
-          data,
-          error
-        });
-
-        if (error) throw error;
-
-        return true;
-
-    } catch (error) {
-
-        console.error("[Consolidation] Erro ao atualizar confirmação:", error);
-        return false;
-
-    }
-},
+    },
 
     getExistingTransactionsForDedup: async (userId: string) => {
-
         if (!userId) throw new Error("UserID é obrigatório.");
         
         try {
-            return await consolidationService._fetchPaginated((from, to) => 
-                (supabase as any).from('consolidated_transactions').select('row_hash').eq('user_id', userId).range(from, to)
+            return await consolidationService._fetchPaginated((offset, limit) => 
+                `/api/v1/consolidated_transactions?user_id=${userId}&limit=${limit}&offset=${offset}`
             );
         } catch (e: any) {
             console.error("[Consolidation:DEDUP_FETCH_FAIL]", e);
@@ -456,21 +417,18 @@ const { data, error } = await (supabase as any)
     },
 
     deletePendingTransactions: async (userId: string, bankId?: string) => {
-
         try {
-
             if (!userId) return false;
 
-            console.log(`[WRITE:ALREADY_CORRECT] Excluindo transações pendentes para user_id: ${userId}`);
-            let query = (supabase as any)
-                .from('consolidated_transactions')
-                .delete()
-                .eq('user_id', userId)
-                .eq('status', 'pending')
-                .eq('is_confirmed', false);
+            console.log(`[WRITE:VPS] Excluindo transações pendentes para user_id: ${userId}`);
+            
+            // 1. Busca todas as transações pendentes do usuário
+            const pendingTxs = await consolidationService.getPendingTransactions(userId);
+            if (pendingTxs.length === 0) return true;
 
+            // 2. Filtra de acordo com bankId se aplicável
+            let toDelete = pendingTxs;
             if (bankId && bankId !== 'all') {
-
                 const isVirtual =
                     bankId === 'gmail-sync' ||
                     bankId === 'virtual' ||
@@ -478,22 +436,22 @@ const { data, error } = await (supabase as any)
 
                 const isUuid = /^[0-9a-fA-F-]{36}$/.test(bankId);
 
-                if (isVirtual || !isUuid)
-                    query = query.is('bank_id', null);
-                else
-                    query = query.eq('bank_id', bankId);
+                if (isVirtual || !isUuid) {
+                    toDelete = pendingTxs.filter(tx => !tx.bank_id);
+                } else {
+                    toDelete = pendingTxs.filter(tx => tx.bank_id === bankId);
+                }
             }
 
-            const { error } = await query;
+            if (toDelete.length === 0) return true;
 
-            if (error) throw error;
-
-            return true;
+            // 3. Executa a exclusão em lote
+            const idsToDelete = toDelete.map(tx => tx.id);
+            return await consolidationService.deleteTransactionsByIds(idsToDelete);
 
         } catch (error) {
-
+            console.error("[Consolidation] Erro ao excluir transações pendentes:", error);
             throw error;
-
         }
     },
 
@@ -503,28 +461,30 @@ const { data, error } = await (supabase as any)
      * em contas com volume massivo de transações pendentes.
      */
     getPendingTransactions: async (userId: string) => {
-
         if (!userId) return [];
 
         try {
             const maxRecords = 5000;
-            const allTransactions = await consolidationService._fetchPaginated((from, to) => 
-                (supabase as any).from('consolidated_transactions')
-                    .select('id, transaction_date, amount, description, type, bank_id, row_hash, pix_key, is_confirmed')
-                    .eq('user_id', userId)
-                    .eq('status', 'pending')
-                    .eq('is_confirmed', false)
-                    .order('transaction_date', { ascending: false })
-                    .range(from, to),
+            const allTransactions = await consolidationService._fetchPaginated((offset, limit) => 
+                `/api/v1/consolidated_transactions?user_id=${userId}&status=pending&limit=${limit}&offset=${offset}`,
                 1000,
                 maxRecords
             );
 
-            if (allTransactions.length >= maxRecords) {
+            // Filtro de segurança para is_confirmed = false (e garantir consistência de tipo)
+            const filteredTransactions = allTransactions
+                .filter(tx => tx.is_confirmed === false || tx.is_confirmed === 'false')
+                .map(tx => ({
+                    ...tx,
+                    amount: Number(tx.amount), // Garante consistência de tipo float vs numeric-string
+                    is_confirmed: false
+                }));
+
+            if (filteredTransactions.length >= maxRecords) {
                 console.warn(`[Consolidation] Limite de segurança de ${maxRecords} registros atingido para a Lista Viva.`);
             }
 
-            return allTransactions;
+            return filteredTransactions;
 
         } catch (e: any) {
             console.error("[Consolidation:FETCH_FAIL]", e);
@@ -533,51 +493,53 @@ const { data, error } = await (supabase as any)
     },
 
     deleteTransactionById: async (id: string) => {
-
         try {
+            console.log(`[WRITE:VPS] Excluindo transação por ID: ${id}`);
+            
+            const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
+                method: 'DELETE'
+            });
 
-            console.log(`[WRITE:ALREADY_CORRECT] Excluindo transação por ID: ${id}`);
-            const { error } = await (supabase as any)
-                .from('consolidated_transactions')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erro ao excluir transação: ${errorText}`);
+            }
 
             return true;
 
         } catch (error) {
-
+            console.error("[Consolidation] Erro ao excluir transação:", error);
             throw error;
-
         }
     },
 
     deleteTransactionsByIds: async (ids: string[]) => {
-
         try {
+            console.log(`[WRITE:VPS] Excluindo múltiplas transações por IDs:`, ids);
 
-            console.log(`[WRITE:ALREADY_CORRECT] Excluindo múltiplas transações por IDs:`, ids);
-            const { error } = await (supabase as any)
-                .from('consolidated_transactions')
-                .delete()
-                .in('id', ids);
+            const response = await fetch('/api/v1/consolidated_transactions/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
 
-            if (error) throw error;
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Erro ao excluir transações em lote: ${errorText}`);
+            }
 
             return true;
 
         } catch (error) {
-
+            console.error("[Consolidation] Erro ao excluir transações em lote:", error);
             throw error;
-
         }
     },
 
     /**
      * VERIFICAÇÃO DE INTEGRIDADE (Anti-Cache Stale)
      * Retorna apenas os IDs que já estão confirmados no banco.
-     * Implementa chunking para evitar limites de tamanho de URL no Supabase/PostgREST.
+     * Implementa chunking para evitar limites de tamanho de URL.
      */
     checkConfirmedTransactions: async (userId: string, ids: string[]) => {
         if (!userId || !ids || ids.length === 0) return [];
@@ -589,25 +551,22 @@ const { data, error } = await (supabase as any)
             for (let i = 0; i < ids.length; i += chunkSize) {
                 const chunk = ids.slice(i, i + chunkSize);
                 
-                const { data, error } = await (supabase as any)
-                    .from('consolidated_transactions')
-                    .select('id')
-                    .eq('user_id', userId)
-                    .eq('is_confirmed', true)
-                    .in('id', chunk);
-
-                if (error) {
+                const response = await fetch(`/api/v1/consolidated_transactions?user_id=${userId}&ids=${chunk.join(',')}`);
+                if (!response.ok) {
                     console.error("[Consolidation:CHECK_CONFIRMED_CHUNK_FAIL]", {
-                        error,
+                        status: response.statusText,
                         chunkSize: chunk.length,
                         userId
                     });
                     continue;
                 }
                 
+                const data = await response.json();
                 if (data) {
-                    const foundIds = (data as any[]).map(d => d.id);
-                    confirmedIds.push(...foundIds);
+                    const foundConfirmedIds = (data as any[])
+                        .filter(d => d.is_confirmed === true || d.is_confirmed === 'true' || d.is_confirmed === 1)
+                        .map(d => d.id);
+                    confirmedIds.push(...foundConfirmedIds);
                 }
             }
             
@@ -630,11 +589,8 @@ const { data, error } = await (supabase as any)
             let allRecords: any[] = [];
 
             // 1. Busca exaustiva de todos os registros para comparação
-            allRecords = await consolidationService._fetchPaginated((from, to) => 
-                (supabase as any).from('consolidated_transactions')
-                    .select('id, row_hash, transaction_date, amount, description, type, bank_id, pix_key')
-                    .eq('user_id', userId)
-                    .range(from, to)
+            allRecords = await consolidationService._fetchPaginated((offset, limit) => 
+                `/api/v1/consolidated_transactions?user_id=${userId}&limit=${limit}&offset=${offset}`
             );
 
             // 2. Identifica duplicatas baseadas no row_hash OU no conteúdo exato
@@ -644,7 +600,7 @@ const { data, error } = await (supabase as any)
 
             allRecords.forEach(rec => {
                 // Chave de conteúdo para pegar duplicatas que podem ter hashes diferentes (por versões antigas do app)
-                const contentKey = `${rec.transaction_date}|${String(rec.description || '').trim().toUpperCase()}|${Number(rec.amount || 0).toFixed(2)}|${rec.type}|${rec.bank_id || 'null'}|${rec.pix_key || 'null'}`;
+                const contentKey = `${rec.transaction_date ? rec.transaction_date.split('T')[0] : ''}|${String(rec.description || '').trim().toUpperCase()}|${Number(rec.amount || 0).toFixed(2)}|${rec.type}|${rec.bank_id || 'null'}|${rec.pix_key || 'null'}`;
                 
                 let isDuplicate = false;
                 
@@ -668,10 +624,7 @@ const { data, error } = await (supabase as any)
                 const chunkSize = 100;
                 for (let i = 0; i < duplicateIds.length; i += chunkSize) {
                     const chunk = duplicateIds.slice(i, i + chunkSize);
-                    await (supabase as any)
-                        .from('consolidated_transactions')
-                        .delete()
-                        .in('id', chunk);
+                    await consolidationService.deleteTransactionsByIds(chunk);
                 }
                 return duplicateIds.length;
             }

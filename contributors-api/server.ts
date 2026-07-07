@@ -478,7 +478,23 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 
     let result;
     if (hardDelete) {
-      // Delete from contributors table only since other tables reside inside Supabase
+      // 1. Unlink in consolidated_transactions inside PostgreSQL VPS
+      await pool.query(
+        "UPDATE consolidated_transactions SET contributor_id = NULL WHERE contributor_id = $1",
+        [id]
+      );
+
+      // 2. Clear from learned_associations inside PostgreSQL VPS by matching contributor's normalized name
+      const nameResult = await pool.query("SELECT name FROM contributors WHERE id = $1", [id]);
+      if (nameResult.rows.length > 0) {
+        const contributorName = nameResult.rows[0].name;
+        await pool.query(
+          "DELETE FROM learned_associations WHERE LOWER(contributor_normalized_name) = LOWER($1)",
+          [contributorName]
+        );
+      }
+
+      // 3. Delete from contributors table on VPS
       result = await pool.query(
         "DELETE FROM contributors WHERE id = $1 RETURNING id",
         [id]
@@ -858,10 +874,17 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
-    const { user_id, status, type, start_date, end_date, limit, offset, row_hash } = req.query;
+    const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids } = req.query;
     let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
+
+    if (ids) {
+      const idsArray = (ids as string).split(',');
+      query += ` AND id = ANY($${counter})`;
+      params.push(idsArray);
+      counter++;
+    }
 
     if (user_id) {
       query += ` AND user_id = $${counter}`;

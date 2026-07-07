@@ -297,11 +297,18 @@ export default (ai) => {
 
             const rowHash = `sms_${userId}_${bankId}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
 
-            console.log(`[Inbox API] Gravando transação no banco de dados Supabase... (row_hash: ${rowHash})`);
+            console.log(`[Inbox API] Gravando transação no banco de dados VPS... (row_hash: ${rowHash})`);
 
-            const { error } = await supabaseAdmin
-                .from('consolidated_transactions')
-                .insert({
+            const defaultPort = process.env.PORT || '3000';
+            const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
+            const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
+
+            const vpsResponse = await fetch(`${cleanVpsUrl}/api/v1/consolidated_transactions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
                     user_id: userId,
                     bank_id: bankId,
                     transaction_date: data.date,
@@ -312,18 +319,24 @@ export default (ai) => {
                     status: 'pending',
                     pix_key: 'AUTO_SMS',
                     row_hash: rowHash
-                });
+                })
+            });
 
-            if (error) {
-                if (error.code === '23505') {
-                    console.log(`[Inbox API] ℹ️ Transação já cadastrada no banco de dados anteriormente.`);
+            if (vpsResponse.status === 409) {
+                const resJson = await vpsResponse.json().catch(() => ({}));
+                if (resJson.error === 'ROW_HASH_ALREADY_EXISTS') {
+                    console.log(`[Inbox API] ℹ️ Transação já cadastrada no banco de dados anteriormente (VPS).`);
                     return res.json({ success: true, message: "Transação já registrada." });
                 }
-                console.error(`[Inbox API] ❌ Erro ao inserir transação no banco:`, error);
-                throw error;
             }
 
-            console.log(`[Inbox API] ✅ Transação registrada com sucesso no banco de dados!`);
+            if (!vpsResponse.ok) {
+                const errText = await vpsResponse.text().catch(() => '');
+                console.error(`[Inbox API] ❌ Erro ao inserir transação no banco VPS: Status ${vpsResponse.status} - ${errText}`);
+                throw new Error(`Erro ao salvar transação na VPS (Status ${vpsResponse.status})`);
+            }
+
+            console.log(`[Inbox API] ✅ Transação registrada com sucesso no banco de dados VPS!`);
             res.json({ success: true, message: "Transação recebida e salva com sucesso!" });
 
         } catch (error) {
