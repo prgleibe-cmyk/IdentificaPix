@@ -53,9 +53,11 @@ export const ReportsView: React.FC = () => {
 
     const startSelected = ctrl.searchFilters?.dateRange?.start;
     const endSelected = ctrl.searchFilters?.dateRange?.end;
+    const hasActiveReport = !!ctrl.activeReportId;
+    const hasPreviewData = !!ctrl.reportPreviewData;
 
-    // Se o período não estiver selecionado (carregamento zerado por padrão para alta performance)
-    if (!startSelected || !endSelected) {
+    // Se o período não estiver selecionado e não estamos visualizando um relatório salvo/snapshot carregado
+    if ((!startSelected || !endSelected) && !hasActiveReport && !hasPreviewData) {
         const handleConfirmPeriod = () => {
             if (selectionMode === 'month') {
                 const { start, end } = getDatesFromMonthYear(selectedMonth, selectedYear);

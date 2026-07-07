@@ -7,9 +7,20 @@ import { SavedReport, SearchFilters, SavingReportState, MatchResult, Spreadsheet
 const ENABLE_HEAVY_LOGS = false;
 
 const getInitialDateRange = () => {
+    const now = new Date();
+    const start = new Date();
+    start.setDate(now.getDate() - 30);
+    
+    const formatDate = (date: Date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
     return {
-        start: '',
-        end: ''
+        start: formatDate(start),
+        end: formatDate(now)
     };
 };
 
@@ -394,7 +405,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
             if (typeof nameOrData === 'object') {
                 const spreadsheetData = nameOrData.spreadsheetData;
-                const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
+                const results = (nameOrData as any).results || [];
+                const recordCount = spreadsheetData?.rows 
+                    ? spreadsheetData.rows.length 
+                    : (results ? results.length : 0);
                 const newReportId = `rep-${Date.now()}`;
                 
                 let churchId = null;
@@ -418,7 +432,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     data: {
                         sourceFiles: [],
                         bankStatementFile: null,
-                        spreadsheet: spreadsheetData
+                        spreadsheet: spreadsheetData,
+                        results: results
                     }
                 };
             } else {
@@ -431,7 +446,10 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                 }
 
                 const spreadsheetData = savingReportState.spreadsheetData || null;
-                const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : 0;
+                const results = savingReportState.results || [];
+                const recordCount = spreadsheetData?.rows 
+                    ? spreadsheetData.rows.length 
+                    : (results ? results.length : 0);
 
                 const newReportId = `rep-${Date.now()}`;
                 
@@ -456,7 +474,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
                     data: {
                         sourceFiles: [],
                         bankStatementFile: null,
-                        spreadsheet: spreadsheetData
+                        spreadsheet: spreadsheetData,
+                        results: results
                     }
                 };
             }
