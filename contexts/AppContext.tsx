@@ -363,7 +363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 🔄 AUTO-LOAD: Tenta carregar os detalhes de um relatório ativo se os dados locais estiverem ausentes
     useEffect(() => {
-        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
+        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current) {
             const savedReport = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
             if (savedReport) {
                 if (savedReport.data?.results?.length > 0) {
@@ -378,7 +378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
         }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation.hasActiveSession, viewSavedReport]);
+    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, viewSavedReport]);
 
     // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
     useEffect(() => {
