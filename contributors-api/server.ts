@@ -151,6 +151,9 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT FALSE;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS transaction_date TIMESTAMP;');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS church_id UUID;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contributor_id UUID;');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS report_id VARCHAR(255);');
     console.log('[Contributors API] Table "consolidated_transactions" verified or successfully created.');
 
     // Create table learned_associations
@@ -856,7 +859,7 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const { user_id, status, type, start_date, end_date, limit, offset, row_hash } = req.query;
-    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at FROM consolidated_transactions WHERE 1=1';
+    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
 
@@ -921,7 +924,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 // POST /api/v1/consolidated_transactions
 app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
-    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date } = req.body;
+    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id } = req.body;
     if (amount === undefined || amount === null || !description || !type || !user_id || !transaction_date) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
@@ -939,21 +942,24 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     let params: any[] = [];
     if (finalId) {
       query = `INSERT INTO consolidated_transactions 
-        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
         ON CONFLICT (id) DO UPDATE SET 
           amount = EXCLUDED.amount, 
           description = EXCLUDED.description, 
           status = EXCLUDED.status, 
           is_confirmed = EXCLUDED.is_confirmed,
-          bank_id = EXCLUDED.bank_id
+          bank_id = EXCLUDED.bank_id,
+          church_id = EXCLUDED.church_id,
+          contributor_id = EXCLUDED.contributor_id,
+          report_id = EXCLUDED.report_id
         RETURNING *`;
-      params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+      params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null];
     } else {
       query = `INSERT INTO consolidated_transactions 
-        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`;
-      params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`;
+      params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null];
     }
 
     const result = await pool.query(query, params);
@@ -977,28 +983,31 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     const inserted: any[] = [];
 
     for (const tx of transactions) {
-      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date } = tx;
+      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id } = tx;
       
       const finalId = id || undefined;
       let query = '';
       let params: any[] = [];
       if (finalId) {
         query = `INSERT INTO consolidated_transactions 
-          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
           ON CONFLICT (id) DO UPDATE SET 
             amount = EXCLUDED.amount, 
             description = EXCLUDED.description, 
             status = EXCLUDED.status, 
             is_confirmed = EXCLUDED.is_confirmed,
-            bank_id = EXCLUDED.bank_id
+            bank_id = EXCLUDED.bank_id,
+            church_id = EXCLUDED.church_id,
+            contributor_id = EXCLUDED.contributor_id,
+            report_id = EXCLUDED.report_id
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null];
       } else {
         query = `INSERT INTO consolidated_transactions 
-          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date];
+          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`;
+        params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null];
       }
 
       const result = await client.query(query, params);
@@ -1020,7 +1029,7 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date } = req.body;
+    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id } = req.body;
     
     const result = await pool.query(
       `UPDATE consolidated_transactions SET 
@@ -1033,9 +1042,12 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         bank_id = COALESCE($7, bank_id), 
         row_hash = COALESCE($8, row_hash), 
         is_confirmed = COALESCE($9, is_confirmed), 
-        transaction_date = COALESCE($10, transaction_date) 
-      WHERE id = $11 RETURNING *`,
-      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, id]
+        transaction_date = COALESCE($10, transaction_date),
+        church_id = COALESCE($11, church_id),
+        contributor_id = COALESCE($12, contributor_id),
+        report_id = COALESCE($13, report_id)
+      WHERE id = $14 RETURNING *`,
+      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json(result.rows[0]);

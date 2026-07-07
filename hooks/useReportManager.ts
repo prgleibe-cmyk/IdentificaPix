@@ -7,20 +7,9 @@ import { SavedReport, SearchFilters, SavingReportState, MatchResult, Spreadsheet
 const ENABLE_HEAVY_LOGS = false;
 
 const getInitialDateRange = () => {
-    const now = new Date();
-    const start = new Date();
-    start.setDate(now.getDate() - 30);
-    
-    const formatDate = (date: Date) => {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    };
-
     return {
-        start: formatDate(start),
-        end: formatDate(now)
+        start: '',
+        end: ''
     };
 };
 
@@ -57,13 +46,6 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             hasHydratedRef.current = false;
         }
     }, [realtimeRefreshKey]);
-
-    // 🛡️ RESET DE FILTROS NO LOGIN: Garante que cada nova sessão comece com o padrão de 30 dias
-    useEffect(() => {
-        if (user?.id) {
-            setSearchFilters(DEFAULT_SEARCH_FILTERS);
-        }
-    }, [user?.id, setSearchFilters]);
 
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [savingReportState, setSavingReportState] = useState<SavingReportState | null>(null);
