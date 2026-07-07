@@ -129,7 +129,8 @@ export const useCloudSync = ({
     // 🔄 HIDRATAÇÃO ATÔMICA (Reconstrói a sessão a partir dos dados individuais)
     useEffect(() => {
         const currentSignature = JSON.stringify({
-            activeReportId
+            activeReportId,
+            dataReadyKey
         });
 
         if (lastSignatureRef.current === currentSignature) {

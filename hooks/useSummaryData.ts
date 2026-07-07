@@ -81,21 +81,6 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                 const total = (group as any[]).reduce((acc: number, curr: any) => acc + curr.transaction.amount, 0);
                 return [churchName, total] as [string, number];
             }).sort((a, b) => b[1] - a[1]);
-
-        } else if (reportManager.savedReports.length > 0) {
-            reportManager.savedReports.forEach((rep: any) => {
-                if (rep.data && rep.data.results) {
-                    const repResults = rep.data.results as MatchResult[];
-                    identifiedCount += repResults.filter(r => r.status === 'IDENTIFICADO').length;
-                    
-                    repResults.forEach(r => {
-                        if (r.status === 'IDENTIFICADO') {
-                            const method = r.matchMethod || 'AUTOMATIC';
-                            methodBreakdown[method] = (methodBreakdown[method] || 0) + 1;
-                        }
-                    });
-                }
-            });
         }
 
         return {

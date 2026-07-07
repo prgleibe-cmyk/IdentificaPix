@@ -477,7 +477,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }));
             reconciliation.setMatchResults(hydrated);
         }
-    }, [reportManager.savedReports, reconciliation.activeReportId, isSyncing, isLoading, referenceData.churches, reconciliation.fullMatchResults.length]);
+    }, [reportManager.savedReports, reconciliation.activeReportId, referenceData.churches, reconciliation.fullMatchResults.length]);
 
     const wrappedConfirmSaveReport = useCallback(async (nameOrData: string | { name: string, spreadsheetData: any }) => {
         const newId = await reportManager.confirmSaveReport(nameOrData);
