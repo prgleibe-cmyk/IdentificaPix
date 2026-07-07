@@ -18,11 +18,14 @@ export const formatCurrency = (amount: number, language: Language = 'pt'): strin
  * Converte data ISO (YYYY-MM-DD) para formato brasileiro (DD/MM/AAAA).
  */
 export const formatDate = (isoDate: string): string => {
-    if (!isoDate) return '';
+    if (!isoDate || typeof isoDate !== 'string') return '';
     // Se já estiver com barras, assume que já está formatado ou é original
     if (isoDate.includes('/')) return isoDate;
     
-    const parts = isoDate.split('-');
+    // Se for formato ISO completo (YYYY-MM-DDTHH:mm:ss...), extrai apenas a parte da data (YYYY-MM-DD)
+    const cleanDate = isoDate.split(/[T ]/)[0];
+    
+    const parts = cleanDate.split('-');
     if (parts.length === 3) {
         // YYYY-MM-DD -> DD/MM/AAAA
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
