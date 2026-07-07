@@ -389,8 +389,32 @@ export const useReportsController = () => {
             return { count: 0, total: 0, auto: 0, autoValue: 0, manual: 0, manualValue: 0, pending: 0, pendingValue: 0 };
         }
 
+        const parseNumeric = (val: any): number => {
+            if (val === undefined || val === null) return 0;
+            if (typeof val === 'number') {
+                return isNaN(val) ? 0 : val;
+            }
+            if (typeof val === 'string') {
+                let clean = val.trim();
+                clean = clean.replace(/[R$\s]/g, '');
+                if (clean.includes(',') && clean.includes('.')) {
+                    if (clean.indexOf('.') < clean.indexOf(',')) {
+                        clean = clean.replace(/\./g, '').replace(',', '.');
+                    } else {
+                        clean = clean.replace(/,/g, '');
+                    }
+                } else if (clean.includes(',')) {
+                    clean = clean.replace(',', '.');
+                }
+                const num = parseFloat(clean);
+                return isNaN(num) ? 0 : num;
+            }
+            return 0;
+        };
+
         const getFinalAmount = (r: MatchResult) => {
-            const amount = r.status === 'PENDENTE' ? (r.contributorAmount || 0) : (r.transaction?.amount || 0);
+            const rawAmount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
+            const amount = parseNumeric(rawAmount);
             const isExp = amount < 0 || 
                           r.transaction?.type?.toLowerCase() === 'expense' || 
                           r.transaction?.type?.toLowerCase() === 'saida' || 
