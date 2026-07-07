@@ -58,13 +58,20 @@ export const useReconciliation = (props: any) => {
     // 🔄 REQUISIÇÃO E SINCRONIZAÇÃO DE CONTRIBUINTES DO BANCO DE DADOS VPS
     const fetchContributorsToFiles = useCallback(async () => {
         try {
-            const resp = await fetch('/api/v1/contributors');
-            if (!resp.ok) {
-                console.error('[ContributorSync] Failed to fetch contributors');
-                return;
-            }
-            const data = await resp.json();
-            if (!Array.isArray(data)) return;
+            if (!churches || churches.length === 0) return;
+
+            // Busca os contribuintes apenas para as igrejas autorizadas do usuário
+            const promises = churches.map(async (church: any) => {
+                const resp = await fetch(`/api/v1/contributors?church_id=${church.id}`);
+                if (resp.ok) {
+                    const list = await resp.json();
+                    return Array.isArray(list) ? list : [];
+                }
+                return [];
+            });
+
+            const results = await Promise.all(promises);
+            const data = results.flat();
             
             const allowedChurchIds = new Set((churches || []).map((ch: any) => ch.id));
             
@@ -215,6 +222,22 @@ export const useReconciliation = (props: any) => {
     const filteredMatchResults = useMemo(() => applySecurityFilters(matchResults), [matchResults, applySecurityFilters]);
     const filteredLaunchedResults = useMemo(() => applySecurityFilters(launchedResults), [launchedResults, applySecurityFilters]);
 
+    const { syncToCloud, isHydratingFromCloud } = cloud;
+    const { handleStatementUpload, importGmailTransactions, removeBankStatementFile, handleContributorsUpload, removeContributorFile, toggleBankSelection } = files;
+    const {
+        handleCompare,
+        regenerateReportPreview,
+        findMatchResult,
+        markAsLaunched,
+        undoLaunch,
+        deleteLaunchedItem,
+        updateReportData,
+        revertMatch,
+        closeManualIdentify,
+        removeTransaction,
+        removeTransactions
+    } = matcher;
+
     const resetReconciliation = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -232,10 +255,26 @@ export const useReconciliation = (props: any) => {
         }
     }, [clearRemoteList, showToast, setActiveView, setIsLoading, setMatchResults, setHasActiveSession, setActiveReportId, setReportPreviewData, setContributorFiles]);
 
-    return {
-        ...cloud,
-        ...files,
-        ...matcher,
+    return useMemo(() => ({
+        syncToCloud,
+        isHydratingFromCloud,
+        handleStatementUpload,
+        importGmailTransactions,
+        removeBankStatementFile,
+        handleContributorsUpload,
+        removeContributorFile,
+        toggleBankSelection,
+        handleCompare,
+        regenerateReportPreview,
+        findMatchResult,
+        markAsLaunched,
+        undoLaunch,
+        deleteLaunchedItem,
+        updateReportData,
+        revertMatch,
+        closeManualIdentify,
+        removeTransaction,
+        removeTransactions,
         activeBankFiles, 
         contributorFiles, 
         matchResults: filteredMatchResults, 
@@ -263,5 +302,52 @@ export const useReconciliation = (props: any) => {
         activeSpreadsheetData,
         setActiveSpreadsheetData,
         fetchContributorsToFiles
-    };
+    }), [
+        syncToCloud,
+        isHydratingFromCloud,
+        handleStatementUpload,
+        importGmailTransactions,
+        removeBankStatementFile,
+        handleContributorsUpload,
+        removeContributorFile,
+        toggleBankSelection,
+        handleCompare,
+        regenerateReportPreview,
+        findMatchResult,
+        markAsLaunched,
+        undoLaunch,
+        deleteLaunchedItem,
+        updateReportData,
+        revertMatch,
+        closeManualIdentify,
+        removeTransaction,
+        removeTransactions,
+        activeBankFiles,
+        contributorFiles,
+        filteredMatchResults,
+        matchResults,
+        reportPreviewData,
+        activeReportId,
+        setActiveReportId,
+        hasActiveSession,
+        setHasActiveSession,
+        comparisonType,
+        setComparisonType,
+        selectedBankIds,
+        bulkIdentificationTxs,
+        setBulkIdentificationTxs,
+        modelRequiredData,
+        setModelRequiredData,
+        loadingAiId,
+        setLoadingAiId,
+        filteredLaunchedResults,
+        setLaunchedResults,
+        resetReconciliation,
+        hydrate,
+        setMatchResults,
+        setReportPreviewData,
+        activeSpreadsheetData,
+        setActiveSpreadsheetData,
+        fetchContributorsToFiles
+    ]);
 };
