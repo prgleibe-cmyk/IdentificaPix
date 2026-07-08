@@ -3,6 +3,76 @@ import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, Ma
 import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString } from '../utils/parsingUtils';
 import { extractNameAndCpf, isCpfCompatible } from '../../utils/contributorHelper';
 
+// --- CACHE INCREMENTAL DO MATCH ---
+let lastContributorsSig = '';
+let lastLearnedAssociationsSig = '';
+let lastOptionsSig = '';
+let lastChurchesSig = '';
+
+interface CacheEntry {
+    txSignature: string;
+    result: MatchResult;
+}
+
+const transactionMatchCache = new Map<string, CacheEntry>();
+
+const getContributorsSignature = (files: any[]): string => {
+    if (!files) return '';
+    const parts: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file) continue;
+        const churchId = file.church?.id || '';
+        const count = file.contributors?.length || 0;
+        let contribHash = 0;
+        if (file.contributors) {
+            for (let j = 0; j < file.contributors.length; j++) {
+                const c = file.contributors[j];
+                if (!c) continue;
+                const str = `${c.id || ''}-${c.name || ''}-${c.amount || 0}-${c.cpf || ''}-${c.contributionType || ''}`;
+                for (let k = 0; k < str.length; k++) {
+                    contribHash = (contribHash * 31 + str.charCodeAt(k)) | 0;
+                }
+            }
+        }
+        parts.push(`${churchId}:${count}:${contribHash}`);
+    }
+    return parts.join('|');
+};
+
+const getLearnedAssociationsSignature = (associations: any[]): string => {
+    if (!associations) return '';
+    let hash = 0;
+    for (let i = 0; i < associations.length; i++) {
+        const la = associations[i];
+        if (!la) continue;
+        const str = `${la.id || ''}-${la.normalizedDescription || ''}-${la.churchId || ''}-${la.contributorNormalizedName || ''}`;
+        for (let j = 0; j < str.length; j++) {
+            hash = (hash * 31 + str.charCodeAt(j)) | 0;
+        }
+    }
+    return `${associations.length}:${hash}`;
+};
+
+const getOptionsSignature = (options: { similarityThreshold: number; dayTolerance: number; }): string => {
+    if (!options) return '';
+    return `${options.similarityThreshold}:${options.dayTolerance}`;
+};
+
+const getChurchesSignature = (churches: Church[]): string => {
+    if (!churches) return '';
+    let hash = 0;
+    for (let i = 0; i < churches.length; i++) {
+        const c = churches[i];
+        if (!c) continue;
+        const str = `${c.id || ''}-${c.name || ''}`;
+        for (let j = 0; j < str.length; j++) {
+            hash = (hash * 31 + str.charCodeAt(j)) | 0;
+        }
+    }
+    return `${churches.length}:${hash}`;
+};
+
 /**
  * Calcula a similaridade valorizando códigos identificadores (DNA Numérico).
  */
@@ -44,6 +114,25 @@ export const matchTransactions = (
     churches: Church[],
     existingResults: MatchResult[] = [] 
 ): MatchResult[] => {
+    const currentContributorsSig = getContributorsSignature(contributorFiles);
+    const currentLearnedAssociationsSig = getLearnedAssociationsSignature(learnedAssociations);
+    const currentOptionsSig = getOptionsSignature(options);
+    const currentChurchesSig = getChurchesSignature(churches);
+
+    const globalParamsChanged = 
+        currentContributorsSig !== lastContributorsSig ||
+        currentLearnedAssociationsSig !== lastLearnedAssociationsSig ||
+        currentOptionsSig !== lastOptionsSig ||
+        currentChurchesSig !== lastChurchesSig;
+
+    if (globalParamsChanged) {
+        transactionMatchCache.clear();
+        lastContributorsSig = currentContributorsSig;
+        lastLearnedAssociationsSig = currentLearnedAssociationsSig;
+        lastOptionsSig = currentOptionsSig;
+        lastChurchesSig = currentChurchesSig;
+    }
+
     const contributorsByChurch = new Map<string, any[]>();
     
     if (contributorFiles && contributorFiles.length > 0) {
@@ -64,8 +153,24 @@ export const matchTransactions = (
     const usedContributors = new Set<string>();
 
     transactions.forEach(tx => {
+        const txSig = `${tx.id}-${tx.description || ''}-${tx.amount || 0}-${tx.contributionType || ''}-${tx.paymentMethod || ''}`;
+        
+        // 🚀 CACHE CHECK: Se temos o MatchResult no cache e os parâmetros não mudaram, retorna imediatamente
+        const cached = transactionMatchCache.get(tx.id);
+        if (cached && cached.txSignature === txSig) {
+            finalResults.push(cached.result);
+            if (cached.result.contributor?._internalId) {
+                usedContributors.add(cached.result.contributor._internalId);
+            }
+            return;
+        }
+
         const existingMatch = existingResults.find(r => r.transaction.id === tx.id);
         if (existingMatch && (existingMatch.status === ReconciliationStatus.IDENTIFIED || existingMatch.status === ReconciliationStatus.RESOLVED)) {
+            transactionMatchCache.set(tx.id, {
+                txSignature: txSig,
+                result: existingMatch
+            });
             finalResults.push(existingMatch);
             if (existingMatch.contributor?._internalId) {
                 usedContributors.add(existingMatch.contributor._internalId);
@@ -108,6 +213,10 @@ export const matchTransactions = (
                     },
                     contributorAmount: tx.amount
                 };
+                transactionMatchCache.set(tx.id, {
+                    txSignature: txSig,
+                    result: matchResult
+                });
                 finalResults.push(matchResult);
                 return;
             }
@@ -162,6 +271,10 @@ export const matchTransactions = (
             }
         }
 
+        transactionMatchCache.set(tx.id, {
+            txSignature: txSig,
+            result: matchResult
+        });
         finalResults.push(matchResult);
     });
 
