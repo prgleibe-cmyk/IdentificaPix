@@ -51,40 +51,6 @@ export const useReportsController = () => {
         return `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
     }, [matchResults]);
 
-    // 🔄 SINCRONIZAÇÃO DO PREVIEW: Sempre que os resultados mudarem, o preview deve ser atualizado
-    // Isso garante que ações de "Identificar" e "Confirmar" reflitam imediatamente no relatório
-    useEffect(() => {
-        if (matchResults && matchResults.length > 0 && regenerateReportPreview) {
-            if (stableKey !== syncHashRef.current) {
-                if (debounceRef.current) {
-                    clearTimeout(debounceRef.current);
-                }
-
-                debounceRef.current = setTimeout(() => {
-                    if (isProcessingRef.current) return;
-
-                    isProcessingRef.current = true;
-                    console.log("[useReportsController] Sincronizando preview de relatório...");
-                    syncHashRef.current = stableKey;
-                    
-                    try {
-                        regenerateReportPreview(matchResults);
-                    } catch (e) {
-                        console.error("[useReportsController] Erro na sincronização do preview:", e);
-                    } finally {
-                        isProcessingRef.current = false;
-                    }
-                }, 800); // Janela de estabilização de 800ms para agrupamento de atualizações
-            }
-        }
-
-        return () => {
-            if (debounceRef.current) {
-                clearTimeout(debounceRef.current);
-            }
-        };
-    }, [stableKey, regenerateReportPreview, matchResults]);
-
     // Forçar categoria para membros
     useEffect(() => {
         const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&

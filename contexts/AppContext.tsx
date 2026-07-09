@@ -99,132 +99,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         realtimeRefreshKey
     });
 
-    // 🔄 SINCRONIZAÇÃO DE DADOS DO RELATÓRIO ATIVO
-    const lastLoadedReportId = useRef<string | null>(null);
-
-    useEffect(() => {
-        const activeId = reconciliation.activeReportId;
-        
-        // 🛡️ BLOQUEIO ABSOLUTO: Se a lista está sendo construída pelo useCloudSync ou existe sessão ativa, o AppContext não deve competir
-        if (!activeId || reconciliation.isHydratingFromCloud.current || reconciliation.hasActiveSession) {
-            if (ENABLE_HEAVY_LOGS && !activeId) {
-                console.warn('[AUDIT][NO_REPORT_ID]');
-            }
-            if (reconciliation.isHydratingFromCloud.current || reconciliation.hasActiveSession) {
-                console.log('[AppContext] Hidratação de relatório suprimida: useCloudSync ou Sessão Ativa em controle.');
-            }
-            lastLoadedReportId.current = activeId || null;
-            return;
-        }
-
-        // Só carregamos se o ID mudou
-        const shouldLoad = activeId !== lastLoadedReportId.current;
-        if (!shouldLoad) return;
-
-        if (ENABLE_HEAVY_LOGS) {
-            console.log('[AUDIT][LOAD_REPORT_START]', { reportId: activeId });
-        }
-        const report = reportManager.savedReports.find(r => r.id === activeId);
-        
-        if (ENABLE_HEAVY_LOGS) {
-            console.log('[AUDIT][RAW_REPORT_FROM_DB]', report);
-            console.log('[AUDIT][DATA_FULL]', report?.data);
-        }
-
-        if (report?.data && typeof report.data === 'object') {
-            const rData = report.data as any;
-            Object.keys(rData).forEach((key) => {
-                if (ENABLE_HEAVY_LOGS) {
-                    console.log(`[AUDIT][DATA_KEY:${key}]`, rData[key]);
-                }
-
-                if (Array.isArray(rData[key])) {
-                    if (ENABLE_HEAVY_LOGS) {
-                        console.log(`[AUDIT][FOUND_ARRAY_IN:${key}] LENGTH:`, rData[key].length);
-                    }
-                }
-
-                if (rData[key] && typeof rData[key] === 'object') {
-                    Object.keys(rData[key]).forEach((subKey) => {
-                        if (ENABLE_HEAVY_LOGS) {
-                            console.log(`[AUDIT][SUB_KEY:${key}.${subKey}]`, rData[key][subKey]);
-                        }
-
-                        if (Array.isArray(rData[key][subKey])) {
-                            if (ENABLE_HEAVY_LOGS) {
-                                console.log(`[AUDIT][FOUND_ARRAY_IN:${key}.${subKey}] LENGTH:`, rData[key][subKey].length);
-                            }
-                        }
-                    });
-                }
-            });
-        }
-
-        if (ENABLE_HEAVY_LOGS) {
-            console.log('[AUDIT][REPORT_FIELDS]', {
-                id: report?.id,
-                hasData: !!report?.data,
-                dataType: typeof report?.data,
-                dataKeys: report?.data ? Object.keys(report.data) : null,
-                full: report
-            });
-        }
-
-        const data = report.data as any;
-        if (!report || (!Array.isArray(data) && !data?.transactions && !data?.results)) return;
-
-        console.log("[AppContext] Carregando dados do relatório ativo:", activeId);
-        
-        const rawData = Array.isArray(data)
-            ? data
-            : data?.transactions
-            || data?.results
-            || [];
-
-        const churchMap = new Map<string, any>();
-        (referenceData.churches || []).forEach((c: any) => {
-            if (c.id) churchMap.set(c.id, c);
-        });
-
-        let hydrated = rawData.map((r: any) => ({
-            ...r,
-            church:
-                churchMap.get(r.church?.id || r._churchId) ||
-                r.church ||
-                PLACEHOLDER_CHURCH
-        }));
-
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
-        if (isSecondary && subscription.congregationIds?.length > 0) {
-            hydrated = hydrated.filter((r: any) => {
-                const churchId = r.church?.id || r._churchId || 'unidentified';
-                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
-            });
-        }
-
-        if (ENABLE_HEAVY_LOGS) {
-            console.log('[AUDIT][DATA_BEFORE_SET]', hydrated);
-            console.log('[AUDIT][DATA_LENGTH]', Array.isArray(hydrated) ? hydrated.length : 'not-array');
-            console.log('[AUDIT][LOAD_REPORT_DATA]', hydrated);
-        } else {
-            console.log('[AUDIT][DATA_LENGTH]', hydrated?.length);
-            console.log('[AUDIT][LOAD_REPORT_DATA_LENGTH]', hydrated?.length);
-        }
-        reconciliation.setMatchResults(hydrated);
-        lastLoadedReportId.current = activeId;
-    }, [
-        reportManager.savedReports,
-        reconciliation.activeReportId,
-        referenceData.churches,
-        subscription.role,
-        subscription.congregationIds
-    ]);
-
-    // Removido o segundo useEffect redundante que causava resets indesejados
-
     const viewSavedReport = useCallback(async (reportId: string) => {
         const report = reportManager.savedReports.find(r => r.id === reportId);
         if (ENABLE_HEAVY_LOGS) {
@@ -333,6 +207,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     }, [reportManager.savedReports, referenceData.churches, reconciliation, setActiveView, setIsLoading, showToast]);
 
+    // 🔄 SINCRONIZAÇÃO DE DADOS DO RELATÓRIO ATIVO (UNIFICADO)
+    const lastLoadedReportId = useRef<string | null>(null);
+
+    useEffect(() => {
+        const activeId = reconciliation.activeReportId;
+        if (!activeId || reconciliation.isHydratingFromCloud.current) {
+            return;
+        }
+
+        const isNewReport = activeId !== lastLoadedReportId.current;
+        const isEmpty = reconciliation.fullMatchResults.length === 0;
+
+        if (isNewReport || isEmpty) {
+            const savedReport = reportManager.savedReports.find(r => r.id === activeId);
+            if (savedReport) {
+                if (savedReport.data?.results?.length > 0) {
+                    console.log("[AppContext:Hydration] Auto-carregando dados do relatório ativo:", activeId);
+                    
+                    const rawData = savedReport.data.results;
+                    const churchMap = new Map<string, any>();
+                    (referenceData.churches || []).forEach((c: any) => {
+                        if (c.id) churchMap.set(c.id, c);
+                    });
+
+                    let hydrated = rawData.map((r: any) => ({
+                        ...r,
+                        church:
+                            churchMap.get(r.church?.id || r._churchId) ||
+                            r.church ||
+                            PLACEHOLDER_CHURCH
+                    }));
+
+                    const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+                        subscription.role !== 'owner' &&
+                        subscription.role !== 'admin' &&
+                        subscription.role !== 'principal';
+                    if (isSecondary && subscription.congregationIds?.length > 0) {
+                        hydrated = hydrated.filter((r: any) => {
+                            const churchId = r.church?.id || r._churchId || 'unidentified';
+                            return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+                        });
+                    }
+
+                    reconciliation.setMatchResults(hydrated);
+                    reconciliation.setHasActiveSession(true);
+                    lastLoadedReportId.current = activeId;
+                } else {
+                    console.log("[AppContext:Hydration] Dados vazios na lista, buscando detalhes sob demanda:", activeId);
+                    viewSavedReport(activeId).then(() => {
+                        lastLoadedReportId.current = activeId;
+                    }).catch(err => {
+                        console.error("[AppContext:Hydration] Erro ao carregar detalhes sob demanda:", err);
+                    });
+                }
+            }
+        }
+    }, [
+        reconciliation.activeReportId,
+        reconciliation.fullMatchResults.length,
+        reportManager.savedReports,
+        referenceData.churches,
+        subscription,
+        user,
+        viewSavedReport
+    ]);
+
+    // Removido o segundo useEffect redundante que causava resets indesejados
+
     const persistActiveReport = useCallback(async (customResults?: MatchResult[]) => {
         // 🛡️ Prevenção de sobrescrita por dado antigo durante hidratação
         if (reconciliation.isHydratingFromCloud.current) {
@@ -360,37 +302,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         // O progresso agora é sincronizado via deltas em consolidated_transactions e learned_associations
     }, []);
-
-    // 🔄 AUTO-LOAD: Tenta carregar os detalhes de um relatório ativo se os dados locais estiverem ausentes
-    useEffect(() => {
-        if (reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current) {
-            const savedReport = reportManager.savedReports.find(r => r.id === reconciliation.activeReportId);
-            if (savedReport) {
-                if (savedReport.data?.results?.length > 0) {
-                    console.log("[AppContext] Auto-carregando dados do relatório ativo:", reconciliation.activeReportId);
-                    reconciliation.setMatchResults(() => savedReport.data.results);
-                    reconciliation.setHasActiveSession(true);
-                } else {
-                    console.log("[AppContext] Dados do relatório vazios na lista, buscando detalhes sob demanda para:", reconciliation.activeReportId);
-                    viewSavedReport(reconciliation.activeReportId).catch(err => {
-                        console.error("[AppContext] Erro ao carregar detalhes do relatório atômico:", err);
-                    });
-                }
-            }
-        }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, viewSavedReport]);
-
-    // ☁️ AUTO-LOAD LIVE SESSION: Carrega a sessão ativa da nuvem se os dados locais estiverem vazios
-    useEffect(() => {
-        if (!reconciliation.activeReportId && reconciliation.fullMatchResults.length === 0 && !isLoading && !reconciliation.isHydratingFromCloud.current && !reconciliation.hasActiveSession) {
-            const liveReport = reportManager.savedReports.find(r => r.name === '[SESSÃO_ATIVA]');
-            if (liveReport && liveReport.data?.results?.length > 0) {
-                console.log("[AppContext] Auto-carregando sessão ativa da nuvem.");
-                reconciliation.setMatchResults(() => liveReport.data.results);
-                reconciliation.setHasActiveSession(true);
-            }
-        }
-    }, [reconciliation.activeReportId, reconciliation.fullMatchResults.length, reportManager.savedReports, isLoading, reconciliation.hasActiveSession]);
 
     // 📡 REAL-TIME SYNC: Sincroniza o relatório ativo se houver mudanças remotas
     useEffect(() => {

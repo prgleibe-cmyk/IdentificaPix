@@ -424,7 +424,7 @@ export const useCloudSync = ({
 
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
-        if (isReady && !isLoading && matchResults?.length === 0) {
+        if (isReady && !isLoading && matchResults?.length === 0 && !isHydratingFromCloud.current) {
             console.log('[AUTO_PROCESS] Executando processamento inicial da lista viva...');
             handleCompare?.(false); // isAuto = true
         }
