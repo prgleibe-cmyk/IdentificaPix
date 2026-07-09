@@ -115,9 +115,9 @@ export const useReconciliation = (props: any) => {
     }, [churches]);
 
     useEffect(() => {
-        if (churches && churches.length > 0) {
-            fetchContributorsToFiles();
-        }
+        // O carregamento inicial dos contribuintes agora ocorre em paralelo com as transações consolidadas
+        // no Promise.all dentro do useCloudSync para evitar waterfalls e race condições.
+        // Mantemos a função fetchContributorsToFiles disponível para atualizações sob demanda.
     }, [churches, fetchContributorsToFiles]);
 
     // ✅ NORMALIZAÇÃO TOTAL (MESMO PADRÃO DA CONFIRMAÇÃO FINAL)

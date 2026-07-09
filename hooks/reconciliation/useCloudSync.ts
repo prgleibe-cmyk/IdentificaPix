@@ -25,6 +25,7 @@ interface UseCloudSyncProps {
     setSearchFilters?: any;
     realtimeRefreshKey?: number;
     contributorFiles?: any[];
+    setContributorFiles?: (files: any[]) => void;
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
@@ -50,7 +51,8 @@ export const useCloudSync = ({
     searchFilters,
     setSearchFilters,
     realtimeRefreshKey,
-    contributorFiles
+    contributorFiles,
+    setContributorFiles
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
@@ -179,7 +181,7 @@ export const useCloudSync = ({
             try {
                 const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
 
-                // 1. Busca as transações que estão dentro do período selecionado
+                // 1. Busca as transações que estão dentro do período selecionado em paralelo com os contribuintes
                 const startDate = searchFilters.dateRange.start;
                 const endDate = searchFilters.dateRange.end;
 
@@ -189,27 +191,94 @@ export const useCloudSync = ({
                     endDate
                 });
 
-                let allTxs: any[] = [];
-                let from = 0;
-                const pageSize = 1000;
+                const fetchTransactionsPromise = (async () => {
+                    let allTxs: any[] = [];
+                    let from = 0;
+                    const pageSize = 1000;
 
-                while (true) {
-                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${from}`);
-                    if (!res.ok) {
-                        throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
+                    while (true) {
+                        const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${from}`);
+                        if (!res.ok) {
+                            throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
+                        }
+                        const data = await res.json();
+                        if (!data || data.length === 0) break;
+
+                        console.log('[RECONSTRUCT:RAW_DATA]', data);
+
+                        allTxs = [...allTxs, ...data];
+                        console.log('[DEBUG:RAW_COUNT]', allTxs.length);
+                        if (data.length < pageSize) break;
+                        from += pageSize;
                     }
-                    const data = await res.json();
-                    if (!data || data.length === 0) break;
+                    return allTxs;
+                })();
 
-                    console.log('[RECONSTRUCT:RAW_DATA]', data);
+                const fetchContributorsPromise = (async () => {
+                    if (!churches || churches.length === 0) return [];
 
-                    allTxs = [...allTxs, ...data];
-                    console.log('[DEBUG:RAW_COUNT]', allTxs.length);
-                    if (data.length < pageSize) break;
-                    from += pageSize;
+                    const promises = churches.map(async (church: any) => {
+                        const resp = await fetch(`/api/v1/contributors?church_id=${church.id}`);
+                        if (resp.ok) {
+                            const list = await resp.json();
+                            return Array.isArray(list) ? list : [];
+                        }
+                        return [];
+                    });
+
+                    const results = await Promise.all(promises);
+                    const data = results.flat();
+
+                    const allowedChurchIds = new Set((churches || []).map((ch: any) => ch.id));
+
+                    const grouped = new Map<string, any[]>();
+                    data.forEach((c: any) => {
+                        if (c.status !== 'inactive') {
+                            const cid = c.church_id;
+                            if (!allowedChurchIds.has(cid)) return;
+
+                            if (!grouped.has(cid)) {
+                                grouped.set(cid, []);
+                            }
+                            grouped.get(cid)!.push({
+                                id: c.id,
+                                name: c.canonical_name,
+                                cleanedName: c.canonical_name,
+                                _churchId: cid,
+                                cpf: c.cpf,
+                                email: c.email,
+                                phone: c.phone,
+                                amount: 0
+                            });
+                        }
+                    });
+
+                    const newFiles = Array.from(grouped.entries()).map(([cid, list]) => {
+                        const church = churches.find((ch: any) => ch.id === cid)!;
+                        return {
+                            church,
+                            churchId: cid,
+                            contributors: list,
+                            fileName: 'Banco de Dados VPS'
+                        };
+                    });
+
+                    return newFiles;
+                })();
+
+                console.log("[CloudSync:PromiseAll] Buscando transações e contribuintes em paralelo...");
+                const [txs, contributorFilesData] = await Promise.all([
+                    fetchTransactionsPromise,
+                    fetchContributorsPromise
+                ]);
+                console.log("[CloudSync:PromiseAll] Downloads concluídos!");
+
+                // Atualiza os arquivos de contribuintes antes do mapeamento para garantir matching síncrono e correto
+                if (setContributorFiles) {
+                    setContributorFiles(contributorFilesData);
                 }
+                contributorFilesRef.current = contributorFilesData;
 
-                const txs = allTxs;
                 console.log('[DEBUG:TOTAL_RAW_COUNT]', txs.length);
 
                 // 🆕 BUSCAR RELATÓRIOS SALVOS COMO BASE COMPLETA
