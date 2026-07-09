@@ -34,6 +34,11 @@ export const useReportsController = () => {
     const { setActiveView } = useUI();
     const { subscription, user } = useAuth();
     
+    const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
+    
     const [activeCategory, setActiveCategory] = useState<ReportCategory>('general');
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -123,7 +128,7 @@ export const useReportsController = () => {
         cacheRef.current.resultsMap = resultsMap;
 
         // 2. Rebuild churchList
-        const allowedIds = subscription?.congregationIds || null;
+        const allowedIds = isSecondary ? (subscription?.congregationIds || []) : null;
         const churchesMap = new Map<string, any>();
         (churches || []).forEach((c: any) => {
             if (c.id) churchesMap.set(c.id, c);
@@ -162,11 +167,6 @@ export const useReportsController = () => {
         let churchesCount = churchListComputed.length;
         let pendingCount = 0;
         let expensesCount = 0;
-
-        const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
 
         const countSource = isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0
             ? currentResults.filter(r => {
@@ -290,7 +290,7 @@ export const useReportsController = () => {
             cacheRef.current.resultsMap.set(txId, newItem);
 
             // 2. Update churchList incrementally
-            const allowedIds = subscription?.congregationIds || null;
+            const allowedIds = isSecondary ? (subscription?.congregationIds || []) : null;
             const churchesMap = new Map<string, any>();
             (churches || []).forEach((c: any) => {
                 if (c.id) churchesMap.set(c.id, c);
@@ -342,11 +342,6 @@ export const useReportsController = () => {
             adjustChurch(newItem, 1);
 
             // 3. Update counts incrementally
-            const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-                subscription.role !== 'owner' &&
-                subscription.role !== 'admin' &&
-                subscription.role !== 'principal';
-
             let countsDelta = { pending: 0, expenses: 0 };
             
             const matchesCountFilters = (item: MatchResult) => {
