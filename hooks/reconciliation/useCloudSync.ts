@@ -192,25 +192,53 @@ export const useCloudSync = ({
                 });
 
                 const fetchTransactionsPromise = (async () => {
-                    let allTxs: any[] = [];
-                    let from = 0;
                     const pageSize = 1000;
-
-                    while (true) {
-                        const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${from}`);
-                        if (!res.ok) {
-                            throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
-                        }
-                        const data = await res.json();
-                        if (!data || data.length === 0) break;
-
-                        console.log('[RECONSTRUCT:RAW_DATA]', data);
-
-                        allTxs = [...allTxs, ...data];
-                        console.log('[DEBUG:RAW_COUNT]', allTxs.length);
-                        if (data.length < pageSize) break;
-                        from += pageSize;
+                    
+                    // 1. Fetch first page
+                    const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=0`);
+                    if (!res.ok) {
+                        throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                     }
+                    const firstPageData = await res.json();
+                    
+                    if (!Array.isArray(firstPageData) || firstPageData.length === 0) {
+                        return [];
+                    }
+
+                    // 2. Read X-Total-Count header
+                    const totalCountHeader = res.headers.get('X-Total-Count');
+                    const totalCount = totalCountHeader ? parseInt(totalCountHeader, 10) : 0;
+
+                    // If totalCount is not set, or less than or equal to what we got, we are done
+                    if (!totalCount || totalCount <= firstPageData.length) {
+                        return firstPageData;
+                    }
+
+                    // 3. Generate remaining offsets and run in parallel
+                    const remainingOffsets: number[] = [];
+                    for (let offset = pageSize; offset < totalCount; offset += pageSize) {
+                        remainingOffsets.push(offset);
+                    }
+
+                    console.log(`[CloudSync:TransactionsParallel] Total records: ${totalCount}. Fetching ${remainingOffsets.length} remaining pages in parallel.`);
+
+                    const remainingPromises = remainingOffsets.map(async (offset) => {
+                        const pageRes = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${offset}`);
+                        if (!pageRes.ok) {
+                            throw new Error(`Erro ao buscar página de transações com offset ${offset}: ${pageRes.statusText}`);
+                        }
+                        const pageData = await pageRes.json();
+                        return Array.isArray(pageData) ? pageData : [];
+                    });
+
+                    const remainingPagesData = await Promise.all(remainingPromises);
+
+                    // 4. Concatenate in correct order
+                    let allTxs = [...firstPageData];
+                    for (const pageData of remainingPagesData) {
+                        allTxs = [...allTxs, ...pageData];
+                    }
+
                     return allTxs;
                 })();
 
