@@ -18,24 +18,46 @@ export default () => {
             const vpsUrl = process.env.CONTRIBUTORS_API_URL || (process.env.INTEGRATED_MODE === 'true' ? `http://127.0.0.1:${defaultPort}` : 'http://127.0.0.1:3010');
             const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
 
-            const [banksRes, churchesRes, associationsRes] = await Promise.all([
-                fetch(`${cleanVpsUrl}/api/v1/banks?user_id=${effectiveOwnerId}`),
-                fetch(`${cleanVpsUrl}/api/v1/churches?user_id=${effectiveOwnerId}`),
-                fetch(`${cleanVpsUrl}/api/v1/learned_associations?user_id=${effectiveOwnerId}`)
-            ]);
+            const criticalOnly = req.query.critical_only === 'true';
+            const backgroundOnly = req.query.background_only === 'true';
 
-            const banks = banksRes.ok ? await banksRes.json() : [];
-            const churches = churchesRes.ok ? await churchesRes.json() : [];
-            const associations = associationsRes.ok ? await associationsRes.json() : [];
-
+            let banks = [];
+            let churches = [];
+            let associations = [];
             let reports = [];
-            try {
-                reports = await ReportService.listReports(req, effectiveOwnerId);
-            } catch (reportsErr) {
-                console.error("[Reference API] Erro crítico ao buscar relatórios via ReportService:", reportsErr);
+
+            if (backgroundOnly) {
+                const associationsRes = await fetch(`${cleanVpsUrl}/api/v1/learned_associations?user_id=${effectiveOwnerId}`);
+                associations = associationsRes.ok ? await associationsRes.json() : [];
+                try {
+                    reports = await ReportService.listReports(req, effectiveOwnerId);
+                } catch (reportsErr) {
+                    console.error("[Reference API] Erro crítico ao buscar relatórios via ReportService:", reportsErr);
+                }
+            } else if (criticalOnly) {
+                const [banksRes, churchesRes] = await Promise.all([
+                    fetch(`${cleanVpsUrl}/api/v1/banks?user_id=${effectiveOwnerId}`),
+                    fetch(`${cleanVpsUrl}/api/v1/churches?user_id=${effectiveOwnerId}`)
+                ]);
+                banks = banksRes.ok ? await banksRes.json() : [];
+                churches = churchesRes.ok ? await churchesRes.json() : [];
+            } else {
+                const [banksRes, churchesRes, associationsRes] = await Promise.all([
+                    fetch(`${cleanVpsUrl}/api/v1/banks?user_id=${effectiveOwnerId}`),
+                    fetch(`${cleanVpsUrl}/api/v1/churches?user_id=${effectiveOwnerId}`),
+                    fetch(`${cleanVpsUrl}/api/v1/learned_associations?user_id=${effectiveOwnerId}`)
+                ]);
+                banks = banksRes.ok ? await banksRes.json() : [];
+                churches = churchesRes.ok ? await churchesRes.json() : [];
+                associations = associationsRes.ok ? await associationsRes.json() : [];
+                try {
+                    reports = await ReportService.listReports(req, effectiveOwnerId);
+                } catch (reportsErr) {
+                    console.error("[Reference API] Erro crítico ao buscar relatórios via ReportService:", reportsErr);
+                }
             }
 
-            console.log(`[Reference API] Finalizado: ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas, ${reports.length} relatórios, ${associations?.length || 0} associações.`);
+            console.log(`[Reference API] Finalizado (criticalOnly=${criticalOnly}, backgroundOnly=${backgroundOnly}): ${banks?.length || 0} bancos, ${churches?.length || 0} igrejas, ${reports.length} relatórios, ${associations?.length || 0} associações.`);
 
             res.json({ 
                 banks: banks || [], 

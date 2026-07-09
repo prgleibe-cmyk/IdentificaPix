@@ -15,7 +15,8 @@ interface UseCloudSyncProps {
     savedReports: any[];
     overwriteSavedReport: (reportId: string, results: MatchResult[]) => Promise<void>;
     churches: any[];
-    learnedAssociations: any[];
+    banks?: any[];
+    learnedAssociations: any[] | null;
     showToast: (msg: string, type: 'success' | 'error') => void;
     handleCompare?: (isAuto?: boolean) => Promise<void>;
     isLoading?: boolean;
@@ -42,6 +43,7 @@ export const useCloudSync = ({
     savedReports,
     overwriteSavedReport,
     churches,
+    banks,
     learnedAssociations,
     showToast,
     handleCompare,
@@ -99,7 +101,7 @@ export const useCloudSync = ({
     const isReady =
         !!effectiveUserId &&
         Array.isArray(churches) &&
-        Array.isArray(learnedAssociations);
+        Array.isArray(banks);
 
     const isContextReady = isReady && activeReportId !== null;
 
@@ -522,10 +524,14 @@ export const useCloudSync = ({
     // 🚀 AUTO-PROCESSAMENTO INICIAL (Lista Viva)
     useEffect(() => {
         if (isReady && !isLoading && matchResults?.length === 0 && !isHydratingFromCloud.current) {
+            if (!Array.isArray(learnedAssociations)) {
+                console.log('[AUTO_PROCESS] Aguardando learned_associations estarem carregadas...');
+                return;
+            }
             console.log('[AUTO_PROCESS] Executando processamento inicial da lista viva...');
             handleCompare?.(false); // isAuto = true
         }
-    }, [isReady, isLoading, matchResults?.length, handleCompare]);
+    }, [isReady, isLoading, matchResults?.length, handleCompare, learnedAssociations]);
 
     /**
      * 📡 REALTIME SYNC (Atomização)
@@ -851,6 +857,11 @@ export const useCloudSync = ({
             return;
         }
 
+        if (!Array.isArray(learnedAssociations)) {
+            console.log('[PostReconstruct:WAITING] Aguardando learnedAssociations carregar...');
+            return;
+        }
+
         if (!matchResults || matchResults.length === 0) {
             return;
         }
@@ -936,7 +947,7 @@ export const useCloudSync = ({
         return () => {
             if (stableTimeoutRef.current) clearTimeout(stableTimeoutRef.current);
         };
-    }, [matchResults, isLoading, isContextReady]);
+    }, [matchResults, isLoading, isContextReady, learnedAssociations]);
 
     return {
         syncToCloud,
