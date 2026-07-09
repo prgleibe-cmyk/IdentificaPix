@@ -29,6 +29,7 @@ interface UseCloudSyncProps {
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
+export const lastRealtimeUpdate = { txId: null as string | null, timestamp: 0 };
 const ENABLE_HEAVY_LOGS = false;
 
 export const useCloudSync = ({
@@ -527,6 +528,8 @@ export const useCloudSync = ({
                     if (payload.eventType === 'DELETE') {
                         const deletedId = payload.old?.id;
                         if (deletedId) {
+                            lastRealtimeUpdate.txId = deletedId;
+                            lastRealtimeUpdate.timestamp = Date.now();
                             setMatchResults(prev => prev.map(r => r.transaction.id === deletedId ? { ...r, status: ReconciliationStatus.UNIDENTIFIED } : r));
                         }
                         return;
@@ -535,6 +538,8 @@ export const useCloudSync = ({
                     if (payload.new) {
                         const { id, is_confirmed, status, church_id, contributor_id, bank_id, updated_at } = payload.new;
                         
+                        lastRealtimeUpdate.txId = id;
+                        lastRealtimeUpdate.timestamp = Date.now();
                         batchState.isAtomicUpdate = true;
                         setMatchResults(prev => {
                             const idx = prev.findIndex(r => r.transaction.id === id);
@@ -759,6 +764,11 @@ export const useCloudSync = ({
     useEffect(() => {
         if (!effectiveUserId || matchResults.length === 0 || isValidating.current) return;
 
+        // Se for um update atômico de status/igreja, o ID hash com certeza não mudou
+        if (batchState.isAtomicUpdate && lastValidatedHash.current) {
+            return;
+        }
+
         const currentIdsHash = matchResults.map(r => r.transaction.id).sort().join(',');
         if (currentIdsHash === lastValidatedHash.current) return;
 
@@ -842,9 +852,8 @@ export const useCloudSync = ({
             // Deferimos o reset para garantir que todos os hooks observadores vejam a flag antes de limpar
             setTimeout(() => { batchState.isAtomicUpdate = false; }, 200);
             
-            // Atualizamos a assinatura para marcar que já vimos esse estado, mas sem disparar
-            const currentSignature = matchResults.map(item => `${item.transaction.id}-${item.status}-${item.isConfirmed}-${item.updatedAt}`).join('|');
-            postProcessingSignatureRef.current = currentSignature;
+            // Usamos uma assinatura fictícia simples de tamanho para evitar re-builds caros do array
+            postProcessingSignatureRef.current = `atomic-skip-${matchResults.length}`;
             return;
         }
 

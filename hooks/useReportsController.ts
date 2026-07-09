@@ -7,7 +7,7 @@ import { MatchResult, ReconciliationStatus } from '../types';
 import { ExportService } from '../services/ExportService';
 import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
-import { batchState } from './reconciliation/useCloudSync';
+import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
 
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
 
@@ -43,13 +43,437 @@ export const useReportsController = () => {
     const debounceRef = useRef<any>(null);
     const lastSyncTimeRef = useRef<number>(0);
 
-    const stableKey = useMemo(() => {
-        const currentTotal = (matchResults || []).length;
-        const currentIdentified = (matchResults || []).filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
-        const currentConfirmed = (matchResults || []).filter(r => !!r.isConfirmed).length;
-        const currentWithChurch = (matchResults || []).filter(r => r.church?.id && r.church.id !== 'unidentified').length;
-        return `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
-    }, [matchResults]);
+    // Refs de Cache para Otimização de Delta
+    const cacheRef = useRef<{
+        prevMatchResults: MatchResult[] | null;
+        prevChurches: any[] | null;
+        prevSubscription: any | null;
+        prevSelectedBankId: string | null;
+        prevActiveCategory: string | null;
+        prevSelectedReportId: string | null;
+        prevSearchFilters: any | null;
+        prevSearchTerm: string | null;
+
+        resultsMap: Map<string, MatchResult>;
+        churchList: { id: string; name: string; count: number; total: number }[];
+        counts: { general: number; churches: number; pending: number; expenses: number };
+        activeData: MatchResult[];
+        stableKey: string;
+    }>({
+        prevMatchResults: null,
+        prevChurches: null,
+        prevSubscription: null,
+        prevSelectedBankId: null,
+        prevActiveCategory: null,
+        prevSelectedReportId: null,
+        prevSearchFilters: null,
+        prevSearchTerm: null,
+
+        resultsMap: new Map(),
+        churchList: [],
+        counts: { general: 0, churches: 0, pending: 0, expenses: 0 },
+        activeData: [],
+        stableKey: ''
+    });
+
+    const isPendingTx = useCallback((r: MatchResult) => {
+        return r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING;
+    }, []);
+
+    const isExpenseTx = useCallback((r: MatchResult) => {
+        const amount = r.status === 'PENDENTE' ? r.contributorAmount : r.transaction?.amount;
+        const displayAmount = amount !== undefined ? amount : (r.transaction?.amount || 0);
+        return displayAmount < 0 || 
+               r.transaction?.type?.toLowerCase() === 'expense' || 
+               r.transaction?.type?.toLowerCase() === 'saida' || 
+               r.contributionType?.toLowerCase() === 'saída' || 
+               r.contributionType?.toLowerCase() === 'saida';
+    }, []);
+
+    // ⚡ Executa a sincronização incremental ou o rebuild completo do cache
+    const currentResults = matchResults || [];
+    const prevResults = cacheRef.current.prevMatchResults;
+    const prevChurchesList = cacheRef.current.prevChurches;
+    const prevSub = cacheRef.current.prevSubscription;
+    const prevBankId = cacheRef.current.prevSelectedBankId;
+    const prevCat = cacheRef.current.prevActiveCategory;
+    const prevRepId = cacheRef.current.prevSelectedReportId;
+    const prevFiltersObj = cacheRef.current.prevSearchFilters;
+    const prevTerm = cacheRef.current.prevSearchTerm;
+
+    const filtersChanged = 
+        prevChurchesList !== churches ||
+        prevSub !== subscription ||
+        prevBankId !== selectedBankId ||
+        prevCat !== activeCategory ||
+        prevRepId !== selectedReportId ||
+        JSON.stringify(prevFiltersObj) !== JSON.stringify(searchFilters) ||
+        prevTerm !== searchTerm;
+
+    const needsFullRebuild = 
+        !prevResults || 
+        filtersChanged || 
+        Math.abs(currentResults.length - prevResults.length) > 1 ||
+        !lastRealtimeUpdate.txId;
+
+    if (needsFullRebuild) {
+        // 1. Rebuild resultsMap
+        const resultsMap = new Map<string, MatchResult>();
+        currentResults.forEach(r => resultsMap.set(r.transaction.id, r));
+        cacheRef.current.resultsMap = resultsMap;
+
+        // 2. Rebuild churchList
+        const allowedIds = subscription?.congregationIds || null;
+        const churchesMap = new Map<string, any>();
+        (churches || []).forEach((c: any) => {
+            if (c.id) churchesMap.set(c.id, c);
+        });
+
+        const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
+        currentResults.forEach(r => {
+            const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
+                                 (r._churchId && r._churchId !== 'unidentified');
+            if (hasValidChurch) {
+                const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
+                if (allowedIds && !allowedIds.includes(churchId)) return;
+                
+                const realChurch = churchesMap.get(churchId);
+                if (!realChurch) return;
+                
+                const existing = churchMap.get(churchId);
+                if (existing) {
+                    existing.count++;
+                    existing.total += (r.transaction?.amount || 0);
+                } else {
+                    churchMap.set(churchId, {
+                        id: churchId,
+                        name: realChurch.name,
+                        count: 1,
+                        total: r.transaction?.amount || 0
+                    });
+                }
+            }
+        });
+        const churchListComputed = Array.from(churchMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        cacheRef.current.churchList = churchListComputed;
+
+        // 3. Rebuild counts
+        let generalCount = currentResults.length;
+        let churchesCount = churchListComputed.length;
+        let pendingCount = 0;
+        let expensesCount = 0;
+
+        const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+            subscription.role !== 'owner' &&
+            subscription.role !== 'admin' &&
+            subscription.role !== 'principal';
+
+        const countSource = isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0
+            ? currentResults.filter(r => {
+                const churchId = r.church?.id || r._churchId || 'unidentified';
+                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+              })
+            : currentResults;
+
+        countSource.forEach(r => {
+            if (isPendingTx(r)) pendingCount++;
+            if (isExpenseTx(r)) expensesCount++;
+        });
+
+        cacheRef.current.counts = {
+            general: isSecondary ? countSource.length : generalCount,
+            churches: isSecondary ? (subscription.congregationIds || []).length : churchesCount,
+            pending: pendingCount,
+            expenses: expensesCount
+        };
+
+        // 4. Rebuild activeData
+        let filteredData: MatchResult[] = [];
+        if (activeCategory === 'general') {
+            filteredData = currentResults;
+        } else if (activeCategory === 'unidentified') {
+            filteredData = currentResults.filter(isPendingTx);
+        } else if (activeCategory === 'expenses') {
+            filteredData = currentResults.filter(isExpenseTx);
+        } else {
+            if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
+                const activeId = selectedReportId && subscription.congregationIds.includes(selectedReportId)
+                    ? selectedReportId
+                    : subscription.congregationIds[0];
+                filteredData = reportPreviewData?.income?.[activeId] || [];
+            } else if (selectedReportId) {
+                filteredData = reportPreviewData?.income?.[selectedReportId] || [];
+            }
+
+            if (filteredData.length > 0) {
+                filteredData = filteredData.map((r: MatchResult) => {
+                    const live = resultsMap.get(r.transaction.id);
+                    if (live) {
+                        return {
+                            ...r,
+                            status: live.status,
+                            isConfirmed: live.isConfirmed,
+                            contributor: live.contributor,
+                            church: live.church,
+                            _churchId: live._churchId,
+                            updatedAt: live.updatedAt,
+                            splits: live.splits,
+                            contributionType: live.contributionType
+                        };
+                    }
+                    return r;
+                });
+
+                if (selectedReportId) {
+                    filteredData = filteredData.filter((r: MatchResult) => {
+                        const liveChurchId = r.church?.id || r._churchId;
+                        return liveChurchId === selectedReportId;
+                    });
+                }
+            }
+        }
+
+        // Apply filters
+        if (selectedBankId && selectedBankId !== 'all') {
+            filteredData = filteredData.filter(r => String(r.transaction?.bank_id) === selectedBankId);
+        } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
+            filteredData = filteredData.filter(r => subscription.bankIds.includes(String(r.transaction?.bank_id)));
+        }
+
+        if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
+            const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
+            const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
+            
+            filteredData = filteredData.filter(r => {
+                const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                if (!dateStr) return true;
+                const itemDate = new Date(dateStr.split('T')[0]).getTime();
+                if (start && itemDate < start) return false;
+                if (end && itemDate >= end) return false;
+                return true;
+            });
+        }
+
+        if (searchFilters) {
+            filteredData = applyAdvancedFilters(filteredData, searchFilters);
+        }
+
+        if (searchTerm && searchTerm.trim()) {
+            filteredData = filteredData.filter(r => filterByUniversalQuery(r, searchTerm));
+        }
+
+        cacheRef.current.activeData = filteredData;
+
+        // 5. Stable Key
+        const currentTotal = currentResults.length;
+        const currentIdentified = currentResults.filter(r => r.status === ReconciliationStatus.IDENTIFIED || r.status === ReconciliationStatus.RESOLVED).length;
+        const currentConfirmed = currentResults.filter(r => !!r.isConfirmed).length;
+        const currentWithChurch = currentResults.filter(r => r.church?.id && r.church.id !== 'unidentified').length;
+        cacheRef.current.stableKey = `${currentTotal}-${currentIdentified}-${currentConfirmed}-${currentWithChurch}`;
+
+        // Save current inputs to cache
+        cacheRef.current.prevMatchResults = currentResults;
+        cacheRef.current.prevChurches = churches;
+        cacheRef.current.prevSubscription = subscription;
+        cacheRef.current.prevSelectedBankId = selectedBankId;
+        cacheRef.current.prevActiveCategory = activeCategory;
+        cacheRef.current.prevSelectedReportId = selectedReportId;
+        cacheRef.current.prevSearchFilters = searchFilters;
+        cacheRef.current.prevSearchTerm = searchTerm;
+    } else {
+        const txId = lastRealtimeUpdate.txId!;
+        const oldItem = cacheRef.current.resultsMap.get(txId);
+        const newItem = currentResults.find(r => r.transaction.id === txId);
+
+        if (newItem) {
+            // 1. Update resultsMap
+            cacheRef.current.resultsMap.set(txId, newItem);
+
+            // 2. Update churchList incrementally
+            const allowedIds = subscription?.congregationIds || null;
+            const churchesMap = new Map<string, any>();
+            (churches || []).forEach((c: any) => {
+                if (c.id) churchesMap.set(c.id, c);
+            });
+
+            const adjustChurch = (item: MatchResult, factor: 1 | -1) => {
+                const hasValidChurch = (item.church?.id && item.church.id !== 'unidentified') || 
+                                     (item._churchId && item._churchId !== 'unidentified');
+                if (hasValidChurch) {
+                    const churchId = (item.church?.id && item.church.id !== 'unidentified') ? item.church?.id : item._churchId!;
+                    if (allowedIds && !allowedIds.includes(churchId)) return;
+                    
+                    const realChurch = churchesMap.get(churchId);
+                    if (!realChurch) return;
+
+                    const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
+                    if (idx !== -1) {
+                        const existing = cacheRef.current.churchList[idx];
+                        const newCount = existing.count + factor;
+                        const newTotal = existing.total + factor * (item.transaction?.amount || 0);
+                        if (newCount <= 0) {
+                            cacheRef.current.churchList = cacheRef.current.churchList.filter(c => c.id !== churchId);
+                        } else {
+                            const updatedList = [...cacheRef.current.churchList];
+                            updatedList[idx] = {
+                                ...existing,
+                                count: newCount,
+                                total: newTotal
+                            };
+                            cacheRef.current.churchList = updatedList;
+                        }
+                    } else if (factor === 1) {
+                        cacheRef.current.churchList = [
+                            ...cacheRef.current.churchList,
+                            {
+                                id: churchId,
+                                name: realChurch.name,
+                                count: 1,
+                                total: item.transaction?.amount || 0
+                            }
+                        ].sort((a, b) => a.name.localeCompare(b.name));
+                    }
+                }
+            };
+
+            if (oldItem) {
+                adjustChurch(oldItem, -1);
+            }
+            adjustChurch(newItem, 1);
+
+            // 3. Update counts incrementally
+            const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+                subscription.role !== 'owner' &&
+                subscription.role !== 'admin' &&
+                subscription.role !== 'principal';
+
+            let countsDelta = { pending: 0, expenses: 0 };
+            
+            const matchesCountFilters = (item: MatchResult) => {
+                if (!isSecondary) return true;
+                const churchId = item.church?.id || item._churchId || 'unidentified';
+                return churchId === 'unidentified' || (subscription.congregationIds || []).includes(churchId);
+            };
+
+            if (oldItem && matchesCountFilters(oldItem)) {
+                if (isPendingTx(oldItem)) countsDelta.pending--;
+                if (isExpenseTx(oldItem)) countsDelta.expenses--;
+            }
+            if (matchesCountFilters(newItem)) {
+                if (isPendingTx(newItem)) countsDelta.pending++;
+                if (isExpenseTx(newItem)) countsDelta.expenses++;
+            }
+
+            cacheRef.current.counts = {
+                ...cacheRef.current.counts,
+                pending: cacheRef.current.counts.pending + countsDelta.pending,
+                expenses: cacheRef.current.counts.expenses + countsDelta.expenses,
+                churches: isSecondary ? (subscription.congregationIds || []).length : cacheRef.current.churchList.length
+            };
+
+            // 4. Update activeData incrementally
+            const matchesFilters = (item: MatchResult) => {
+                let matchesCat = false;
+                if (activeCategory === 'general') {
+                    matchesCat = true;
+                } else if (activeCategory === 'unidentified') {
+                    matchesCat = isPendingTx(item);
+                } else if (activeCategory === 'expenses') {
+                    matchesCat = isExpenseTx(item);
+                } else {
+                    const churchId = item.church?.id || item._churchId;
+                    matchesCat = churchId === selectedReportId;
+                }
+
+                if (!matchesCat) return false;
+
+                if (selectedBankId && selectedBankId !== 'all') {
+                    if (String(item.transaction?.bank_id) !== selectedBankId) return false;
+                } else if (isSecondary && subscription?.bankIds && subscription.bankIds.length > 0) {
+                    if (!subscription.bankIds.includes(String(item.transaction?.bank_id))) return false;
+                }
+
+                if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
+                    const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
+                    const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
+                    const dateStr = item.status === 'PENDENTE' ? (item.contributor?.date || item.transaction?.date) : item.transaction?.date;
+                    if (dateStr) {
+                        const itemDate = new Date(dateStr.split('T')[0]).getTime();
+                        if (start && itemDate < start) return false;
+                        if (end && itemDate >= end) return false;
+                    }
+                }
+
+                if (searchFilters) {
+                    const res = applyAdvancedFilters([item], searchFilters);
+                    if (res.length === 0) return false;
+                }
+
+                if (searchTerm && searchTerm.trim()) {
+                    if (!filterByUniversalQuery(item, searchTerm)) return false;
+                }
+
+                return true;
+            };
+
+            const oldMatched = oldItem ? matchesFilters(oldItem) : false;
+            const newMatched = matchesFilters(newItem);
+
+            const idxInActive = cacheRef.current.activeData.findIndex(r => r.transaction.id === txId);
+
+            if (oldMatched && newMatched) {
+                if (idxInActive !== -1) {
+                    const updatedActive = [...cacheRef.current.activeData];
+                    updatedActive[idxInActive] = newItem;
+                    cacheRef.current.activeData = updatedActive;
+                } else {
+                    cacheRef.current.activeData = [...cacheRef.current.activeData, newItem];
+                }
+            } else if (oldMatched && !newMatched) {
+                if (idxInActive !== -1) {
+                    cacheRef.current.activeData = cacheRef.current.activeData.filter(r => r.transaction.id !== txId);
+                }
+            } else if (!oldMatched && newMatched) {
+                cacheRef.current.activeData = [...cacheRef.current.activeData, newItem];
+            }
+
+            // 5. Update stableKey incrementally
+            let stableKeyDelta = { identified: 0, confirmed: 0, withChurch: 0 };
+            const getStableKeyMetrics = (item: MatchResult) => {
+                const identified = item.status === ReconciliationStatus.IDENTIFIED || item.status === ReconciliationStatus.RESOLVED;
+                const confirmed = !!item.isConfirmed;
+                const withChurch = !!(item.church?.id && item.church.id !== 'unidentified');
+                return { identified, confirmed, withChurch };
+            };
+
+            if (oldItem) {
+                const oldMetrics = getStableKeyMetrics(oldItem);
+                if (oldMetrics.identified) stableKeyDelta.identified--;
+                if (oldMetrics.confirmed) stableKeyDelta.confirmed--;
+                if (oldMetrics.withChurch) stableKeyDelta.withChurch--;
+            }
+            const newMetrics = getStableKeyMetrics(newItem);
+            if (newMetrics.identified) stableKeyDelta.identified++;
+            if (newMetrics.confirmed) stableKeyDelta.confirmed++;
+            if (newMetrics.withChurch) stableKeyDelta.withChurch++;
+
+            const prevStableKeyParts = cacheRef.current.stableKey.split('-');
+            if (prevStableKeyParts.length === 4) {
+                const newTotal = parseInt(prevStableKeyParts[0]) + (oldItem ? 0 : 1);
+                const newIdentified = parseInt(prevStableKeyParts[1]) + stableKeyDelta.identified;
+                const newConfirmed = parseInt(prevStableKeyParts[2]) + stableKeyDelta.confirmed;
+                const newWithChurch = parseInt(prevStableKeyParts[3]) + stableKeyDelta.withChurch;
+                cacheRef.current.stableKey = `${newTotal}-${newIdentified}-${newConfirmed}-${newWithChurch}`;
+            }
+        }
+
+        cacheRef.current.prevMatchResults = currentResults;
+    }
+
+    const stableKey = cacheRef.current.stableKey;
+    const churchList = cacheRef.current.churchList;
+    const counts = cacheRef.current.counts;
+    const activeData = cacheRef.current.activeData;
 
     // Forçar categoria para membros
     useEffect(() => {
@@ -99,214 +523,6 @@ export const useReportsController = () => {
             setSelectedReportId('all_expenses_group');
         }
     }, [activeCategory, reportPreviewData, subscription]);
-
-    const churchList = useMemo(() => {
-        // 🛡️ LISTA DE IGREJAS LOCAL (FASE 2.2): Usamos matchResults para extrair a lista de igrejas
-        // sem depender do reportPreviewData debouncado/bloqueado.
-        const results = (matchResults || []);
-        
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
-        const allowedIds = isSecondary ? (subscription.congregationIds || []) : null;
-
-        const churchesMap = new Map<string, any>();
-        (churches || []).forEach((c: any) => {
-            if (c.id) churchesMap.set(c.id, c);
-        });
-
-        const churchMap = new Map<string, { id: string, name: string, count: number, total: number }>();
-        
-        results.forEach(r => {
-            // 🛡️ REINSERÇÃO VISUAL (FASE 2.4): Consideramos qualquer transação que tenha um ID de igreja 
-            // Válido, independente do status de confirmação ou identificação.
-            const hasValidChurch = (r.church?.id && r.church.id !== 'unidentified') || 
-                                 (r._churchId && r._churchId !== 'unidentified');
-            
-            if (hasValidChurch) {
-                const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
-                if (allowedIds && !allowedIds.includes(churchId)) return;
-                
-                // 🔥 SÓ EXIBIR IGREJAS REALMENTE CADASTRADAS NO USUÁRIO (NADA DE SIMULAÇÃO OU GHOST NAMES)
-                const realChurch = churchesMap.get(churchId);
-                if (!realChurch) return; // Ignora se a igreja não está na lista oficial de igrejas cadastradas do usuário
-                
-                const existing = churchMap.get(churchId);
-                const churchName = realChurch.name;
-                
-                if (existing) {
-                    existing.count++;
-                    existing.total += (r.transaction?.amount || 0);
-                } else {
-                    churchMap.set(churchId, {
-                        id: churchId,
-                        name: churchName,
-                        count: 1,
-                        total: r.transaction?.amount || 0
-                    });
-                }
-            }
-        });
-
-        return Array.from(churchMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-    }, [matchResults, subscription, user?.id, churches]);
-
-    const counts = useMemo(() => {
-        // 🛡️ CONTABILIDADE LOCAL (FASE 2.2): Usamos matchResults diretamente para os contadores das abas
-        // Isso garante que os números nos botões de categoria reflitam as mudanças atômicas instantaneamente
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
-        
-        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-            const allowedIds = subscription.congregationIds || [];
-            const churchesCount = allowedIds.length;
-            const filteredResults = (matchResults || []).filter(r => {
-                const churchId = r.church?.id || r._churchId || 'unidentified';
-                return churchId === 'unidentified' || allowedIds.includes(churchId);
-            });
-            const general = filteredResults.length;
-            const pending = filteredResults.filter(r => r.status === ReconciliationStatus.UNIDENTIFIED || r.status === ReconciliationStatus.PENDING).length;
-            const expenses = filteredResults.filter(r => 
-                (r.transaction?.amount || 0) < 0 || 
-                r.transaction?.type?.toLowerCase() === 'expense' || 
-                r.transaction?.type?.toLowerCase() === 'saida' || 
-                r.contributionType?.toLowerCase() === 'saída' || 
-                r.contributionType?.toLowerCase() === 'saida'
-            ).length;
-            return { general, churches: churchesCount, pending, expenses };
-        }
-
-        const general = (matchResults || []).length;
-        const churchesCount = (churchList || []).length;
-        const pending = (matchResults || []).filter(r => 
-            r.status === ReconciliationStatus.UNIDENTIFIED || 
-            r.status === ReconciliationStatus.PENDING
-        ).length;
-        const expenses = (matchResults || []).filter(r => 
-            (r.transaction?.amount || 0) < 0 || 
-            r.transaction?.type?.toLowerCase() === 'expense' || 
-            r.transaction?.type?.toLowerCase() === 'saida' || 
-            r.contributionType?.toLowerCase() === 'saída' || 
-            r.contributionType?.toLowerCase() === 'saida'
-        ).length;
-        return { general, churches: churchesCount, pending, expenses };
-    }, [churchList, reportPreviewData, subscription, matchResults]);
-
-    const activeData = useMemo(() => {
-        if (!reportPreviewData && activeCategory !== 'general' && activeCategory !== 'unidentified') return [];
-        let data: MatchResult[] = [];
-        
-        try {
-            const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-                subscription.role !== 'owner' &&
-                subscription.role !== 'admin' &&
-                subscription.role !== 'principal';
-            
-            // 🛡️ REINSERÇÃO LOCAL (FASE 2.2): Usamos matchResults diretamente para categorias simples
-            // Isso garante que mudanças atômicas (realtime, toggle) reflitam instantaneamente sem rebuild global
-            if (activeCategory === 'general') {
-                data = (matchResults || []);
-            } else if (activeCategory === 'unidentified') {
-                data = (matchResults || []).filter(r => 
-                    r.status === ReconciliationStatus.UNIDENTIFIED || 
-                    r.status === ReconciliationStatus.PENDING
-                );
-            } else if (activeCategory === 'expenses') {
-                data = (matchResults || []).filter(r => 
-                    (r.transaction?.amount || 0) < 0 || 
-                    r.transaction?.type?.toLowerCase() === 'expense' || 
-                    r.transaction?.type?.toLowerCase() === 'saida' || 
-                    r.contributionType?.toLowerCase() === 'saída' || 
-                    r.contributionType?.toLowerCase() === 'saida'
-                );
-            } else {
-                // Para igrejas, mantemos a base do reportPreviewData para respeitar o agrupamento granular
-                if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
-                    if (selectedReportId && (subscription.congregationIds || []).includes(selectedReportId)) {
-                        data = reportPreviewData?.income?.[selectedReportId] || [];
-                    } else {
-                        data = reportPreviewData?.income?.[subscription.congregationIds?.[0]] || [];
-                    }
-                } else if (selectedReportId) {
-                    data = reportPreviewData?.income?.[selectedReportId] || [];
-                }
-
-                // 🔥 PATCH LOCAL: Atualiza o estado visual das linhas no grupo de igrejas
-                if (data.length > 0 && matchResults.length > 0) {
-                    const matchMap = new Map((matchResults as MatchResult[]).map(r => [r.transaction.id, r]));
-                    data = data.map((r: MatchResult) => {
-                        const live = matchMap.get(r.transaction.id);
-                        if (live) {
-                            return {
-                                ...r,
-                                status: live.status,
-                                isConfirmed: live.isConfirmed,
-                                contributor: live.contributor,
-                                church: live.church,
-                                _churchId: live._churchId,
-                                updatedAt: live.updatedAt,
-                                splits: live.splits,
-                                contributionType: live.contributionType
-                            };
-                        }
-                        return r;
-                    });
-
-                    // 🔥 EJEÇÃO VISUAL: Se o item live não pertencer mais ao selectedReportId atual, removemos do array visual imediatamente
-                    if (activeCategory === 'churches' && selectedReportId) {
-                        data = data.filter((r: MatchResult) => {
-                            const liveChurchId = r.church?.id || r._churchId;
-                            return liveChurchId === selectedReportId;
-                        });
-                    }
-                }
-            }
-
-            // 1.5 Filtro por Banco (Global)
-            if (selectedBankId && selectedBankId !== 'all') {
-                data = data.filter(r => String(r.transaction?.bank_id) === selectedBankId);
-            } else if (isSecondary && subscription.bankIds && (subscription.bankIds || []).length > 0) {
-                // Se for "Todos os Bancos", mas o usuário tem restrição, filtra pelos autorizados
-                data = (data || []).filter(r => (subscription.bankIds || []).includes(String(r.transaction?.bank_id)));
-            }
-
-            // 2. Aplicação de Filtros Avançados (Modal)
-            // Filtro de Período (DateRange) - Aplicado explicitamente na camada de renderização
-            if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
-                const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
-                const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
-                
-                data = data.filter(r => {
-                    const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
-                    if (!dateStr) return true;
-                    
-                    // Normalização básica para garantir comparação de data pura
-                    const itemDate = new Date(dateStr.split('T')[0]).getTime();
-                    if (start && itemDate < start) return false;
-                    if (end && itemDate >= end) return false;
-                    return true;
-                });
-            }
-
-            // Outros filtros avançados
-            if (searchFilters) {
-                data = applyAdvancedFilters(data, searchFilters);
-            }
-
-            // 3. Aplicação do Filtro de Busca Rápida (Texto)
-            if (searchTerm && searchTerm.trim()) {
-                data = data.filter(r => filterByUniversalQuery(r, searchTerm));
-            }
-        } catch (e) {
-            console.error("[useReportsController] Erro ao processar activeData:", e);
-        }
-        
-        // Fallback absoluto para garantir que nunca seja undefined
-        return Array.isArray(data) ? data : [];
-    }, [reportPreviewData, selectedReportId, activeCategory, searchTerm, searchFilters, selectedBankId, subscription, matchResults]);
 
     const sortedData = useMemo(() => {
         const source = Array.isArray(activeData) ? activeData : [];

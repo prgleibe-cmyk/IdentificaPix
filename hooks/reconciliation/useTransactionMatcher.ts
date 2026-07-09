@@ -55,6 +55,20 @@ export const useTransactionMatcher = ({
 
     const syncDebounceRef = useRef<any>(null);
 
+    const reportCacheRef = useRef<{
+        prevMatchResults: MatchResult[] | null;
+        prevFilters: { isSecondary: boolean; congregationIds: string[] } | null;
+        resultsMap: Map<string, MatchResult>;
+        income: Record<string, MatchResult[]>;
+        expenses: MatchResult[];
+    }>({
+        prevMatchResults: null,
+        prevFilters: null,
+        resultsMap: new Map(),
+        income: {},
+        expenses: []
+    });
+
     const matchResultsRef = useRef(matchResults);
     const activeBankFilesRef = useRef(activeBankFiles);
     const selectedBankIdsRef = useRef(selectedBankIds);
@@ -87,48 +101,213 @@ export const useTransactionMatcher = ({
     }, [churches]);
 
     const regenerateReportPreview = useCallback((results: MatchResult[]) => {
-        let filteredResults = results;
-
         const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
             subscription.role !== 'owner' &&
             subscription.role !== 'admin' &&
             subscription.role !== 'principal';
-        if (isSecondary && subscription.congregationIds && subscription.congregationIds.length > 0) {
-            filteredResults = results.filter(r => {
-                const churchId = r.church?.id || r._churchId || 'unidentified';
-                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+        const congregationIds = subscription?.congregationIds || [];
+
+        const prevMatchResults = reportCacheRef.current.prevMatchResults;
+        const prevFilters = reportCacheRef.current.prevFilters;
+        
+        const filtersChanged = !prevFilters || 
+            prevFilters.isSecondary !== isSecondary ||
+            prevFilters.congregationIds.length !== congregationIds.length ||
+            prevFilters.congregationIds.some((id: string, i: number) => id !== congregationIds[i]);
+
+        let needsFullRebuild = !prevMatchResults || filtersChanged;
+
+        const resultsMap = reportCacheRef.current.resultsMap;
+        const currentIncome = { ...reportCacheRef.current.income };
+        let currentExpenses = [...reportCacheRef.current.expenses];
+
+        const getChurchKey = (r: any): string => {
+            if (r.church?.id && r.church.id !== 'unidentified') {
+                return r.church.id;
+            } else if (r._churchId && r._churchId !== 'unidentified') {
+                return r._churchId;
+            }
+            return 'unidentified';
+        };
+
+        if (!needsFullRebuild) {
+            const uniqueNewMap = new Map<string, MatchResult>();
+            for (let i = 0; i < results.length; i++) {
+                const r = results[i];
+                const id = r.transaction?.id;
+                if (id) {
+                    uniqueNewMap.set(id, r);
+                }
+            }
+
+            const changedOrAdded: MatchResult[] = [];
+            uniqueNewMap.forEach((r, id) => {
+                const prevR = resultsMap.get(id);
+                if (!prevR || prevR !== r) {
+                    changedOrAdded.push(r);
+                }
+            });
+
+            const deletedIds: string[] = [];
+            resultsMap.forEach((_, id) => {
+                if (!uniqueNewMap.has(id)) {
+                    deletedIds.push(id);
+                }
+            });
+
+            const totalChanges = changedOrAdded.length + deletedIds.length;
+
+            if (totalChanges > 20) {
+                needsFullRebuild = true;
+            } else if (totalChanges > 0) {
+                const affectedChurches = new Set<string>();
+                let affectedExpenses = false;
+
+                const removeOldItem = (item: MatchResult) => {
+                    if (isSecondary && congregationIds.length > 0) {
+                        const churchId = item.church?.id || item._churchId || 'unidentified';
+                        if (churchId !== 'unidentified' && !congregationIds.includes(churchId)) {
+                            return;
+                        }
+                    }
+
+                    const val = item.status === ReconciliationStatus.PENDING
+                        ? (item.contributorAmount || item.contributor?.amount || 0)
+                        : item.transaction.amount;
+
+                    if (Number(val) === 0) return;
+
+                    if (val >= 0) {
+                        const churchKey = getChurchKey(item);
+                        if (currentIncome[churchKey]) {
+                            const originalArray = currentIncome[churchKey];
+                            const newArray = originalArray.filter(x => x.transaction.id !== item.transaction.id);
+                            affectedChurches.add(churchKey);
+                            if (newArray.length === 0) {
+                                delete currentIncome[churchKey];
+                            } else {
+                                currentIncome[churchKey] = newArray;
+                            }
+                        }
+                    } else {
+                        currentExpenses = currentExpenses.filter(x => x.transaction.id !== item.transaction.id);
+                        affectedExpenses = true;
+                    }
+                };
+
+                const addNewItem = (item: MatchResult) => {
+                    if (isSecondary && congregationIds.length > 0) {
+                        const churchId = item.church?.id || item._churchId || 'unidentified';
+                        if (churchId !== 'unidentified' && !congregationIds.includes(churchId)) {
+                            return;
+                        }
+                    }
+
+                    const val = item.status === ReconciliationStatus.PENDING
+                        ? (item.contributorAmount || item.contributor?.amount || 0)
+                        : item.transaction.amount;
+
+                    if (Number(val) === 0) return;
+
+                    if (val >= 0) {
+                        const churchKey = getChurchKey(item);
+                        const originalArray = currentIncome[churchKey] || [];
+                        currentIncome[churchKey] = [...originalArray, item];
+                        affectedChurches.add(churchKey);
+                    } else {
+                        currentExpenses = [...currentExpenses, item];
+                        affectedExpenses = true;
+                    }
+                };
+
+                for (let i = 0; i < deletedIds.length; i++) {
+                    const id = deletedIds[i];
+                    const prevR = resultsMap.get(id);
+                    if (prevR) {
+                        removeOldItem(prevR);
+                        resultsMap.delete(id);
+                    }
+                }
+
+                for (let i = 0; i < changedOrAdded.length; i++) {
+                    const r = changedOrAdded[i];
+                    const id = r.transaction?.id;
+                    if (!id) continue;
+                    const prevR = resultsMap.get(id);
+                    if (prevR) {
+                        removeOldItem(prevR);
+                    }
+                    addNewItem(r);
+                    resultsMap.set(id, r);
+                }
+
+                if (affectedChurches.size > 0 || affectedExpenses) {
+                    reportCacheRef.current.income = currentIncome;
+                    reportCacheRef.current.expenses = currentExpenses;
+                    setReportPreviewData({
+                        income: currentIncome,
+                        expenses: { 'all_expenses_group': currentExpenses }
+                    });
+                }
+            }
+        }
+
+        if (needsFullRebuild) {
+            const newResultsMap = new Map<string, MatchResult>();
+            const newIncome: Record<string, MatchResult[]> = {};
+            const newExpenses: MatchResult[] = [];
+
+            let filteredResults = results;
+            if (isSecondary && congregationIds.length > 0) {
+                filteredResults = results.filter(r => {
+                    const churchId = r.church?.id || r._churchId || 'unidentified';
+                    return churchId === 'unidentified' || congregationIds.includes(churchId);
+                });
+            }
+
+            const uniqueResultsMap = new Map<string, MatchResult>();
+            for (let i = 0; i < filteredResults.length; i++) {
+                const r = filteredResults[i];
+                const id = r.transaction?.id;
+                if (id) {
+                    uniqueResultsMap.set(id, r);
+                }
+            }
+
+            uniqueResultsMap.forEach((r, id) => {
+                newResultsMap.set(id, r);
+
+                const val = r.status === ReconciliationStatus.PENDING
+                    ? (r.contributorAmount || r.contributor?.amount || 0)
+                    : r.transaction.amount;
+
+                if (Number(val) === 0) return;
+
+                if (val >= 0) {
+                    const churchKey = getChurchKey(r);
+                    if (!newIncome[churchKey]) newIncome[churchKey] = [];
+                    newIncome[churchKey].push(r);
+                } else {
+                    newExpenses.push(r);
+                }
+            });
+
+            reportCacheRef.current = {
+                prevMatchResults: results,
+                prevFilters: { isSecondary, congregationIds },
+                resultsMap: newResultsMap,
+                income: newIncome,
+                expenses: newExpenses
+            };
+
+            setReportPreviewData({
+                income: newIncome,
+                expenses: { 'all_expenses_group': newExpenses }
             });
         }
 
-        const uniqueResults = Array.from(
-            new Map(filteredResults.map(r => [r.transaction.id, r])).values()
-        );
-
-        const cleanedResults = uniqueResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING
-                ? (r.contributorAmount || r.contributor?.amount || 0)
-                : r.transaction.amount;
-            return Number(val) !== 0;
-        });
-
-        const incomeResults = cleanedResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING
-                ? (r.contributorAmount || r.contributor?.amount || 0)
-                : r.transaction.amount;
-            return val >= 0;
-        });
-
-        const expenseResults = cleanedResults.filter(r => {
-            const val = r.status === ReconciliationStatus.PENDING
-                ? (r.contributorAmount || r.contributor?.amount || 0)
-                : r.transaction.amount;
-            return val < 0;
-        });
-
-        setReportPreviewData({
-            income: groupResultsByChurch(incomeResults),
-            expenses: { 'all_expenses_group': expenseResults }
-        });
+        reportCacheRef.current.prevMatchResults = results;
+        reportCacheRef.current.prevFilters = { isSecondary, congregationIds };
     }, [subscription, user?.id, setReportPreviewData]);
 
     useEffect(() => {
