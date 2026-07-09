@@ -22,8 +22,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
 
-    const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[] | null>(null);
-    const [isCriticalLoaded, setIsCriticalLoaded] = useState(false);
+    const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);
     const [editingChurch, setEditingChurch] = useState<Church | null>(null);
     const isBatchUpdating = batchState.isBatchUpdating;
@@ -34,7 +33,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     useEffect(() => {
         if (realtimeRefreshKey && realtimeRefreshKey > 0) {
             lastOwnerIdRef.current = null;
-            setIsCriticalLoaded(false);
         }
     }, [realtimeRefreshKey]);
 
@@ -43,7 +41,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         if (!user?.id) {
             lastOwnerIdRef.current = null;
-            setIsCriticalLoaded(false);
             return;
         }
 
@@ -56,7 +53,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 const token = session?.access_token;
                 const ownerId = subscription.ownerId || user.id;
 
-                const response = await fetch(`/api/reference/data/${ownerId}?critical_only=true`, {
+                const response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
                     method: 'GET',
                     cache: 'no-store',
                     headers: {
@@ -70,6 +67,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     
                     let filteredBanks = data.banks || [];
                     let filteredChurches = data.churches || [];
+                    let fetchedReports = data.reports || [];
+                    let fetchedAssociations = data.associations || [];
                     
                     const isOwner = subscription.ownerId === user?.id;
                     
@@ -88,13 +87,23 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     if (!ignore) {
                         setBanks(filteredBanks);
                         setChurches(filteredChurches);
-                        setIsCriticalLoaded(true);
+                        setReports(fetchedReports);
+                        
+                        // ✅ Consumindo associações consolidadas
+                        setLearnedAssociations(fetchedAssociations.map((d: any) => ({
+                            id: d.id, 
+                            normalizedDescription: d.normalized_description,
+                            contributorNormalizedName: d.contributor_normalized_name,
+                            churchId: d.church_id, 
+                            bankId: 'global',
+                            user_id: d.user_id
+                        })));
                     }
                 }
 
             } catch (error) {
                 if (!ignore) {
-                    console.error("[useReferenceData] Erro ao buscar dados críticos via API:", error);
+                    console.error("[useReferenceData] Erro ao buscar dados via API:", error);
                 }
             }
 
@@ -108,61 +117,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ dependências corrigidas (cirúrgico)
     }, [user?.id, subscription?.role, subscription?.ownerId, realtimeRefreshKey]);
-
-    // ✅ FASE 2: CARREGAMENTO EM BACKGROUND DOS DADOS SECUNDÁRIOS
-    useEffect(() => {
-        if (!isCriticalLoaded || !user?.id) {
-            setLearnedAssociations(null);
-            setReports([]);
-            return;
-        }
-
-        let ignore = false;
-
-        const fetchBackgroundData = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
-                const ownerId = subscription.ownerId || user.id;
-
-                const response = await fetch(`/api/reference/data/${ownerId}?background_only=true`, {
-                    method: 'GET',
-                    cache: 'no-store',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (ignore) return;
-
-                    let fetchedReports = data.reports || [];
-                    let fetchedAssociations = data.associations || [];
-
-                    setReports(fetchedReports);
-                    setLearnedAssociations(fetchedAssociations.map((d: any) => ({
-                        id: d.id,
-                        normalizedDescription: d.normalized_description,
-                        contributorNormalizedName: d.contributor_normalized_name,
-                        churchId: d.church_id,
-                        bankId: 'global',
-                        user_id: d.user_id
-                    })));
-                }
-            } catch (error) {
-                if (!ignore) {
-                    console.error("[useReferenceData] Erro ao buscar dados em background via API:", error);
-                }
-            }
-        };
-
-        const timer = setTimeout(fetchBackgroundData, 50);
-        return () => {
-            ignore = true;
-            clearTimeout(timer);
-        };
-    }, [isCriticalLoaded, user?.id, subscription?.ownerId, realtimeRefreshKey]);
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
@@ -218,11 +172,11 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                             user_id: d.user_id
                         };
                         setLearnedAssociations(prev => {
-                            const filtered = (prev || []).filter(la => la.id !== d.id && la.normalizedDescription !== d.normalized_description);
+                            const filtered = prev.filter(la => la.id !== d.id && la.normalizedDescription !== d.normalized_description);
                             return [newAssoc, ...filtered];
                         });
                     } else if (payload.eventType === 'DELETE') {
-                        setLearnedAssociations(prev => (prev || []).filter(la => la.id !== payload.old.id));
+                        setLearnedAssociations(prev => prev.filter(la => la.id !== payload.old.id));
                     }
                 }
             )
@@ -257,7 +211,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         };
 
         setLearnedAssociations(prev => {
-            const filtered = (prev || []).filter(la => la.normalizedDescription !== normalizedDesc);
+            const filtered = prev.filter(la => la.normalizedDescription !== normalizedDesc);
             return [newAssociation, ...filtered];
         });
 

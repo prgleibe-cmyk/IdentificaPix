@@ -876,81 +876,50 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
   try {
     const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids } = req.query;
     let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id FROM consolidated_transactions WHERE 1=1';
-    let countQuery = 'SELECT COUNT(*) as total FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
-    const countParams: any[] = [];
     let counter = 1;
-    let countCounter = 1;
 
     if (ids) {
       const idsArray = (ids as string).split(',');
       query += ` AND id = ANY($${counter})`;
       params.push(idsArray);
       counter++;
-
-      countQuery += ` AND id = ANY($${countCounter})`;
-      countParams.push(idsArray);
-      countCounter++;
     }
 
     if (user_id) {
       query += ` AND user_id = $${counter}`;
       params.push(user_id);
       counter++;
-
-      countQuery += ` AND user_id = $${countCounter}`;
-      countParams.push(user_id);
-      countCounter++;
     }
 
     if (status) {
       query += ` AND status = $${counter}`;
       params.push(status);
       counter++;
-
-      countQuery += ` AND status = $${countCounter}`;
-      countParams.push(status);
-      countCounter++;
     }
 
     if (type) {
       query += ` AND type = $${counter}`;
       params.push(type);
       counter++;
-
-      countQuery += ` AND type = $${countCounter}`;
-      countParams.push(type);
-      countCounter++;
     }
 
     if (row_hash) {
       query += ` AND row_hash = $${counter}`;
       params.push(row_hash);
       counter++;
-
-      countQuery += ` AND row_hash = $${countCounter}`;
-      countParams.push(row_hash);
-      countCounter++;
     }
 
     if (start_date) {
       query += ` AND transaction_date >= $${counter}`;
       params.push(start_date);
       counter++;
-
-      countQuery += ` AND transaction_date >= $${countCounter}`;
-      countParams.push(start_date);
-      countCounter++;
     }
 
     if (end_date) {
       query += ` AND transaction_date <= $${counter}`;
       params.push(end_date);
       counter++;
-
-      countQuery += ` AND transaction_date <= $${countCounter}`;
-      countParams.push(end_date);
-      countCounter++;
     }
 
     query += ' ORDER BY transaction_date DESC';
@@ -967,16 +936,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       counter++;
     }
 
-    // Execute count and main query in parallel
-    const [countResult, result] = await Promise.all([
-      pool.query(countQuery, countParams),
-      pool.query(query, params)
-    ]);
-
-    const totalCount = countResult.rows[0]?.total || '0';
-    res.setHeader('X-Total-Count', String(totalCount));
-    res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count');
-
+    const result = await pool.query(query, params);
     return res.json(result.rows);
   } catch (err) {
     console.error('[Contributors API] Error GET consolidated_transactions:', err);
