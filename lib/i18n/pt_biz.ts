@@ -6,8 +6,8 @@ export const ptBiz = {
     // Register
     'register.title': 'Cadastro',
     'register.subtitle': 'Adicione e gerencie bancos e igrejas.',
-    'register.manageBanks': 'Gerenciar Bancos',
-    'register.manageChurches': 'Gerenciar Igrejas',
+    'register.manageBanks': 'Bancos',
+    'register.manageChurches': 'Igrejas',
     'register.bankName': 'Nome do Banco',
     'register.churchName': 'Nome da Igreja',
     'register.address': 'Endereço',

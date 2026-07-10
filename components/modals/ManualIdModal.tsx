@@ -24,6 +24,8 @@ export const ManualIdModal: React.FC = () => {
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(paymentMethods?.[0] || 'Transferência');
+    const [isCustomType, setIsCustomType] = useState(false);
+    const [isCustomPaymentMethod, setIsCustomPaymentMethod] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [manualDescription, setManualDescription] = useState<string>('');
     const [manualAmount, setManualAmount] = useState<string>('');
@@ -538,40 +540,104 @@ export const ManualIdModal: React.FC = () => {
                             <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                 Tipo
                             </label>
-                            <div className="relative">
-                                <select
-                                    value={selectedType}
-                                    onChange={e => setSelectedType(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
-                                >
-                                    {contributionKeywords.map((type: string) => (
-                                        <option key={type} value={type}>{type}</option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
+                            {isCustomType ? (
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        type="text"
+                                        value={selectedType}
+                                        onChange={e => setSelectedType(e.target.value)}
+                                        placeholder="Digite o tipo (ex: Dízimo, Oferta)"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsCustomType(false);
+                                            setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+                                        }}
+                                        className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                    >
+                                        Lista
+                                    </button>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="relative">
+                                    <select
+                                        value={selectedType}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === '__CUSTOM__') {
+                                                setIsCustomType(true);
+                                                setSelectedType('');
+                                            } else {
+                                                setSelectedType(val);
+                                            }
+                                        }}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
+                                    >
+                                        {contributionKeywords.map((type: string) => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                        <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-4 h-4" />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-3">
                             <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                 Forma
                             </label>
-                            <div className="relative">
-                                <select
-                                    value={selectedPaymentMethod}
-                                    onChange={e => setSelectedPaymentMethod(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
-                                >
-                                    {paymentMethods.map((method: string) => (
-                                        <option key={method} value={method}>{method}</option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
+                            {isCustomPaymentMethod ? (
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        type="text"
+                                        value={selectedPaymentMethod}
+                                        onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
+                                        placeholder="Digite a forma (ex: PIX, DINHEIRO)"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsCustomPaymentMethod(false);
+                                            setSelectedPaymentMethod(paymentMethods?.[0] || 'Transferência');
+                                        }}
+                                        className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
+                                    >
+                                        Lista
+                                    </button>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="relative">
+                                    <select
+                                        value={selectedPaymentMethod}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === '__CUSTOM__') {
+                                                setIsCustomPaymentMethod(true);
+                                                setSelectedPaymentMethod('');
+                                            } else {
+                                                setSelectedPaymentMethod(val);
+                                            }
+                                        }}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
+                                    >
+                                        {paymentMethods.map((method: string) => (
+                                            <option key={method} value={method}>{method}</option>
+                                        ))}
+                                        <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-4 h-4" />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

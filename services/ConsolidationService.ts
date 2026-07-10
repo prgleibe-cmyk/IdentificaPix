@@ -281,8 +281,7 @@ export const consolidationService = {
 
             console.log('💾 SALVANDO MATCH (TransactionStatus)', safeUpdateData);
 
-            // Remove contribution_type and payment_method strictly for the database update payload
-            const { contribution_type: _unused1, payment_method: _unused2, ...dbUpdatePayload } = safeUpdateData;
+            const dbUpdatePayload = safeUpdateData;
 
             const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
                 method: 'PUT',

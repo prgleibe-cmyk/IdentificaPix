@@ -285,33 +285,38 @@ const IncomeRow = memo(({
                 </span>
             </td>
             <td className="px-4 py-2.5 text-center">
-                <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1.5 items-center justify-center">
+                    {/* Recibo sempre visível */}
                     <button 
                         onClick={() => onGenerateReceipt(row)} 
-                        className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors" 
-                        title="Gerar Recibo"
+                        className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
+                        title="Gerar e Imprimir Recibo"
                     >
                         <Printer className="w-3.5 h-3.5" />
                     </button>
-                    {confirmed ? (
-                        <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50" title="Remover Bloqueio">
-                            <LockOpenIcon className="w-3.5 h-3.5" />
-                        </button>
-                    ) : (
-                        <>
-                            {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
-                            <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
-                            {onSplit && (
-                                <button 
-                                    onClick={() => onSplit(row)} 
-                                    className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors" 
-                                    title="Desmembrar / Ratear Lançamento"
-                                >
-                                    <GitFork className="w-3.5 h-3.5" />
-                                </button>
-                            )}
-                        </>
-                    )}
+                    
+                    {/* Outras ações visíveis no hover */}
+                    <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        {confirmed ? (
+                            <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
+                                <LockOpenIcon className="w-3.5 h-3.5" />
+                            </button>
+                        ) : (
+                            <>
+                                {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                                <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                {onSplit && (
+                                    <button 
+                                        onClick={() => onSplit(row)} 
+                                        className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer" 
+                                        title="Desmembrar / Ratear Lançamento"
+                                    >
+                                        <GitFork className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             </td>
         </tr>

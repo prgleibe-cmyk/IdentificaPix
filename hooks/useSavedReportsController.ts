@@ -3,6 +3,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { SavedReport, Language } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 export type SortKey = 'name' | 'createdAt' | 'recordCount';
 export type SortDirection = 'asc' | 'desc';
@@ -14,10 +15,10 @@ export const useSavedReportsController = () => {
         openDeleteConfirmation, 
         updateSavedReportName, 
         maxSavedReports,
-        confirmSaveReport,
-        user,
-        subscription
+        confirmSaveReport
     } = useContext(AppContext);
+    
+    const { user, subscription } = useAuth();
     
     const { t, language } = useTranslation();
     
@@ -33,11 +34,11 @@ export const useSavedReportsController = () => {
     const processedReports = useMemo(() => {
         let result = (savedReports || []).filter(r => r && r.name && r.name !== '[SESSÃO_ATIVA]');
 
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
-        if (isSecondary && subscription.congregationIds && (subscription.congregationIds || []).length > 0) {
+        const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+            subscription?.role !== 'owner' &&
+            subscription?.role !== 'admin' &&
+            subscription?.role !== 'principal';
+        if (isSecondary && subscription?.congregationIds && (subscription.congregationIds || []).length > 0) {
             result = result.filter(r => !r.church_id || (subscription.congregationIds || []).includes(r.church_id));
         }
 
@@ -119,7 +120,7 @@ export const useSavedReportsController = () => {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
                 const token = session?.access_token;
-                const ownerId = subscription.ownerId || user?.id;
+                const ownerId = subscription?.ownerId || user?.id;
 
                 const response = await fetch(`/api/reference/report/${report.id}?ownerId=${ownerId}`, {
                     method: 'GET',

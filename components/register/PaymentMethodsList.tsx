@@ -21,7 +21,7 @@ export const PaymentMethodsList: React.FC = () => {
                         <CreditCardIcon className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Formas (Recebimento / Pagamento)</h3>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Formas de Receb/Pagto</h3>
                         <span className="text-[9px] font-bold text-brand-blue mt-1 block uppercase">{paymentMethods.length} ativas</span>
                     </div>
                 </div>

@@ -55,9 +55,9 @@ export const RegisterView: React.FC = () => {
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800 overflow-x-auto flex-nowrap max-w-full md:max-w-[70%] lg:max-w-[75%] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full pb-1 md:pb-1.5 lg:pb-0">
                     <RegisterTabButton id="banks" label={t('register.manageBanks')} icon={BuildingOfficeIcon} colorTheme="blue" isActive={activeTab === 'banks'} onClick={setActiveTab} />
                     <RegisterTabButton id="churches" label={t('register.manageChurches')} icon={UserIcon} colorTheme="violet" isActive={activeTab === 'churches'} onClick={setActiveTab} />
-                    <RegisterTabButton id="contribution" label="Tipos / Categorias" icon={BanknotesIcon} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
-                    <RegisterTabButton id="payment" label="Formas de Recebimento / Pagto" icon={CreditCardIcon} colorTheme="amber" isActive={activeTab === 'payment'} onClick={setActiveTab} />
-                    <RegisterTabButton id="contributors" label="Contribuintes / Pessoas" icon={UsersIcon} colorTheme="slate" isActive={activeTab === 'contributors'} onClick={setActiveTab} />
+                    <RegisterTabButton id="contribution" label="Tipo (Entrada/Saída)" icon={BanknotesIcon} colorTheme="emerald" isActive={activeTab === 'contribution'} onClick={setActiveTab} />
+                    <RegisterTabButton id="payment" label="Formas de Receb/Pagto" icon={CreditCardIcon} colorTheme="amber" isActive={activeTab === 'payment'} onClick={setActiveTab} />
+                    <RegisterTabButton id="contributors" label="Empresas/Pessoas" icon={UsersIcon} colorTheme="slate" isActive={activeTab === 'contributors'} onClick={setActiveTab} />
                 </div>
 
                 <button 

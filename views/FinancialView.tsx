@@ -90,6 +90,9 @@ export const FinancialView: React.FC = () => {
     const [selectedStatus, setSelectedStatus] = useState<string>('all');
     const [selectedYear, setSelectedYear] = useState<string>('all');
     const [selectedMonth, setSelectedMonth] = useState<string>('all');
+    const [dateRangeType, setDateRangeType] = useState<'all' | 'this_month' | 'last_month' | 'last_30' | 'custom'>('all');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     // New/Edit Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -475,21 +478,57 @@ export const FinancialView: React.FC = () => {
             // Status filter
             if (selectedStatus !== 'all' && r.status !== selectedStatus) return false;
 
-            // Year and Month filter
             const targetDate = r.due_date || r.payment_date || r.created_at;
-            if (targetDate && targetDate.length >= 7) {
-                const year = targetDate.substring(0, 4);
-                const month = targetDate.substring(5, 7);
+            if (targetDate) {
+                const recordDate = new Date(targetDate);
                 
-                if (selectedYear !== 'all' && year !== selectedYear) return false;
-                if (selectedMonth !== 'all' && month !== selectedMonth) return false;
-            } else if (selectedYear !== 'all' || selectedMonth !== 'all') {
+                // Period / Date Range filter
+                if (dateRangeType === 'this_month') {
+                    const now = new Date();
+                    if (recordDate.getMonth() !== now.getMonth() || recordDate.getFullYear() !== now.getFullYear()) {
+                        return false;
+                    }
+                } else if (dateRangeType === 'last_month') {
+                    const now = new Date();
+                    const targetMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+                    const targetYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                    if (recordDate.getMonth() !== targetMonth || recordDate.getFullYear() !== targetYear) {
+                        return false;
+                    }
+                } else if (dateRangeType === 'last_30') {
+                    const limit = new Date();
+                    limit.setDate(limit.getDate() - 30);
+                    if (recordDate < limit) return false;
+                } else if (dateRangeType === 'custom') {
+                    if (startDate) {
+                        const start = new Date(startDate);
+                        start.setHours(0,0,0,0);
+                        if (recordDate < start) return false;
+                    }
+                    if (endDate) {
+                        const end = new Date(endDate);
+                        end.setHours(23,59,59,999);
+                        if (recordDate > end) return false;
+                    }
+                }
+
+                // Legacy Year and Month filter
+                if (targetDate.length >= 7) {
+                    const year = targetDate.substring(0, 4);
+                    const month = targetDate.substring(5, 7);
+                    
+                    if (selectedYear !== 'all' && year !== selectedYear) return false;
+                    if (selectedMonth !== 'all' && month !== selectedMonth) return false;
+                } else if (selectedYear !== 'all' || selectedMonth !== 'all') {
+                    return false;
+                }
+            } else if (selectedYear !== 'all' || selectedMonth !== 'all' || dateRangeType !== 'all') {
                 return false;
             }
 
             return true;
         });
-    }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth]);
+    }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth, dateRangeType, startDate, endDate]);
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -617,68 +656,107 @@ export const FinancialView: React.FC = () => {
                 </div>
 
                 {activeTab !== 'reconciliation' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Buscar por título, descrição ou beneficiário..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                            />
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 animate-fade-in">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por título, descrição ou beneficiário..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <select
+                                    value={selectedChurchId}
+                                    onChange={(e) => setSelectedChurchId(e.target.value)}
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="all">Todas as Igrejas</option>
+                                    {churches?.map((c: any) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <select
+                                    value={selectedStatus}
+                                    onChange={(e) => setSelectedStatus(e.target.value)}
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="all">Todos os Status</option>
+                                    <option value="pending">Pendentes</option>
+                                    <option value="paid">Pagos</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <select
+                                    value={dateRangeType}
+                                    onChange={(e) => setDateRangeType(e.target.value as any)}
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="all">Qualquer Período</option>
+                                    <option value="this_month">Este Mês</option>
+                                    <option value="last_month">Mês Anterior</option>
+                                    <option value="last_30">Últimos 30 Dias</option>
+                                    <option value="custom">Personalizado...</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="all">Todos os Anos</option>
+                                    {years.map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                >
+                                    <option value="all">Todos os Meses</option>
+                                    {months.map(m => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
-                        <div>
-                            <select
-                                value={selectedChurchId}
-                                onChange={(e) => setSelectedChurchId(e.target.value)}
-                                className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                            >
-                                <option value="all">Todas as Igrejas</option>
-                                {churches?.map((c: any) => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <select
-                                value={selectedStatus}
-                                onChange={(e) => setSelectedStatus(e.target.value)}
-                                className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                            >
-                                <option value="all">Todos os Status</option>
-                                <option value="pending">Pendentes</option>
-                                <option value="paid">Pagos</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <select
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(e.target.value)}
-                                className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                            >
-                                <option value="all">Todos os Anos</option>
-                                {years.map(y => (
-                                    <option key={y} value={y}>{y}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <select
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                            >
-                                <option value="all">Todos os Meses</option>
-                                {months.map(m => (
-                                    <option key={m.value} value={m.value}>{m.label}</option>
-                                ))}
-                            </select>
-                        </div>
+                        {dateRangeType === 'custom' && (
+                            <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 dark:bg-black/10 p-3 rounded-xl border border-slate-100 dark:border-white/5 animate-fade-in max-w-md">
+                                <div className="flex items-center gap-2 w-full">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">De:</span>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 w-full">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Até:</span>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}            {/* Records List or Reconciliation Split View */}
             {activeTab === 'reconciliation' ? (
