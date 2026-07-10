@@ -340,6 +340,39 @@ export const useCloudSync = ({
                         churchExists: churchMap.has(assoc?.churchId || (t as any).church_id)
                     });
 
+                    if (assoc) {
+                        console.log("[DIAG_REAL]", {
+                            transactionId: t.id,
+                            description: t.description,
+                            normalizedDescription: normalizedDesc,
+                            assocFound: !!assoc,
+                            assocId: assoc?.id ?? null,
+                            assocChurchId: assoc?.churchId ?? null,
+                            transactionChurchId: (t as any).church_id ?? null,
+                            churchMapSize: churchMap.size,
+                            churchMapHasAssocChurch:
+                                assoc?.churchId
+                                    ? churchMap.has(assoc.churchId)
+                                    : false,
+                            churchMapHasTransactionChurch:
+                                (t as any).church_id
+                                    ? churchMap.has((t as any).church_id)
+                                    : false,
+                            resolvedChurchId:
+                                churchMap.get(
+                                    assoc?.churchId || (t as any).church_id
+                                )?.id ?? null,
+                            resolvedChurchName:
+                                churchMap.get(
+                                    assoc?.churchId || (t as any).church_id
+                                )?.name ?? null,
+                            placeholderWillBeUsed:
+                                !churchMap.get(
+                                    assoc?.churchId || (t as any).church_id
+                                )
+                        });
+                    }
+
                     const church = churchMap.get(assoc?.churchId || (t as any).church_id) || PLACEHOLDER_CHURCH;
 
                     console.log("[DIAG_CHURCH][CHURCH_RESULT]", {
@@ -429,6 +462,12 @@ export const useCloudSync = ({
                     totalTransactions: txResults.length,
                     placeholderChurchCount: txResults.filter(r => r.church?.id === "unidentified").length,
                     identifiedCount: txResults.filter(r => r.status === ReconciliationStatus.IDENTIFIED).length
+                });
+
+                console.log("[DIAG_REAL_SUMMARY]", {
+                    totalTransactions: txs.length,
+                    churchMapSize: churchMap.size,
+                    associationsLoaded: assocMap.size
                 });
 
                 console.log('[DEBUG:AFTER_MAP_TXS]', txResults.length);
