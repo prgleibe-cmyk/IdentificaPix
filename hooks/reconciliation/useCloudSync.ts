@@ -322,7 +322,31 @@ export const useCloudSync = ({
                 const txResults: MatchResult[] = txs.map((t: any) => {
                     const normalizedDesc = strictNormalize(t.description);
                     const assoc = assocMap.get(normalizedDesc);
+
+                    console.log("[DIAG_CHURCH][ASSOC]", {
+                        transactionId: t.id,
+                        description: t.description,
+                        normalizedDescription: normalizedDesc,
+                        assocFound: !!assoc,
+                        assocId: assoc?.id,
+                        assocChurchId: assoc?.churchId,
+                        transactionChurchId: (t as any).church_id
+                    });
+
+                    console.log("[DIAG_CHURCH][CHURCHMAP_LOOKUP]", {
+                        transactionId: t.id,
+                        lookupId: assoc?.churchId || (t as any).church_id,
+                        churchMapSize: churchMap.size,
+                        churchExists: churchMap.has(assoc?.churchId || (t as any).church_id)
+                    });
+
                     const church = churchMap.get(assoc?.churchId || (t as any).church_id) || PLACEHOLDER_CHURCH;
+
+                    console.log("[DIAG_CHURCH][CHURCH_RESULT]", {
+                        transactionId: t.id,
+                        resolvedChurchId: church?.id,
+                        resolvedChurchName: church?.name
+                    });
 
                     if (ENABLE_HEAVY_LOGS) {
                         console.log("[DIAGNOSTIC:RECONSTRUCT_ROW_MAPPING]", {
@@ -378,7 +402,7 @@ export const useCloudSync = ({
                         });
                     }
 
-                    return {
+                    const result = {
                         transaction,
                         contributor,
                         church,
@@ -389,6 +413,22 @@ export const useCloudSync = ({
                         similarity: 100,
                         updatedAt: t.updated_at
                     };
+
+                    console.log("[DIAG_CHURCH][MATCHRESULT]", {
+                        transactionId: result.transaction.id,
+                        status: result.status,
+                        churchId: result.church?.id,
+                        churchName: result.church?.name,
+                        internalChurchId: (result as any)._churchId || (result as any).church?.id
+                    });
+
+                    return result;
+                });
+
+                console.log("[DIAG_CHURCH][SUMMARY]", {
+                    totalTransactions: txResults.length,
+                    placeholderChurchCount: txResults.filter(r => r.church?.id === "unidentified").length,
+                    identifiedCount: txResults.filter(r => r.status === ReconciliationStatus.IDENTIFIED).length
                 });
 
                 console.log('[DEBUG:AFTER_MAP_TXS]', txResults.length);
@@ -659,11 +699,11 @@ export const useCloudSync = ({
                             
                             const dbChurch = church_id ? churchesRef.current.find(c => c.id === church_id) : null;
                             
-                            // 🔥 CORREÇÃO REALTIME: Se o status for 'pending' (undo) ou church_id for explicitamente null,
-                            // limpamos a igreja em vez de herdar a antiga (current.church).
-                            const newChurch = (status === 'pending' || church_id === null) 
-                                ? null 
-                                : (dbChurch || (church_id ? PLACEHOLDER_CHURCH : current.church));
+                            // 🔥 CORREÇÃO REALTIME CIRÚRGICA: Se o payload recebido possuir church_id == null,
+                            // o listener não apagará current.church nem current._churchId, preservando ambos.
+                            const newChurch = (church_id == null)
+                                ? current.church
+                                : (dbChurch || PLACEHOLDER_CHURCH);
                             
                             const regName = contributor_id ? getRegisteredContributorName(contributor_id) : null;
 
@@ -688,7 +728,7 @@ export const useCloudSync = ({
                                 reportId: current.reportId || (payload.new as any).report_id,
                                 status: newStatus,
                                 church: newChurch, 
-                                _churchId: church_id, // 🔥 Sincroniza o ID bruto para o filtro de ejeção visual
+                                _churchId: church_id == null ? current._churchId : church_id, // 🔥 Sincroniza o ID bruto para o filtro de ejeção visual
                                 contributor: newContributor,
                                 isConfirmed: !!is_confirmed,
                                 transaction: { ...current.transaction, isConfirmed: !!is_confirmed, bank_id: bank_id },
