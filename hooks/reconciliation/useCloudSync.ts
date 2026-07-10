@@ -104,7 +104,7 @@ export const useCloudSync = ({
 
     const isContextReady = isReady && activeReportId !== null;
 
-    const dataReadyKey = `${effectiveUserId}-${searchFilters?.dateRange?.start || ''}-${searchFilters?.dateRange?.end || ''}`;
+    const dataReadyKey = `${effectiveUserId}-${searchFilters?.dateRange?.start || ''}-${searchFilters?.dateRange?.end || ''}-${churches?.length || 0}-${learnedAssociations?.length || 0}`;
 
     const lastDataReadyKeyRef = useRef<string>('');
 
