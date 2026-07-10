@@ -205,10 +205,7 @@ export const useCloudSync = ({
                         const data = await res.json();
                         if (!data || data.length === 0) break;
 
-                        console.log('[RECONSTRUCT:RAW_DATA]', data);
-
                         allTxs = [...allTxs, ...data];
-                        console.log('[DEBUG:RAW_COUNT]', allTxs.length);
                         if (data.length < pageSize) break;
                         from += pageSize;
                     }
@@ -280,8 +277,6 @@ export const useCloudSync = ({
                 }
                 contributorFilesRef.current = contributorFilesData;
 
-                console.log('[DEBUG:TOTAL_RAW_COUNT]', txs.length);
-
                 // 🆕 BUSCAR RELATÓRIOS SALVOS COMO BASE COMPLETA
                 const reportsMap = new Map<string, MatchResult>();
 
@@ -294,15 +289,12 @@ export const useCloudSync = ({
                     });
                 });
 
-                console.log('[RECONSTRUCT:REPORTS_MAP]', Array.from(reportsMap.values()));
-
                 if ((!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
                     return;
                 }
 
                 // 2. Mapeia para MatchResults usando as associações aprendidas
-                console.log('[DEBUG:BEFORE_MAP_TXS]', txs.length);
                 
                 // Pre-build Maps for O(1) lookups to optimize from O(N * M) to O(N + M)
                 const assocMap = new Map<string, any>();
@@ -447,32 +439,8 @@ export const useCloudSync = ({
                         updatedAt: t.updated_at
                     };
 
-                    console.log("[DIAG_CHURCH][MATCHRESULT]", {
-                        transactionId: result.transaction.id,
-                        status: result.status,
-                        churchId: result.church?.id,
-                        churchName: result.church?.name,
-                        internalChurchId: (result as any)._churchId || (result as any).church?.id
-                    });
-
                     return result;
                 });
-
-                console.log("[DIAG_CHURCH][SUMMARY]", {
-                    totalTransactions: txResults.length,
-                    placeholderChurchCount: txResults.filter(r => r.church?.id === "unidentified").length,
-                    identifiedCount: txResults.filter(r => r.status === ReconciliationStatus.IDENTIFIED).length
-                });
-
-                console.log("[DIAG_REAL_SUMMARY]", {
-                    totalTransactions: txs.length,
-                    churchMapSize: churchMap.size,
-                    associationsLoaded: assocMap.size
-                });
-
-                console.log('[DEBUG:AFTER_MAP_TXS]', txResults.length);
-                console.log('[RECONSTRUCT:PROCESSED]', txResults);
-                console.log('[DEBUG:PROCESSED_COUNT]', txResults.length);
 
                 // 🆕 COMBINAR COM RELATÓRIOS
                 const reconstructedMap = new Map<string, MatchResult>();
@@ -490,9 +458,6 @@ export const useCloudSync = ({
                 });
 
                 const reconstructed = Array.from(reconstructedMap.values());
-
-                console.log('[DEBUG:FINAL_COUNT]', reconstructed.length);
-                console.log('[RECONSTRUCT:FINAL_COMBINED]', reconstructed);
 
                 setMatchResults(prev => {
                     const map = new Map(prev.map(p => [p.transaction.id, p]));

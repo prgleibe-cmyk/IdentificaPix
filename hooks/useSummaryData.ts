@@ -2,6 +2,13 @@ import { useMemo, useRef } from 'react';
 import { MatchResult } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
+const safeParseAmount = (val: any): number => {
+    if (val === undefined || val === null) return 0;
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const parsed = parseFloat(String(val).replace(',', '.'));
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 const passesFilters = (r: any, dateRange: any, isSecondary: boolean, subscription: any, selectedBankId: string | null | undefined) => {
     if (dateRange && (dateRange.start || dateRange.end)) {
         const start = dateRange.start ? new Date(dateRange.start).getTime() : null;
@@ -101,7 +108,7 @@ const fullRebuild = (
         filteredMap.forEach((r: any) => {
             if (r.status === 'IDENTIFICADO') {
                 identifiedCount++;
-                const val = r.transaction?.amount || 0;
+                const val = safeParseAmount(r.transaction?.amount);
                 totalValue += val;
                 if (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI') {
                     manualVal += val;
@@ -118,7 +125,7 @@ const fullRebuild = (
                 if (r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE') {
                     unidentifiedCount++;
                 }
-                pendingVal += (r.contributorAmount || r.transaction?.amount || 0);
+                pendingVal += safeParseAmount(r.contributorAmount || r.transaction?.amount);
             }
         });
     }
@@ -246,7 +253,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                         if (hasSession) {
                             if (prevR.status === 'IDENTIFICADO') {
                                 identifiedCount = Math.max(0, identifiedCount - 1);
-                                const val = prevR.transaction?.amount || 0;
+                                const val = safeParseAmount(prevR.transaction?.amount);
                                 totalValue = Math.max(0, totalValue - val);
                                 
                                 if (prevR.matchMethod === 'MANUAL' || prevR.matchMethod === 'AI') {
@@ -272,7 +279,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                                 if (prevR.status === 'NÃO IDENTIFICADO' || prevR.status === 'PENDENTE') {
                                     unidentifiedCount = Math.max(0, unidentifiedCount - 1);
                                 }
-                                const val = prevR.contributorAmount || prevR.transaction?.amount || 0;
+                                const val = safeParseAmount(prevR.contributorAmount || prevR.transaction?.amount);
                                 pendingVal = Math.max(0, pendingVal - val);
                             }
                         }
@@ -288,7 +295,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                         if (hasSession) {
                             if (prevR.status === 'IDENTIFICADO') {
                                 identifiedCount = Math.max(0, identifiedCount - 1);
-                                const val = prevR.transaction?.amount || 0;
+                                const val = safeParseAmount(prevR.transaction?.amount);
                                 totalValue = Math.max(0, totalValue - val);
                                 
                                 if (prevR.matchMethod === 'MANUAL' || prevR.matchMethod === 'AI') {
@@ -314,7 +321,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                                 if (prevR.status === 'NÃO IDENTIFICADO' || prevR.status === 'PENDENTE') {
                                     unidentifiedCount = Math.max(0, unidentifiedCount - 1);
                                 }
-                                const val = prevR.contributorAmount || prevR.transaction?.amount || 0;
+                                const val = safeParseAmount(prevR.contributorAmount || prevR.transaction?.amount);
                                 pendingVal = Math.max(0, pendingVal - val);
                             }
                         }
@@ -330,7 +337,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                         if (hasSession) {
                             if (r.status === 'IDENTIFICADO') {
                                 identifiedCount++;
-                                const val = r.transaction?.amount || 0;
+                                const val = safeParseAmount(r.transaction?.amount);
                                 totalValue += val;
                                 
                                 if (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI') {
@@ -348,7 +355,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                                 if (r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE') {
                                     unidentifiedCount++;
                                 }
-                                const val = r.contributorAmount || r.transaction?.amount || 0;
+                                const val = safeParseAmount(r.contributorAmount || r.transaction?.amount);
                                 pendingVal += val;
                             }
                         }

@@ -21,7 +21,7 @@ export const ContributionTypesList: React.FC = () => {
                         <BanknotesIcon className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Tipos de Contribuição</h3>
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">Tipos / Categorias</h3>
                         <span className="text-[9px] font-bold text-emerald-600 mt-1 block uppercase">{contributionKeywords.length} ativos</span>
                     </div>
                 </div>
@@ -33,7 +33,7 @@ export const ContributionTypesList: React.FC = () => {
                         type="text"
                         value={newType}
                         onChange={(e) => setNewType(e.target.value)}
-                        placeholder="Ex: MISSÃO, DÍZIMO..."
+                        placeholder="Ex: DÍZIMO, MISSÃO, COMPRA, AJUDA, DESPESA..."
                         className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white py-2 pl-4 pr-16 font-medium transition-all text-[11px] outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                     <button type="submit" disabled={!newType.trim()} className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-emerald-600 text-white text-[9px] font-bold uppercase rounded-lg shadow-md active:scale-95 transition-all">OK</button>

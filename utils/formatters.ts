@@ -7,11 +7,13 @@ import { Language } from '../types';
  * @param language The current language for locale-specific formatting.
  * @returns A formatted currency string (e.g., "R$ 1.234,56").
  */
-export const formatCurrency = (amount: number, language: Language = 'pt'): string => {
+export const formatCurrency = (amount: any, language: Language = 'pt'): string => {
+    let num = typeof amount === 'number' ? amount : parseFloat(String(amount));
+    if (isNaN(num)) num = 0;
     return new Intl.NumberFormat(language, { 
         style: 'currency', 
         currency: 'BRL' 
-    }).format(amount);
+    }).format(num);
 };
 
 /**

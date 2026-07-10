@@ -85,20 +85,13 @@ export const processFileContent = async (
 ): Promise<StrategyResult & { appliedModel?: any }> => {
     
     const rawContent = normalizeRawContent(content);
-    
-    console.log('[SICOOB:BYPASS:DEBUG] bank', bank);
-    console.log('[SICOOB:BYPASS:DEBUG] bankKey', bank ? resolveBankKey(bank) : 'UNDEFINED');
-    console.log('[SICOOB:BYPASS:DEBUG] fileName', fileName);
-    console.log('[SICOOB:BYPASS:DEBUG] evaluating condition');
 
     // Intercepta e bypassa se o banco for SICOOB (Fase 2A)
     if (bank) {
         const bankKey = resolveBankKey(bank);
         if (bankKey === 'SICOOB') {
-            console.log('[SICOOB:BYPASS:ACTIVATED]');
             const transactions = SicoobParser.parse(rawContent, bank?.id);
             console.log(`[SICOOB:BYPASS] Bypass arquitetural finalizado para banco SICOOB (${fileName}). Extraiu ${transactions.length} transacoes.`);
-            console.log('[SICOOB:BYPASS:RETURNING]');
             return {
                 transactions,
                 strategyName: 'Sicoob Parser Determinístico'

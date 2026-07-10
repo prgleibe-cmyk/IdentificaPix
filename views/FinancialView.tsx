@@ -53,6 +53,21 @@ interface FinancialRecord {
     updated_at: string;
 }
 
+const months = [
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' }
+];
+
 export const FinancialView: React.FC = () => {
     const { user } = useAuth();
     const { churches, matchResults } = useContext(AppContext);
@@ -73,6 +88,8 @@ export const FinancialView: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedChurchId, setSelectedChurchId] = useState<string>('all');
     const [selectedStatus, setSelectedStatus] = useState<string>('all');
+    const [selectedYear, setSelectedYear] = useState<string>('all');
+    const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
     // New/Edit Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -115,6 +132,26 @@ export const FinancialView: React.FC = () => {
             setFormChurchId(churches[0].id);
         }
     }, [user?.id, churches]);
+
+    // Years dynamic option calculation
+    const years = useMemo(() => {
+        const yearsSet = new Set<string>();
+        const currentYear = new Date().getFullYear().toString();
+        yearsSet.add(currentYear);
+        // Also add previous year and next year as standard defaults
+        const prevYear = (new Date().getFullYear() - 1).toString();
+        const nextYear = (new Date().getFullYear() + 1).toString();
+        yearsSet.add(prevYear);
+        yearsSet.add(nextYear);
+        
+        records.forEach(r => {
+            const date = r.due_date || r.payment_date || r.created_at;
+            if (date && date.length >= 4) {
+                yearsSet.add(date.substring(0, 4));
+            }
+        });
+        return Array.from(yearsSet).sort((a, b) => b.localeCompare(a)); // Descending order
+    }, [records]);
 
     // Summary calculation
     const summary = useMemo(() => {
@@ -438,9 +475,21 @@ export const FinancialView: React.FC = () => {
             // Status filter
             if (selectedStatus !== 'all' && r.status !== selectedStatus) return false;
 
+            // Year and Month filter
+            const targetDate = r.due_date || r.payment_date || r.created_at;
+            if (targetDate && targetDate.length >= 7) {
+                const year = targetDate.substring(0, 4);
+                const month = targetDate.substring(5, 7);
+                
+                if (selectedYear !== 'all' && year !== selectedYear) return false;
+                if (selectedMonth !== 'all' && month !== selectedMonth) return false;
+            } else if (selectedYear !== 'all' || selectedMonth !== 'all') {
+                return false;
+            }
+
             return true;
         });
-    }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus]);
+    }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth]);
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -568,7 +617,7 @@ export const FinancialView: React.FC = () => {
                 </div>
 
                 {activeTab !== 'reconciliation' && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
                         <div className="relative">
                             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                             <input
@@ -602,6 +651,32 @@ export const FinancialView: React.FC = () => {
                                 <option value="all">Todos os Status</option>
                                 <option value="pending">Pendentes</option>
                                 <option value="paid">Pagos</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <select
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(e.target.value)}
+                                className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="all">Todos os Anos</option>
+                                {years.map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <select
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="all">Todos os Meses</option>
+                                {months.map(m => (
+                                    <option key={m.value} value={m.value}>{m.label}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

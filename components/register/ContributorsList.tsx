@@ -513,8 +513,9 @@ export const ContributorsList: React.FC = () => {
     const filteredContributors = contributors.filter(c => {
         const query = search.toLowerCase().trim();
         if (!query) return true;
-        const nameMatch = c.canonical_name?.toLowerCase().includes(query);
-        const cpfMatch = c.cpf?.replace(/\D/g, '').includes(query.replace(/\D/g, ''));
+        const nameMatch = c.canonical_name?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(query.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+        const cleanQueryCpf = query.replace(/\D/g, '');
+        const cpfMatch = cleanQueryCpf ? c.cpf?.replace(/\D/g, '').includes(cleanQueryCpf) : false;
         return nameMatch || cpfMatch;
     });
 
@@ -528,10 +529,10 @@ export const ContributorsList: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
-                            Contribuintes
+                            Contribuintes / Pessoas
                         </h3>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
-                            Gerenciamento de membros e congregados.
+                            Gerenciamento de membros, congregados, prestadores ou favorecidos.
                         </p>
                     </div>
                 </div>

@@ -3,7 +3,7 @@ import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { GitFork } from 'lucide-react';
+import { GitFork, Printer, X } from 'lucide-react';
 import { 
     PencilIcon, 
     ChevronUpIcon, 
@@ -77,7 +77,8 @@ const MobileCard = memo(({
     onToggleLock,
     onSplit,
     isSelected,
-    onToggleSelection
+    onToggleSelection,
+    onGenerateReceipt
 }: any) => {
     const row = result as MatchResult;
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
@@ -158,27 +159,34 @@ const MobileCard = memo(({
                 </div>
             </div>
 
-                    <div className="flex items-center justify-end gap-2">
-                {confirmed ? (
-                    <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
-                        <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
-                    </button>
-                ) : (
-                    <>
-                        <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
-                        {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
-                        {onSplit && (
-                            <button 
-                                onClick={() => onSplit(row)} 
-                                className="px-3.5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-                            >
-                                <GitFork className="w-3.5 h-3.5" /> Ratear
+                    <div className="flex items-center justify-end gap-2 w-full">
+                        <button 
+                            onClick={() => onGenerateReceipt(row)} 
+                            className="px-3.5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" 
+                            title="Gerar Recibo"
+                        >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Recibo</span>
+                        </button>
+                        {confirmed ? (
+                            <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                                <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
                             </button>
+                        ) : (
+                            <>
+                                <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
+                                {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
+                                {onSplit && (
+                                    <button 
+                                        onClick={() => onSplit(row)} 
+                                        className="px-3.5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <GitFork className="w-3.5 h-3.5" /> Ratear
+                                    </button>
+                                )}
+                            </>
                         )}
-                        <div className="flex-1" />
-                    </>
-                )}
-            </div>
+                    </div>
         </div>
     );
 });
@@ -192,7 +200,8 @@ const IncomeRow = memo(({
     onToggleLock,
     onSplit,
     isSelected,
-    onToggleSelection
+    onToggleSelection,
+    onGenerateReceipt
 }: any) => {
     const row = result as MatchResult;
     // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
@@ -277,6 +286,13 @@ const IncomeRow = memo(({
             </td>
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        onClick={() => onGenerateReceipt(row)} 
+                        className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors" 
+                        title="Gerar Recibo"
+                    >
+                        <Printer className="w-3.5 h-3.5" />
+                    </button>
                     {confirmed ? (
                         <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50" title="Remover Bloqueio">
                             <LockOpenIcon className="w-3.5 h-3.5" />
@@ -302,11 +318,72 @@ const IncomeRow = memo(({
     );
 });
 
+function valorPorExtenso(valor: number): string {
+    if (!valor || valor <= 0) return 'zero reais';
+    
+    const centavos = Math.round((valor % 1) * 100);
+    const inteiro = Math.floor(valor);
+    
+    const unidades = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+    const dezenas = ['', 'dez', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+    const dezenaComposta = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+    const centenas = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+    
+    function convertGroup(n: number): string {
+        if (n === 100) return 'cem';
+        let parts: string[] = [];
+        const c = Math.floor(n / 100);
+        const d = Math.floor((n % 100) / 10);
+        const u = n % 10;
+        
+        if (c > 0) parts.push(centenas[c]);
+        
+        if (d === 1) {
+            parts.push(dezenaComposta[u]);
+        } else {
+            if (d > 1) parts.push(dezenas[d]);
+            if (u > 0) parts.push(unidades[u]);
+        }
+        
+        return parts.join(' e ');
+    }
+    
+    let extenso = '';
+    
+    if (inteiro > 0) {
+        if (inteiro === 1) {
+            extenso = 'um real';
+        } else if (inteiro < 1000) {
+            extenso = convertGroup(inteiro) + ' reais';
+        } else if (inteiro < 1000000) {
+            const milhar = Math.floor(inteiro / 1000);
+            const resto = inteiro % 1000;
+            const milharStr = milhar === 1 ? 'mil' : convertGroup(milhar) + ' mil';
+            const restoStr = resto > 0 ? (resto < 100 || resto % 100 === 0 ? ' e ' : ' ') + convertGroup(resto) : '';
+            extenso = milharStr + restoStr + ' reais';
+        } else {
+            extenso = inteiro.toLocaleString('pt-BR') + ' reais';
+        }
+    }
+    
+    if (centavos > 0) {
+        const centavosStr = centavos === 1 ? 'um centavo' : convertGroup(centavos) + ' centavos';
+        if (inteiro > 0) {
+            extenso += ' e ' + centavosStr;
+        } else {
+            extenso = centavosStr;
+        }
+    }
+    
+    return extenso.charAt(0).toUpperCase() + extenso.slice(1);
+}
+
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit }) => {
     const { t, language } = useTranslation();
     const { openDeleteConfirmation, undoIdentification, toggleConfirmation } = useContext(AppContext);
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [selectedReceipt, setSelectedReceipt] = useState<MatchResult | null>(null);
     
     useEffect(() => {
         setSelectedIds([]);
@@ -390,6 +467,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 onUndo={undoIdentification}
                                 onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
                                 onSplit={onSplit}
+                                onGenerateReceipt={setSelectedReceipt}
                             />
                         ))}
                     </tbody>
@@ -421,6 +499,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             onUndo={undoIdentification}
                             onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
                             onSplit={onSplit}
+                            onGenerateReceipt={setSelectedReceipt}
                         />
                     ))}
                 </div>
@@ -431,6 +510,231 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                     <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronLeftIcon className="w-4 h-4" /></button>
                         <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / ITEMS_PER_PAGE), p + 1))} disabled={currentPage === Math.ceil(data.length / ITEMS_PER_PAGE)} className="p-1.5 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronRightIcon className="w-4 h-4" /></button>
+                    </div>
+                </div>
+            )}
+
+            {/* Receipt Preview & Printing Modal */}
+            {selectedReceipt && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in text-slate-950">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-white/5">
+                            <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                Comprovante de Lançamento / Recibo
+                            </h3>
+                            <button
+                                onClick={() => setSelectedReceipt(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-full transition-all cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Preview Section */}
+                        <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-2xl border border-slate-100 dark:border-white/5 overflow-x-auto">
+                            <div id="receipt-print-area" className="bg-white text-slate-900 p-8 rounded-xl shadow-sm border border-slate-200 max-w-xl mx-auto font-sans">
+                                {/* Receipt Header */}
+                                <div className="flex justify-between items-start border-b-2 border-slate-100 pb-4 mb-6">
+                                    <div>
+                                        <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">IdentificaPix</h1>
+                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Auditoria e Conciliação</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="bg-slate-100 border border-slate-200 rounded-lg px-4 py-1.5 inline-block">
+                                            <span className="text-[8px] font-bold text-slate-500 uppercase block">Valor</span>
+                                            <span className="text-base font-black text-slate-900 font-mono">
+                                                {formatCurrency(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount), language)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Title */}
+                                <div className="text-center mb-6">
+                                    <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-wide">
+                                        {(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 ? 'Recibo de Pagamento' : 'Recibo de Entrada / Contribuição'}
+                                    </h2>
+                                    <p className="text-[9px] text-slate-400 font-mono mt-1">Registro ID: {selectedReceipt.transaction.id}</p>
+                                </div>
+
+                                {/* Body text */}
+                                <div className="text-xs leading-relaxed text-slate-700 mb-6 text-justify pb-6 border-b border-dashed border-slate-200">
+                                    {(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 ? (
+                                        <>
+                                            Declaramos que pagamos a importância de <strong className="text-slate-900">{formatCurrency(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount), language)}</strong> (<span className="italic font-semibold">{valorPorExtenso(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount))}</span>) a <strong className="text-slate-900 uppercase">{selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description}</strong>, referente a <strong className="text-slate-900 uppercase">{selectedReceipt.contributionType || selectedReceipt.transaction.description || 'Despesa Geral'}</strong>.
+                                        </>
+                                    ) : (
+                                        <>
+                                            Confirmamos o recebimento da importância de <strong className="text-slate-900">{formatCurrency(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount), language)}</strong> (<span className="italic font-semibold">{valorPorExtenso(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount))}</span>) de <strong className="text-slate-900 uppercase">{selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description}</strong>, referente a <strong className="text-slate-900 uppercase">{selectedReceipt.contributionType || 'Contribuição / Dízimo'}</strong>.
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Meta details */}
+                                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100 mb-8">
+                                    <div>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Igreja Destinação</span>
+                                        <span className="font-extrabold text-slate-800 uppercase">{selectedReceipt.church?.name || '---'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Forma de Pagamento</span>
+                                        <span className="font-extrabold text-slate-800 uppercase">{selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod || '---'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Data da Transação</span>
+                                        <span className="font-bold text-slate-700 font-mono">{formatDate(selectedReceipt.contributor?.date || selectedReceipt.transaction.date)}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Data de Emissão</span>
+                                        <span className="font-bold text-slate-700 font-mono">{new Date().toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                </div>
+
+                                {/* Signature block */}
+                                <div className="grid grid-cols-2 gap-8 mt-12 pt-6">
+                                    <div className="text-center">
+                                        <div className="border-t border-slate-300 w-full mb-1"></div>
+                                        <span className="text-[9px] font-bold text-slate-600 uppercase block">
+                                            {(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 ? 'Favorecido / Recebedor' : 'Contribuinte'}
+                                        </span>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="border-t border-slate-300 w-full mb-1"></div>
+                                        <span className="text-[9px] font-bold text-slate-600 uppercase block">Responsável Financeiro</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-white/5">
+                            <button
+                                onClick={() => setSelectedReceipt(null)}
+                                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                                Fechar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const amount = Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount);
+                                    const formattedAmount = formatCurrency(amount, language);
+                                    const amountExtenso = valorPorExtenso(amount);
+                                    const displayName = selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description;
+                                    const displayDescription = selectedReceipt.contributionType || selectedReceipt.transaction.description || 'Despesa Geral';
+                                    const displayCategory = selectedReceipt.contributionType || 'Contribuição / Dízimo';
+                                    const displayChurch = selectedReceipt.church?.name || '---';
+                                    const displayForm = selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod || '---';
+                                    const displayDate = formatDate(selectedReceipt.contributor?.date || selectedReceipt.transaction.date);
+                                    const todayFormatted = new Date().toLocaleDateString('pt-BR');
+                                    const isExpense = (selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0;
+                                    const recordId = selectedReceipt.transaction.id;
+
+                                    const htmlContent = `
+                                        <div style="max-width: 800px; margin: 0 auto; border: 2px solid #e2e8f0; border-radius: 12px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background-color: white; color: #1e293b; font-family: sans-serif;">
+                                            <div style="display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 30px;">
+                                                <div>
+                                                    <h1 style="font-size: 24px; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: -0.025em;">IdentificaPix</h1>
+                                                    <p style="font-size: 12px; color: #64748b; font-weight: 600; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">Controle e Auditoria Financeira</p>
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    <div style="background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 20px; display: inline-block;">
+                                                        <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Valor do Recibo</span>
+                                                        <span style="font-size: 20px; font-weight: 900; color: #0f172a; font-family: monospace;">${formattedAmount}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style="text-align: center; margin-bottom: 35px;">
+                                                <h2 style="font-size: 20px; font-weight: 900; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">
+                                                    ${isExpense ? 'Recibo de Pagamento / Saída' : 'Recibo de Entrada / Contribuição'}
+                                                </h2>
+                                                <p style="font-size: 11px; color: #64748b; margin: 6px 0 0 0;">Nº do Registro: <span style="font-family: monospace; font-weight: bold; color: #0f172a;">${recordId}</span></p>
+                                            </div>
+
+                                            <div style="font-size: 14px; line-height: 1.8; color: #334155; margin-bottom: 40px; text-align: justify; border-bottom: 1px dashed #cbd5e1; padding-bottom: 30px;">
+                                                ${isExpense 
+                                                    ? `Declaramos que pagamos a importância de <strong>${formattedAmount}</strong> (<em>${amountExtenso}</em>) a <strong>${displayName.toUpperCase()}</strong>, referente a <strong>${displayDescription.toUpperCase()}</strong>.`
+                                                    : `Confirmamos o recebimento da importância de <strong>${formattedAmount}</strong> (<em>${amountExtenso}</em>) de <strong>${displayName.toUpperCase()}</strong>, referente a <strong>${displayCategory.toUpperCase()}</strong>.`
+                                                }
+                                            </div>
+
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 50px; background-color: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #f1f5f9;">
+                                                <div>
+                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Igreja Destinação</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${displayChurch}</span>
+                                                </div>
+                                                <div>
+                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Forma de Pagamento</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${displayForm}</span>
+                                                </div>
+                                                <div style="margin-top: 10px;">
+                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Data da Transação</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; font-family: monospace;">${displayDate}</span>
+                                                </div>
+                                                <div style="margin-top: 10px;">
+                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Data de Emissão do Recibo</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; font-family: monospace;">${todayFormatted}</span>
+                                                </div>
+                                            </div>
+
+                                            <div style="display: flex; justify-content: space-between; gap: 40px; margin-top: 60px;">
+                                                <div style="flex: 1; text-align: center;">
+                                                    <div style="border-top: 1px solid #94a3b8; width: 100%; margin-bottom: 6px;"></div>
+                                                    <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">${isExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}</span>
+                                                    <span style="font-size: 10px; color: #64748b; display: block;">Assinatura</span>
+                                                </div>
+                                                <div style="flex: 1; text-align: center;">
+                                                    <div style="border-top: 1px solid #94a3b8; width: 100%; margin-bottom: 6px;"></div>
+                                                    <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">Responsável Financeiro</span>
+                                                    <span style="font-size: 10px; color: #64748b; display: block;">Assinatura</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                    
+                                    const iframe = document.createElement('iframe');
+                                    iframe.style.position = 'absolute';
+                                    iframe.style.width = '0px';
+                                    iframe.style.height = '0px';
+                                    iframe.style.border = 'none';
+                                    document.body.appendChild(iframe);
+                                    
+                                    const iframeDoc = iframe.contentWindow?.document;
+                                    if (iframeDoc) {
+                                        iframeDoc.open();
+                                        iframeDoc.write(`
+                                            <html>
+                                                <head>
+                                                    <title>Recibo - ${recordId}</title>
+                                                    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+                                                    <style>
+                                                        body {
+                                                            font-family: 'Inter', sans-serif;
+                                                            background-color: white;
+                                                            color: black;
+                                                            padding: 20px;
+                                                        }
+                                                        @media print {
+                                                            body {
+                                                                padding: 0;
+                                                            }
+                                                        }
+                                                    </style>
+                                                </head>
+                                                <body onload="window.print(); setTimeout(function() { window.frameElement.remove(); }, 1500);">
+                                                    ${htmlContent}
+                                                </body>
+                                            </html>
+                                        `);
+                                        iframeDoc.close();
+                                    }
+                                }}
+                                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/10 hover:shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+                            >
+                                <Printer className="w-4 h-4" />
+                                Imprimir Recibo
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
