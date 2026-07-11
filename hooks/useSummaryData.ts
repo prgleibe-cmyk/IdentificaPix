@@ -81,7 +81,8 @@ const fullRebuild = (
     subscription: any,
     selectedBankId: string | null | undefined,
     hasSession: boolean,
-    isHistorical: boolean
+    isHistorical: boolean,
+    churches?: any[]
 ) => {
     const resultsMap = new Map<string, any>();
     const filteredMap = new Map<string, any>();
@@ -119,7 +120,17 @@ const fullRebuild = (
                 const method = r.matchMethod || 'AUTOMATIC';
                 methodBreakdown[method] = (methodBreakdown[method] || 0) + 1;
 
-                const churchName = r.church?.name || 'Desconhecida';
+                let churchName = r.church?.name;
+                if (!churchName && churches) {
+                    const churchId = r.church?.id || r._churchId;
+                    if (churchId && churchId !== 'unidentified') {
+                        const found = churches.find((c: any) => c.id === churchId);
+                        if (found) {
+                            churchName = found.name;
+                        }
+                    }
+                }
+                if (!churchName) churchName = 'Desconhecida';
                 churchMap.set(churchName, (churchMap.get(churchName) || 0) + val);
             } else {
                 if (r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE') {
@@ -153,7 +164,7 @@ const fullRebuild = (
     };
 };
 
-export const useSummaryData = (reconciliation: any, reportManager: any, selectedBankId?: string | null) => {
+export const useSummaryData = (reconciliation: any, reportManager: any, selectedBankId?: string | null, churches?: any[]) => {
     const { subscription, user } = useAuth();
 
     const cacheRef = useRef<{
@@ -267,7 +278,17 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                                     methodBreakdown[method] = Math.max(0, methodBreakdown[method] - 1);
                                 }
                                 
-                                const churchName = prevR.church?.name || 'Desconhecida';
+                                let churchName = prevR.church?.name;
+                                if (!churchName && churches) {
+                                    const churchId = prevR.church?.id || prevR._churchId;
+                                    if (churchId && churchId !== 'unidentified') {
+                                        const found = churches.find((c: any) => c.id === churchId);
+                                        if (found) {
+                                            churchName = found.name;
+                                        }
+                                    }
+                                }
+                                if (!churchName) churchName = 'Desconhecida';
                                 const oldChurchTotal = churchMap.get(churchName) || 0;
                                 const newChurchTotal = oldChurchTotal - val;
                                 if (newChurchTotal <= 0) {
@@ -309,7 +330,17 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                                     methodBreakdown[method] = Math.max(0, methodBreakdown[method] - 1);
                                 }
                                 
-                                const churchName = prevR.church?.name || 'Desconhecida';
+                                let churchName = prevR.church?.name;
+                                if (!churchName && churches) {
+                                    const churchId = prevR.church?.id || prevR._churchId;
+                                    if (churchId && churchId !== 'unidentified') {
+                                        const found = churches.find((c: any) => c.id === churchId);
+                                        if (found) {
+                                            churchName = found.name;
+                                        }
+                                    }
+                                }
+                                if (!churchName) churchName = 'Desconhecida';
                                 const oldChurchTotal = churchMap.get(churchName) || 0;
                                 const newChurchTotal = oldChurchTotal - val;
                                 if (newChurchTotal <= 0) {
@@ -349,7 +380,17 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                                 const method = r.matchMethod || 'AUTOMATIC';
                                 methodBreakdown[method] = (methodBreakdown[method] || 0) + 1;
                                 
-                                const churchName = r.church?.name || 'Desconhecida';
+                                let churchName = r.church?.name;
+                                if (!churchName && churches) {
+                                    const churchId = r.church?.id || r._churchId;
+                                    if (churchId && churchId !== 'unidentified') {
+                                        const found = churches.find((c: any) => c.id === churchId);
+                                        if (found) {
+                                            churchName = found.name;
+                                        }
+                                    }
+                                }
+                                if (!churchName) churchName = 'Desconhecida';
                                 churchMap.set(churchName, (churchMap.get(churchName) || 0) + val);
                             } else {
                                 if (r.status === 'NÃO IDENTIFICADO' || r.status === 'PENDENTE') {
@@ -387,7 +428,8 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
                 subscription,
                 selectedBankId,
                 hasSession,
-                isHistorical
+                isHistorical,
+                churches
             );
             cacheRef.current.resultsMap = rebuilt.resultsMap;
             cacheRef.current.filteredMap = rebuilt.filteredMap;
@@ -406,6 +448,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
         reportManager.searchFilters,
         selectedBankId,
         subscription,
-        user?.id
+        user?.id,
+        churches
     ]);
 };

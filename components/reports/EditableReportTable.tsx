@@ -286,17 +286,16 @@ const IncomeRow = memo(({
             </td>
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1.5 items-center justify-center">
-                    {/* Recibo sempre visível */}
-                    <button 
-                        onClick={() => onGenerateReceipt(row)} 
-                        className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
-                        title="Gerar e Imprimir Recibo"
-                    >
-                        <Printer className="w-3.5 h-3.5" />
-                    </button>
-                    
-                    {/* Outras ações visíveis no hover */}
+                    {/* Todas as ações visíveis no hover */}
                     <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button 
+                            onClick={() => onGenerateReceipt(row)} 
+                            className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
+                            title="Gerar e Imprimir Recibo"
+                        >
+                            <Printer className="w-3.5 h-3.5" />
+                        </button>
+
                         {confirmed ? (
                             <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
                                 <LockOpenIcon className="w-3.5 h-3.5" />
@@ -385,7 +384,7 @@ function valorPorExtenso(valor: number): string {
 
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit }) => {
     const { t, language } = useTranslation();
-    const { openDeleteConfirmation, undoIdentification, toggleConfirmation } = useContext(AppContext);
+    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches } = useContext(AppContext);
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedReceipt, setSelectedReceipt] = useState<MatchResult | null>(null);
@@ -407,6 +406,19 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     }, [data, selectedIds]);
 
     const [currentPage, setCurrentPage] = useState(1);
+
+    const receiptAmount = selectedReceipt ? Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) : 0;
+    const receiptFormattedAmount = selectedReceipt ? formatCurrency(receiptAmount, language) : '';
+    const receiptAmountExtenso = selectedReceipt ? valorPorExtenso(receiptAmount) : '';
+    const receiptDisplayName = selectedReceipt ? (selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description) : '';
+    const receiptDisplayDescription = selectedReceipt ? (selectedReceipt.contributionType || selectedReceipt.transaction.description || 'Despesa Geral') : '';
+    const receiptDisplayCategory = selectedReceipt ? (selectedReceipt.contributionType || 'Contribuição / Dízimo') : '';
+    const receiptFullChurch = selectedReceipt ? (churches?.find((c: any) => c.id === selectedReceipt.church?.id) || churches?.[0] || selectedReceipt.church) : null;
+    const receiptDisplayChurch = receiptFullChurch?.name || selectedReceipt?.church?.name || '---';
+    const receiptDisplayForm = selectedReceipt ? (selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod || '---') : '---';
+    const receiptDisplayDate = selectedReceipt ? formatDate(selectedReceipt.contributor?.date || selectedReceipt.transaction.date) : '';
+    const receiptIsExpense = selectedReceipt ? (selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 : false;
+    const receiptRecordId = selectedReceipt ? selectedReceipt.transaction.id : '';
 
     const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
 
@@ -539,16 +551,39 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-2xl border border-slate-100 dark:border-white/5 overflow-x-auto">
                             <div id="receipt-print-area" className="bg-white text-slate-900 p-8 rounded-xl shadow-sm border border-slate-200 max-w-xl mx-auto font-sans">
                                 {/* Receipt Header */}
-                                <div className="flex justify-between items-start border-b-2 border-slate-100 pb-4 mb-6">
-                                    <div>
-                                        <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">IdentificaPix</h1>
-                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Auditoria e Conciliação</p>
+                                <div className="flex gap-4 items-center border-b-2 border-indigo-500 pb-4 mb-6">
+                                    {receiptFullChurch?.logoUrl ? (
+                                        <img 
+                                            src={receiptFullChurch.logoUrl} 
+                                            alt={receiptDisplayChurch} 
+                                            className="w-12 h-12 object-contain rounded-lg border border-slate-100 bg-slate-50 p-0.5"
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center font-black text-indigo-600 text-base">
+                                            {receiptDisplayChurch ? receiptDisplayChurch.substring(0, 2).toUpperCase() : 'IP'}
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate">
+                                            {receiptDisplayChurch}
+                                        </h1>
+                                        {receiptFullChurch?.address && (
+                                            <p className="text-[10px] text-slate-500 font-medium truncate">
+                                                {receiptFullChurch.address}
+                                            </p>
+                                        )}
+                                        {receiptFullChurch?.pastor && (
+                                            <p className="text-[9px] text-indigo-600 font-bold uppercase tracking-wide mt-0.5">
+                                                Pastor: {receiptFullChurch.pastor}
+                                            </p>
+                                        )}
                                     </div>
-                                    <div className="text-right">
-                                        <div className="bg-slate-100 border border-slate-200 rounded-lg px-4 py-1.5 inline-block">
-                                            <span className="text-[8px] font-bold text-slate-500 uppercase block">Valor</span>
-                                            <span className="text-base font-black text-slate-900 font-mono">
-                                                {formatCurrency(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount), language)}
+                                    <div className="text-right flex-shrink-0">
+                                        <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 inline-block">
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase block tracking-wider">Valor</span>
+                                            <span className="text-base font-black text-slate-900 font-mono leading-none">
+                                                {receiptFormattedAmount}
                                             </span>
                                         </div>
                                     </div>
@@ -556,41 +591,43 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
 
                                 {/* Title */}
                                 <div className="text-center mb-6">
-                                    <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-wide">
-                                        {(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 ? 'Recibo de Pagamento' : 'Recibo de Entrada / Contribuição'}
+                                    <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                                        {receiptIsExpense ? 'Recibo de Pagamento / Saída' : 'Recibo de Entrada / Contribuição'}
                                     </h2>
-                                    <p className="text-[9px] text-slate-400 font-mono mt-1">Registro ID: {selectedReceipt.transaction.id}</p>
+                                    <p className="text-[9px] text-slate-400 font-mono mt-1">
+                                        Nº do Registro: <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{receiptRecordId}</span>
+                                    </p>
                                 </div>
 
                                 {/* Body text */}
-                                <div className="text-xs leading-relaxed text-slate-700 mb-6 text-justify pb-6 border-b border-dashed border-slate-200">
-                                    {(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 ? (
+                                <div className="text-xs leading-relaxed text-slate-700 mb-6 text-justify bg-slate-50 border border-slate-100 rounded-xl p-4 border-dashed">
+                                    {receiptIsExpense ? (
                                         <>
-                                            Declaramos que pagamos a importância de <strong className="text-slate-900">{formatCurrency(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount), language)}</strong> (<span className="italic font-semibold">{valorPorExtenso(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount))}</span>) a <strong className="text-slate-900 uppercase">{selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description}</strong>, referente a <strong className="text-slate-900 uppercase">{selectedReceipt.contributionType || selectedReceipt.transaction.description || 'Despesa Geral'}</strong>.
+                                            Declaramos que pagamos a importância de <strong className="text-slate-900">{receiptFormattedAmount}</strong> (<span className="italic font-semibold">{receiptAmountExtenso}</span>) a <strong className="text-slate-900 uppercase">{receiptDisplayName}</strong>, referente a <strong className="text-slate-900 uppercase">{receiptDisplayDescription}</strong>.
                                         </>
                                     ) : (
                                         <>
-                                            Confirmamos o recebimento da importância de <strong className="text-slate-900">{formatCurrency(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount), language)}</strong> (<span className="italic font-semibold">{valorPorExtenso(Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount))}</span>) de <strong className="text-slate-900 uppercase">{selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description}</strong>, referente a <strong className="text-slate-900 uppercase">{selectedReceipt.contributionType || 'Contribuição / Dízimo'}</strong>.
+                                            Confirmamos o recebimento da importância de <strong className="text-slate-900">{receiptFormattedAmount}</strong> (<span className="italic font-semibold">{receiptAmountExtenso}</span>) de <strong className="text-slate-900 uppercase">{receiptDisplayName}</strong>, referente a <strong className="text-slate-900 uppercase">{receiptDisplayCategory}</strong>.
                                         </>
                                     )}
                                 </div>
 
                                 {/* Meta details */}
-                                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100 mb-8">
+                                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-150 mb-8">
                                     <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Igreja Destinação</span>
-                                        <span className="font-extrabold text-slate-800 uppercase">{selectedReceipt.church?.name || '---'}</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5">Igreja Destinação</span>
+                                        <span className="font-extrabold text-slate-800 uppercase">{receiptDisplayChurch}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Forma de Pagamento</span>
-                                        <span className="font-extrabold text-slate-800 uppercase">{selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod || '---'}</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5">Forma de Pagamento</span>
+                                        <span className="font-extrabold text-slate-800 uppercase">{receiptDisplayForm}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Data da Transação</span>
-                                        <span className="font-bold text-slate-700 font-mono">{formatDate(selectedReceipt.contributor?.date || selectedReceipt.transaction.date)}</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5">Data da Transação</span>
+                                        <span className="font-bold text-slate-700 font-mono">{receiptDisplayDate}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Data de Emissão</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5">Data de Emissão</span>
                                         <span className="font-bold text-slate-700 font-mono">{new Date().toLocaleDateString('pt-BR')}</span>
                                     </div>
                                 </div>
@@ -600,7 +637,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     <div className="text-center">
                                         <div className="border-t border-slate-300 w-full mb-1"></div>
                                         <span className="text-[9px] font-bold text-slate-600 uppercase block">
-                                            {(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 ? 'Favorecido / Recebedor' : 'Contribuinte'}
+                                            {receiptIsExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}
                                         </span>
                                     </div>
                                     <div className="text-center">
@@ -621,78 +658,86 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             </button>
                             <button
                                 onClick={() => {
-                                    const amount = Math.abs(selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount);
-                                    const formattedAmount = formatCurrency(amount, language);
-                                    const amountExtenso = valorPorExtenso(amount);
-                                    const displayName = selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description;
-                                    const displayDescription = selectedReceipt.contributionType || selectedReceipt.transaction.description || 'Despesa Geral';
-                                    const displayCategory = selectedReceipt.contributionType || 'Contribuição / Dízimo';
-                                    const displayChurch = selectedReceipt.church?.name || '---';
-                                    const displayForm = selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod || '---';
-                                    const displayDate = formatDate(selectedReceipt.contributor?.date || selectedReceipt.transaction.date);
                                     const todayFormatted = new Date().toLocaleDateString('pt-BR');
-                                    const isExpense = (selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0;
-                                    const recordId = selectedReceipt.transaction.id;
+                                    const isExpense = receiptIsExpense;
+                                    const recordId = receiptRecordId;
 
+                                    const printTime = new Date().toLocaleTimeString('pt-BR');
                                     const htmlContent = `
-                                        <div style="max-width: 800px; margin: 0 auto; border: 2px solid #e2e8f0; border-radius: 12px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background-color: white; color: #1e293b; font-family: sans-serif;">
-                                            <div style="display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; margin-bottom: 30px;">
-                                                <div>
-                                                    <h1 style="font-size: 24px; font-weight: 800; color: #1e293b; margin: 0; text-transform: uppercase; letter-spacing: -0.025em;">IdentificaPix</h1>
-                                                    <p style="font-size: 12px; color: #64748b; font-weight: 600; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">Controle e Auditoria Financeira</p>
+                                        <div style="max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; padding: 40px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); background-color: white; color: #1e293b; font-family: 'Inter', system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                            <!-- HEADER -->
+                                            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 24px; margin-bottom: 30px; gap: 20px;">
+                                                <div style="display: flex; align-items: center; gap: 16px;">
+                                                    ${receiptFullChurch?.logoUrl ? `
+                                                        <img src="${receiptFullChurch.logoUrl}" alt="${receiptDisplayChurch}" style="width: 60px; height: 60px; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0; padding: 4px; background: #f8fafc;" referrerPolicy="no-referrer" />
+                                                    ` : `
+                                                        <div style="width: 60px; height: 60px; border-radius: 8px; background: #eff6ff; border: 1px solid #bfdbfe; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #2563eb;">
+                                                            ${(receiptDisplayChurch || 'IP').substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                    `}
+                                                    <div>
+                                                        <h1 style="font-size: 18px; font-weight: 800; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">${receiptDisplayChurch}</h1>
+                                                        ${receiptFullChurch?.address ? `<p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0; font-weight: 500;">${receiptFullChurch.address}</p>` : ''}
+                                                        ${receiptFullChurch?.pastor ? `<p style="font-size: 10px; color: #2563eb; margin: 4px 0 0 0; font-weight: 700; text-transform: uppercase;">Pastor: ${receiptFullChurch.pastor}</p>` : ''}
+                                                    </div>
                                                 </div>
-                                                <div style="text-align: right;">
-                                                    <div style="background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 20px; display: inline-block;">
-                                                        <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Valor do Recibo</span>
-                                                        <span style="font-size: 20px; font-weight: 900; color: #0f172a; font-family: monospace;">${formattedAmount}</span>
+                                                <div style="text-align: right; flex-shrink: 0;">
+                                                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 24px; display: inline-block;">
+                                                        <span style="font-size: 9px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Valor do Recibo</span>
+                                                        <span style="font-size: 22px; font-weight: 900; color: #1e3a8a; font-family: monospace; letter-spacing: -0.02em;">${receiptFormattedAmount}</span>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div style="text-align: center; margin-bottom: 35px;">
-                                                <h2 style="font-size: 20px; font-weight: 900; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">
+                                                <h2 style="font-size: 20px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; position: relative; display: inline-block; padding-bottom: 8px;">
                                                     ${isExpense ? 'Recibo de Pagamento / Saída' : 'Recibo de Entrada / Contribuição'}
                                                 </h2>
-                                                <p style="font-size: 11px; color: #64748b; margin: 6px 0 0 0;">Nº do Registro: <span style="font-family: monospace; font-weight: bold; color: #0f172a;">${recordId}</span></p>
+                                                <p style="font-size: 11px; color: #64748b; margin: 8px 0 0 0; font-weight: 600;">Nº do Registro: <span style="font-family: monospace; font-weight: 800; color: #0f172a; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">${recordId}</span></p>
                                             </div>
 
-                                            <div style="font-size: 14px; line-height: 1.8; color: #334155; margin-bottom: 40px; text-align: justify; border-bottom: 1px dashed #cbd5e1; padding-bottom: 30px;">
+                                            <div style="font-size: 14px; line-height: 1.8; color: #334155; margin-bottom: 40px; text-align: justify; border-bottom: 1px dashed #cbd5e1; padding-bottom: 35px; background: #fafafa; padding: 24px; border-radius: 12px; border: 1px solid #f3f4f6;">
                                                 ${isExpense 
-                                                    ? `Declaramos que pagamos a importância de <strong>${formattedAmount}</strong> (<em>${amountExtenso}</em>) a <strong>${displayName.toUpperCase()}</strong>, referente a <strong>${displayDescription.toUpperCase()}</strong>.`
-                                                    : `Confirmamos o recebimento da importância de <strong>${formattedAmount}</strong> (<em>${amountExtenso}</em>) de <strong>${displayName.toUpperCase()}</strong>, referente a <strong>${displayCategory.toUpperCase()}</strong>.`
+                                                    ? `Declaramos que pagamos a importância de <strong style="color: #0f172a;">${receiptFormattedAmount}</strong> (<span style="font-style: italic; font-weight: 600;">${receiptAmountExtenso}</span>) a <strong style="color: #0f172a; text-transform: uppercase;">${receiptDisplayName.toUpperCase()}</strong>, referente a <strong style="color: #0f172a; text-transform: uppercase;">${receiptDisplayDescription.toUpperCase()}</strong>.`
+                                                    : `Confirmamos o recebimento da importância de <strong style="color: #0f172a;">${receiptFormattedAmount}</strong> (<span style="font-style: italic; font-weight: 600;">${receiptAmountExtenso}</span>) de <strong style="color: #0f172a; text-transform: uppercase;">${receiptDisplayName.toUpperCase()}</strong>, referente a <strong style="color: #0f172a; text-transform: uppercase;">${receiptDisplayCategory.toUpperCase()}</strong>.`
                                                 }
                                             </div>
 
-                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 50px; background-color: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #f1f5f9;">
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 50px; background-color: #f8fafc; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0;">
                                                 <div>
-                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Igreja Destinação</span>
-                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${displayChurch}</span>
+                                                    <span style="font-size: 9px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Igreja Destinação</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #0f172a; text-transform: uppercase;">${receiptDisplayChurch}</span>
                                                 </div>
                                                 <div>
-                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Forma de Pagamento</span>
-                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${displayForm}</span>
+                                                    <span style="font-size: 9px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Forma de Pagamento</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #0f172a; text-transform: uppercase;">${receiptDisplayForm}</span>
                                                 </div>
                                                 <div style="margin-top: 10px;">
-                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Data da Transação</span>
-                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; font-family: monospace;">${displayDate}</span>
+                                                    <span style="font-size: 9px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Data da Transação</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #0f172a; font-family: monospace;">${receiptDisplayDate}</span>
                                                 </div>
                                                 <div style="margin-top: 10px;">
-                                                    <span style="font-size: 10px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase;">Data de Emissão do Recibo</span>
-                                                    <span style="font-size: 13px; font-weight: 700; color: #1e293b; font-family: monospace;">${todayFormatted}</span>
+                                                    <span style="font-size: 9px; font-weight: 800; color: #64748b; display: block; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Data de Emissão do Recibo</span>
+                                                    <span style="font-size: 13px; font-weight: 700; color: #0f172a; font-family: monospace;">${todayFormatted}</span>
                                                 </div>
                                             </div>
 
                                             <div style="display: flex; justify-content: space-between; gap: 40px; margin-top: 60px;">
                                                 <div style="flex: 1; text-align: center;">
-                                                    <div style="border-top: 1px solid #94a3b8; width: 100%; margin-bottom: 6px;"></div>
+                                                    <div style="border-top: 1px solid #cbd5e1; width: 100%; margin-bottom: 8px;"></div>
                                                     <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">${isExpense ? 'Favorecido / Recebedor' : 'Contribuinte'}</span>
-                                                    <span style="font-size: 10px; color: #64748b; display: block;">Assinatura</span>
+                                                    <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">Assinatura</span>
                                                 </div>
                                                 <div style="flex: 1; text-align: center;">
-                                                    <div style="border-top: 1px solid #94a3b8; width: 100%; margin-bottom: 6px;"></div>
+                                                    <div style="border-top: 1px solid #cbd5e1; width: 100%; margin-bottom: 8px;"></div>
                                                     <span style="font-size: 11px; font-weight: 700; color: #334155; display: block; text-transform: uppercase;">Responsável Financeiro</span>
-                                                    <span style="font-size: 10px; color: #64748b; display: block;">Assinatura</span>
+                                                    <span style="font-size: 10px; color: #64748b; display: block; margin-top: 2px;">Assinatura</span>
                                                 </div>
+                                            </div>
+
+                                            <!-- FOOTER -->
+                                            <div style="border-top: 1px solid #e2e8f0; margin-top: 60px; padding-top: 16px; text-align: center; font-size: 10px; color: #94a3b8; font-weight: 500;">
+                                                Documento emitido eletronicamente via <strong>IdentificaPix</strong> em ${todayFormatted} às ${printTime} - Todos os direitos reservados.
                                             </div>
                                         </div>
                                     `;

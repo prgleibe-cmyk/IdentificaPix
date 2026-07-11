@@ -425,7 +425,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         onAfterIdentification: persistActiveReport
     });
 
-    const summary = useSummaryData(reconciliation, reportManager, selectedBankId);
+    const summary = useSummaryData(reconciliation, reportManager, selectedBankId, referenceData.churches);
 
     const bankList = useMemo(() => {
         if (!referenceData.banks) return [];

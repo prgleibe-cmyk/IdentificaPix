@@ -487,9 +487,9 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
       );
 
       // 2. Clear from learned_associations inside PostgreSQL VPS by matching contributor's normalized name
-      const nameResult = await pool.query("SELECT name FROM contributors WHERE id = $1", [id]);
+      const nameResult = await pool.query("SELECT canonical_name FROM contributors WHERE id = $1", [id]);
       if (nameResult.rows.length > 0) {
-        const contributorName = nameResult.rows[0].name;
+        const contributorName = nameResult.rows[0].canonical_name;
         await pool.query(
           "DELETE FROM learned_associations WHERE LOWER(contributor_normalized_name) = LOWER($1)",
           [contributorName]

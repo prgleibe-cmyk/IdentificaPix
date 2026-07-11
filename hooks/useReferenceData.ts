@@ -137,7 +137,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     } else if (payload.eventType === 'UPDATE') {
                         setBanks(prev => prev.map(b => b.id === payload.new.id ? { ...b, ...payload.new } : b));
                     } else if (payload.eventType === 'DELETE') {
-                        setBanks(prev => prev.filter(b => b.id === payload.old.id));
+                        setBanks(prev => prev.filter(b => b.id !== payload.old.id));
                     }
                 }
             )
@@ -153,7 +153,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     } else if (payload.eventType === 'UPDATE') {
                         setChurches(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
                     } else if (payload.eventType === 'DELETE') {
-                        setChurches(prev => prev.filter(c => c.id === payload.old.id));
+                        setChurches(prev => prev.filter(c => c.id !== payload.old.id));
                     }
                 }
             )

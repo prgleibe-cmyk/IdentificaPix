@@ -142,6 +142,9 @@ export const useReportsController = () => {
                 const churchId = (r.church?.id && r.church.id !== 'unidentified') ? r.church?.id : r._churchId!;
                 if (allowedIds && !allowedIds.includes(churchId)) return;
                 
+                // Guarantee alignment with dashboard: only count identified transactions
+                if (r.status !== 'IDENTIFICADO') return;
+                
                 const realChurch = churchesMap.get(churchId);
                 if (!realChurch) return;
                 
@@ -305,6 +308,9 @@ export const useReportsController = () => {
                     
                     const realChurch = churchesMap.get(churchId);
                     if (!realChurch) return;
+
+                    // Guarantee alignment with dashboard: only count identified transactions
+                    if (item.status !== 'IDENTIFICADO') return;
 
                     const idx = cacheRef.current.churchList.findIndex(c => c.id === churchId);
                     if (idx !== -1) {
@@ -600,18 +606,25 @@ export const useReportsController = () => {
             return isExp ? -Math.abs(amount) : amount;
         };
 
-        const total = activeData.reduce((sum, r) => sum + getFinalAmount(r), 0);
+        const total = activeCategory === 'churches'
+            ? activeData.filter(r => r.status === 'IDENTIFICADO').reduce((sum, r) => sum + getFinalAmount(r), 0)
+            : activeData.reduce((sum, r) => sum + getFinalAmount(r), 0);
+
+        const count = activeCategory === 'churches'
+            ? activeData.filter(r => r.status === 'IDENTIFICADO').length
+            : (activeData || []).length;
+
         const autoTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'AUTOMATIC' || r.matchMethod === 'LEARNED' || !r.matchMethod || r.matchMethod === 'TEMPLATE'));
         const manualTxs = activeData.filter(r => r.status === 'IDENTIFICADO' && (r.matchMethod === 'MANUAL' || r.matchMethod === 'AI'));
         const pendingTxs = activeData.filter(r => r.status === 'PENDENTE' || r.status === 'NÃO IDENTIFICADO');
 
         return { 
-            count: (activeData || []).length, total, 
+            count, total, 
             auto: (autoTxs || []).length, autoValue: autoTxs.reduce((s, r) => s + getFinalAmount(r), 0),
             manual: (manualTxs || []).length, manualValue: manualTxs.reduce((s, r) => s + getFinalAmount(r), 0),
             pending: (pendingTxs || []).length, pendingValue: pendingTxs.reduce((s, r) => s + getFinalAmount(r), 0)
         };
-    }, [activeData]);
+    }, [activeData, activeCategory]);
 
     const handleDownload = () => ExportService.downloadCsv(sortedData, `relatorio_${new Date().toISOString().slice(0,10)}.csv`);
 
