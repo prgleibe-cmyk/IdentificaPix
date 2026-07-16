@@ -102,7 +102,8 @@ export const useReconciliationActions = ({
     selectedDate?: string,
     manualDescription?: string,
     manualAmount?: string,
-    unifiedContributorId?: string
+    unifiedContributorId?: string,
+    manualType?: 'entrada' | 'saida'
   ) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
@@ -128,8 +129,10 @@ export const useReconciliationActions = ({
         const ghostTx = reconciliation.bulkIdentificationTxs?.find((tx: any) => txIds.includes(tx.id)) || 
                         reconciliation.bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
         const originalDesc = ghostTx?.description || '';
-        const isEntrada = originalDesc.toLowerCase().includes('entrada') || 
-                          (manualDescription ? manualDescription.toLowerCase().includes('entrada') : false);
+        const isEntrada = manualType 
+          ? manualType === 'entrada'
+          : (originalDesc.toLowerCase().includes('entrada') || 
+             (manualDescription ? manualDescription.toLowerCase().includes('entrada') : false));
         const txType: 'income' | 'expense' = isEntrada ? 'income' : 'expense';
 
         let finalAmount = amount;

@@ -36,7 +36,6 @@ export const Sidebar: React.FC = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [isNewLaunchModalOpen, setIsNewLaunchModalOpen] = useState(false);
     
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -55,24 +54,6 @@ export const Sidebar: React.FC = () => {
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
-
-    // Fechar modal de Novo Lançamento com a tecla Escape (idêntico ao Destinar Lote)
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isNewLaunchModalOpen) {
-                setIsNewLaunchModalOpen(false);
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isNewLaunchModalOpen]);
-
-    const handleInstallApp = async () => {
-        if (!deferredPrompt) return;
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') setDeferredPrompt(null);
-    };
 
     const handleManualLaunch = (type: 'entrada' | 'saida') => {
         const amountFloat = 0;
@@ -99,9 +80,15 @@ export const Sidebar: React.FC = () => {
             updatedAt: new Date().toISOString()
         };
 
-        setIsNewLaunchModalOpen(false);
         setMatchResults((prev: any) => [...prev, newMatchResult]);
         setBulkIdentificationTxs([newTx]);
+    };
+
+    const handleInstallApp = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') setDeferredPrompt(null);
     };
 
     const isSecondaryUser = (subscription.ownerId && subscription.ownerId !== user?.id) &&
@@ -239,7 +226,7 @@ export const Sidebar: React.FC = () => {
                     {/* Botão Novo Lançamento (harmonizado, sem cor azul) */}
                     <button
                         type="button"
-                        onClick={() => setIsNewLaunchModalOpen(true)}
+                        onClick={() => handleManualLaunch('entrada')}
                         className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} text-slate-400 hover:text-white hover:bg-white/5`}
                         title="Novo Lançamento"
                         id="btn-novo-lancamento"
@@ -331,88 +318,6 @@ export const Sidebar: React.FC = () => {
                 {isCollapsed ? <ChevronRightIcon className="w-3 h-3 stroke-[3]" /> : <ChevronLeftIcon className="w-3 h-3 stroke-[3]" />}
             </button>
         </aside>
-
-        {isNewLaunchModalOpen && (
-            <div 
-                className="glass-overlay animate-fade-in z-[9999]" 
-                id="new-launch-modal" 
-                onClick={() => setIsNewLaunchModalOpen(false)}
-            >
-                <div 
-                    className="glass-modal w-full max-w-lg flex flex-col animate-scale-in rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/10 bg-white dark:bg-[#0F172A]"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {/* Header idêntico ao DESTINAR LOTE */}
-                    <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20">
-                                <PlusCircleIcon className="w-6 h-6 animate-scale-in" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                    Novo Lançamento
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Lançamento Manual</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-[7px] font-black text-slate-400 uppercase border border-slate-200 dark:border-slate-800 px-1 rounded">Esc</span>
-                            <button 
-                                type="button" 
-                                onClick={() => setIsNewLaunchModalOpen(false)} 
-                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
-                                id="close-launch-modal"
-                            >
-                                <XMarkIcon className="w-6 h-6" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="p-8 space-y-6 flex-1">
-                        <p className="text-xs text-slate-400 dark:text-slate-400 font-medium ml-1">
-                            Selecione o tipo de transação que deseja lançar manualmente para alimentar o fluxo de conciliação.
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-4 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => handleManualLaunch('entrada')}
-                                className="px-6 py-3 text-[10px] font-black rounded-full border border-emerald-300 dark:border-emerald-600/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/25 transition-all uppercase tracking-widest cursor-pointer flex items-center justify-center gap-2"
-                                id="btn-entrada"
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                </svg>
-                                <span>Entrada</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => handleManualLaunch('saida')}
-                                className="px-6 py-3 text-[10px] font-black rounded-full border border-rose-300 dark:border-rose-600/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/25 transition-all uppercase tracking-widest cursor-pointer flex items-center justify-center gap-2"
-                                id="btn-saida"
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                                <span>Saída</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Footer idêntico ao DESTINAR LOTE */}
-                    <div className="px-8 py-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-white/5 flex justify-end gap-3 rounded-b-[2.5rem]">
-                        <button 
-                            type="button" 
-                            onClick={() => setIsNewLaunchModalOpen(false)} 
-                            className="px-6 py-3 text-[10px] font-black rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 transition-all uppercase tracking-widest cursor-pointer"
-                        >
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
         </>
     );
 };

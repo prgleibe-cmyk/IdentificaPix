@@ -120,6 +120,8 @@ export const ManualIdModal: React.FC = () => {
         }
     }, [bulkIdentificationTxs, contributorFiles]);
 
+    const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
+
     // --- INICIALIZAR MANUAL DESCRIPTION COM O NOME JÁ IDENTIFICADO OU EXTRAÍDO DO PIX ---
     useEffect(() => {
         if (bulkIdentificationTxs && bulkIdentificationTxs.length === 1) {
@@ -128,6 +130,8 @@ export const ManualIdModal: React.FC = () => {
             if (isManual) {
                 setManualDescription(tx.description || '');
                 setManualAmount(tx.amount ? Math.abs(tx.amount).toString().replace('.', ',') : '');
+                const isEnt = (tx.description || '').toLowerCase().includes('entrada');
+                setManualType(isEnt ? 'entrada' : 'saida');
             } else {
                 // É transação bancária original. Vamos carregar o nome já identificado se houver, ou extrair do PIX.
                 const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
@@ -180,7 +184,8 @@ export const ManualIdModal: React.FC = () => {
                     selectedDate,
                     manualDescription,
                     manualAmount,
-                    selectedAssociationType === 'unify' ? selectedUnifiedField : undefined
+                    selectedAssociationType === 'unify' ? selectedUnifiedField : undefined,
+                    isManualLaunch ? manualType : undefined
                 );
             }
         } catch (error) {
@@ -199,14 +204,16 @@ export const ManualIdModal: React.FC = () => {
                 
                 <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-2xl ${isBulk ? 'bg-blue-600 text-white shadow-lg' : 'bg-brand-blue text-white shadow-lg shadow-blue-500/20'}`}>
-                            {isBulk ? <CheckBadgeIcon className="w-6 h-6" /> : <BuildingOfficeIcon className="w-6 h-6" />}
+                        <div className={`p-3 rounded-2xl ${isManualLaunch ? 'bg-brand-blue text-white shadow-lg shadow-blue-500/20' : isBulk ? 'bg-blue-600 text-white shadow-lg' : 'bg-brand-blue text-white shadow-lg shadow-blue-500/20'}`}>
+                            {isManualLaunch ? <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> : isBulk ? <CheckBadgeIcon className="w-6 h-6" /> : <BuildingOfficeIcon className="w-6 h-6" />}
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                {isBulk ? 'Destinar Lote' : 'Escolher Destino'}
+                                {isManualLaunch ? 'Novo Lançamento' : isBulk ? 'Destinar Lote' : 'Escolher Destino'}
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Identificação Pendente</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                {isManualLaunch ? 'Lançamento Manual' : 'Identificação Pendente'}
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -218,18 +225,55 @@ export const ManualIdModal: React.FC = () => {
                 </div>
 
                 <div className="p-8 space-y-8 flex-1 overflow-y-auto w-full">
-                    <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros Selecionados</span>
-                                <span className="text-2xl font-black text-slate-800 dark:text-white leading-none">{count} <span className="text-xs font-medium text-slate-400">ítens</span></span>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Montante do Lote</span>
-                                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAmount, language)}</span>
+                    {isManualLaunch ? (
+                        /* Beautiful high-fidelity selector at the top */
+                        <div className="bg-slate-50 dark:bg-black/20 p-1.5 rounded-[2rem] border border-slate-100 dark:border-white/5 grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setManualType('entrada')}
+                                className={`px-6 py-3.5 text-xs font-black rounded-[1.6rem] transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 ${
+                                    manualType === 'entrada'
+                                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 border border-transparent'
+                                        : 'border border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-white/5'
+                                }`}
+                                id="modal-btn-entrada"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                </svg>
+                                <span>Entrada</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setManualType('saida')}
+                                className={`px-6 py-3.5 text-xs font-black rounded-[1.6rem] transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 ${
+                                    manualType === 'saida'
+                                        ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/25 border border-transparent'
+                                        : 'border border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-white/5'
+                                }`}
+                                id="modal-btn-saida"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                                <span>Saída</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-slate-50 dark:bg-black/20 p-6 rounded-[2rem] border border-slate-100 dark:border-white/5">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Registros Selecionados</span>
+                                    <span className="text-2xl font-black text-slate-800 dark:text-white leading-none">{count} <span className="text-xs font-medium text-slate-400">ítens</span></span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Montante do Lote</span>
+                                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(totalAmount, language)}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {count === 1 && !isManualLaunch && (
                         <div className="space-y-4">
@@ -656,7 +700,7 @@ export const ManualIdModal: React.FC = () => {
                         disabled={!selectedChurchId || isSaving} 
                         className="px-10 py-3 text-[10px] font-black text-white rounded-full shadow-xl shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] flex items-center gap-2"
                     >
-                         {isSaving ? 'Processando...' : 'Confirmar Lote'}
+                         {isSaving ? 'Processando...' : isManualLaunch ? 'Salvar Lançamento' : 'Confirmar Lote'}
                          {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}
                     </button>
                 </div>
