@@ -59,8 +59,8 @@ export const SaveReportModal: React.FC = () => {
                         </div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
-                        <button type="button" onClick={closeSaveReportModal} className="px-5 py-2.5 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
-                        <button type="submit" disabled={isSaving || !name.trim()} className="px-6 py-2.5 text-xs font-bold text-white rounded-full shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288]">
+                        <button type="button" onClick={closeSaveReportModal} className="px-5 py-2.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
+                        <button type="submit" disabled={isSaving || !name.trim()} className="px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-lg shadow-brand-blue/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-95">
                             {isSaving ? `${t('common.save')}...` : t('common.save')}
                         </button>
                     </div>

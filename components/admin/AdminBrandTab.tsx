@@ -116,18 +116,18 @@ export const AdminBrandTab: React.FC = () => {
         <div className="w-full max-w-6xl mx-auto animate-fade-in pb-12 pt-4 space-y-6">
             
             {/* Header Lab */}
-            <div className="bg-[#051024] rounded-[3rem] p-10 md:p-14 border border-white/10 relative overflow-hidden group shadow-2xl">
-                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[140px] pointer-events-none -mr-48 -mt-48"></div>
+            <div className="bg-brand-deep rounded-[3rem] p-10 md:p-14 border border-white/10 relative overflow-hidden group shadow-2xl">
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-blue/10 rounded-full blur-[140px] pointer-events-none -mr-48 -mt-48"></div>
                 
                 <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-12">
                     <div className="flex-1 text-center lg:text-left">
                         <div className="flex items-center justify-center lg:justify-start gap-5 mb-8">
-                            <div className="p-5 bg-blue-600/20 text-cyan-400 rounded-3xl border border-cyan-500/30 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
+                            <div className="p-5 bg-brand-blue/20 text-brand-blue rounded-3xl border border-brand-blue/30 shadow-[0_0_30px_rgba(234,88,12,0.2)]">
                                 <PaintBrushIcon className="w-10 h-10" />
                             </div>
                             <div>
                                 <h2 className="text-4xl font-black text-white tracking-tighter leading-none">Studio de Marca v5.0</h2>
-                                <span className="text-[11px] uppercase tracking-[0.5em] text-cyan-400 font-black block mt-2 opacity-70">Identidade Visual Premium</span>
+                                <span className="text-[11px] uppercase tracking-[0.5em] text-brand-blue font-black block mt-2 opacity-70">Identidade Visual Premium</span>
                             </div>
                         </div>
                         

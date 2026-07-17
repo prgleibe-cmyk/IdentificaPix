@@ -83,8 +83,8 @@ export const RegisterView: React.FC = () => {
                                     <span className={`text-xs font-bold mt-1 ${bankLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>Registrados: {banks.length} / {subscription.maxBanks || 1}</span>
                                 </div>
                             </div>
-                            {!bankLimitReached && (
-                                <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 rounded-full shadow-md shadow-blue-500/30 hover:-translate-y-0.5 transition-all tracking-wide uppercase">
+                             {!bankLimitReached && (
+                                <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-90 rounded-xl shadow-md shadow-brand-blue/20 hover:-translate-y-0.5 transition-all tracking-wide uppercase">
                                     <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
                                 </button>
                             )}
@@ -94,14 +94,14 @@ export const RegisterView: React.FC = () => {
                     {activeTab === 'churches' && (
                         <div className="flex justify-between items-center mb-6 flex-shrink-0 relative z-10">
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-blue-50 dark:bg-[#0033AA]/10 rounded-2xl text-brand-blue dark:text-brand-teal border border-blue-100 dark:border-slate-800"><UserIcon className="w-6 h-6" /></div>
+                                <div className="p-3 bg-slate-50 dark:bg-brand-blue/10 rounded-2xl text-brand-blue dark:text-brand-teal border border-slate-100 dark:border-slate-800"><UserIcon className="w-6 h-6" /></div>
                                 <div className="flex flex-col">
                                     <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">{t('register.manageChurches')}</h3>
                                     <span className={`text-xs font-bold mt-1 ${churchLimitReached ? 'text-red-500' : 'text-emerald-500'}`}>Registradas: {churches.length} / {subscription.maxChurches || 1}</span>
                                 </div>
                             </div>
                             {!churchLimitReached && (
-                                <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:opacity-90 rounded-full shadow-md shadow-blue-500/20 hover:-translate-y-0.5 transition-all tracking-wide uppercase">
+                                <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-90 rounded-xl shadow-md shadow-brand-blue/20 hover:-translate-y-0.5 transition-all tracking-wide uppercase">
                                     <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
                                 </button>
                             )}

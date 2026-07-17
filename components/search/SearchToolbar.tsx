@@ -76,7 +76,7 @@ export const SearchToolbar: React.FC<SearchToolbarProps> = ({
         <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
             <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{title}</h2>
             
-            <div className="flex items-center h-9 bg-gradient-to-r from-blue-600 via-[#051024] to-blue-600 rounded-full shadow-lg border border-white/20 overflow-hidden p-0.5">
+            <div className="flex items-center h-9 bg-gradient-to-r from-brand-blue via-brand-deep to-brand-blue rounded-full shadow-lg border border-white/10 overflow-hidden p-0.5">
                  <UnifiedButton 
                     onClick={onOpenFilters}
                     icon={AdjustmentsHorizontalIcon}

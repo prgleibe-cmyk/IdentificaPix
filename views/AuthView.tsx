@@ -9,7 +9,7 @@ export const AuthView: React.FC = () => {
     const auth = useAuthController();
   
     return (
-        <div className="h-[100dvh] w-full flex flex-col bg-[#051024] relative overflow-hidden font-sans selection:bg-blue-500/30">
+        <div className="h-[100dvh] w-full flex flex-col bg-brand-deep relative overflow-hidden font-sans selection:bg-blue-500/30">
             <AuthBackground />
 
             <div className="flex-1 w-full overflow-y-auto z-10 relative custom-scrollbar">
@@ -33,7 +33,7 @@ export const AuthView: React.FC = () => {
                                 onClick={auth.handleGoogleLogin}
                                 type="button"
                                 disabled={auth.loading}
-                                className="w-full flex items-center justify-center gap-3 py-3.5 bg-white border-2 border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-700 rounded-full font-bold text-xs uppercase tracking-wide transition-all shadow-sm mb-6 active:scale-[0.98]"
+                                className="w-full flex items-center justify-center gap-3 py-3.5 bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-sm mb-6 active:scale-[0.99] hover:shadow-md"
                             >
                                 <GoogleIcon className="w-5 h-5" />
                                 <span>Entrar com Google</span>

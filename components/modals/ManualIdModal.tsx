@@ -698,7 +698,7 @@ export const ManualIdModal: React.FC = () => {
                         type="button" 
                         onClick={handleConfirm} 
                         disabled={!selectedChurchId || isSaving} 
-                        className="px-10 py-3 text-[10px] font-black text-white rounded-full shadow-xl shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] flex items-center gap-2"
+                        className="px-10 py-3 text-[10px] font-black text-white rounded-full shadow-xl shadow-brand-blue/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-95 flex items-center gap-2"
                     >
                          {isSaving ? 'Processando...' : isManualLaunch ? 'Salvar Lançamento' : 'Confirmar Lote'}
                          {!isSaving && selectedChurchId && <span className="ml-1 text-[8px] opacity-70 bg-white/20 px-1 rounded">Enter</span>}

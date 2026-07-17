@@ -15,7 +15,7 @@ export default {
       },
       colors: {
         brand: {
-          deep: '#051024',
+          deep: '#0B0F19',
           blue: '#EA580C',
           teal: '#94A3B8',
           orange: '#EA580C',

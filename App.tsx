@@ -22,10 +22,10 @@ const MainLayout: React.FC = () => {
 
     if (!initialDataLoaded && !hasCachedData) {
         return (
-            <div className="h-[100dvh] w-screen flex items-center justify-center bg-[#051024]">
+            <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
                 <div className="flex flex-col items-center">
                     <img src="/logo.png" className="h-48 w-auto mb-8 object-contain animate-fade-in" alt="IgGestor" />
-                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-blue border-t-transparent mb-4"></div>
                     <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
                 </div>
             </div>
@@ -33,7 +33,7 @@ const MainLayout: React.FC = () => {
     }
 
     return (
-        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-[#0B1120] bg-noise font-sans overflow-hidden relative">
+        <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-brand-deep bg-noise font-sans overflow-hidden relative">
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 lg:pt-0">
@@ -66,8 +66,8 @@ const AppContent: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#051024]">
-                <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-400 border-t-transparent"></div>
+            <div className="min-h-screen flex items-center justify-center bg-brand-deep">
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-brand-blue border-t-transparent"></div>
             </div>
         );
     }

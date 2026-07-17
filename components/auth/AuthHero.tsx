@@ -17,7 +17,7 @@ export const AuthHero: React.FC = () => {
                 </div>
                 <div>
                     <h1 className="text-5xl font-black text-white tracking-tighter leading-none mb-1 drop-shadow-xl">IgGestor</h1>
-                    <span className="text-sm uppercase tracking-[0.4em] text-cyan-400 font-bold block ml-1">Enterprise System</span>
+                    <span className="text-sm uppercase tracking-[0.4em] text-brand-blue font-bold block ml-1">Sistema Integrado</span>
                 </div>
             </div>
 
@@ -42,7 +42,7 @@ export const AuthHero: React.FC = () => {
                 <div className="flex items-center gap-4 pt-2">
                     <div className="flex -space-x-4">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className={`w-10 h-10 rounded-full border-2 border-[#051024] bg-gradient-to-br ${i === 1 ? 'from-pink-500 to-rose-500' : i === 2 ? 'from-blue-500 to-cyan-500' : i === 3 ? 'from-amber-500 to-orange-500' : 'from-purple-500 to-indigo-500'} shadow-lg`}></div>
+                            <div key={i} className={`w-10 h-10 rounded-full border-2 border-brand-deep bg-gradient-to-br ${i === 1 ? 'from-pink-500 to-rose-500' : i === 2 ? 'from-brand-blue to-amber-500' : i === 3 ? 'from-amber-500 to-orange-500' : 'from-purple-500 to-slate-500'} shadow-lg`}></div>
                         ))}
                     </div>
                     <div>

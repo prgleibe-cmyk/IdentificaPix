@@ -22,7 +22,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({
     isLogin, loading, error, message, name, setName, email, setEmail, password, setPassword,
     showPassword, setShowPassword, onSubmit, onToggleMode
 }) => {
-    const inputClass = "w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-transparent focus:border-brand-blue focus:bg-white rounded-full text-slate-800 font-bold outline-none transition-all text-sm";
+    const inputClass = "w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200/80 focus:border-brand-blue focus:bg-white rounded-xl text-slate-800 font-bold outline-none transition-all text-sm";
     const labelClass = "block text-[10px] font-bold text-slate-400 uppercase mb-1.5 ml-1";
 
     return (
@@ -60,20 +60,20 @@ export const AuthForm: React.FC<AuthFormProps> = ({
             </div>
 
             {error && (
-                <div className="p-3 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-3 animate-fade-in">
+                <div className="p-3 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3 animate-fade-in">
                     <div className="text-red-500 mt-0.5"><LockClosedIcon className="w-3.5 h-3.5"/></div>
                     <p className="text-red-600 text-xs font-bold">{error}</p>
                 </div>
             )}
             
             {message && (
-                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-start gap-3 animate-fade-in">
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-start gap-3 animate-fade-in">
                     <div className="text-emerald-500 mt-0.5"><CheckBadgeIcon className="w-3.5 h-3.5"/></div>
                     <p className="text-emerald-600 text-xs font-bold">{message}</p>
                 </div>
             )}
 
-            <button type="submit" disabled={loading} className="w-full py-4 text-white font-black uppercase tracking-wide rounded-full shadow-lg shadow-brand-blue/30 transition-all transform hover:-translate-y-1 active:scale-[0.98] disabled:opacity-70 mt-2 text-xs bg-gradient-to-l from-[#051024] to-brand-blue">
+            <button type="submit" disabled={loading} className="w-full py-4 text-white font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-blue/20 hover:shadow-brand-blue/30 hover:-translate-y-0.5 active:scale-[0.99] transition-all disabled:opacity-70 mt-2 text-xs bg-gradient-to-r from-brand-blue to-amber-500">
                 {loading ? 'Processando...' : (isLogin ? 'Entrar na Plataforma' : 'Criar Conta Grátis')}
             </button>
 

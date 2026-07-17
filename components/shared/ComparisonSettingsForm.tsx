@@ -134,7 +134,7 @@ export const ComparisonSettingsForm: React.FC = () => {
                 <button 
                     onClick={handleCompare} 
                     disabled={finalIsCompareDisabled} 
-                    className="px-5 py-2 rounded-full font-bold text-xs text-white bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] active:bg-blue-700 shadow-md shadow-brand-blue/30 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 group"
+                    className="px-5 py-2 rounded-full font-bold text-xs text-white bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-95 active:bg-orange-700 shadow-md shadow-brand-blue/20 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2 group"
                 >
                     <BoltIcon className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500"/>
                     <span className="tracking-wide uppercase">

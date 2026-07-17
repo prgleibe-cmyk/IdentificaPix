@@ -126,7 +126,7 @@ export const AdminView: React.FC = () => {
             default: activeClass = "bg-gradient-to-r from-slate-600 to-slate-800 text-white shadow-md"; iconClass = isActive ? "text-white" : "text-slate-500"; break;
         }
         return (
-            <button onClick={() => setActiveTab(id)} className={`relative flex items-center gap-2 px-4 py-1.5 rounded-full transition-all duration-300 text-[10px] font-bold uppercase tracking-wide ${isActive ? `${activeClass} transform scale-105 z-10 border-transparent` : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"}`}>
+            <button onClick={() => setActiveTab(id)} className={`relative flex items-center gap-2 px-4 py-1.5 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide ${isActive ? `${activeClass} transform scale-105 z-10 border-transparent` : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"}`}>
                 <Icon className={`w-3.5 h-3.5 ${iconClass}`} />
                 <span>{label}</span>
             </button>
@@ -144,13 +144,13 @@ export const AdminView: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
                         <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
                         <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                     </div>
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
-                    <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20 hover:-translate-y-0.5 transition-all">
+                    <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20 hover:-translate-y-0.5 transition-all">
                         <BoltIcon className="w-3.5 h-3.5 text-white" />
                         <span>Diagnóstico</span>
                     </button>

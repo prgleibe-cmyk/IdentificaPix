@@ -213,7 +213,7 @@ export const SearchFiltersModal: React.FC = () => {
                 </div>
 
                 {/* Footer Compacto */}
-                <div className="bg-white dark:bg-[#0B1120] px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                <div className="bg-white dark:bg-brand-deep px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
                     <button type="button" onClick={handleClear} className="px-5 py-2.5 text-[10px] font-bold rounded-full border border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors uppercase tracking-wide">
                         {t('search.clearFilters')}
                     </button>
@@ -221,7 +221,7 @@ export const SearchFiltersModal: React.FC = () => {
                         <button type="button" onClick={closeSearchFilters} className="px-6 py-2.5 text-[10px] font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors uppercase tracking-wide">
                             {t('common.cancel')}
                         </button>
-                        <button type="button" onClick={handleApply} className="flex items-center gap-2 px-8 py-2.5 text-[10px] font-bold text-white rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288] active:scale-95">
+                        <button type="button" onClick={handleApply} className="flex items-center gap-2 px-8 py-2.5 text-[10px] font-bold text-white rounded-full shadow-lg shadow-brand-blue/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-95 active:scale-95">
                             <CheckCircleIcon className="w-3.5 h-3.5" />
                             {t('search.applyFilters')}
                         </button>
