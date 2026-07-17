@@ -71,18 +71,14 @@ body {
 
 .glass-modal {
   @apply relative overflow-hidden;
-  @apply bg-white/90 dark:bg-[#0B1120]/80;
-  @apply backdrop-blur-2xl;
-  @apply border border-white/40 dark:border-white/10;
-  @apply ring-1 ring-white/60 dark:ring-white/5 ring-inset;
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-    0 25px 60px -12px rgba(0, 0, 0, 0.6), 
-    0 0 120px -20px rgba(0, 82, 204, 0.2); 
+  @apply bg-white dark:bg-[#0F172A];
+  @apply border border-slate-200 dark:border-white/5;
+  @apply w-full max-w-7xl mx-auto rounded-2xl shadow-xl;
+  @apply flex flex-col min-h-[85vh] max-h-[92vh];
 }
 
 .glass-overlay {
-  @apply fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md overflow-x-hidden overflow-y-auto;
+  @apply fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-6 lg:p-8 bg-slate-100 dark:bg-[#020610] overflow-x-hidden overflow-y-auto;
 }
 
 .bg-noise {
@@ -91,9 +87,9 @@ body {
 }
 
 .cinematic-spotlight {
-  background: radial-gradient(circle at 50% 30%, rgba(37, 122, 255, 0.15) 0%, transparent 70%),
-              radial-gradient(circle at 0% 0%, rgba(37, 122, 255, 0.05) 0%, transparent 50%),
-              #0F172A;
+  background: radial-gradient(circle at 50% 30%, rgba(0, 210, 255, 0.12) 0%, transparent 75%),
+              radial-gradient(circle at 0% 0%, rgba(0, 51, 170, 0.15) 0%, transparent 60%),
+              #051024;
 }
 
 @keyframes float-ultra {
@@ -107,7 +103,7 @@ body {
 
 .glow-aura {
   filter: blur(60px);
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, transparent 80%);
+  background: radial-gradient(circle, rgba(0, 210, 255, 0.3) 0%, transparent 80%);
 }
 
 @media print {

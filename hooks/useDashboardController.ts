@@ -27,10 +27,10 @@ export const useDashboardController = () => {
     const pieChartData = useMemo(() => {
         const breakdown = summary.methodBreakdown || { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 };
         return [
-            { name: t('dashboard.matchMethod.automatic'), value: breakdown.AUTOMATIC, color: '#3B82F6' },
-            { name: t('dashboard.matchMethod.manual'), value: breakdown.MANUAL, color: '#6366F1' },
-            { name: t('dashboard.matchMethod.learned'), value: breakdown.LEARNED, color: '#8B5CF6' },
-            { name: t('dashboard.matchMethod.ai'), value: breakdown.AI, color: '#14B8A6' },
+            { name: t('dashboard.matchMethod.automatic'), value: breakdown.AUTOMATIC, color: '#0033AA' },
+            { name: t('dashboard.matchMethod.manual'), value: breakdown.MANUAL, color: '#2563EB' },
+            { name: t('dashboard.matchMethod.learned'), value: breakdown.LEARNED, color: '#EA580C' },
+            { name: t('dashboard.matchMethod.ai'), value: breakdown.AI, color: '#00D2FF' },
         ].filter(d => d.value > 0);
     }, [summary.methodBreakdown, t]);
 

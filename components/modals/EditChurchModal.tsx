@@ -46,8 +46,8 @@ export const EditChurchModal: React.FC = () => {
     };
 
     return (
-        <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-brand-deep rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-white/10 flex flex-col max-h-[90vh]">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 <form onSubmit={handleSubmit} className="flex flex-col h-full">
                     <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
                         <div className="flex items-center justify-between mb-6">

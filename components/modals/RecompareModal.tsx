@@ -31,8 +31,8 @@ export const RecompareModal: React.FC = () => {
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 animate-scale-in overflow-hidden">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 
                 {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
@@ -122,7 +122,7 @@ export const RecompareModal: React.FC = () => {
                         type="button" 
                         onClick={handleRun} 
                         disabled={isProcessing}
-                        className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-full shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-brand-blue to-brand-teal hover:opacity-90 rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         {isProcessing ? (
                             <>

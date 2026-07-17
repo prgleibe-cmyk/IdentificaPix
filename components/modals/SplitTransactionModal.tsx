@@ -114,8 +114,8 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
     const displayDate = formatDate(matchResult.transaction.date);
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between bg-slate-50 dark:bg-slate-900/30">

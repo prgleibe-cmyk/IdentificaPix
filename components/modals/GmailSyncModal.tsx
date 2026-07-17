@@ -76,8 +76,8 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 
                 {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">

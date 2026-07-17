@@ -79,8 +79,8 @@ export const SearchFiltersModal: React.FC = () => {
     );
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-[#0B1120] rounded-[2rem] shadow-2xl w-full max-w-2xl border border-white/20 dark:border-slate-700 flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 
                 {/* Header Compacto */}
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-center justify-between flex-shrink-0">

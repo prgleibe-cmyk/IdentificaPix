@@ -12,8 +12,8 @@ export const DivergenceConfirmationModal: React.FC = () => {
     const { expectedChurch, actualChurch } = divergence;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 <div className="p-8">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 tracking-tight">Confirmar Divergência</h3>
@@ -41,7 +41,7 @@ export const DivergenceConfirmationModal: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-900/30 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
+                <div className="bg-slate-50 dark:bg-slate-900/30 px-8 py-5 flex justify-end space-x-3 rounded-b-2xl border-t border-slate-100 dark:border-slate-700/50 mt-auto">
                     <button type="button" onClick={() => rejectDivergence(divergenceConfirmation)} className="px-5 py-2.5 text-xs font-bold rounded-full border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/20 dark:text-red-400 transition-colors uppercase tracking-wide">Rejeitar</button>
                     <button type="button" onClick={() => confirmDivergence(divergenceConfirmation)} className="px-6 py-2.5 text-xs font-bold text-white rounded-full shadow-lg shadow-indigo-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide bg-gradient-to-l from-[#051024] to-[#0033AA] hover:from-[#020610] hover:to-[#002288]">Confirmar Associação</button>
                 </div>

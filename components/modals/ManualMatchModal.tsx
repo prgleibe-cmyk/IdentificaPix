@@ -64,7 +64,7 @@ export const ManualMatchModal: React.FC = () => {
 
     return (
         <div className="glass-overlay animate-fade-in">
-            <div className="glass-modal w-full max-w-4xl flex flex-col max-h-[90vh] animate-scale-in">
+            <div className="glass-modal animate-scale-in">
                 
                 {/* Header Premium */}
                 <div className="px-8 py-5 glass-header flex justify-between items-center shrink-0">

@@ -211,11 +211,11 @@ export const UpdateReportFilesModal: React.FC = () => {
 
     return (
         <>
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-                <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-4xl border border-slate-200 dark:border-slate-700 animate-scale-in overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="glass-overlay animate-fade-in">
+                <div className="glass-modal animate-scale-in">
                     <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl text-white shadow-lg shadow-purple-500/30"><BoltIcon className="w-5 h-5" /></div>
+                            <div className="p-2.5 bg-gradient-to-br from-brand-blue to-brand-teal rounded-xl text-white shadow-lg shadow-brand-blue/30"><BoltIcon className="w-5 h-5" /></div>
                             <div><h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">Atualizar Fontes</h3><p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Acumule arquivos para este relatório.</p></div>
                         </div>
                         <button type="button" onClick={closeUpdateFilesModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors"><XMarkIcon className="w-5 h-5" /></button>

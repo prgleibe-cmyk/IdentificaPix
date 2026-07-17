@@ -43,8 +43,8 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="bank-modal-container">
-            <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 transform transition-all scale-100 flex flex-col max-h-[90vh]" id="bank-modal-content">
+        <div className="glass-overlay animate-fade-in" id="bank-modal-container">
+            <div className="glass-modal animate-scale-in" id="bank-modal-content">
                 <form onSubmit={handleSubmit} className="flex flex-col h-full" id="bank-modal-form">
                     <div className="p-8">
                         <div className="flex items-center justify-between mb-6">
@@ -135,8 +135,8 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
     };
     
     return (
-        <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 transform transition-all scale-100 flex flex-col max-h-[90vh]">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 <form onSubmit={handleSubmit} className="flex flex-col h-full">
                     <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
                         <div className="flex items-center justify-between mb-6">

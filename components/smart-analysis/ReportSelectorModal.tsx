@@ -9,8 +9,8 @@ interface ReportSelectorModalProps {
 }
 
 export const ReportSelectorModal: React.FC<ReportSelectorModalProps> = ({ savedReports, onSelect, onClose }) => (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-        <div className="bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 flex flex-col max-h-[80vh] overflow-hidden animate-scale-in">
+    <div className="glass-overlay animate-fade-in">
+        <div className="glass-modal animate-scale-in">
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                 <div><h3 className="text-lg font-black text-slate-800 dark:text-white">Selecionar Planilha</h3><p className="text-xs text-slate-500 font-medium">Escolha a base para o ranking.</p></div>
                 <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 text-slate-400"><XMarkIcon className="w-5 h-5" /></button>

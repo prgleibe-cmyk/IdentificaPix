@@ -18,8 +18,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, formData, se
     const labelClass = "block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1";
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
-            <div className="glass-modal w-full max-w-2xl flex flex-col max-h-[80vh] animate-scale-in rounded-[2rem] bg-white/95 dark:bg-[#0F172A]/95 shadow-2xl border border-white/20 dark:border-white/10 backdrop-blur-2xl">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 <form onSubmit={onSubmit} className="flex flex-col h-full overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100/50 dark:border-white/5 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-3">

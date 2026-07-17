@@ -25,7 +25,7 @@ export const EditBankModal: React.FC = () => {
 
     return (
         <div className="glass-overlay animate-fade-in">
-            <div className="glass-modal w-full max-w-md animate-scale-in">
+            <div className="glass-modal animate-scale-in">
                 <form onSubmit={handleSubmit}>
                     <div className="p-8">
                         <div className="flex items-center justify-between mb-8">

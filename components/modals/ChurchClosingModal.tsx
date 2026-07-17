@@ -250,8 +250,8 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-100 dark:border-white/5 animate-scale-up flex flex-col max-h-[90vh]">
+        <div className="glass-overlay animate-fade-in">
+            <div className="glass-modal animate-scale-in">
                 
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-black/10 shrink-0">
@@ -472,7 +472,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             type="button"
                             disabled={isSubmitting || destinationChurches.length === 0}
                             onClick={handleConfirm}
-                            className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-black rounded-full shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/25 transition-all uppercase tracking-wider disabled:opacity-50 disabled:pointer-events-none"
+                            className="px-8 py-3 bg-gradient-to-r from-brand-blue to-brand-teal hover:opacity-90 text-white text-xs font-black rounded-full shadow-lg shadow-blue-500/10 hover:shadow-blue-500/25 transition-all uppercase tracking-wider disabled:opacity-50 disabled:pointer-events-none"
                         >
                             {isSubmitting ? 'Processando...' : 'Confirmar Fechamento'}
                         </button>
