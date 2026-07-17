@@ -10,8 +10,9 @@ export const AuthBackground: React.FC = () => {
             </div>
 
             {/* Globs */}
-            <div className="absolute top-[-10%] left-[-10%] w-[800px] h-[800px] bg-brand-orange/10 rounded-full blur-[120px]"></div>
-            <div className="absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-brand-teal/10 rounded-full blur-[120px]"></div>
+            <div className="absolute top-[-10%] left-[-10%] w-[800px] h-[800px] bg-[#EA580C]/5 rounded-full blur-[120px]"></div>
+            <div className="absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-[#10B981]/5 rounded-full blur-[120px]"></div>
+            <div className="absolute top-[30%] right-[20%] w-[500px] h-[500px] bg-[#10B981]/3 rounded-full blur-[100px]"></div>
 
             {/* Icons */}
             <TableCellsIcon className="absolute top-[10%] left-[5%] w-24 h-24 text-white opacity-[0.03] transform -rotate-12" />

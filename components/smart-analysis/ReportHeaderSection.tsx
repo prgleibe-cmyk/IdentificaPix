@@ -28,8 +28,8 @@ export const ReportHeaderSection: React.FC<ReportHeaderSectionProps> = ({
             </div>
         </div>
         <div className="flex gap-2 flex-shrink-0">
-            <button onClick={onAddColumn} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:from-slate-500 hover:via-slate-600 hover:to-slate-700 border border-slate-500 text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-slate-500/20 transition-all hover:shadow-xl active:scale-95"><ArrowsRightLeftIcon className="w-3.5 h-3.5" /> <span>Nova Coluna</span></button>
-            <button onClick={onAddRow} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] hover:from-[#165D8C] hover:to-[#4FA2D6] border border-[#0F4C75] text-white rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-cyan-900/20 transition-all hover:shadow-xl active:scale-95"><PlusCircleIcon className="w-4 h-4" /> <span>Adicionar Linha</span></button>
+            <button onClick={onAddColumn} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:from-slate-500 hover:via-slate-600 hover:to-slate-700 border border-slate-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-slate-500/10 transition-all hover:shadow-xl active:scale-95"><ArrowsRightLeftIcon className="w-3.5 h-3.5" /> <span>Nova Coluna</span></button>
+            <button onClick={onAddRow} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] hover:from-[#165D8C] hover:to-[#4FA2D6] border border-[#0F4C75] text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-cyan-900/10 transition-all hover:shadow-xl active:scale-95"><PlusCircleIcon className="w-4 h-4" /> <span>Adicionar Linha</span></button>
         </div>
     </div>
 );

@@ -92,11 +92,11 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                         </div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50 mt-auto" id="bank-modal-actions">
-                        <button type="button" onClick={onCancel} disabled={isSubmitting} className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase disabled:opacity-50 tracking-wide" id="btn-cancel-bank">{t('common.cancel')}</button>
+                        <button type="button" onClick={onCancel} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase disabled:opacity-50 tracking-wide" id="btn-cancel-bank">{t('common.cancel')}</button>
                         <button 
                             type="submit" 
                             disabled={isSubmitting || !selectedBankKey || !accountName.trim() || isDuplicate} 
-                            className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 tracking-wide"
+                            className="px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 tracking-wide"
                             id="btn-save-bank"
                         >
                             {isSubmitting ? 'Salvando...' : t('common.save')}
@@ -162,7 +162,7 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
                                 <label className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1">{t('register.logo')}</label>
                                 <div className="flex items-center space-x-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                                     <img src={data.logoUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=?'} alt="Preview" className="w-12 h-12 rounded-xl object-cover bg-white shadow-sm" />
-                                    <label className={`cursor-pointer bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <label className={`cursor-pointer bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                         <span>Escolher arquivo</span>
                                         <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])} className="hidden" disabled={isSubmitting} />
                                     </label>
@@ -171,8 +171,8 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
                         </div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50 mt-auto">
-                        <button type="button" onClick={onCancel} disabled={isSubmitting} className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase disabled:opacity-50 tracking-wide">{t('common.cancel')}</button>
-                        <button type="submit" disabled={isSubmitting || !data.name.trim()} className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 tracking-wide">
+                        <button type="button" onClick={onCancel} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase disabled:opacity-50 tracking-wide">{t('common.cancel')}</button>
+                        <button type="submit" disabled={isSubmitting || !data.name.trim()} className="px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 tracking-wide">
                             {isSubmitting ? 'Salvando...' : t('common.save')}
                         </button>
                     </div>

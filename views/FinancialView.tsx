@@ -1146,7 +1146,7 @@ export const FinancialView: React.FC = () => {
                                                 <td className="p-4">
                                                     <button
                                                         onClick={() => handleToggleStatus(record)}
-                                                        className={`px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer ${
+                                                        className={`px-3 py-1 rounded-xl text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer ${
                                                             record.status === 'paid'
                                                                 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 hover:bg-emerald-100'
                                                                 : 'bg-amber-50 dark:bg-amber-950/40 text-amber-500 hover:bg-amber-100'

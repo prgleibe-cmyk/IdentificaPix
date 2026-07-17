@@ -124,7 +124,7 @@ const PreferencesTab: React.FC = () => {
                                     </div>
                                     <button 
                                         onClick={() => openDeleteConfirmation({ type: item.type, id: item.type, name: item.title })}
-                                        className="flex-shrink-0 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-red-600 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-100 transition-all uppercase tracking-wide shadow-sm"
+                                        className="flex-shrink-0 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-red-600 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-100 transition-all uppercase tracking-wide shadow-sm"
                                     >
                                         {t('settings.dataManagement.clear')}
                                     </button>
@@ -182,7 +182,7 @@ const PreferencesTab: React.FC = () => {
                             </div>
                             <button 
                                 onClick={() => openDeleteConfirmation({ type: 'all-data', id: 'all-data', name: 'todos os dados' })}
-                                className="px-4 py-2 text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 rounded-full shadow-lg shadow-red-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide whitespace-nowrap"
+                                className="px-4 py-2 text-[10px] font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide whitespace-nowrap"
                             >
                                 <TrashIcon className="w-3 h-3 inline mr-1.5" />
                                 {t('settings.clearAllData')}
@@ -203,8 +203,8 @@ export const SettingsView: React.FC = () => {
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{t('settings.title')}</h2>
                 
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-full border border-slate-200 dark:border-slate-800">
-                     <div className="relative flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 border-transparent transform scale-105 z-10 text-[10px] font-bold uppercase tracking-wide">
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                     <div className="relative flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 border-transparent transform scale-105 z-10 text-[10px] font-bold uppercase tracking-wide">
                         <WrenchScrewdriverIcon className="w-3.5 h-3.5 text-white" />
                         <span>{t('settings.tabPreferences')}</span>
                      </div>

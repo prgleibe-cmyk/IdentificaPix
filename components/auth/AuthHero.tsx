@@ -8,7 +8,7 @@ export const AuthHero: React.FC = () => {
             {/* Logo Section */}
             <div className="flex items-center gap-8 perspective-[1000px]">
                 <div className="relative group animate-pulse-soft">
-                    <div className="absolute inset-0 bg-cyan-500/10 rounded-full blur-[60px] animate-pulse"></div>
+                    <div className="absolute inset-0 bg-emerald-500/10 rounded-full blur-[60px] animate-pulse"></div>
                     <img 
                         src="/logo.png" 
                         className="h-52 w-auto object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.6)] transform rotate-y-12 rotate-x-6 group-hover:rotate-0 transition-all duration-700 ease-out" 
@@ -30,7 +30,7 @@ export const AuthHero: React.FC = () => {
                 <h2 className="text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
                     Finanças com <br/>
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-500">Precisão</span><br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-brand-teal">Absoluta.</span>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-emerald-400">Absoluta.</span>
                 </h2>
                 
                 <div className="border-l-4 border-brand-blue pl-6">

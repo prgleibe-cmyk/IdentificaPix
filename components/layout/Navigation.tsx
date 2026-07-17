@@ -23,7 +23,7 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, isSpe
             <button
                 onClick={onClick}
                 className={`
-                    relative flex-shrink-0 flex items-center justify-center px-5 py-2.5 text-xs font-bold rounded-full 
+                    relative flex-shrink-0 flex items-center justify-center px-5 py-2.5 text-xs font-bold rounded-xl 
                     transition-all duration-200 outline-none select-none whitespace-nowrap mx-1
                     ${isActive
                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -44,10 +44,10 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, isSpe
         <button
             onClick={onClick}
             className={`
-                relative flex-shrink-0 flex items-center justify-center px-4 py-2.5 text-xs font-bold rounded-full 
+                relative flex-shrink-0 flex items-center justify-center px-4 py-2.5 text-xs font-bold rounded-xl 
                 transition-all duration-200 outline-none select-none whitespace-nowrap mx-0.5
                 ${isActive
-                    ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/30 transform scale-[1.02] border border-brand-blue/50'
+                    ? 'bg-brand-blue text-white shadow-lg shadow-brand-blue/20 transform scale-[1.02]'
                     : 'text-slate-300 hover:text-white hover:bg-white/10'
                 }
             `}
@@ -90,7 +90,7 @@ export const Navigation: React.FC = () => {
 
     // Container ajustado para fundo escuro com bordas super arredondadas
     return (
-        <nav className="flex items-center p-1.5 bg-black/20 rounded-full border border-white/5 backdrop-blur-sm">
+        <nav className="flex items-center p-1.5 bg-black/20 rounded-xl border border-white/5 backdrop-blur-sm">
             {navItems.map(item => (
                 <NavItem 
                     key={item.view}

@@ -40,13 +40,13 @@ export const BanksList: React.FC = () => {
                                  <>
                                     <button
                                         onClick={() => openEditBank(bank)}
-                                        className="p-1.5 rounded-full text-brand-blue bg-blue-50 hover:bg-blue-100 active:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm"
+                                        className="p-1.5 rounded-lg text-brand-blue bg-blue-50 hover:bg-blue-100 active:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm"
                                     >
                                         <PencilIcon className="w-3 h-3" />
                                     </button>
                                     <button
                                          onClick={() => openDeleteConfirmation({ type: 'bank', id: bank.id, name: bank.name })}
-                                         className="p-1.5 rounded-full text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors shadow-sm"
+                                         className="p-1.5 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors shadow-sm"
                                     >
                                         <TrashIcon className="w-3 h-3" />
                                     </button>

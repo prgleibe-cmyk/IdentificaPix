@@ -214,7 +214,7 @@ export const Sidebar: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => setActiveView('dashboard')}
-                        className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === 'dashboard' ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                        className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === 'dashboard' ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                     >
                         <HomeIcon className={`w-5 h-5 transition-transform ${activeView === 'dashboard' ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}`} />
                         {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{t('nav.dashboard')}</span>}
@@ -227,7 +227,7 @@ export const Sidebar: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => handleManualLaunch('entrada')}
-                        className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} text-slate-400 hover:text-white hover:bg-white/5`}
+                        className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} text-slate-400 hover:text-white hover:bg-white/5`}
                         title="Novo Lançamento"
                         id="btn-novo-lancamento"
                     >
@@ -238,7 +238,7 @@ export const Sidebar: React.FC = () => {
                         <button
                             key={item.view}
                             onClick={() => setActiveView(item.view)}
-                            className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === item.view ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                         >
                             {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 transition-transform ${activeView === item.view ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}` })}
                             {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">{item.labelKey.includes('.') ? t(item.labelKey as any) : item.labelKey}</span>}
@@ -252,7 +252,7 @@ export const Sidebar: React.FC = () => {
                     {showUsersButton && (
                         <button
                             onClick={handleUsersClick}
-                            className={`relative w-full flex items-center px-4 py-2.5 rounded-full transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === 'users' ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${activeView === 'users' ? 'bg-white/10 text-white shadow-lg border border-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                         >
                             <UserIcon className={`w-5 h-5 transition-transform ${activeView === 'users' ? 'scale-110 text-brand-teal' : 'group-hover:scale-110'}`} />
                             {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">Usuários</span>}
@@ -268,7 +268,7 @@ export const Sidebar: React.FC = () => {
                     {deferredPrompt && (
                         <button 
                             onClick={handleInstallApp}
-                            className={`flex items-center justify-center rounded-full text-brand-teal hover:text-white bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500 transition-all animate-pulse ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
+                            className={`flex items-center justify-center rounded-xl text-brand-teal hover:text-white bg-teal-500/10 border border-teal-500/20 hover:bg-teal-500 transition-all animate-pulse ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2'}`}
                             title="Instalar IgGestor como App"
                         >
                             <CloudArrowUpIcon className="w-4 h-4" />
@@ -277,14 +277,14 @@ export const Sidebar: React.FC = () => {
                     )}
 
                     <div className="flex gap-2">
-                        <button onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} className={`flex items-center justify-center rounded-full text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}>
+                        <button onClick={() => window.open(`https://wa.me/${systemSettings.supportNumber}`, '_blank')} className={`flex items-center justify-center rounded-xl text-slate-400 hover:text-emerald-400 bg-white/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-colors ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'}`}>
                             <WhatsAppIcon className="w-4 h-4" />
                             {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-wide">Suporte</span>}
                         </button>
                         
                         <button 
                             onClick={isSecondaryUser ? undefined : openPaymentModal} 
-                            className={`flex items-center justify-center rounded-full transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()} ${isSecondaryUser ? 'cursor-default' : ''}`}
+                            className={`flex items-center justify-center rounded-xl transition-all border shadow-lg ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto' : 'flex-1 py-2.5 gap-2'} ${getStatusStyle()} ${isSecondaryUser ? 'cursor-default' : ''}`}
                         >
                             <StatusIcon className="w-4 h-4" />
                             {!isCollapsed && (
@@ -307,7 +307,7 @@ export const Sidebar: React.FC = () => {
                                 </div>
                             )}
                         </div>
-                                      <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2.5 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                      <button type="button" onClick={handleLogout} disabled={isLoggingOut} className={`p-2.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors ${isCollapsed ? 'mx-auto mt-2' : 'ml-auto shrink-0'} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             {isLoggingOut ? <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowLeftOnRectangleIcon className="w-5 h-5 stroke-[2]" />}
                         </button>
                     </div>

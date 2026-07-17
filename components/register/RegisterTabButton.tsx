@@ -51,7 +51,7 @@ export const RegisterTabButton: React.FC<RegisterTabButtonProps> = ({
         <button 
             onClick={() => onClick(id)} 
             className={`
-                relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-full transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
+                relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide
                 ${isActive 
                     ? `${activeClass} transform scale-105 z-10 border-transparent` 
                     : "bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50"

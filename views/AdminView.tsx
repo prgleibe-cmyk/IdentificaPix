@@ -183,7 +183,7 @@ export const AdminView: React.FC = () => {
                                 </div>
                             ) : null}
                         </div>
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end"><button onClick={() => setShowDiagModal(false)} className="px-5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-full transition-colors uppercase">Fechar</button></div>
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end"><button onClick={() => setShowDiagModal(false)} className="px-5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl transition-colors uppercase">Fechar</button></div>
                     </div>
                 </div>
             )}
