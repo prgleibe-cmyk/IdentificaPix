@@ -16,25 +16,25 @@ export const AuthHero: React.FC = () => {
                     />
                 </div>
                 <div>
-                    <h1 className="text-5xl font-black text-white tracking-tighter leading-none mb-1 drop-shadow-xl">IgGestor</h1>
+                    <h1 className="text-5xl font-black text-slate-800 tracking-tighter leading-none mb-1 drop-shadow-sm">IgGestor</h1>
                     <span className="text-sm uppercase tracking-[0.4em] text-brand-blue font-bold block ml-1">Sistema Integrado</span>
                 </div>
             </div>
 
             <div className="space-y-8">
-                <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-full w-fit">
-                    <CheckBadgeIcon className="w-4 h-4 text-emerald-400" />
-                    <span className="text-[10px] font-bold tracking-widest text-white uppercase">Tecnologia Certificada</span>
+                <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-200/50 backdrop-blur-sm border border-slate-300/40 rounded-xl w-fit">
+                    <CheckBadgeIcon className="w-4 h-4 text-emerald-600" />
+                    <span className="text-[10px] font-bold tracking-widest text-slate-700 uppercase">Tecnologia Certificada</span>
                 </div>
                 
-                <h2 className="text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
+                <h2 className="text-5xl lg:text-6xl font-black text-slate-800 leading-[1.1] tracking-tight">
                     Finanças com <br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-500">Precisão</span><br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-emerald-400">Absoluta.</span>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-600">Precisão</span><br/>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-700 to-emerald-600">Absoluta.</span>
                 </h2>
                 
                 <div className="border-l-4 border-brand-blue pl-6">
-                    <p className="text-lg text-slate-400 leading-relaxed">
+                    <p className="text-lg text-slate-600 leading-relaxed">
                         Tecnologia de ponta para gestão de dízimos e ofertas. Conciliação bancária automatizada para igrejas modernas.
                     </p>
                 </div>
@@ -42,18 +42,18 @@ export const AuthHero: React.FC = () => {
                 <div className="flex items-center gap-4 pt-2">
                     <div className="flex -space-x-4">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className={`w-10 h-10 rounded-full border-2 border-brand-deep bg-gradient-to-br ${i === 1 ? 'from-pink-500 to-rose-500' : i === 2 ? 'from-brand-blue to-amber-500' : i === 3 ? 'from-amber-500 to-orange-500' : 'from-purple-500 to-slate-500'} shadow-lg`}></div>
+                            <div key={i} className={`w-10 h-10 rounded-full border-2 border-white bg-gradient-to-br ${i === 1 ? 'from-pink-500 to-rose-500' : i === 2 ? 'from-brand-blue to-amber-500' : i === 3 ? 'from-amber-500 to-orange-500' : 'from-purple-500 to-slate-500'} shadow-lg`}></div>
                         ))}
                     </div>
                     <div>
-                        <p className="text-white font-bold text-base leading-none mb-1">Confiança Total</p>
-                        <p className="text-emerald-400 text-xs font-medium uppercase tracking-wide">Líderes de todo o Brasil</p>
+                        <p className="text-slate-800 font-bold text-base leading-none mb-1">Confiança Total</p>
+                        <p className="text-emerald-600 text-xs font-medium uppercase tracking-wide">Líderes de todo o Brasil</p>
                     </div>
                 </div>
             </div>
             
             <div className="hidden lg:block pt-8">
-                <p className="text-slate-600 text-xs font-medium">© 2026 IgGestor. Segurança garantida.</p>
+                <p className="text-slate-400 text-xs font-medium">© 2026 IgGestor. Segurança garantida.</p>
             </div>
         </div>
     );

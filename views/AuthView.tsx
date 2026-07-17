@@ -9,7 +9,7 @@ export const AuthView: React.FC = () => {
     const auth = useAuthController();
   
     return (
-        <div className="h-[100dvh] w-full flex flex-col bg-brand-deep relative overflow-hidden font-sans selection:bg-blue-500/30">
+        <div className="h-[100dvh] w-full flex flex-col bg-[#F4F6F9] relative overflow-hidden font-sans selection:bg-blue-500/30">
             <AuthBackground />
 
             <div className="flex-1 w-full overflow-y-auto z-10 relative custom-scrollbar">

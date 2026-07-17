@@ -347,18 +347,21 @@ try {
     console.error("[IdentificaPix] Route Registration Error:", error.message);
 }
 
-// Pasta de arquivos estáticos
-app.use(express.static(distPath));
+// Servir arquivos estáticos do frontend apenas em produção
+if (process.env.NODE_ENV === 'production') {
+    // Pasta de arquivos estáticos
+    app.use(express.static(distPath));
 
-// SPA Fallback
-app.get('*', (req, res) => {
-    if (req.url.startsWith('/api/')) return res.status(404).json({ error: 'Not Found' });
-    const indexPath = path.join(distPath, 'index.html');
-    if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
-    res.status(200).send("IdentificaPix Server Active.");
-});
+    // SPA Fallback
+    app.get('*', (req, res) => {
+        if (req.url.startsWith('/api/')) return res.status(404).json({ error: 'Not Found' });
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+        res.status(200).send("IdentificaPix Server Active.");
+    });
+}
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.NODE_ENV === 'production' ? 3000 : 3001;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`[IdentificaPix] Rodando em http://0.0.0.0:${PORT}`);
 });

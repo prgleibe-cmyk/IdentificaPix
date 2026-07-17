@@ -10,17 +10,17 @@ export const AuthBackground: React.FC = () => {
             </div>
 
             {/* Globs */}
-            <div className="absolute top-[-10%] left-[-10%] w-[800px] h-[800px] bg-[#EA580C]/5 rounded-full blur-[120px]"></div>
-            <div className="absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-[#10B981]/5 rounded-full blur-[120px]"></div>
-            <div className="absolute top-[30%] right-[20%] w-[500px] h-[500px] bg-[#10B981]/3 rounded-full blur-[100px]"></div>
+            <div className="absolute top-[-10%] left-[-10%] w-[800px] h-[800px] bg-[#EA580C]/8 rounded-full blur-[120px]"></div>
+            <div className="absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-[#10B981]/8 rounded-full blur-[120px]"></div>
+            <div className="absolute top-[30%] right-[20%] w-[500px] h-[500px] bg-[#10B981]/5 rounded-full blur-[100px]"></div>
 
             {/* Icons */}
-            <TableCellsIcon className="absolute top-[10%] left-[5%] w-24 h-24 text-white opacity-[0.03] transform -rotate-12" />
-            <PresentationChartLineIcon className="absolute top-[15%] right-[8%] w-32 h-32 text-brand-orange/20 opacity-[0.04] transform rotate-6" />
-            <BanknotesIcon className="absolute top-[45%] left-[-2%] w-40 h-40 text-white opacity-[0.03] transform rotate-45" />
-            <DocumentDuplicateIcon className="absolute bottom-[20%] right-[5%] w-28 h-28 text-brand-teal/20 opacity-[0.04] transform -rotate-12" />
-            <QrCodeIcon className="absolute bottom-[5%] left-[15%] w-20 h-20 text-white opacity-[0.03] transform rotate-12" />
-            <ChartBarIcon className="absolute top-[40%] right-[20%] w-16 h-16 text-white opacity-[0.03] transform -rotate-6" />
+            <TableCellsIcon className="absolute top-[10%] left-[5%] w-24 h-24 text-slate-400 opacity-[0.05] transform -rotate-12" />
+            <PresentationChartLineIcon className="absolute top-[15%] right-[8%] w-32 h-32 text-brand-orange/30 opacity-[0.06] transform rotate-6" />
+            <BanknotesIcon className="absolute top-[45%] left-[-2%] w-40 h-40 text-slate-400 opacity-[0.05] transform rotate-45" />
+            <DocumentDuplicateIcon className="absolute bottom-[20%] right-[5%] w-28 h-28 text-emerald-500/30 opacity-[0.06] transform -rotate-12" />
+            <QrCodeIcon className="absolute bottom-[5%] left-[15%] w-20 h-20 text-slate-400 opacity-[0.05] transform rotate-12" />
+            <ChartBarIcon className="absolute top-[40%] right-[20%] w-16 h-16 text-slate-400 opacity-[0.05] transform -rotate-6" />
         </div>
     );
 };

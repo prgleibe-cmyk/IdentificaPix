@@ -112,14 +112,14 @@ export const ReportRow: React.FC<ReportRowProps> = ({
                 <div className="flex items-center justify-center gap-2">
                     <button
                         onClick={() => onView(report.id)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-[9px] font-bold text-white bg-gradient-to-r from-sky-700 to-cyan-500 hover:from-sky-600 hover:to-cyan-400 rounded-full shadow-lg shadow-sky-500/30 hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide border border-white/10"
+                        className="flex items-center gap-1.5 px-4 py-1.5 text-[9px] font-bold text-white bg-gradient-to-r from-sky-700 to-cyan-500 hover:from-sky-600 hover:to-cyan-400 rounded-xl shadow-lg shadow-sky-500/30 hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide border border-white/10"
                     >
                         <EyeIcon className="w-3.5 h-3.5" />
                         Visualizar
                     </button>
                     <button
                         onClick={() => onDuplicate(report)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 hover:border-slate-300 dark:hover:border-slate-600 rounded-full shadow-sm hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl shadow-sm hover:-translate-y-0.5 transition-all active:scale-95 uppercase tracking-wide"
                         title="Duplicar"
                     >
                         <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-blue" />
