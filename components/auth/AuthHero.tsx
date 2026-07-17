@@ -29,11 +29,11 @@ export const AuthHero: React.FC = () => {
                 
                 <h2 className="text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
                     Finanças com <br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-teal to-cyan-300">Precisão</span><br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400">Absoluta.</span>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-500">Precisão</span><br/>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-brand-teal">Absoluta.</span>
                 </h2>
                 
-                <div className="border-l-4 border-brand-teal pl-6">
+                <div className="border-l-4 border-brand-blue pl-6">
                     <p className="text-lg text-slate-400 leading-relaxed">
                         Tecnologia de ponta para gestão de dízimos e ofertas. Conciliação bancária automatizada para igrejas modernas.
                     </p>
