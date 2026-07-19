@@ -233,10 +233,16 @@ export const useReconciliation = (props: any) => {
         deleteLaunchedItem,
         updateReportData,
         revertMatch,
-        closeManualIdentify,
         removeTransaction,
         removeTransactions
     } = matcher;
+
+    const closeManualIdentify = useCallback(() => {
+        matcher.closeManualIdentify();
+        if (setActiveView) {
+            setActiveView('dashboard');
+        }
+    }, [matcher, setActiveView]);
 
     const resetReconciliation = useCallback(async () => {
         setIsLoading(true);

@@ -6,6 +6,16 @@ import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, S
 import { supabase } from '../../services/supabaseClient';
 import * as XLSX from 'xlsx';
 
+const formatCpfCnpj = (value: string) => {
+    const clean = value.replace(/\D/g, '');
+    if (clean.length === 11) {
+        return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    } else if (clean.length === 14) {
+        return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    }
+    return value;
+};
+
 export const ContributorsList: React.FC = () => {
     const { showToast } = useUI();
     const { churches } = useContext(AppContext);
@@ -489,21 +499,21 @@ export const ContributorsList: React.FC = () => {
             }
 
             if (response.status === 201 || response.status === 200) {
-                showToast(editingContributor ? "Contribuinte atualizado com sucesso." : "Contribuinte cadastrado com sucesso.", "success");
+                showToast(editingContributor ? "Cadastro atualizado com sucesso." : "Cadastro realizado com sucesso.", "success");
                 handleCloseModal();
                 fetchContributors();
             } else if (response.status === 409) {
-                showToast("Já existe um contribuinte ativo com este CPF nesta igreja.", "error");
+                showToast("Já existe um cadastro ativo com este CPF/CNPJ nesta igreja.", "error");
             } else if (response.status === 400) {
                 const responseData = await response.json().catch(() => null);
                 const errorMsg = responseData?.error || "Erro de validação. Verifique os dados.";
                 showToast(errorMsg === "VALIDATION_ERROR" ? "Erro de validação nos dados enviados." : errorMsg, "error");
             } else {
-                showToast("Falha ao salvar contribuinte. Tente novamente.", "error");
+                showToast("Falha ao salvar o cadastro. Tente novamente.", "error");
             }
         } catch (error) {
             console.error('[ContributorsList] Error saving contributor:', error);
-            showToast("Falha ao salvar contribuinte. Tente novamente.", "error");
+            showToast("Falha ao salvar o cadastro. Tente novamente.", "error");
         }
     };
 
@@ -529,10 +539,10 @@ export const ContributorsList: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
-                            Contribuintes / Pessoas
+                            Empresas / Pessoas
                         </h3>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
-                            Gerenciamento de membros, congregados, prestadores ou favorecidos.
+                            Gerenciamento de membros, congregados, parceiros, fornecedores, prestadores e favorecidos.
                         </p>
                     </div>
                 </div>
@@ -553,7 +563,7 @@ export const ContributorsList: React.FC = () => {
                         id="new-contributor-btn"
                     >
                         <PlusCircleIcon className="w-3.5 h-3.5" />
-                        <span>+ Novo Contribuinte</span>
+                        <span>+ Nova Empresa / Pessoa</span>
                     </button>
                 </div>
             </div>
@@ -563,7 +573,7 @@ export const ContributorsList: React.FC = () => {
                 <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
                 <input 
                     type="text" 
-                    placeholder="Buscar por nome ou CPF..." 
+                    placeholder="Buscar por nome, razão social, CPF ou CNPJ..." 
                     value={search} 
                     onChange={e => setSearch(e.target.value)} 
                     className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
@@ -576,7 +586,7 @@ export const ContributorsList: React.FC = () => {
                 <div className="flex-1 flex flex-col items-center justify-center p-8 animate-pulse text-center">
                     <Loader2 className="w-8 h-8 text-brand-blue animate-spin mb-3" />
                     <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                        Carregando contribuintes...
+                        Carregando empresas / pessoas...
                     </p>
                 </div>
             ) : filteredContributors.length === 0 ? (
@@ -585,10 +595,10 @@ export const ContributorsList: React.FC = () => {
                         <UsersIcon className="w-8 h-8 text-slate-400 dark:text-slate-600" />
                     </div>
                     <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">
-                        Nenhum contribuinte encontrado.
+                        Nenhum registro encontrado.
                     </h4>
                     <p className="max-w-md text-center text-slate-500 dark:text-slate-400 text-xs leading-relaxed" id="contributors-message">
-                        {search ? "Nenhum resultado corresponde à sua busca." : "Cadastre o primeiro contribuinte utilizando o botão no topo direito."}
+                        {search ? "Nenhum resultado corresponde à sua busca." : "Cadastre a primeira empresa ou pessoa utilizando o botão no topo direito."}
                     </p>
                 </div>
             ) : (
@@ -597,7 +607,7 @@ export const ContributorsList: React.FC = () => {
                         <thead className="bg-slate-50/50 dark:bg-slate-900/40">
                             <tr>
                                 <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                    Contribuinte
+                                    Empresa / Pessoa
                                 </th>
                                 <th scope="col" className="px-4 py-3 text-left text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                     Igreja Vinculada
@@ -644,8 +654,10 @@ export const ContributorsList: React.FC = () => {
                                             <div className="space-y-0.5 max-w-[200px] truncate">
                                                 {c.cpf && (
                                                     <div className="text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400 flex items-center">
-                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">CPF:</span>
-                                                        {c.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}
+                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">
+                                                            {c.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ:' : 'CPF:'}
+                                                        </span>
+                                                        {formatCpfCnpj(c.cpf)}
                                                     </div>
                                                 )}
                                                 {c.phone && (
@@ -738,32 +750,42 @@ export const ContributorsList: React.FC = () => {
 
             {/* NEW CONTRIBUTOR MODAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="contributor-modal-container">
-                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 transform transition-all scale-100 flex flex-col max-h-[90vh] overflow-hidden animate-zoom-in" id="contributor-modal-content">
-                        <form onSubmit={handleSave} className="flex flex-col h-full overflow-hidden" id="contributor-modal-form">
-                            
-                            {/* Modal Header */}
-                            <div className="p-6 md:p-8 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
-                                <h3 className="text-lg font-bold text-brand-graphite dark:text-white tracking-tight" id="contributor-modal-title">
-                                    {editingContributor ? 'Editar Contribuinte' : 'Novo Contribuinte'}
-                                </h3>
-                                <button 
-                                    type="button" 
-                                    onClick={handleCloseModal} 
-                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
-                                    id="btn-close-contributor-modal"
-                                >
-                                    <XMarkIcon className="w-5 h-5" />
-                                </button>
+                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden" id="contributor-modal-container">
+                    <form onSubmit={handleSave} className="flex flex-col h-full w-full" id="contributor-modal-form">
+                        
+                        {/* Modal Header */}
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-2xl bg-slate-700 text-white shadow-lg shadow-slate-500/20">
+                                    <UsersIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase" id="contributor-modal-title">
+                                        {editingContributor ? 'Editar Empresa / Pessoa' : 'Nova Empresa / Pessoa'}
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                        Gerenciamento de Pessoas, Empresas e Fornecedores
+                                    </p>
+                                </div>
                             </div>
+                            <button 
+                                type="button" 
+                                onClick={handleCloseModal} 
+                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer" 
+                                id="btn-close-contributor-modal"
+                            >
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
 
-                            {/* Modal Body with inputs - Scrollable if small screen */}
-                            <div className="p-6 md:p-8 space-y-5 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                        {/* Modal Body with inputs */}
+                        <div className="p-8 flex-1 overflow-y-auto w-full">
+                            <div className="max-w-4xl mx-auto space-y-6">
                                 
                                 {/* FOTO DO CONTRIBUINTE (Visual only) */}
                                 <div className="flex flex-col items-center justify-center pb-5 border-b border-slate-100 dark:border-slate-800/80" id="photo-section">
                                     <span className="block text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-3 tracking-wide" id="lbl-photo-section">
-                                        Foto do Contribuinte
+                                        Logo / Foto (Empresa ou Pessoa)
                                     </span>
                                     
                                     <div className="relative group mb-3 shadow-md rounded-full" id="photo-avatar-wrapper">
@@ -815,180 +837,184 @@ export const ContributorsList: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Nome Completo */}
-                                <div>
-                                    <label htmlFor="contributor-fullname" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-fullname">
-                                        Nome Completo <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        id="contributor-fullname" 
-                                        value={fullName} 
-                                        onChange={(e) => setFullName(e.target.value)} 
-                                        placeholder="Digite o nome completo do contribuinte"
-                                        className={`block w-full rounded-2xl bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner text-sm p-3.5 outline-none transition-all ${
-                                            isNameInvalid 
-                                                ? 'border border-rose-500 focus:border-rose-500 focus:ring-rose-500' 
-                                                : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-brand-blue'
-                                        }`}
-                                    />
-                                    {isNameInvalid && (
-                                        <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="name-warning">
-                                            O nome completo é obrigatório.
-                                        </p>
-                                    )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Nome Completo */}
+                                    <div className="space-y-3">
+                                        <label htmlFor="contributor-fullname" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-fullname">
+                                            Nome / Razão Social <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-fullname" 
+                                            value={fullName} 
+                                            onChange={(e) => setFullName(e.target.value)} 
+                                            placeholder="Digite o nome ou a razão social da empresa"
+                                            className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all font-bold ${
+                                                isNameInvalid 
+                                                    ? 'border-2 border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10' 
+                                                    : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10'
+                                            }`}
+                                        />
+                                        {isNameInvalid && (
+                                            <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="name-warning">
+                                                O nome ou a razão social é obrigatório.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Igreja */}
+                                    <div className="space-y-3">
+                                        <label htmlFor="contributor-church" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-church">
+                                            Igreja <span className="text-rose-500">*</span>
+                                        </label>
+                                        <select 
+                                            id="contributor-church" 
+                                            value={selectedChurchId} 
+                                            onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                            className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all cursor-pointer font-bold ${
+                                                isChurchInvalid 
+                                                    ? 'border-2 border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10' 
+                                                    : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10'
+                                            }`}
+                                        >
+                                            {tempChurches.map((church) => (
+                                                <option key={church.id} value={church.id}>
+                                                    {church.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {isChurchInvalid && (
+                                            <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="church-warning">
+                                                A seleção da igreja é obrigatória.
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {/* Igreja */}
-                                <div>
-                                    <label htmlFor="contributor-church" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-church">
-                                        Igreja <span className="text-rose-500">*</span>
-                                    </label>
-                                    <select 
-                                        id="contributor-church" 
-                                        value={selectedChurchId} 
-                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                        className={`block w-full rounded-2xl bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner text-sm p-3.5 outline-none transition-all cursor-pointer ${
-                                            isChurchInvalid 
-                                                ? 'border border-rose-500 focus:border-rose-500 focus:ring-rose-500' 
-                                                : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-brand-blue'
-                                        }`}
-                                    >
-                                        {tempChurches.map((church) => (
-                                            <option key={church.id} value={church.id}>
-                                                {church.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {isChurchInvalid && (
-                                        <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="church-warning">
-                                            A seleção da igreja é obrigatória.
-                                        </p>
-                                    )}
-                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* CPF */}
+                                    <div className="space-y-3">
+                                        <label htmlFor="contributor-cpf" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-cpf">
+                                            CPF / CNPJ
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-cpf" 
+                                            value={cpf} 
+                                            onChange={(e) => setCpf(e.target.value)} 
+                                            placeholder="Digite o CPF ou CNPJ"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 font-bold"
+                                        />
+                                    </div>
 
-                                {/* CPF */}
-                                <div>
-                                    <label htmlFor="contributor-cpf" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-cpf">
-                                        CPF
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        id="contributor-cpf" 
-                                        value={cpf} 
-                                        onChange={(e) => setCpf(e.target.value)} 
-                                        placeholder="000.000.000-00"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner text-sm p-3.5 outline-none transition-all focus:border-brand-blue focus:ring-brand-blue"
-                                    />
-                                </div>
+                                    {/* Telefone */}
+                                    <div className="space-y-3">
+                                        <label htmlFor="contributor-phone" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-phone">
+                                            Telefone
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-phone" 
+                                            value={phone} 
+                                            onChange={(e) => setPhone(e.target.value)} 
+                                            placeholder="(00) 00000-0000"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 font-bold"
+                                        />
+                                    </div>
 
-                                {/* Telefone */}
-                                <div>
-                                    <label htmlFor="contributor-phone" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-phone">
-                                        Telefone
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        id="contributor-phone" 
-                                        value={phone} 
-                                        onChange={(e) => setPhone(e.target.value)} 
-                                        placeholder="(00) 00000-0000"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner text-sm p-3.5 outline-none transition-all focus:border-brand-blue focus:ring-brand-blue"
-                                    />
-                                </div>
-
-                                {/* E-mail */}
-                                <div>
-                                    <label htmlFor="contributor-email" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-email">
-                                        E-mail
-                                    </label>
-                                    <input 
-                                        type="email" 
-                                        id="contributor-email" 
-                                        value={email} 
-                                        onChange={(e) => setEmail(e.target.value)} 
-                                        placeholder="exemplo@igreja.com.br"
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner text-sm p-3.5 outline-none transition-all focus:border-brand-blue focus:ring-brand-blue"
-                                    />
+                                    {/* E-mail */}
+                                    <div className="space-y-3">
+                                        <label htmlFor="contributor-email" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-email">
+                                            E-mail
+                                        </label>
+                                        <input 
+                                            type="email" 
+                                            id="contributor-email" 
+                                            value={email} 
+                                            onChange={(e) => setEmail(e.target.value)} 
+                                            placeholder="exemplo@igreja.com.br"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 font-bold"
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Status */}
-                                <div>
-                                    <label htmlFor="contributor-status" className="block text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2 ml-1" id="lbl-status">
+                                <div className="space-y-3">
+                                    <label htmlFor="contributor-status" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-status">
                                         Status
                                     </label>
                                     <select 
                                         id="contributor-status" 
                                         value={status} 
                                         onChange={(e) => setStatus(e.target.value as 'Ativo' | 'Inativo')} 
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 shadow-inner focus:border-brand-blue focus:ring-brand-blue text-sm p-3.5 outline-none transition-all cursor-pointer"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 text-sm p-4 outline-none transition-all cursor-pointer font-bold"
                                     >
                                         <option value="Ativo">Ativo</option>
                                         <option value="Inativo">Inativo</option>
                                     </select>
                                 </div>
 
-                             </div>
+                            </div>
+                        </div>
 
-                             {/* Modal Actions Footer */}
-                             <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50" id="contributor-modal-actions">
-                                <button 
-                                    type="button" 
-                                    onClick={handleCloseModal} 
-                                    className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide cursor-pointer" 
-                                    id="btn-cancel-contributor"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    type="submit" 
-                                    className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide cursor-pointer"
-                                    id="btn-save-contributor"
-                                >
-                                    Salvar
-                                </button>
-                             </div>
+                        {/* Modal Actions Footer */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto" id="contributor-modal-actions">
+                            <button 
+                                type="button" 
+                                onClick={handleCloseModal} 
+                                className="px-6 py-3 rounded-full text-xs font-bold text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide cursor-pointer" 
+                                id="btn-cancel-contributor"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="submit" 
+                                className="px-8 py-3 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase tracking-wide cursor-pointer"
+                                id="btn-save-contributor"
+                            >
+                                Salvar
+                            </button>
+                        </div>
 
-                        </form>
-                    </div>
+                    </form>
                 </div>
             )}
 
             {/* BATCH IMPORT MODAL */}
             {isImportModalOpen && (
-                <div className="fixed inset-0 bg-brand-deep/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="import-modal-container">
-                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 transform transition-all scale-100 flex flex-col max-h-[90vh] overflow-hidden animate-zoom-in" id="import-modal-content">
-                        
-                        {/* Header */}
-                        <div className="p-6 md:p-8 pb-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
-                            <div className="flex items-center space-x-2">
-                                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                                    <Sparkles className="w-5 h-5 animate-pulse" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-brand-graphite dark:text-white tracking-tight">
-                                        Importar Contribuintes em Lote
-                                    </h3>
-                                    <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                                        Extraia dados diretamente de arquivos OFX, CSV, TXT ou Planilhas Excel.
-                                    </p>
-                                </div>
+                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden" id="import-modal-container">
+                    
+                    {/* Header */}
+                    <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl shadow-lg shadow-emerald-500/10">
+                                <Sparkles className="w-6 h-6 animate-pulse" />
                             </div>
-                            <button 
-                                type="button" 
-                                onClick={() => {
-                                    setIsImportModalOpen(false);
-                                    setImportFile(null);
-                                    setParsedContributors([]);
-                                }} 
-                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                            >
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                    Importar Empresas / Pessoas em Lote
+                                </h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                    Extraia dados diretamente de arquivos OFX, CSV, TXT ou Planilhas Excel.
+                                </p>
+                            </div>
                         </div>
+                        <button 
+                            type="button" 
+                            onClick={() => {
+                                setIsImportModalOpen(false);
+                                setImportFile(null);
+                                setParsedContributors([]);
+                            }} 
+                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                        >
+                            <XMarkIcon className="w-6 h-6" />
+                        </button>
+                    </div>
 
-                        {/* Body */}
-                        <div className="p-6 md:p-8 overflow-y-auto flex-1 custom-scrollbar">
+                    {/* Body */}
+                    <div className="p-8 flex-1 overflow-y-auto w-full">
+                        <div className="max-w-4xl mx-auto space-y-6">
                             {!importFile ? (
                                 /* Drag and Drop / Select File Zone */
                                 <div className="flex flex-col items-center justify-center">
@@ -1003,7 +1029,7 @@ export const ContributorsList: React.FC = () => {
                                             Carregar arquivo do extrato ou lista
                                         </h4>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-3">
-                                            Selecione um extrato <span className="font-bold">OFX</span>, arquivo <span className="font-bold">CSV/TXT</span> ou planilha <span className="font-bold">Excel</span> contendo os nomes e CPFs.
+                                            Selecione um extrato <span className="font-bold">OFX</span>, arquivo <span className="font-bold">CSV/TXT</span> ou planilha <span className="font-bold">Excel</span> contendo os nomes, razões sociais, CPFs ou CNPJs.
                                         </p>
                                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tracking-wider">
                                             Processamento 100% Local e Seguro
@@ -1038,7 +1064,7 @@ export const ContributorsList: React.FC = () => {
                                                 Igreja de Destino
                                             </label>
                                             <p className="text-[10px] font-medium text-slate-500 mt-0.5">
-                                                Selecione a igreja à qual estes contribuintes pertencem.
+                                                Selecione a igreja à qual estas empresas ou pessoas pertencem.
                                             </p>
                                         </div>
                                         <select
@@ -1056,7 +1082,7 @@ export const ContributorsList: React.FC = () => {
 
                                     {/* Summary Stats */}
                                     <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-100 dark:border-slate-800/50 pb-2">
-                                        <span>Contribuintes Encontrados: {parsedContributors.length}</span>
+                                        <span>Registros Encontrados: {parsedContributors.length}</span>
                                         <div className="flex space-x-3">
                                             <span className="text-emerald-600">
                                                 Novos: {parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
@@ -1069,14 +1095,14 @@ export const ContributorsList: React.FC = () => {
 
                                     {/* Contributors Editable Table */}
                                     <div className="overflow-x-auto max-h-[35vh] border border-slate-100 dark:border-slate-800 rounded-2xl custom-scrollbar">
-                                        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold uppercase">
                                             <thead className="bg-slate-50/50 dark:bg-slate-900/40 sticky top-0 z-10">
                                                 <tr>
                                                     <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
-                                                        Nome do Contribuinte
+                                                        Nome / Razão Social
                                                     </th>
                                                     <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
-                                                        CPF Identificado
+                                                        CPF / CNPJ Identificado
                                                     </th>
                                                     <th className="px-4 py-2 text-right font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px] w-[110px]">
                                                         Situação
@@ -1115,7 +1141,7 @@ export const ContributorsList: React.FC = () => {
                                                                         setParsedContributors(updated);
                                                                     }}
                                                                     disabled={isDup}
-                                                                    placeholder="Sem CPF"
+                                                                    placeholder="Sem CPF/CNPJ"
                                                                     className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-mono font-bold ${
                                                                         isDup 
                                                                             ? 'text-slate-400 border-transparent cursor-not-allowed' 
@@ -1143,56 +1169,56 @@ export const ContributorsList: React.FC = () => {
                                         </table>
                                     </div>
                                     <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                                        * Linhas marcadas como "Duplicado" possuem CPF ou Nome idênticos a contribuintes já ativos nesta igreja e serão pulados automaticamente para evitar duplicidade.
+                                        * Linhas marcadas como "Duplicado" possuem CPF/CNPJ ou Nome idênticos a cadastros já ativos nesta igreja e serão pulados automaticamente para evitar duplicidade.
                                     </p>
                                 </div>
                             )}
                         </div>
+                    </div>
 
-                        {/* Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-between items-center rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
-                            <div>
-                                {isImporting && (
-                                    <div className="text-left">
-                                        <p className="text-[10px] font-black uppercase text-brand-blue tracking-wider">
-                                            Importando {importProgress.current} de {importProgress.total}...
-                                        </p>
-                                        <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
-                                            <div 
-                                                className="bg-brand-blue h-full rounded-full transition-all duration-300" 
-                                                style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                                            />
-                                        </div>
+                    {/* Footer */}
+                    <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-between items-center border-t border-slate-100 dark:border-slate-800/50 mt-auto">
+                        <div>
+                            {isImporting && (
+                                <div className="text-left">
+                                    <p className="text-[10px] font-black uppercase text-brand-blue tracking-wider">
+                                        Importando {importProgress.current} de {importProgress.total}...
+                                    </p>
+                                    <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
+                                        <div 
+                                            className="bg-brand-blue h-full rounded-full transition-all duration-300" 
+                                            style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                                        />
                                     </div>
-                                )}
-                            </div>
-                            <div className="flex space-x-3">
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex space-x-3">
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setIsImportModalOpen(false);
+                                    setImportFile(null);
+                                    setParsedContributors([]);
+                                }} 
+                                disabled={isImporting}
+                                className="px-6 py-3 rounded-full text-xs font-bold text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide cursor-pointer disabled:opacity-50"
+                            >
+                                {importFile ? 'Voltar' : 'Fechar'}
+                            </button>
+                            {importFile && !isLoadingImport && (
                                 <button 
                                     type="button" 
-                                    onClick={() => {
-                                        setIsImportModalOpen(false);
-                                        setImportFile(null);
-                                        setParsedContributors([]);
-                                    }} 
-                                    disabled={isImporting}
-                                    className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide cursor-pointer disabled:opacity-50"
+                                    onClick={handleExecuteImport}
+                                    disabled={isImporting || parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length === 0}
+                                    className="px-8 py-3 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase tracking-wide cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                                 >
-                                    {importFile ? 'Voltar' : 'Fechar'}
+                                    {isImporting ? 'Cadastrando...' : 'Confirmar Cadastro'}
                                 </button>
-                                {importFile && !isLoadingImport && (
-                                    <button 
-                                        type="button" 
-                                        onClick={handleExecuteImport}
-                                        disabled={isImporting || parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length === 0}
-                                        className="px-6 py-2.5 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:bg-emerald-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                                    >
-                                        {isImporting ? 'Cadastrando...' : 'Confirmar Cadastro'}
-                                    </button>
-                                )}
-                            </div>
+                            )}
                         </div>
-
                     </div>
+
                 </div>
             )}
         </div>

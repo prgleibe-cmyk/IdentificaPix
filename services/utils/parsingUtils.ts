@@ -11,7 +11,7 @@ export const PLACEHOLDER_CHURCH: Church = {
 };
 
 export const DEFAULT_CONTRIBUTION_KEYWORDS = [
-    'DÍZIMO', 'DÍZIMOS', 'OFERTA', 'OFERTAS', 'COLETA', 'COLETAS', 'MISSÃO', 'MISSÕES', 'VOTOS', 'CAMPANHA'
+    'DÍZIMO', 'OFERTA'
 ];
 
 /**

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { CheckBadgeIcon } from '../Icons';
+import logoImg from '../../src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
 
 export const AuthHero: React.FC = () => {
     return (
@@ -10,14 +11,14 @@ export const AuthHero: React.FC = () => {
                 <div className="relative group animate-pulse-soft">
                     <div className="absolute inset-0 bg-emerald-500/10 rounded-full blur-[60px] animate-pulse"></div>
                     <img 
-                        src="/logo.png" 
-                        className="h-52 w-auto object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.6)] transform rotate-y-12 rotate-x-6 group-hover:rotate-0 transition-all duration-700 ease-out" 
+                        src={logoImg} 
+                        className="h-52 w-auto object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] transform rotate-y-12 rotate-x-6 group-hover:rotate-0 transition-all duration-700 ease-out" 
                         alt="Logo IgGestor" 
                     />
                 </div>
                 <div>
                     <h1 className="text-5xl font-black text-slate-800 tracking-tighter leading-none mb-1 drop-shadow-sm">IgGestor</h1>
-                    <span className="text-sm uppercase tracking-[0.4em] text-brand-blue font-bold block ml-1">Sistema Integrado</span>
+                    <span className="text-xs uppercase tracking-[0.2em] text-brand-blue font-bold block ml-1">Gestão Financeira para Igrejas</span>
                 </div>
             </div>
 
@@ -34,8 +35,8 @@ export const AuthHero: React.FC = () => {
                 </h2>
                 
                 <div className="border-l-4 border-brand-blue pl-6">
-                    <p className="text-lg text-slate-600 leading-relaxed">
-                        Tecnologia de ponta para gestão de dízimos e ofertas. Conciliação bancária automatizada para igrejas modernas.
+                    <p className="text-lg text-slate-600 leading-relaxed font-medium">
+                        Plataforma inteligente de gestão financeira completa para igrejas. Automatize a conciliação bancária, controle dízimos, ofertas, despesas e relatórios em tempo real de forma simples e segura.
                     </p>
                 </div>
 

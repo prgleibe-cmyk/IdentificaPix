@@ -110,6 +110,7 @@ export const useSmartBankCard = ({ bank }: UseSmartBankCardProps) => {
             } else {
                 await handleAppend(content, fileName, rawFile, base64);
             }
+            window.dispatchEvent(new CustomEvent('identificapix-file-uploaded'));
         } catch (e) {
             console.error(e);
         } finally {

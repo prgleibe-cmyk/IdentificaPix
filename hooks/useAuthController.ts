@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 
 export const useAuthController = () => {
     const [isLogin, setIsLogin] = useState(true);
+    const [isRecoveryMode, setIsRecoveryMode] = useState(false);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -13,6 +14,7 @@ export const useAuthController = () => {
 
     const toggleMode = useCallback(() => {
         setIsLogin(prev => !prev);
+        setIsRecoveryMode(false);
         setError(null);
         setMessage(null);
     }, []);
@@ -48,6 +50,27 @@ export const useAuthController = () => {
         setError(null);
         setMessage(null);
         
+        if (isRecoveryMode) {
+            if (!email) {
+                setError('Por favor, informe seu email.');
+                setLoading(false);
+                return;
+            }
+            try {
+                const { error: resetError } = await (supabase.auth as any).resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin
+                });
+                if (resetError) throw resetError;
+                setMessage('Email de recuperação enviado! Verifique sua caixa de entrada.');
+            } catch (err: any) {
+                console.error("Reset password error:", err);
+                setError(err.message || 'Erro ao enviar email de recuperação.');
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
+
         if (password.length < 6) {
             setError('A senha precisa ter no mínimo 6 caracteres.');
             setLoading(false);
@@ -92,7 +115,7 @@ export const useAuthController = () => {
     };
 
     return {
-        isLogin, name, setName, email, setEmail, password, setPassword,
+        isLogin, isRecoveryMode, setIsRecoveryMode, name, setName, email, setEmail, password, setPassword,
         showPassword, setShowPassword, loading, error, message,
         toggleMode, handleGoogleLogin, handleAuth
     };

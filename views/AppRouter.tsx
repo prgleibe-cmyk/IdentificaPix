@@ -48,6 +48,7 @@ export const AppRouter: React.FC = () => {
         case 'launched': return <LaunchedView />;
         case 'connectors': return <ConnectorsView />;
         case 'financial': return <FinancialView />;
+        case 'novo_lancamento': return <ManualIdModal />;
         case 'users': return isOwner ? <UsersManagementPage /> : <DashboardView />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;
         default: return <DashboardView />;
@@ -74,7 +75,7 @@ export const ModalsRenderer: React.FC = () => {
         <>
             {editingBank && <EditBankModal />}
             {editingChurch && <EditChurchModal />}
-            {bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && <ManualIdModal />}
+            {bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && !bulkIdentificationTxs.some(tx => tx.id.startsWith('ghost-manual-')) && <ManualIdModal />}
             {deletingItem && <ConfirmDeleteModal />}
             {manualMatchState && <ManualMatchModal />}
             {savingReportState && <SaveReportModal />}

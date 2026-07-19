@@ -3,6 +3,8 @@ import { UserIcon, EnvelopeIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, CheckBad
 
 interface AuthFormProps {
     isLogin: boolean;
+    isRecoveryMode: boolean;
+    setIsRecoveryMode: (v: boolean) => void;
     loading: boolean;
     error: string | null;
     message: string | null;
@@ -19,7 +21,7 @@ interface AuthFormProps {
 }
 
 export const AuthForm: React.FC<AuthFormProps> = ({
-    isLogin, loading, error, message, name, setName, email, setEmail, password, setPassword,
+    isLogin, isRecoveryMode, setIsRecoveryMode, loading, error, message, name, setName, email, setEmail, password, setPassword,
     showPassword, setShowPassword, onSubmit, onToggleMode
 }) => {
     const inputClass = "w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200/80 focus:border-brand-blue focus:bg-white rounded-xl text-slate-800 font-bold outline-none transition-all text-sm";
@@ -27,7 +29,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({
 
     return (
         <form onSubmit={onSubmit} className="space-y-4">
-            {!isLogin && (
+            {!isLogin && !isRecoveryMode && (
                 <div>
                     <label className={labelClass}>Nome Completo</label>
                     <div className="relative group">
@@ -45,19 +47,31 @@ export const AuthForm: React.FC<AuthFormProps> = ({
                 </div>
             </div>
 
-            <div>
-                <div className="flex justify-between items-center mb-1.5 ml-1">
-                    <label className={labelClass}>Senha</label>
-                    {isLogin && <button type="button" className="text-[10px] font-bold text-brand-blue hover:underline">Esqueceu?</button>}
+            {!isRecoveryMode && (
+                <div>
+                    <div className="flex justify-between items-center mb-1.5 ml-1">
+                        <label className={labelClass}>Senha</label>
+                        {isLogin && (
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setIsRecoveryMode(true);
+                                }} 
+                                className="text-[10px] font-bold text-brand-blue hover:underline cursor-pointer"
+                            >
+                                Esqueceu?
+                            </button>
+                        )}
+                    </div>
+                    <div className="relative group">
+                        <LockClosedIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-colors" />
+                        <input type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} required />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors p-1">
+                            {showPassword ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                        </button>
+                    </div>
                 </div>
-                <div className="relative group">
-                    <LockClosedIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-colors" />
-                    <input type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} required />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors p-1">
-                        {showPassword ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                    </button>
-                </div>
-            </div>
+            )}
 
             {error && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3 animate-fade-in">
@@ -74,16 +88,22 @@ export const AuthForm: React.FC<AuthFormProps> = ({
             )}
 
             <button type="submit" disabled={loading} className="w-full py-4 text-white font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-blue/20 hover:shadow-brand-blue/30 hover:-translate-y-0.5 active:scale-[0.99] transition-all disabled:opacity-70 mt-2 text-xs bg-gradient-to-r from-brand-blue to-amber-500">
-                {loading ? 'Processando...' : (isLogin ? 'Entrar na Plataforma' : 'Criar Conta Grátis')}
+                {loading ? 'Processando...' : (isRecoveryMode ? 'Recuperar Senha' : (isLogin ? 'Entrar na Plataforma' : 'Criar Conta Grátis'))}
             </button>
 
             <div className="mt-6 text-center">
-                <p className="text-xs font-bold text-slate-400">
-                    {isLogin ? 'Novo por aqui?' : 'Já possui conta?'}
-                    <button type="button" onClick={onToggleMode} className="text-slate-700 hover:text-brand-blue ml-1 transition-colors underline decoration-2 underline-offset-2">
-                        {isLogin ? 'Criar conta' : 'Fazer Login'}
+                {isRecoveryMode ? (
+                    <button type="button" onClick={() => setIsRecoveryMode(false)} className="text-xs font-bold text-slate-500 hover:text-brand-blue transition-colors underline decoration-2 underline-offset-2">
+                        Voltar para o Login
                     </button>
-                </p>
+                ) : (
+                    <p className="text-xs font-bold text-slate-400">
+                        {isLogin ? 'Novo por aqui?' : 'Já possui conta?'}
+                        <button type="button" onClick={onToggleMode} className="text-slate-700 hover:text-brand-blue ml-1 transition-colors underline decoration-2 underline-offset-2">
+                            {isLogin ? 'Criar conta' : 'Fazer Login'}
+                        </button>
+                    </p>
+                )}
             </div>
         </form>
     );

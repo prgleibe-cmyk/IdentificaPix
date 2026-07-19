@@ -3,6 +3,7 @@ import { useDashboardController } from '../hooks/useDashboardController';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
 import { BankChipsList } from '../components/reports/BankChipsList';
+import logoImg from '../src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
 import {
     XCircleIcon,
     UploadIcon,
@@ -32,7 +33,7 @@ export const DashboardView: React.FC = () => {
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <div className="flex items-center gap-3">
                     <img 
-                        src="/logo.png" 
+                        src={logoImg} 
                         className="h-8 w-auto object-contain" 
                         alt="Logo" 
                     />
@@ -58,17 +59,17 @@ export const DashboardView: React.FC = () => {
 
             {!hasData ? (
                 <div className="flex-1 flex flex-col h-full animate-fade-in-up pb-6">
-                    <div className="flex flex-col md:flex-row md:items-center gap-6 mb-12 px-1 flex-shrink-0">
+                    <div className="flex flex-col md:flex-row md:items-center gap-6 mb-10 px-1 flex-shrink-0">
                         <div className="relative shrink-0 w-fit">
                             <img 
-                                src="/logo.png" 
-                                className="h-52 w-auto object-contain relative z-10 drop-shadow-2xl" 
+                                src={logoImg} 
+                                className="h-32 lg:h-44 w-auto object-contain relative z-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.06)]" 
                                 alt="IgGestor Logo" 
                             />
                         </div>
                         <div>
                             <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
-                                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-violet-500">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>.
+                                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-600">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>.
                             </h2>
                             <p className="text-slate-500 dark:text-slate-400 text-lg mt-3 font-medium">Seu painel de controle financeiro inteligente.</p>
                         </div>

@@ -70,6 +70,7 @@ export const useFileProcessor = ({
                 showToast(stats.added === 0 ? "Lista Sincronizada." : `Sucesso! Total: ${stats.total}`, "success");
             }
             await hydrate();
+            window.dispatchEvent(new CustomEvent('identificapix-file-uploaded'));
             
         } catch (error: any) {
             showToast(error.message || "Erro no processamento do arquivo.", "error");

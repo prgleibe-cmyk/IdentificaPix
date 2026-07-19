@@ -6,7 +6,7 @@ import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/util
 import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
 
-const DEFAULT_PAYMENT_METHODS = ['PIX', 'TED', 'BOLETO', 'DINHEIRO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
+const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
 
 export const useReferenceData = (user: any | null, showToast: (msg: string, type: 'success' | 'error') => void, realtimeRefreshKey?: number) => {
     const { subscription, systemSettings } = useAuth();
@@ -21,6 +21,61 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
+
+    // ✅ MIGRATION/CLEANUP logic to ensure only 'DÍZIMO', 'OFERTA' for contribution types and 'PIX', 'DINHEIRO' for payment methods
+    const hasMigratedRef = useRef(false);
+
+    useEffect(() => {
+        if (!userSuffix) return;
+        if (hasMigratedRef.current) return;
+        
+        if (!contributionKeywords || !paymentMethods) return;
+
+        let changed = false;
+        let nextKeywords = [...contributionKeywords];
+        let nextMethods = [...paymentMethods];
+
+        // 1. Clean contribution keywords if they match the legacy defaults
+        if (contributionKeywords.length === 10 && contributionKeywords.includes('COLETA')) {
+            nextKeywords = ['DÍZIMO', 'OFERTA'];
+            changed = true;
+        } else if (contributionKeywords.length > 2) {
+            const oldDefaults = ['DÍZIMOS', 'COLETA', 'COLETAS', 'MISSÃO', 'MISSÕES', 'VOTOS', 'CAMPANHA', 'OFERTAS'];
+            const filtered = contributionKeywords.filter(kw => !oldDefaults.includes(kw.toUpperCase()));
+            if (filtered.length !== contributionKeywords.length) {
+                nextKeywords = filtered;
+                if (!nextKeywords.some(k => k.toUpperCase() === 'DÍZIMO')) nextKeywords.push('DÍZIMO');
+                if (!nextKeywords.some(k => k.toUpperCase() === 'OFERTA')) nextKeywords.push('OFERTA');
+                changed = true;
+            }
+        }
+
+        // 2. Clean payment methods if they match legacy defaults
+        if (paymentMethods.length === 7 && paymentMethods.includes('TED')) {
+            nextMethods = ['PIX', 'DINHEIRO'];
+            changed = true;
+        } else if (paymentMethods.length > 2) {
+            const oldMethods = ['TED', 'BOLETO', 'CARTÃO', 'CHEQUE', 'DEPÓSITO'];
+            const filtered = paymentMethods.filter(pm => !oldMethods.includes(pm.toUpperCase()));
+            if (filtered.length !== paymentMethods.length) {
+                nextMethods = filtered;
+                if (!nextMethods.some(m => m.toUpperCase() === 'PIX')) nextMethods.push('PIX');
+                if (!nextMethods.some(m => m.toUpperCase() === 'DINHEIRO')) nextMethods.push('DINHEIRO');
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            if (JSON.stringify(nextKeywords) !== JSON.stringify(contributionKeywords)) {
+                setContributionKeywords(nextKeywords);
+            }
+            if (JSON.stringify(nextMethods) !== JSON.stringify(paymentMethods)) {
+                setPaymentMethods(nextMethods);
+            }
+        }
+        
+        hasMigratedRef.current = true;
+    }, [contributionKeywords, paymentMethods, userSuffix, setContributionKeywords, setPaymentMethods]);
 
     const [learnedAssociations, setLearnedAssociations] = useState<LearnedAssociation[]>([]);
     const [editingBank, setEditingBank] = useState<Bank | null>(null);

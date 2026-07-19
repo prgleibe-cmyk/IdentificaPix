@@ -1,5 +1,5 @@
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon, DevicePhoneMobileIcon } from '../components/Icons';
@@ -20,7 +20,29 @@ export const UploadView: React.FC = () => {
     const { t } = useTranslation();
 
     // Estado persistente para o modo de alimentação (arquivo vs android)
-    const [feedingMode, setFeedingMode] = usePersistentState<'file' | 'android'>('identificapix-feeding-mode', 'file');
+    const [feedingMode, setFeedingMode] = usePersistentState<'file' | 'android'>('identificapix-feeding-mode', 'android');
+
+    // Sempre garante que o modo de alimentação padrão é 'android' ao montar/desmontar (navegar para outra tela)
+    useEffect(() => {
+        setFeedingMode('android');
+        return () => {
+            setFeedingMode('android');
+        };
+    }, [setFeedingMode]);
+
+    // Ouve o evento de finalização de upload de arquivo para retornar automaticamente para 'android'
+    useEffect(() => {
+        const handleFinishedUpload = () => {
+            setTimeout(() => {
+                setFeedingMode('android');
+            }, 2000); // 2 segundos de atraso para o usuário perceber que o upload deu certo e depois mudar de volta
+        };
+
+        window.addEventListener('identificapix-file-uploaded', handleFinishedUpload);
+        return () => {
+            window.removeEventListener('identificapix-file-uploaded', handleFinishedUpload);
+        };
+    }, [setFeedingMode]);
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-6 pb-4 px-2 md:px-4">
@@ -104,9 +126,9 @@ export const UploadView: React.FC = () => {
                         <div className="flex-1">
                             <h4 className="font-black text-indigo-900 dark:text-indigo-100 uppercase text-[10px] tracking-widest mb-1">Guia de Melhores Resultados</h4>
                             <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80 leading-relaxed">
-                                O sistema aprende através da <strong>Lista Viva</strong>. Para máxima precisão, use sempre o mesmo modelo de arquivo; mudanças de layout reduzem a identificação automática. Dê preferência a <strong>Excel (.xlsx) ou CSV</strong> por serem mais rápidos e estáveis.
+                                O sistema prioriza a <strong>Conexão Android</strong> automática: com seu celular configurado e a macro ativa, as transações (SMS e notificações) alimentam a Lista Viva <strong>em tempo real</strong> sem risco de perdas. O upload de arquivos (Excel ou CSV) serve para cargas históricas ou retroativas, e o sistema <strong>retorna automaticamente à Conexão Android</strong> após a importação.
                                 <span className="block mt-1.5 font-bold text-indigo-800 dark:text-indigo-200 opacity-90">
-                                    Atenção: Se o arquivo não retornar resultados ou não for reconhecido, chame o suporte para cadastrar seu modelo exclusivo.
+                                    Dica: Cada conciliação manual que você realiza ensina nossa inteligência a identificar os próximos lançamentos de forma 100% automatizada.
                                 </span>
                             </p>
                         </div>

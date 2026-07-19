@@ -5,6 +5,7 @@ import { AuthContextType } from './auth/AuthContracts';
 import { useSystemSettings } from './auth/useSystemSettings';
 import { useSubscriptionState } from './auth/useSubscriptionState';
 import { useAuthActions } from './auth/useAuthActions';
+import { ResetPasswordModal } from '../components/auth/ResetPasswordModal';
 
 const AuthContext = createContext<AuthContextType>(null!);
 
@@ -12,6 +13,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<any | null>(null);
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const isSigningOut = useRef(false);
 
   const { systemSettings, updateSystemSettings, settingsRef } = useSystemSettings();
@@ -49,6 +51,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
     const { data: { subscription: authListener } } = (supabase.auth as any).onAuthStateChange(async (event: any, newSession: any) => {
         if (!mounted || isSigningOut.current) return;
+        if (event === 'PASSWORD_RECOVERY') {
+            setIsResettingPassword(true);
+        }
         if (newSession) {
             setSession(newSession);
             setUser(newSession.user);
@@ -83,7 +88,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     systemSettings, updateSystemSettings
   }), [session, user, loading, signOut, subscription, refreshSubscription, authActions, systemSettings, updateSystemSettings]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {isResettingPassword && (
+        <ResetPasswordModal onClose={() => setIsResettingPassword(false)} />
+      )}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => useContext(AuthContext);

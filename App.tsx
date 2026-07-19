@@ -1,10 +1,14 @@
 
 import React from 'react';
 
+// --- Assets ---
+import logoImg from './src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
+
 // --- Contexts & Controllers ---
 import { RootProvider, SessionProvider } from './contexts/AppProviders';
 import { useSessionController, useContentController } from './hooks/useAppController';
 import { UIProvider } from './contexts/UIContext';
+import { AppContext } from './contexts/AppContext';
 
 // --- Views & Router ---
 import { AppRouter, ModalsRenderer } from './views/AppRouter';
@@ -14,17 +18,22 @@ import { AuthView } from './views/AuthView';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
+import { ManualIdModal } from './components/modals/ManualIdModal';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
     const { isLoading, initialDataLoaded, toast, savedReports } = useContentController();
     const hasCachedData = !!savedReports?.length;
 
+    const context = React.useContext(AppContext);
+    const bulkIdentificationTxs = context?.bulkIdentificationTxs;
+    const isManualLaunch = bulkIdentificationTxs?.some((tx: any) => tx.id.startsWith('ghost-manual-'));
+
     if (!initialDataLoaded && !hasCachedData) {
         return (
             <div className="h-[100dvh] w-screen flex items-center justify-center bg-brand-deep">
                 <div className="flex flex-col items-center">
-                    <img src="/logo.png" className="h-48 w-auto mb-8 object-contain animate-fade-in" alt="IgGestor" />
+                    <img src={logoImg} className="h-48 w-auto mb-8 object-contain animate-fade-in" alt="IgGestor" />
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-brand-blue border-t-transparent mb-4"></div>
                     <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.3em]">Iniciando Sistema</p>
                 </div>
@@ -36,12 +45,14 @@ const MainLayout: React.FC = () => {
         <div className="flex h-[100dvh] bg-[#F1F5F9] dark:bg-brand-deep bg-noise font-sans overflow-hidden relative">
             <Sidebar />
 
-            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 lg:pt-0">
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 md:pt-0">
                 <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
                     <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
                         <div className={`h-full transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                             <AppRouter />
                         </div>
+
+                        <ModalsRenderer />
 
                         {isLoading && (
                             <div className="absolute inset-0 z-[100] flex items-center justify-center backdrop-blur-[1px]">
@@ -55,7 +66,6 @@ const MainLayout: React.FC = () => {
             </main>
 
             {toast && <Toast message={toast.message} type={toast.type} />}
-            <ModalsRenderer />
         </div>
     );
 };
