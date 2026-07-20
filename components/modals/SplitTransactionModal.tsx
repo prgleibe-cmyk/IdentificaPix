@@ -167,7 +167,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                             <button 
                                 type="button" 
                                 onClick={handleAddSplit}
-                                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 rounded-lg flex items-center gap-1.5 transition-all"
+                                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:hover:bg-orange-900/30 rounded-lg flex items-center gap-1.5 transition-all"
                             >
                                 <PlusIcon className="w-3.5 h-3.5" /> Adicionar Destino
                             </button>
@@ -304,7 +304,7 @@ export const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({
                         type="button" 
                         onClick={handleSaveClick}
                         disabled={!isSumPerfect}
-                        className="px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-none rounded-full shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide"
+                        className="px-6 py-2.5 text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-none rounded-full shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide"
                     >
                         Confirmar Distribuição
                     </button>

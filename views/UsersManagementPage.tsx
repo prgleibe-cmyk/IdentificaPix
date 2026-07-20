@@ -293,7 +293,7 @@ export const UsersManagementPage: React.FC = () => {
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 rounded-xl shadow-md shadow-blue-500/10 hover:-translate-y-0.5 transition-all tracking-wide uppercase"
+                        className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl shadow-md shadow-orange-500/10 hover:-translate-y-0.5 transition-all tracking-wide uppercase"
                     >
                         <PlusCircleIcon className="w-3.5 h-3.5" />
                         <span>Criar Usuário</span>
@@ -379,7 +379,7 @@ export const UsersManagementPage: React.FC = () => {
                                                         return bankIds.map((id: string) => {
                                                             const bank = banks.find(b => b.id === id);
                                                             return (
-                                                                <span key={id} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md whitespace-nowrap">
+                                                                <span key={id} className="px-2 py-0.5 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 text-[10px] font-bold rounded-md whitespace-nowrap">
                                                                     {bank?.name || 'Desconhecido'}
                                                                 </span>
                                                             );
@@ -632,7 +632,7 @@ export const UsersManagementPage: React.FC = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className={`px-8 py-2.5 rounded-xl shadow-lg shadow-blue-500/10 text-xs font-bold text-white bg-gradient-to-r from-blue-700 to-blue-500 hover:from-blue-800 hover:to-blue-600 active:bg-blue-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    className={`px-8 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                 >
                                     {loading ? (
                                         <>

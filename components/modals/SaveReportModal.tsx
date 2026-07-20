@@ -52,7 +52,7 @@ export const SaveReportModal: React.FC = () => {
                                 id="report-name"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
-                                className="block w-full rounded-2xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-inner focus:border-indigo-500 focus:ring-indigo-500 py-3.5 px-4 transition-all outline-none text-sm"
+                                className="block w-full rounded-2xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-inner focus:border-orange-500 focus:ring-orange-500 py-3.5 px-4 transition-all outline-none text-sm"
                                 required
                                 autoFocus
                             />
@@ -60,7 +60,7 @@ export const SaveReportModal: React.FC = () => {
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2rem] border-t border-slate-100 dark:border-slate-700/50">
                         <button type="button" onClick={closeSaveReportModal} className="px-5 py-2.5 text-xs font-bold rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">{t('common.cancel')}</button>
-                        <button type="submit" disabled={isSaving || !name.trim()} className="px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-lg shadow-brand-blue/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-95">
+                        <button type="submit" disabled={isSaving || !name.trim()} className="px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600">
                             {isSaving ? `${t('common.save')}...` : t('common.save')}
                         </button>
                     </div>

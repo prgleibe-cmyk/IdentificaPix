@@ -256,7 +256,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-black/10 shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
+                        <div className="w-10 h-10 rounded-2xl bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 border border-orange-100/50 dark:border-orange-950">
                             <Building2 className="w-5 h-5" />
                         </div>
                         <div>
@@ -307,7 +307,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                     <select
                                         value={originChurchId}
                                         onChange={e => setOriginChurchId(e.target.value)}
-                                        className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 text-sm font-bold text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
+                                        className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 text-sm font-bold text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-orange-500/10 transition-all shadow-sm"
                                     >
                                         <option value="" disabled>Selecione a Filial...</option>
                                         {activeChurches.map(c => (
@@ -321,21 +321,21 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
 
                                 {/* Flow Indicator */}
                                 <div className="md:col-span-1 flex justify-center pt-4 md:pt-0">
-                                    <div className="w-9 h-9 rounded-full bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-500 border border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                                    <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-950/20 flex items-center justify-center text-orange-500 border border-orange-100 dark:border-orange-900/50 shadow-sm">
                                         <ArrowRight className="w-4 h-4 rotate-90 md:rotate-0" />
                                     </div>
                                 </div>
 
                                 {/* Matriz de Destino */}
                                 <div className="md:col-span-3 space-y-2">
-                                    <label className="block text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest ml-1">
+                                    <label className="block text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest ml-1">
                                         Igreja Matriz (Destino)
                                     </label>
                                     <select
                                         value={destChurchId}
                                         onChange={e => setDestChurchId(e.target.value)}
                                         disabled={destinationChurches.length === 0}
-                                        className="w-full rounded-2xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/10 dark:bg-indigo-950/10 p-3.5 text-sm font-bold text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
+                                        className="w-full rounded-2xl border border-orange-200 dark:border-orange-900 bg-orange-50/10 dark:bg-orange-950/10 p-3.5 text-sm font-bold text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-orange-500/10 transition-all shadow-sm"
                                     >
                                         {destinationChurches.length === 0 ? (
                                             <option value="">Nenhuma outra igreja registrada</option>
@@ -387,11 +387,11 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                         </div>
 
                                         {/* Saldo Disponível */}
-                                        <div className="space-y-1 bg-indigo-50/50 dark:bg-indigo-950/20 p-3.5 rounded-2xl border border-indigo-100/50 dark:border-indigo-950 flex flex-col justify-center">
-                                            <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">
+                                        <div className="space-y-1 bg-orange-50/50 dark:bg-orange-950/10 p-3.5 rounded-2xl border border-orange-100/50 dark:border-orange-950 flex flex-col justify-center">
+                                            <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider block">
                                                 Saldo Líquido
                                             </span>
-                                            <p className={`text-sm font-black font-mono leading-none pt-1 ${metrics.balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-500'}`}>
+                                            <p className={`text-sm font-black font-mono leading-none pt-1 ${metrics.balance >= 0 ? 'text-orange-600 dark:text-orange-400' : 'text-red-500'}`}>
                                                 {formatCurrency(metrics.balance, language)}
                                             </p>
                                         </div>
@@ -407,13 +407,13 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                         Valor a Transportar (R$)
                                     </label>
                                     <div className="relative group">
-                                        <DollarSign className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors pointer-events-none" />
+                                        <DollarSign className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                         <input
                                             type="text"
                                             value={transferAmount}
                                             onChange={e => setTransferAmount(e.target.value.replace(/[^0-9,]/g, ''))}
                                             placeholder="0,00"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 py-3.5 pl-12 pr-4 transition-all outline-none text-sm font-black font-mono"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 pl-12 pr-4 transition-all outline-none text-sm font-black font-mono"
                                         />
                                     </div>
                                     <p className="text-[9px] text-slate-400 font-bold ml-1">
@@ -427,12 +427,12 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                         Data do Lançamento
                                     </label>
                                     <div className="relative group">
-                                        <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-indigo-500 transition-colors pointer-events-none" />
+                                        <Calendar className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                                         <input
                                             type="date"
                                             value={closingDate}
                                             onChange={e => setClosingDate(e.target.value)}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 py-3.5 pl-12 pr-4 transition-all outline-none text-sm font-bold"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-3.5 pl-12 pr-4 transition-all outline-none text-sm font-bold"
                                         />
                                     </div>
                                 </div>
@@ -448,7 +448,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                                     value={customMemo}
                                     onChange={e => setCustomMemo(e.target.value)}
                                     placeholder="Ex: FECHAMENTO DE CAIXA REFERENTE AO MÊS DE JUNHO"
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-indigo-500/10 p-3.5 outline-none text-sm font-bold uppercase placeholder:normal-case placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 p-3.5 outline-none text-sm font-bold uppercase placeholder:normal-case placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                 />
                                 <p className="text-[9px] text-slate-400 font-semibold ml-1">
                                     O sistema criará automaticamente duas transações de transferência vinculadas pelo histórico, garantindo transparência contábil completa.
@@ -472,7 +472,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             type="button"
                             disabled={isSubmitting || destinationChurches.length === 0}
                             onClick={handleConfirm}
-                            className="px-8 py-3 bg-gradient-to-r from-brand-blue to-brand-teal hover:opacity-90 text-white text-xs font-black rounded-full shadow-lg shadow-blue-500/10 hover:shadow-blue-500/25 transition-all uppercase tracking-wider disabled:opacity-50 disabled:pointer-events-none"
+                            className="px-8 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs font-black rounded-full shadow-lg shadow-orange-500/10 hover:shadow-orange-500/25 transition-all uppercase tracking-wider disabled:opacity-50 disabled:pointer-events-none"
                         >
                             {isSubmitting ? 'Processando...' : 'Confirmar Fechamento'}
                         </button>

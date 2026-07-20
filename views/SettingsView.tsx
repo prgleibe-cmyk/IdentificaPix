@@ -40,10 +40,10 @@ const PreferencesTab: React.FC = () => {
     const dataManagementItems = [
         {
             type: 'uploaded-files' as const,
-            icon: <DocumentDuplicateIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />,
+            icon: <DocumentDuplicateIcon className="w-4 h-4 text-orange-600 dark:text-orange-400" />,
             title: t('settings.dataManagement.uploadedFiles'),
             description: t('settings.dataManagement.uploadedFiles.desc'),
-            color: 'blue'
+            color: 'orange'
         },
         {
             type: 'match-results' as const,
@@ -68,7 +68,7 @@ const PreferencesTab: React.FC = () => {
                 <div className="space-y-4 md:space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center space-x-3 mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
-                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50">
+                            <div className="p-2 bg-orange-50 dark:bg-orange-950/20 rounded-xl text-orange-600 dark:text-orange-400 border border-orange-100 dark:border-orange-900/50">
                                 <PaintBrushIcon className="w-4 h-4" />
                             </div>
                             <div>
@@ -83,7 +83,7 @@ const PreferencesTab: React.FC = () => {
                                 className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-brand-blue dark:hover:border-brand-blue transition-all group"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-full ${theme === 'light' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'} transition-colors`}>
+                                    <div className={`p-2 rounded-full ${theme === 'light' ? 'bg-amber-100 text-amber-600' : 'bg-orange-100 text-orange-600'} transition-colors`}>
                                         {theme === 'light' ? <SunIcon className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
                                     </div>
                                     <div className="text-left">
@@ -102,7 +102,7 @@ const PreferencesTab: React.FC = () => {
                 <div className="space-y-4 md:space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center space-x-3 mb-5 pb-3 border-b border-slate-100 dark:border-slate-700/50">
-                            <div className="p-2 bg-cyan-50 dark:bg-cyan-900/20 rounded-xl text-cyan-600 dark:text-cyan-400 border border-cyan-100 dark:border-cyan-800/50">
+                            <div className="p-2 bg-amber-50 dark:bg-amber-950/20 rounded-xl text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/50">
                                 <CircleStackIcon className="w-4 h-4" />
                             </div>
                             <div>
@@ -204,7 +204,7 @@ export const SettingsView: React.FC = () => {
                 <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{t('settings.title')}</h2>
                 
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                     <div className="relative flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30 border-transparent transform scale-105 z-10 text-[10px] font-bold uppercase tracking-wide">
+                     <div className="relative flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/20 border-transparent transform scale-105 z-10 text-[10px] font-bold uppercase tracking-wide">
                         <WrenchScrewdriverIcon className="w-3.5 h-3.5 text-white" />
                         <span>{t('settings.tabPreferences')}</span>
                      </div>

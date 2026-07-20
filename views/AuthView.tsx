@@ -9,7 +9,7 @@ export const AuthView: React.FC = () => {
     const auth = useAuthController();
   
     return (
-        <div className="h-[100dvh] w-full flex flex-col bg-gradient-to-b from-[#E6EFEA] via-[#D8E8DF] to-[#CADFD4] dark:from-[#0B1411] dark:to-[#050D0A] text-slate-800 dark:text-slate-200 relative overflow-hidden font-sans selection:bg-blue-500/30">
+        <div className="h-[100dvh] w-full flex flex-col bg-gradient-to-b from-[#E6EFEA] via-[#D8E8DF] to-[#CADFD4] dark:from-[#0B1411] dark:to-[#050D0A] text-slate-800 dark:text-slate-200 relative overflow-hidden font-sans selection:bg-orange-500/30">
             <AuthBackground />
 
             <div className="flex-1 w-full overflow-y-auto z-10 relative custom-scrollbar">

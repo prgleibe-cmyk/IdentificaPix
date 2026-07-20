@@ -2,11 +2,233 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import dotenv from 'dotenv';
+// @ts-ignore
+import { DatabaseSync } from 'node:sqlite';
+import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
 
 const { Pool } = pg;
+
+// Helper function to query SQLite fallback
+function querySqlite(db: any, sql: string, params?: any[]): any {
+  let translatedSql = sql;
+  let translatedParams = params || [];
+
+  if (/CREATE\s+EXTENSION/i.test(sql)) {
+    console.log('[SQLite Fallback] Ignoring CREATE EXTENSION:', sql);
+    return { rows: [], rowCount: 0 };
+  }
+  if (/ALTER\s+TABLE\s+\w+\s+ALTER\s+COLUMN/i.test(sql)) {
+    console.log('[SQLite Fallback] Ignoring ALTER COLUMN:', sql);
+    return { rows: [], rowCount: 0 };
+  }
+
+  // Handle ALTER TABLE ADD COLUMN
+  const cleanSql = sql.replace(/\s+/g, ' ').trim();
+  const alterMatch = cleanSql.match(/ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+(.+)/i);
+  if (alterMatch) {
+    const tableName = alterMatch[1];
+    const columnName = alterMatch[2];
+    let columnDef = alterMatch[3];
+    if (columnDef.endsWith(';')) {
+      columnDef = columnDef.slice(0, -1);
+    }
+
+    try {
+      const infoStmt = db.prepare(`PRAGMA table_info("${tableName}");`);
+      const cols = infoStmt.all();
+      const colExists = cols.some((c: any) => c.name.toLowerCase() === columnName.toLowerCase());
+      if (colExists) {
+        console.log(`[SQLite Fallback] Column "${columnName}" already exists on table "${tableName}". Skipping ADD COLUMN.`);
+        return { rows: [], rowCount: 0 };
+      }
+
+      let sqliteColDef = columnDef
+        .replace(/UUID\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid\(\)/ig, 'TEXT PRIMARY KEY')
+        .replace(/\bVARCHAR\(\d+\)/ig, 'TEXT')
+        .replace(/\bVARCHAR\b/ig, 'TEXT')
+        .replace(/\bTIMESTAMP\b/ig, 'TEXT')
+        .replace(/\bBOOLEAN\b/ig, 'INTEGER')
+        .replace(/\bJSONB\b/ig, 'TEXT')
+        .replace(/\bINT\b/ig, 'INTEGER')
+        .replace(/\bNUMERIC\(\d+,\s*\d+\)/ig, 'NUMERIC')
+        .replace(/DEFAULT\s+NOW\(\)/ig, "DEFAULT (now())")
+        .replace(/DEFAULT\s+gen_random_uuid\(\)/ig, "DEFAULT (gen_random_uuid())");
+
+      const runSql = `ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${sqliteColDef};`;
+      console.log('[SQLite Fallback] Executing ADD COLUMN:', runSql);
+      db.exec(runSql);
+      return { rows: [], rowCount: 0 };
+    } catch (err: any) {
+      console.error('[SQLite Fallback] Error in ALTER TABLE ADD COLUMN:', err.message);
+      return { rows: [], rowCount: 0 };
+    }
+  }
+
+  // Translate general CREATE TABLE types and defaults
+  translatedSql = translatedSql
+    .replace(/UUID\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid\(\)(?:::\w+)?/ig, 'TEXT PRIMARY KEY DEFAULT (gen_random_uuid())')
+    .replace(/\bVARCHAR\(\d+\)/ig, 'TEXT')
+    .replace(/\bVARCHAR\b/ig, 'TEXT')
+    .replace(/\bTIMESTAMP\b/ig, 'TEXT')
+    .replace(/\bBOOLEAN\b/ig, 'INTEGER')
+    .replace(/\bJSONB\b/ig, 'TEXT')
+    .replace(/\bINT\b/ig, 'INTEGER')
+    .replace(/\bNUMERIC\(\d+,\s*\d+\)/ig, 'NUMERIC')
+    .replace(/DEFAULT\s+NOW\(\)/ig, "DEFAULT (now())")
+    .replace(/DEFAULT\s+now\(\)/ig, "DEFAULT (now())")
+    .replace(/DEFAULT\s+gen_random_uuid\(\)(?:::\w+)?/ig, "DEFAULT (gen_random_uuid())");
+
+  if (translatedSql.includes('id = ANY($1)') && Array.isArray(translatedParams[0])) {
+    const ids = translatedParams[0];
+    if (ids.length === 0) {
+      return { rows: [], rowCount: 0 };
+    }
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
+    translatedSql = translatedSql.replace('id = ANY($1)', `id IN (${placeholders})`);
+    translatedParams = ids;
+  }
+
+  const sqliteParams: any = {};
+  for (let i = 0; i < translatedParams.length; i++) {
+    sqliteParams[`$${i + 1}`] = translatedParams[i];
+  }
+
+  try {
+    const isMutatingNoSelect = /^(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)/i.test(translatedSql) && !/RETURNING/i.test(translatedSql);
+    if (isMutatingNoSelect) {
+      const stmt = db.prepare(translatedSql);
+      const runResult = stmt.run(sqliteParams);
+      return {
+        rows: [],
+        rowCount: runResult.changes,
+        fields: []
+      };
+    } else {
+      const stmt = db.prepare(translatedSql);
+      const rows = stmt.all(sqliteParams);
+
+      const mappedRows = rows.map((row: any) => {
+        const mappedRow = { ...row };
+        for (const key in mappedRow) {
+          if (key === 'data' && typeof mappedRow[key] === 'string') {
+            try {
+              mappedRow[key] = JSON.parse(mappedRow[key]);
+            } catch (e) {
+              // Ignore
+            }
+          }
+          if (key === 'is_confirmed' && typeof mappedRow[key] === 'number') {
+            mappedRow[key] = mappedRow[key] === 1;
+          }
+        }
+        return mappedRow;
+      });
+
+      return {
+        rows: mappedRows,
+        rowCount: mappedRows.length,
+        fields: []
+      };
+    }
+  } catch (err: any) {
+    console.error('[SQLite Fallback] Database query execution error:', err.message, '\nOriginal SQL:', sql);
+    throw err;
+  }
+}
+
+class SqliteClient {
+  constructor(private db: any) {}
+  async query(sql: string, params?: any[]): Promise<any> {
+    return querySqlite(this.db, sql, params);
+  }
+  release() {
+    // No-op
+  }
+}
+
+class SmartPool {
+  private pgPool: pg.Pool;
+  private sqliteDb: any = null;
+  private isSqliteFallback = false;
+  private fallbackChecked = false;
+
+  constructor(config: pg.PoolConfig) {
+    this.pgPool = new Pool(config);
+  }
+
+  private async checkConnection(): Promise<boolean> {
+    if (this.fallbackChecked) {
+      return !this.isSqliteFallback;
+    }
+    try {
+      const client = await this.pgPool.connect();
+      client.release();
+      this.isSqliteFallback = false;
+      this.fallbackChecked = true;
+      console.log('[Contributors API] PostgreSQL connected successfully.');
+      return true;
+    } catch (err: any) {
+      console.warn('[Contributors API] PostgreSQL failed to connect. Falling back to native SQLite:', err.message);
+      this.initSqlite();
+      this.isSqliteFallback = true;
+      this.fallbackChecked = true;
+      return false;
+    }
+  }
+
+  private initSqlite() {
+    if (this.sqliteDb) return;
+    try {
+      const dbPath = path.join(__dirname, 'local_fallback.db');
+      console.log('[Contributors API] SQLite fallback active at:', dbPath);
+      this.sqliteDb = new DatabaseSync(dbPath);
+      this.sqliteDb.function('gen_random_uuid', () => crypto.randomUUID());
+      this.sqliteDb.function('now', () => new Date().toISOString());
+    } catch (err: any) {
+      console.error('[Contributors API] SQLite initialization failed:', err.message);
+    }
+  }
+
+  async connect(): Promise<any> {
+    await this.checkConnection();
+    if (this.isSqliteFallback) {
+      this.initSqlite();
+      return new SqliteClient(this.sqliteDb);
+    }
+    return await this.pgPool.connect();
+  }
+
+  async query(sql: string, params?: any[]): Promise<any> {
+    await this.checkConnection();
+    if (this.isSqliteFallback) {
+      this.initSqlite();
+      return querySqlite(this.sqliteDb, sql, params);
+    }
+    try {
+      return await this.pgPool.query(sql, params);
+    } catch (err: any) {
+      if (err.code === 'EAI_AGAIN' || err.code === 'ECONNREFUSED' || err.message.includes('getaddrinfo') || err.message.includes('connect')) {
+        console.warn('[Contributors API] PostgreSQL query failed with connection error, switching to SQLite fallback.');
+        this.initSqlite();
+        this.isSqliteFallback = true;
+        return querySqlite(this.sqliteDb, sql, params);
+      }
+      throw err;
+    }
+  }
+
+  async end() {
+    await this.pgPool.end();
+  }
+}
 
 export const app = express();
 const PORT = process.env.PORT || 3010;
@@ -25,23 +247,23 @@ let pool: pg.Pool;
 
 if (connectionString) {
   console.log('[Contributors API] Using connection string for PostgreSQL database.');
-  pool = new Pool({
+  pool = new SmartPool({
     connectionString,
     ssl: connectionString.includes('supabase') || process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined
-  });
+  }) as any;
 } else {
   if (rawConnectionString && !isValidConnectionString) {
     console.warn(`[Contributors API] WARNING: DATABASE_URL is not a valid connection URI ("${rawConnectionString.substring(0, 50)}..."). Using individual parameters instead.`);
   } else {
     console.log('[Contributors API] No connection string provided. Using individual parameters for PostgreSQL database connection.');
   }
-  pool = new Pool({
+  pool = new SmartPool({
     host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
     port: Number(process.env.PGPORT || process.env.DB_PORT || 5432),
     user: process.env.PGUSER || process.env.DB_USER || 'postgres',
     password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
     database: process.env.PGDATABASE || process.env.DB_DATABASE || 'contributors',
-  });
+  }) as any;
 }
 
 // Database tables initialization

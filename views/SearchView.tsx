@@ -23,7 +23,7 @@ export const SearchView: React.FC = () => {
         return (
             <div className="flex-1 flex items-center justify-center">
                 <EmptyState 
-                    icon={<SearchIcon className="w-12 h-12 text-brand-blue dark:text-blue-400" />} 
+                    icon={<SearchIcon className="w-12 h-12 text-orange-500 dark:text-orange-400" />} 
                     title={t('empty.search.title')} 
                     message={t('empty.search.message')} 
                     action={{ text: t('empty.dashboard.saved.action'), onClick: () => ctrl.setActiveView('upload') }} 

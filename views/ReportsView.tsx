@@ -98,7 +98,7 @@ export const ReportsView: React.FC = () => {
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-900/40 rounded-3xl animate-fade-in">
                 <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 p-8 flex flex-col gap-6">
                     <div className="flex flex-col items-center text-center gap-2">
-                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-full text-blue-600 dark:text-blue-400">
+                        <div className="p-4 bg-orange-50 dark:bg-orange-950/30 rounded-full text-orange-600 dark:text-orange-400">
                             <Calendar className="w-8 h-8" />
                         </div>
                         <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Selecione o Período</h3>
@@ -114,7 +114,7 @@ export const ReportsView: React.FC = () => {
                             onClick={() => setSelectionMode('month')}
                             className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                                 selectionMode === 'month'
-                                    ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow-sm'
+                                    ? 'bg-white dark:bg-slate-600 text-orange-600 dark:text-white shadow-sm'
                                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                             }`}
                         >
@@ -125,7 +125,7 @@ export const ReportsView: React.FC = () => {
                             onClick={() => setSelectionMode('dates')}
                             className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                                 selectionMode === 'dates'
-                                    ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow-sm'
+                                    ? 'bg-white dark:bg-slate-600 text-orange-600 dark:text-white shadow-sm'
                                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                             }`}
                         >
@@ -141,7 +141,7 @@ export const ReportsView: React.FC = () => {
                                 <select
                                     value={selectedMonth}
                                     onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 >
                                     {monthsList.map(m => (
                                         <option key={m.val} value={m.val}>{m.name}</option>
@@ -153,7 +153,7 @@ export const ReportsView: React.FC = () => {
                                 <select
                                     value={selectedYear}
                                     onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 >
                                     {yearsList.map(y => (
                                         <option key={y} value={y}>{y}</option>
@@ -170,7 +170,7 @@ export const ReportsView: React.FC = () => {
                                         type="date"
                                         value={customStart}
                                         onChange={(e) => setCustomStart(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                                     />
                                 </div>
                                 <div className="flex flex-col gap-1.5">
@@ -179,7 +179,7 @@ export const ReportsView: React.FC = () => {
                                         type="date"
                                         value={customEnd}
                                         onChange={(e) => setCustomEnd(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                                     />
                                 </div>
                             </div>
@@ -190,7 +190,7 @@ export const ReportsView: React.FC = () => {
                     <button
                         type="button"
                         onClick={handleConfirmPeriod}
-                        className="w-full h-12 flex items-center justify-center gap-2 text-xs font-black text-white rounded-2xl shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 active:scale-95 transition-all bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 uppercase tracking-widest cursor-pointer"
+                        className="w-full h-12 flex items-center justify-center gap-2 text-xs font-black text-white rounded-2xl shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 active:scale-95 transition-all bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 uppercase tracking-widest cursor-pointer"
                     >
                         <Check className="w-4 h-4" />
                         Carregar Período
@@ -204,7 +204,7 @@ export const ReportsView: React.FC = () => {
         return (
             <div className="flex-1 flex items-center justify-center">
                 <EmptyState
-                    icon={<ChartBarIcon className="w-12 h-12 text-brand-blue dark:text-blue-400" />}
+                    icon={<ChartBarIcon className="w-12 h-12 text-brand-blue dark:text-orange-400" />}
                     title={t('empty.reports.title')}
                     message={t('empty.reports.message')}
                     action={{ text: t('empty.dashboard.saved.action'), onClick: () => ctrl.setActiveView('upload') }}
@@ -255,7 +255,7 @@ export const ReportsView: React.FC = () => {
                                     dateRange: { start: '', end: '' }
                                 }));
                             }}
-                            className="ml-2 text-[10px] font-black uppercase text-blue-600 hover:text-red-500 transition-colors cursor-pointer"
+                            className="ml-2 text-[10px] font-black uppercase text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
                         >
                             Alterar
                         </button>
@@ -265,7 +265,7 @@ export const ReportsView: React.FC = () => {
                 {ctrl.activeCategory === 'churches' && (
                     <button
                         onClick={() => setIsClosingModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-blue to-brand-teal hover:opacity-90 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-blue-500/10 hover:shadow-blue-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-orange-500/10 hover:shadow-orange-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                     >
                         <Building2 className="w-3.5 h-3.5" />
                         <span>Realizar Fechamento & Transferir Saldo</span>

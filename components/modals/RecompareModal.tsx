@@ -37,7 +37,7 @@ export const RecompareModal: React.FC = () => {
                 {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/30">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
+                        <div className="p-2 bg-orange-50 dark:bg-orange-950/30 rounded-xl text-orange-600 dark:text-orange-400 border border-orange-100/50 dark:border-orange-950">
                             <ArrowPathIcon className="w-5 h-5" />
                         </div>
                         <div>
@@ -59,12 +59,12 @@ export const RecompareModal: React.FC = () => {
                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                                 {t('settings.similarityLevel')}
                             </label>
-                            <span className="text-sm font-black text-brand-blue dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-800">
+                            <span className="text-sm font-black text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-lg border border-orange-100/50 dark:border-orange-950">
                                 {similarityLevel}%
                             </span>
                         </div>
                         <div className="relative h-2 bg-slate-100 dark:bg-slate-700 rounded-full">
-                            <div className="absolute top-0 left-0 h-full bg-brand-blue rounded-full transition-all duration-150" style={{ width: `${similarityLevel}%` }}></div>
+                            <div className="absolute top-0 left-0 h-full bg-orange-500 rounded-full transition-all duration-150" style={{ width: `${similarityLevel}%` }}></div>
                             <input 
                                 type="range" 
                                 min="10" 
@@ -85,12 +85,12 @@ export const RecompareModal: React.FC = () => {
                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                                 {t('settings.dayTolerance')}
                             </label>
-                            <span className="text-sm font-black text-brand-teal dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-2 py-0.5 rounded-lg border border-teal-100 dark:border-teal-800">
+                            <span className="text-sm font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-lg border border-amber-100/50 dark:border-amber-950">
                                 {dayTolerance} dias
                             </span>
                         </div>
                         <div className="relative h-2 bg-slate-100 dark:bg-slate-700 rounded-full">
-                            <div className="absolute top-0 left-0 h-full bg-brand-teal rounded-full transition-all duration-150" style={{ width: `${(dayTolerance / 30) * 100}%` }}></div>
+                            <div className="absolute top-0 left-0 h-full bg-amber-500 rounded-full transition-all duration-150" style={{ width: `${(dayTolerance / 30) * 100}%` }}></div>
                             <input 
                                 type="range" 
                                 min="0" 
@@ -122,7 +122,7 @@ export const RecompareModal: React.FC = () => {
                         type="button" 
                         onClick={handleRun} 
                         disabled={isProcessing}
-                        className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-brand-blue to-brand-teal hover:opacity-90 rounded-full shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:opacity-95 rounded-full shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         {isProcessing ? (
                             <>

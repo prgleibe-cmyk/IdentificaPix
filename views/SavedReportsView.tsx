@@ -18,7 +18,7 @@ export const SavedReportsView: React.FC = () => {
         return (
             <div className="flex-1 flex items-center justify-center">
                 <EmptyState
-                    icon={<DocumentDuplicateIcon className="w-12 h-12 text-brand-blue dark:text-blue-400" />}
+                    icon={<DocumentDuplicateIcon className="w-12 h-12 text-orange-500 dark:text-orange-400" />}
                     title={ctrl.t('savedReports.empty.title')}
                     message={ctrl.t('savedReports.empty.message')}
                     action={{

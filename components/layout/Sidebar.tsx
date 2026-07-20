@@ -4,7 +4,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
-import logoImg from '../../src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
+const logoImg = '/logo.png?v=15';
 import { 
     HomeIcon, 
     UploadIcon, 

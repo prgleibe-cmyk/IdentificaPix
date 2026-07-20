@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { CheckBadgeIcon } from '../Icons';
-import logoImg from '../../src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
+const logoImg = '/logo.png?v=15';
 
 export const AuthHero: React.FC = () => {
     return (

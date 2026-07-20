@@ -3,7 +3,7 @@ import { useDashboardController } from '../hooks/useDashboardController';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
 import { BankChipsList } from '../components/reports/BankChipsList';
-import logoImg from '../src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
+const logoImg = '/logo.png?v=15';
 import {
     XCircleIcon,
     UploadIcon,

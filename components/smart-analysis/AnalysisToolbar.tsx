@@ -54,7 +54,7 @@ export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({
                 <button 
                     onClick={onRankingClick} 
                     className={`relative flex items-center justify-center gap-2 px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 group border
-                        ${activeTemplate === 'ranking' ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-violet-500/30 border-transparent transform scale-105' : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-violet-600 border-slate-200 dark:border-slate-700'}`}
+                        ${activeTemplate === 'ranking' ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/30 border-transparent transform scale-105' : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-orange-600 border-slate-200 dark:border-slate-700'}`}
                 >
                     <TrophyIcon className={`w-3.5 h-3.5 ${activeTemplate === 'ranking' ? 'text-amber-300 stroke-[2]' : ''}`} />
                     <span>Gerar Ranking</span>
@@ -63,7 +63,7 @@ export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({
                 <button 
                     onClick={onManualClick}
                     className={`relative flex items-center justify-center gap-2 px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 group border
-                        ${activeTemplate === 'manual_structure' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-cyan-500/30 border-transparent transform scale-105' : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-cyan-600 border-slate-200 dark:border-slate-700'}`}
+                        ${activeTemplate === 'manual_structure' ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/30 border-transparent transform scale-105' : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-orange-600 border-slate-200 dark:border-slate-700'}`}
                 >
                     <TableCellsIcon className="w-3.5 h-3.5" />
                     <span>Nova Planilha</span>
@@ -72,7 +72,7 @@ export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({
 
             <div className="flex items-center ml-auto">
                 <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-full p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <button onClick={onPrint} className="p-2 text-slate-500 hover:text-brand-blue hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full transition-all" title="Imprimir"><PrinterIcon className="w-4 h-4" /></button>
+                    <button onClick={onPrint} className="p-2 text-slate-500 hover:text-orange-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full transition-all" title="Imprimir"><PrinterIcon className="w-4 h-4" /></button>
                     <div className="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1"></div>
                     <button 
                         onClick={saveConfig.action} 

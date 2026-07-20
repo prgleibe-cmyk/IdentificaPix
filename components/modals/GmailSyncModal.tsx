@@ -99,7 +99,7 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
                 <div className="p-8">
                     {status === 'idle' && (
                         <div className="text-center space-y-6">
-                            <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <div className="w-16 h-16 bg-orange-50 dark:bg-orange-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <GoogleIcon className="w-8 h-8" />
                             </div>
                             <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -115,7 +115,7 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
                             </div>
                             <button 
                                 onClick={startSync}
-                                className="w-full py-3 bg-brand-blue hover:bg-blue-600 text-white rounded-xl font-bold uppercase tracking-wide shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-bold uppercase tracking-wide shadow-lg shadow-orange-500/10 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <BoltIcon className="w-4 h-4" />
                                 Conectar e Sincronizar
@@ -127,9 +127,9 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
                         <div className="text-center py-8">
                             <div className="relative w-16 h-16 mx-auto mb-6">
                                 <div className="absolute inset-0 border-4 border-slate-100 dark:border-slate-700 rounded-full"></div>
-                                <div className="absolute inset-0 border-4 border-brand-blue border-t-transparent rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                    <SparklesIcon className="w-6 h-6 text-brand-blue animate-pulse" />
+                                    <SparklesIcon className="w-6 h-6 text-orange-500 animate-pulse" />
                                 </div>
                             </div>
                             <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2">Trabalhando...</h4>
@@ -167,7 +167,7 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
                                 <button onClick={onClose} className="px-6 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 rounded-full font-bold text-xs uppercase hover:bg-slate-50 transition-colors">
                                     Cancelar
                                 </button>
-                                <button onClick={startSync} className="px-6 py-2 bg-brand-blue text-white rounded-full font-bold text-xs uppercase shadow-lg hover:bg-blue-600 transition-colors">
+                                <button onClick={startSync} className="px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-full font-bold text-xs uppercase shadow-lg shadow-orange-500/10 transition-all cursor-pointer">
                                     Tentar Novamente
                                 </button>
                             </div>

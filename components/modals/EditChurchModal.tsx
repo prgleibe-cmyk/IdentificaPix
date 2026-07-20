@@ -52,7 +52,7 @@ export const EditChurchModal: React.FC = () => {
                 <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
                         <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20">
+                            <div className="p-3 rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
@@ -83,13 +83,13 @@ export const EditChurchModal: React.FC = () => {
                                 <label htmlFor="name" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                     {t('register.churchName')}
                                 </label>
-                                <input type="text" id="name" value={formData.name} onChange={handleChange} className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-5 transition-all outline-none text-sm font-bold" required />
+                                <input type="text" id="name" value={formData.name} onChange={handleChange} className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold" required />
                             </div>
                             <div className="space-y-3">
                                 <label htmlFor="address" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                     {t('register.address')}
                                 </label>
-                                <input type="text" id="address" value={formData.address} onChange={handleChange} className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-5 transition-all outline-none text-sm font-bold" />
+                                <input type="text" id="address" value={formData.address} onChange={handleChange} className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold" />
                             </div>
                         </div>
 
@@ -98,7 +98,7 @@ export const EditChurchModal: React.FC = () => {
                                 <label htmlFor="pastor" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                     {t('register.pastor')}
                                 </label>
-                                <input type="text" id="pastor" value={formData.pastor} onChange={handleChange} className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-5 transition-all outline-none text-sm font-bold" />
+                                <input type="text" id="pastor" value={formData.pastor} onChange={handleChange} className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold" />
                             </div>
                             <div className="space-y-3">
                                 <label htmlFor="edit-church-logo-upload" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">

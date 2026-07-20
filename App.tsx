@@ -2,7 +2,7 @@
 import React from 'react';
 
 // --- Assets ---
-import logoImg from './src/assets/images/iggestor_logo_transparent_1782962440544.jpg';
+const logoImg = '/logo.png?v=15';
 
 // --- Contexts & Controllers ---
 import { RootProvider, SessionProvider } from './contexts/AppProviders';

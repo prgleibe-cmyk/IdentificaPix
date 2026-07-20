@@ -39,7 +39,7 @@ interface FinancialRecord {
     title: string;
     description: string;
     amount: number;
-    type: 'invoice' | 'fixed' | 'other' | 'advance';
+    type: 'invoice' | 'fixed' | 'other' | 'advance' | 'receivable';
     status: 'pending' | 'paid';
     recipient_name: string;
     recipient_type: 'pastor' | 'employee' | 'supplier' | 'other';
@@ -76,7 +76,7 @@ export const FinancialView: React.FC = () => {
 
     const [records, setRecords] = useState<FinancialRecord[]>([]);
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'all' | 'invoice' | 'fixed' | 'advance' | 'reconciliation'>('all');
+    const [activeTab, setActiveTab] = useState<'payable' | 'receivable' | 'payments' | 'reconciliation'>('payable');
     
     // Reconciliation active states
     const [selectedDebitId, setSelectedDebitId] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export const FinancialView: React.FC = () => {
     const [formTitle, setFormTitle] = useState('');
     const [formDescription, setFormDescription] = useState('');
     const [formAmount, setFormAmount] = useState('');
-    const [formType, setFormType] = useState<'invoice' | 'fixed' | 'other' | 'advance'>('invoice');
+    const [formType, setFormType] = useState<'invoice' | 'fixed' | 'other' | 'advance' | 'receivable'>('invoice');
     const [formStatus, setFormStatus] = useState<'pending' | 'paid'>('pending');
     const [formRecipientName, setFormRecipientName] = useState('');
     const [formRecipientType, setFormRecipientType] = useState<'pastor' | 'employee' | 'supplier' | 'other'>('supplier');
@@ -158,9 +158,10 @@ export const FinancialView: React.FC = () => {
 
     // Summary calculation
     const summary = useMemo(() => {
-        let totalPending = 0;
+        let totalPayable = 0;
+        let totalReceivable = 0;
         let totalPaid = 0;
-        let totalAdvances = 0;
+        let totalReceived = 0;
         let overdueCount = 0;
 
         const today = new Date();
@@ -168,21 +169,28 @@ export const FinancialView: React.FC = () => {
 
         records.forEach(r => {
             const amt = Number(r.amount);
+            const isReceivable = r.type === 'receivable';
+
             if (r.status === 'paid') {
-                totalPaid += amt;
-            } else {
-                totalPending += amt;
-                if (r.due_date) {
-                    const due = new Date(r.due_date);
-                    if (due < today) overdueCount++;
+                if (isReceivable) {
+                    totalReceived += amt;
+                } else {
+                    totalPaid += amt;
                 }
-            }
-            if (r.type === 'advance') {
-                totalAdvances += amt;
+            } else {
+                if (isReceivable) {
+                    totalReceivable += amt;
+                } else {
+                    totalPayable += amt;
+                    if (r.due_date) {
+                        const due = new Date(r.due_date);
+                        if (due < today) overdueCount++;
+                    }
+                }
             }
         });
 
-        return { totalPending, totalPaid, totalAdvances, overdueCount };
+        return { totalPayable, totalReceivable, totalPaid, totalReceived, overdueCount };
     }, [records]);
 
     // Handle delete
@@ -214,7 +222,8 @@ export const FinancialView: React.FC = () => {
                 })
             });
             if (!res.ok) throw new Error('Falha ao atualizar status');
-            showToast(`Registro marcado como ${newStatus === 'paid' ? 'Pago' : 'Pendente'}`, 'success');
+            const isReceivable = record.type === 'receivable';
+            showToast(`Registro marcado como ${newStatus === 'paid' ? (isReceivable ? 'Recebido' : 'Pago') : 'Pendente'}`, 'success');
             fetchRecords();
         } catch (err: any) {
             console.error(err);
@@ -461,7 +470,15 @@ export const FinancialView: React.FC = () => {
     const filteredRecords = useMemo(() => {
         return records.filter(r => {
             // Tab filter
-            if (activeTab !== 'all' && r.type !== activeTab) return false;
+            if (activeTab === 'payable') {
+                if (r.status !== 'pending' || r.type === 'receivable') return false;
+            } else if (activeTab === 'receivable') {
+                if (r.status !== 'pending' || r.type !== 'receivable') return false;
+            } else if (activeTab === 'payments') {
+                if (r.status !== 'paid') return false;
+            } else if (activeTab === 'reconciliation') {
+                return false;
+            }
 
             // Search term
             if (searchTerm) {
@@ -533,45 +550,64 @@ export const FinancialView: React.FC = () => {
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-                        <Building className="w-6 h-6 text-indigo-500" />
-                        Controle Financeiro Integrado
+                        <Building className="w-6 h-6 text-orange-500" />
+                        Gestão de Contas
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Gerencie faturas, despesas fixas, outros custos e adiantamentos de pastores e funcionários.
+                        Gerencie contas a pagar, contas a receber, pagamentos e faça a conciliação bancária do seu extrato.
                     </p>
                 </div>
-                <button
-                    onClick={() => openModal(null)}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/25 transition-all text-sm cursor-pointer"
-                >
-                    <Plus className="w-4 h-4" />
-                    Novo Lançamento
-                </button>
+
+                {/* Tabs on Top */}
+                <div className="flex bg-slate-100 dark:bg-black/30 p-1 rounded-xl w-full lg:w-auto shadow-inner border border-slate-200/50 dark:border-white/5 flex-wrap">
+                    <button
+                        onClick={() => setActiveTab('payable')}
+                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        Contas a Pagar
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('receivable')}
+                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'receivable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        Contas a Receber
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('payments')}
+                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payments' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        Pagamentos
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('reconciliation')}
+                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'reconciliation' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        <span>Conciliar Extrato</span>
+                        {pendingDebitsCount > 0 && (
+                            <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none animate-pulse">
+                                {pendingDebitsCount}
+                            </span>
+                        )}
+                    </button>
+                </div>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Pago (Mês)</span>
-                        <span className="text-xl font-black text-emerald-500 font-mono">
-                            {formatCurrency(summary.totalPaid, language)}
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Contas a Pagar</span>
+                        <span className="text-xl font-black text-amber-500 font-mono block">
+                            {formatCurrency(summary.totalPayable, language)}
                         </span>
-                    </div>
-                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-xl flex items-center justify-center">
-                        <TrendingUp className="w-5 h-5" />
-                    </div>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
-                    <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Pendente</span>
-                        <span className="text-xl font-black text-amber-500 font-mono">
-                            {formatCurrency(summary.totalPending, language)}
-                        </span>
+                        {summary.overdueCount > 0 && (
+                            <span className="text-[10px] font-black text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded uppercase tracking-wide inline-block">
+                                {summary.overdueCount} {summary.overdueCount === 1 ? 'atrasada' : 'atrasadas'}
+                            </span>
+                        )}
                     </div>
                     <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/30 text-amber-500 rounded-xl flex items-center justify-center">
                         <TrendingDown className="w-5 h-5" />
@@ -580,81 +616,43 @@ export const FinancialView: React.FC = () => {
 
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Adiantamentos Ativos</span>
-                        <span className="text-xl font-black text-indigo-500 font-mono">
-                            {formatCurrency(summary.totalAdvances, language)}
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Contas a Receber</span>
+                        <span className="text-xl font-black text-orange-500 font-mono block">
+                            {formatCurrency(summary.totalReceivable, language)}
                         </span>
                     </div>
-                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500 rounded-xl flex items-center justify-center">
-                        <Users className="w-5 h-5" />
+                    <div className="w-10 h-10 bg-orange-50 dark:bg-orange-950/30 text-orange-500 rounded-xl flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5" />
                     </div>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
                     <div className="space-y-1">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Contas Atrasadas</span>
-                        <span className={`text-xl font-black font-mono block ${summary.overdueCount > 0 ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {summary.overdueCount} {summary.overdueCount === 1 ? 'fatura' : 'faturas'}
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Pago</span>
+                        <span className="text-xl font-black text-rose-500 font-mono block">
+                            {formatCurrency(summary.totalPaid, language)}
                         </span>
                     </div>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${summary.overdueCount > 0 ? 'bg-red-50 dark:bg-red-950/30 text-red-500' : 'bg-slate-50 dark:bg-white/5 text-slate-400'}`}>
-                        <AlertCircle className="w-5 h-5" />
+                    <div className="w-10 h-10 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-xl flex items-center justify-center">
+                        <DollarSign className="w-5 h-5" />
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-2xl flex items-center justify-between shadow-sm">
+                    <div className="space-y-1">
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Recebido</span>
+                        <span className="text-xl font-black text-emerald-500 font-mono block">
+                            {formatCurrency(summary.totalReceived, language)}
+                        </span>
+                    </div>
+                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-xl flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5" />
                     </div>
                 </div>
             </div>
 
             {/* Quick Filters / Search */}
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-4 rounded-2xl space-y-4 shadow-sm">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                    {/* Tabs */}
-                    <div className="flex bg-slate-50 dark:bg-black/30 p-1 rounded-xl w-full md:w-auto">
-                        <button
-                            onClick={() => setActiveTab('all')}
-                            className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'all' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                        >
-                            Todos
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('invoice')}
-                            className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'invoice' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                        >
-                            Faturas/Despesas
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('fixed')}
-                            className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'fixed' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                        >
-                            Fixas Recorrentes
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('advance')}
-                            className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'advance' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                        >
-                            Adiantamentos
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('reconciliation')}
-                            className={`flex-1 md:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'reconciliation' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                        >
-                            <span>Conciliar Extrato</span>
-                            {pendingDebitsCount > 0 && (
-                                <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none animate-pulse">
-                                    {pendingDebitsCount}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Refresh Button */}
-                    <button 
-                        onClick={fetchRecords} 
-                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-all cursor-pointer"
-                        title="Atualizar"
-                    >
-                        <RefreshCw className="w-4 h-4" />
-                    </button>
-                </div>
-
                 {activeTab !== 'reconciliation' && (
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 animate-fade-in">
@@ -665,7 +663,7 @@ export const FinancialView: React.FC = () => {
                                     placeholder="Buscar por título, descrição ou beneficiário..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                 />
                             </div>
 
@@ -673,7 +671,7 @@ export const FinancialView: React.FC = () => {
                                 <select
                                     value={selectedChurchId}
                                     onChange={(e) => setSelectedChurchId(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                 >
                                     <option value="all">Todas as Igrejas</option>
                                     {churches?.map((c: any) => (
@@ -686,7 +684,7 @@ export const FinancialView: React.FC = () => {
                                 <select
                                     value={selectedStatus}
                                     onChange={(e) => setSelectedStatus(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                 >
                                     <option value="all">Todos os Status</option>
                                     <option value="pending">Pendentes</option>
@@ -698,7 +696,7 @@ export const FinancialView: React.FC = () => {
                                 <select
                                     value={dateRangeType}
                                     onChange={(e) => setDateRangeType(e.target.value as any)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500"
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-orange-50/50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/30 rounded-xl text-orange-700 dark:text-orange-300 focus:outline-none focus:border-orange-500"
                                 >
                                     <option value="all">Qualquer Período</option>
                                     <option value="this_month">Este Mês</option>
@@ -712,7 +710,7 @@ export const FinancialView: React.FC = () => {
                                 <select
                                     value={selectedYear}
                                     onChange={(e) => setSelectedYear(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                 >
                                     <option value="all">Todos os Anos</option>
                                     {years.map(y => (
@@ -725,7 +723,7 @@ export const FinancialView: React.FC = () => {
                                 <select
                                     value={selectedMonth}
                                     onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                 >
                                     <option value="all">Todos os Meses</option>
                                     {months.map(m => (
@@ -743,7 +741,7 @@ export const FinancialView: React.FC = () => {
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none"
+                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                     />
                                 </div>
                                 <div className="flex items-center gap-2 w-full">
@@ -752,13 +750,37 @@ export const FinancialView: React.FC = () => {
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
-                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none"
+                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                     />
                                 </div>
                             </div>
                         )}
+
+                        {/* Actions Row at the Bottom of Filters */}
+                        <div className="flex items-center justify-between border-t border-slate-100 dark:border-white/5 pt-4 mt-4 flex-wrap gap-4">
+                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Ações Rápidas</span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => openModal(null)}
+                                    className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-95 transition-all text-xs cursor-pointer uppercase tracking-wider"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Novo Lançamento
+                                </button>
+
+                                <button 
+                                    onClick={fetchRecords} 
+                                    className="flex items-center gap-2 px-5 py-2.5 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 transition-all cursor-pointer text-xs font-bold uppercase active:scale-95"
+                                    title="Atualizar"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    <span>Atualizar</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                )}            {/* Records List or Reconciliation Split View */}
+                )}
+            </div>            {/* Records List or Reconciliation Split View */}
             {activeTab === 'reconciliation' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
                     {/* LEFT COLUMN: Bank statement debits */}
@@ -793,7 +815,7 @@ export const FinancialView: React.FC = () => {
                                 placeholder="Buscar transações do extrato..."
                                 value={reconSearch}
                                 onChange={(e) => setReconSearch(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                             />
                         </div>
 
@@ -801,14 +823,14 @@ export const FinancialView: React.FC = () => {
                         <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
                             {bankDebits.length === 0 ? (
                                 <div className="p-10 text-center text-slate-400 flex flex-col items-center gap-3 bg-slate-50/50 dark:bg-black/10 rounded-xl">
-                                    <FileSpreadsheet className="w-8 h-8 text-indigo-500 animate-bounce" />
+                                    <FileSpreadsheet className="w-8 h-8 text-orange-500 animate-bounce" />
                                     <div className="text-xs font-bold text-slate-700 dark:text-slate-300">Nenhum extrato carregado</div>
                                     <p className="text-[10px] text-slate-400 leading-relaxed max-w-xs">
                                         Para realizar a conciliação de despesas, você precisa importar um extrato (arquivos OFX ou planilhas Excel) na tela de Lançamento de Dados.
                                     </p>
                                     <button
                                         onClick={() => setActiveView('upload')}
-                                        className="mt-2 flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[10px] uppercase shadow-md shadow-indigo-600/10 transition-all active:scale-95 cursor-pointer"
+                                        className="mt-2 flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-[10px] uppercase shadow-md shadow-orange-600/10 transition-all active:scale-95 cursor-pointer"
                                     >
                                         <span>Importar Extrato Bancário</span>
                                     </button>
@@ -826,7 +848,7 @@ export const FinancialView: React.FC = () => {
                                             onClick={() => setSelectedDebitId(d.transaction.id)}
                                             className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-2 ${
                                                 isSelected 
-                                                    ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20 shadow-sm' 
+                                                    ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-sm' 
                                                     : 'border-slate-150 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.01]'
                                             }`}
                                         >
@@ -884,7 +906,7 @@ export const FinancialView: React.FC = () => {
                     <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-5 space-y-5 shadow-sm min-h-[300px]">
                         {!selectedDebit ? (
                             <div className="h-full flex flex-col items-center justify-center text-center py-20 text-slate-400 gap-3">
-                                <Link className="w-10 h-10 text-indigo-500 animate-pulse" />
+                                <Link className="w-10 h-10 text-orange-500 animate-pulse" />
                                 <span className="font-bold text-sm text-slate-700 dark:text-slate-300">Selecione uma transação do Extrato</span>
                                 <span className="text-xs max-w-sm">
                                     Escolha um débito na lista ao lado para buscar lançamentos pendentes correspondentes ou realizar um novo cadastro integrado.
@@ -923,7 +945,7 @@ export const FinancialView: React.FC = () => {
                                         <div className="flex justify-end pt-1">
                                             <button
                                                 onClick={() => handleImportAsExpense(selectedDebit.transaction)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-white/5 dark:hover:bg-white/10 text-indigo-600 dark:text-indigo-400 rounded-lg font-black text-[10px] uppercase border border-indigo-500/10 transition-all active:scale-95 cursor-pointer animate-pulse"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 dark:bg-white/5 dark:hover:bg-white/10 text-orange-600 dark:text-orange-400 rounded-lg font-black text-[10px] uppercase border border-orange-500/10 transition-all active:scale-95 cursor-pointer animate-pulse"
                                             >
                                                 <PlusCircle className="w-3.5 h-3.5" />
                                                 Criar Lançamento com este Débito
@@ -937,7 +959,7 @@ export const FinancialView: React.FC = () => {
                                         {/* Suggested Matches Section */}
                                         <div className="space-y-3">
                                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+                                                <Sparkles className="w-4 h-4 text-orange-500 animate-pulse" />
                                                 Sugestões de Vínculo Inteligente
                                             </h4>
                                             
@@ -950,7 +972,7 @@ export const FinancialView: React.FC = () => {
                                                     {suggestedRecords.map(r => {
                                                         const isExactAmount = Math.abs(selectedDebit.transaction.amount) === Number(r.amount);
                                                         return (
-                                                            <div key={r.id} className="p-3 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/10 dark:bg-indigo-950/10 rounded-xl flex items-center justify-between gap-4 transition-all hover:bg-indigo-50/20">
+                                                            <div key={r.id} className="p-3 border border-orange-100 dark:border-orange-900/30 bg-orange-50/10 dark:bg-orange-950/10 rounded-xl flex items-center justify-between gap-4 transition-all hover:bg-orange-50/20">
                                                                 <div>
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase">{r.title}</span>
@@ -970,7 +992,7 @@ export const FinancialView: React.FC = () => {
                                                                     </span>
                                                                     <button
                                                                         onClick={() => handleLinkRecord(r.id, selectedDebit.transaction)}
-                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] rounded-lg tracking-wider transition-all active:scale-95 shadow-sm shadow-indigo-600/10 cursor-pointer"
+                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white font-black uppercase text-[10px] rounded-lg tracking-wider transition-all active:scale-95 shadow-sm shadow-orange-600/10 cursor-pointer"
                                                                     >
                                                                         <Link2 className="w-3.5 h-3.5" />
                                                                         Vincular
@@ -989,7 +1011,7 @@ export const FinancialView: React.FC = () => {
                                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                                     Buscar Outros Lançamentos Pendentes
                                                 </h4>
-                                                <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-950/20 px-2 py-0.5 rounded-full uppercase">
+                                                <span className="text-[9px] font-black text-orange-500 bg-orange-50 dark:bg-orange-950/20 px-2 py-0.5 rounded-full uppercase">
                                                     {pendingFinancialRecords.length} pendentes
                                                 </span>
                                             </div>
@@ -1001,7 +1023,7 @@ export const FinancialView: React.FC = () => {
                                                     placeholder="Pesquisar lançamentos pendentes..."
                                                     value={reconPaneSearch}
                                                     onChange={(e) => setReconPaneSearch(e.target.value)}
-                                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
                                                 />
                                             </div>
 
@@ -1033,7 +1055,7 @@ export const FinancialView: React.FC = () => {
                                                                     </span>
                                                                     <button
                                                                         onClick={() => handleLinkRecord(r.id, selectedDebit.transaction)}
-                                                                        className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-indigo-600 hover:text-white dark:bg-white/5 dark:hover:bg-indigo-600 text-slate-600 dark:text-slate-200 font-black uppercase text-[9px] rounded-lg transition-all cursor-pointer"
+                                                                        className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-orange-600 hover:text-white dark:bg-white/5 dark:hover:bg-orange-600 text-slate-600 dark:text-slate-200 font-black uppercase text-[9px] rounded-lg transition-all cursor-pointer"
                                                                     >
                                                                         Vincular
                                                                     </button>
@@ -1053,7 +1075,7 @@ export const FinancialView: React.FC = () => {
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
                     {loading ? (
                         <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
-                            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                            <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
                             <span>Carregando dados financeiros...</span>
                         </div>
                     ) : filteredRecords.length === 0 ? (
@@ -1132,12 +1154,13 @@ export const FinancialView: React.FC = () => {
                                                 </td>
                                                 <td className="p-4">
                                                     <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
-                                                        record.type === 'invoice' ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-500' :
+                                                        record.type === 'invoice' ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-500' :
                                                         record.type === 'fixed' ? 'bg-purple-50 dark:bg-purple-950/30 text-purple-500' :
-                                                        record.type === 'advance' ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500' :
+                                                        record.type === 'advance' ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-500' :
+                                                        record.type === 'receivable' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500' :
                                                         'bg-slate-50 dark:bg-white/5 text-slate-400'
                                                     }`}>
-                                                        {record.type === 'invoice' ? 'Fatura' : record.type === 'fixed' ? 'Fixa' : record.type === 'advance' ? 'Adiantam.' : 'Outra'}
+                                                        {record.type === 'invoice' ? 'Fatura' : record.type === 'fixed' ? 'Fixa' : record.type === 'advance' ? 'Adiantam.' : record.type === 'receivable' ? 'Receita' : 'Outra'}
                                                     </span>
                                                 </td>
                                                 <td className="p-4 text-xs font-mono font-black text-slate-700 dark:text-slate-200">
@@ -1155,7 +1178,7 @@ export const FinancialView: React.FC = () => {
                                                         {record.status === 'paid' ? (
                                                             <>
                                                                 <CheckCircle2 className="w-3 h-3" />
-                                                                PAGO
+                                                                {record.type === 'receivable' ? 'RECEBIDO' : 'PAGO'}
                                                             </>
                                                         ) : (
                                                             <>
@@ -1169,7 +1192,7 @@ export const FinancialView: React.FC = () => {
                                                     <div className="flex justify-end gap-2">
                                                         <button
                                                             onClick={() => openModal(record)}
-                                                            className="p-1.5 text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all cursor-pointer"
+                                                            className="p-1.5 text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all cursor-pointer"
                                                             title="Editar"
                                                         >
                                                             <Edit className="w-3.5 h-3.5" />
@@ -1192,188 +1215,235 @@ export const FinancialView: React.FC = () => {
                     )}
                 </div>
             )}
-            </div>
 
             {/* Modal para Novo / Editar Lançamento */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[2.5rem] w-full max-w-xl shadow-2xl p-6 space-y-6 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-white/5">
-                            <h3 className="text-lg font-black text-slate-800 dark:text-white tracking-tight">
-                                {editingRecord ? 'Editar Lançamento' : 'Novo Lançamento Financeiro'}
-                            </h3>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-full transition-all cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
+                    <form onSubmit={handleSubmit} className="flex flex-col h-full w-full overflow-hidden">
+                        {/* Header */}
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
+                                        <PlusCircle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                            {editingRecord ? 'Editar Lançamento' : 'Novo Lançamento'}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                            {editingRecord ? 'Atualizar registro financeiro' : 'Cadastrar conta ou receita'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end md:self-auto">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setIsModalOpen(false)} 
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Title & Amount */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Título *</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Ex: Fatura de Energia"
-                                        value={formTitle}
-                                        onChange={(e) => setFormTitle(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Valor *</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="0.00"
-                                        value={formAmount}
-                                        onChange={(e) => setFormAmount(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-mono font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Description */}
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Descrição / Observações</label>
-                                <textarea
-                                    placeholder="Detalhes sobre a despesa ou finalidade do adiantamento..."
-                                    value={formDescription}
-                                    onChange={(e) => setFormDescription(e.target.value)}
-                                    className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500 h-20 resize-none"
-                                />
-                            </div>
-
-                            {/* Church & Type */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Igreja Destinação</label>
-                                    <select
-                                        value={formChurchId}
-                                        onChange={(e) => setFormChurchId(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        {churches?.map((c: any) => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
+                        {/* Body */}
+                        <div className="p-8 flex-1 overflow-y-auto w-full">
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                {/* Title & Amount */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="md:col-span-2 space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Título *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: Fatura de Energia"
+                                            value={formTitle}
+                                            onChange={(e) => setFormTitle(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Valor (R$) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            value={formAmount}
+                                            onChange={(e) => setFormAmount(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                            required
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo de Lançamento *</label>
-                                    <select
-                                        value={formType}
-                                        onChange={(e: any) => setFormType(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="invoice">Fatura / Despesa Geral</option>
-                                        <option value="fixed">Despesa Fixa Recorrente</option>
-                                        <option value="advance">Adiantamento</option>
-                                        <option value="other">Outros</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Recipient Details */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="col-span-2 space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Favorecido / Beneficiário</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Nome do pastor, funcionário ou fornecedor"
-                                        value={formRecipientName}
-                                        onChange={(e) => setFormRecipientName(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo do Favorecido</label>
-                                    <select
-                                        value={formRecipientType}
-                                        onChange={(e: any) => setFormRecipientType(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="pastor">Pastor</option>
-                                        <option value="employee">Funcionário</option>
-                                        <option value="supplier">Fornecedor</option>
-                                        <option value="other">Outro</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Dates */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Data de Vencimento</label>
-                                    <input
-                                        type="date"
-                                        value={formDueDate}
-                                        onChange={(e) => setFormDueDate(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-mono font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
+                                {/* Description */}
+                                <div className="space-y-3">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                        Descrição / Observações
+                                    </label>
+                                    <textarea
+                                        placeholder="Detalhes sobre a despesa ou finalidade do adiantamento..."
+                                        value={formDescription}
+                                        onChange={(e) => setFormDescription(e.target.value)}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold h-24 resize-none"
                                     />
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Data de Pagamento</label>
-                                    <input
-                                        type="date"
-                                        value={formPaymentDate}
-                                        onChange={(e) => setFormPaymentDate(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-mono font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    />
+                                {/* Church & Type */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Igreja Destinação
+                                        </label>
+                                        <select
+                                            value={formChurchId}
+                                            onChange={(e) => setFormChurchId(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        >
+                                            {churches?.map((c: any) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Tipo de Lançamento *
+                                        </label>
+                                        <select
+                                            value={formType}
+                                            onChange={(e: any) => setFormType(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        >
+                                            <option value="invoice">Fatura / Despesa Geral</option>
+                                            <option value="fixed">Despesa Fixa Recorrente</option>
+                                            <option value="advance">Adiantamento</option>
+                                            <option value="receivable">Conta a Receber (Receita)</option>
+                                            <option value="other">Outros</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Recipient Details */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="md:col-span-2 space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            {formType === 'receivable' ? 'Doador / Origem da Receita' : 'Favorecido / Beneficiário'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder={formType === 'receivable' ? "Ex: Membro doador, Empresa patrocinadora" : "Nome do pastor, funcionário ou fornecedor"}
+                                            value={formRecipientName}
+                                            onChange={(e) => setFormRecipientName(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Tipo do Favorecido / Origem
+                                        </label>
+                                        <select
+                                            value={formRecipientType}
+                                            onChange={(e: any) => setFormRecipientType(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        >
+                                            <option value="pastor">Pastor</option>
+                                            <option value="employee">Funcionário</option>
+                                            <option value="supplier">Fornecedor / Terceiro</option>
+                                            <option value="other">Outro / Membro</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Dates */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            {formType === 'receivable' ? 'Previsão de Recebimento' : 'Data de Vencimento'}
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={formDueDate}
+                                            onChange={(e) => setFormDueDate(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            {formType === 'receivable' ? 'Data de Recebimento' : 'Data de Pagamento'}
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={formPaymentDate}
+                                            onChange={(e) => setFormPaymentDate(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-mono font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Status & Recurrence */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Status Inicial
+                                        </label>
+                                        <select
+                                            value={formStatus}
+                                            onChange={(e: any) => setFormStatus(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        >
+                                            <option value="pending">
+                                                {formType === 'receivable' ? 'Pendente / Não Recebido' : 'Pendente / Não Pago'}
+                                            </option>
+                                            <option value="paid">
+                                                {formType === 'receivable' ? 'Recebido' : 'Pago'}
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Recorrência
+                                        </label>
+                                        <select
+                                            value={formRecurrence}
+                                            onChange={(e: any) => setFormRecurrence(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        >
+                                            <option value="none">Nenhuma</option>
+                                            <option value="monthly">Mensal</option>
+                                            <option value="weekly">Semanal</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Status & Recurrence */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Status Inicial</label>
-                                    <select
-                                        value={formStatus}
-                                        onChange={(e: any) => setFormStatus(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="pending">Pendente / Não Pago</option>
-                                        <option value="paid">Pago</option>
-                                    </select>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Recorrência</label>
-                                    <select
-                                        value={formRecurrence}
-                                        onChange={(e: any) => setFormRecurrence(e.target.value)}
-                                        className="w-full px-4 py-2.5 text-xs font-bold bg-slate-50 dark:bg-black/25 border border-slate-100 dark:border-white/5 rounded-2xl text-slate-700 dark:text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="none">Nenhuma</option>
-                                        <option value="monthly">Mensal</option>
-                                        <option value="weekly">Semanal</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-white/5">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="px-5 py-2.5 text-xs font-extrabold bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 dark:text-slate-300 rounded-xl transition-all cursor-pointer"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-5 py-2.5 text-xs font-extrabold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-600/25 transition-all cursor-pointer"
-                                >
-                                    Salvar Lançamento
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                        {/* Footer */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto">
+                            <button
+                                type="button"
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-6 py-3 rounded-full text-xs font-bold text-slate-600 border border-slate-300 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide cursor-pointer"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-8 py-3 rounded-full shadow-lg shadow-orange-500/20 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all uppercase tracking-wide cursor-pointer"
+                            >
+                                Salvar Lançamento
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>

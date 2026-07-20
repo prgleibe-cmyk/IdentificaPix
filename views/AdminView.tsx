@@ -146,7 +146,7 @@ export const AdminView: React.FC = () => {
                 <div className="flex flex-col md:flex-row gap-3 md:items-center">
                     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
                         <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
-                        <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="blue" />
+                        <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="amber" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                     </div>
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>

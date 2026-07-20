@@ -848,7 +848,7 @@ export const ContributorsList: React.FC = () => {
                                             id="contributor-fullname" 
                                             value={fullName} 
                                             onChange={(e) => setFullName(e.target.value)} 
-                                            placeholder="Digite o nome ou a razão social da empresa"
+                                            placeholder="Digite o nome completo (Pessoa) ou Razão Social (Empresa)"
                                             className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all font-bold ${
                                                 isNameInvalid 
                                                     ? 'border-2 border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10' 

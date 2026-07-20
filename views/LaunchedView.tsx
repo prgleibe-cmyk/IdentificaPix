@@ -93,7 +93,7 @@ export const LaunchedView: React.FC = () => {
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-full p-0.5 border border-slate-200 dark:border-slate-700 shadow-sm ml-2">
                         <button 
                             onClick={() => hydrate()}
-                            className="p-1.5 rounded-full text-slate-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-700 transition-all"
+                            className="p-1.5 rounded-full text-slate-500 hover:text-orange-600 hover:bg-white dark:hover:bg-slate-700 transition-all"
                             title="Sincronizar"
                         >
                             <ArrowPathIcon className="w-3.5 h-3.5" />
@@ -181,7 +181,7 @@ export const LaunchedView: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                            <BuildingOfficeIcon className="w-3.5 h-3.5 text-indigo-400" />
+                                            <BuildingOfficeIcon className="w-3.5 h-3.5 text-orange-400" />
                                             {item.church?.name || '---'}
                                         </div>
                                     </td>
