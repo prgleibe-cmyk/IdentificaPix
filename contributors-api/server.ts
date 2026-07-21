@@ -2,11 +2,12 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import dotenv from 'dotenv';
-// @ts-ignore
-import { DatabaseSync } from 'node:sqlite';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const requireFallback = createRequire(import.meta.url);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
