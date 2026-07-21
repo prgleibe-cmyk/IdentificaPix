@@ -196,3 +196,20 @@ export interface ColumnDef {
   removable: boolean;
   visible: boolean;
 }
+
+export interface PastorAutomation {
+  id: string;
+  user_id: string;
+  pastor_name: string;
+  pix_key: string;
+  pix_key_type: string;
+  payment_day: number;
+  gross_amount: number;
+  net_amount: number;
+  tithe_amount: number;
+  tithe_enabled: boolean;
+  church_id: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}

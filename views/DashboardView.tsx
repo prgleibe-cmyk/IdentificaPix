@@ -58,24 +58,21 @@ export const DashboardView: React.FC = () => {
             )}
 
             {!hasData ? (
-                <div className="flex-1 flex flex-col h-full animate-fade-in-up pb-6">
-                    <div className="flex flex-col md:flex-row md:items-center gap-6 mb-10 px-1 flex-shrink-0">
-                        <div className="relative shrink-0 w-fit">
-                            <img 
-                                src={logoImg} 
-                                className="h-32 lg:h-44 w-auto object-contain relative z-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.06)]" 
-                                alt="IgGestor Logo" 
-                            />
-                        </div>
+                <div className="flex-1 flex flex-col h-full animate-fade-in-up gap-4 pb-4">
+                    {/* Welcome Banner Card */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
                         <div>
-                            <h2 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
-                                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-600">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>.
-                            </h2>
-                            <p className="text-slate-500 dark:text-slate-400 text-lg mt-3 font-medium">Seu painel de controle financeiro inteligente.</p>
+                            <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
+                                {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-600">{user?.user_metadata?.full_name?.split(' ')[0] || 'Visitante'}</span>!
+                            </h1>
+                            <p className="text-xs text-slate-400 mt-1.5 font-medium">
+                                Seu painel de controle financeiro inteligente da igreja.
+                            </p>
                         </div>
                     </div>
 
-                    <div className="flex-1 flex items-center justify-center">
+                    {/* Integrated Empty State Card */}
+                    <div className="flex-1 flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-6 md:p-12 rounded-2xl shadow-sm">
                         <EmptyState
                             icon={<UploadIcon />}
                             title={t('empty.dashboard.title')}
@@ -84,6 +81,7 @@ export const DashboardView: React.FC = () => {
                                 text: t('empty.dashboard.action'),
                                 onClick: () => setActiveView('upload'),
                             }}
+                            flat={true}
                         />
                     </div>
                 </div>

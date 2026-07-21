@@ -3,7 +3,8 @@ import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Calendar, FileText, DollarSign } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, isPeriodClosed } from '../../utils/formatters';
+import { useAuth } from '../../contexts/AuthContext';
 import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon } from '../Icons';
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { extractNameAndCpf, findSimilarContributors } from '../../utils/contributorHelper';
@@ -29,9 +30,16 @@ export const ManualIdModal: React.FC = () => {
         findMatchResult,
         contributionKeywords,
         paymentMethods,
-        contributorFiles
+        contributorFiles,
+        matchResults
     } = useContext(AppContext);
     const { t, language } = useTranslation();
+    const { subscription, user } = useAuth();
+
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
@@ -322,6 +330,13 @@ export const ManualIdModal: React.FC = () => {
     
     const handleConfirm = async () => {
         if (!selectedChurchId) return;
+
+        const targetDate = selectedDate || (bulkIdentificationTxs && bulkIdentificationTxs[0]?.date) || new Date().toISOString().split('T')[0];
+        if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
+            alert("Este período já foi fechado de forma definitiva pelo usuário principal. Não é permitido realizar novos lançamentos.");
+            return;
+        }
+
         setIsSaving(true);
 
         try {
@@ -413,9 +428,9 @@ export const ManualIdModal: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Form fields in max-w-4xl container for elegant layout */}
+                {/* Form fields in full width container for elegant layout */}
                 <div className="p-8 flex-1 overflow-y-auto w-full">
-                    <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="space-y-6 w-full">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-3">
                                 <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">

@@ -473,6 +473,27 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
     console.log('[Contributors API] Table "financial_records" verified or successfully created.');
 
+    // Create table pastor_automations
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pastor_automations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        pastor_name VARCHAR(255) NOT NULL,
+        pix_key VARCHAR(255) NOT NULL,
+        pix_key_type VARCHAR(50) DEFAULT 'cpf',
+        payment_day INT NOT NULL DEFAULT 10,
+        gross_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+        net_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+        tithe_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+        tithe_enabled BOOLEAN DEFAULT TRUE,
+        church_id UUID,
+        active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log('[Contributors API] Table "pastor_automations" verified or successfully created.');
+
   } catch (err) {
     console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
   } finally {
@@ -1513,6 +1534,144 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
     return res.json({ success: true, id });
   } catch (err: any) {
     console.error('[Contributors API] Error DELETE financial_records:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// GET /api/v1/pastor_automations
+app.get('/api/v1/pastor_automations', async (req: Request, res: Response) => {
+  try {
+    const { user_id } = req.query;
+    if (!user_id) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
+    }
+    const result = await pool.query(
+      'SELECT * FROM pastor_automations WHERE user_id = $1 ORDER BY payment_day ASC, created_at DESC',
+      [user_id]
+    );
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error GET pastor_automations:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// POST /api/v1/pastor_automations
+app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
+  try {
+    const {
+      user_id,
+      pastor_name,
+      pix_key,
+      pix_key_type,
+      payment_day,
+      gross_amount,
+      net_amount,
+      tithe_amount,
+      tithe_enabled,
+      church_id,
+      active
+    } = req.body;
+
+    if (!user_id || !pastor_name || !pix_key) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, pastor_name, and pix_key are required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO pastor_automations (
+        user_id, pastor_name, pix_key, pix_key_type, payment_day,
+        gross_amount, net_amount, tithe_amount, tithe_enabled, church_id, active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [
+        user_id,
+        pastor_name,
+        pix_key,
+        pix_key_type || 'cpf',
+        payment_day || 10,
+        gross_amount || 0,
+        net_amount || 0,
+        tithe_amount || 0,
+        tithe_enabled !== undefined ? tithe_enabled : true,
+        church_id || null,
+        active !== undefined ? active : true
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error POST pastor_automations:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// PUT /api/v1/pastor_automations/:id
+app.put('/api/v1/pastor_automations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      pastor_name,
+      pix_key,
+      pix_key_type,
+      payment_day,
+      gross_amount,
+      net_amount,
+      tithe_amount,
+      tithe_enabled,
+      church_id,
+      active
+    } = req.body;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let placeholderIndex = 1;
+
+    const fields = [
+      { name: 'pastor_name', value: pastor_name },
+      { name: 'pix_key', value: pix_key },
+      { name: 'pix_key_type', value: pix_key_type },
+      { name: 'payment_day', value: payment_day },
+      { name: 'gross_amount', value: gross_amount },
+      { name: 'net_amount', value: net_amount },
+      { name: 'tithe_amount', value: tithe_amount },
+      { name: 'tithe_enabled', value: tithe_enabled },
+      { name: 'church_id', value: church_id },
+      { name: 'active', value: active }
+    ];
+
+    fields.forEach(f => {
+      if (f.value !== undefined) {
+        updates.push(`${f.name} = $${placeholderIndex}`);
+        values.push(f.value);
+        placeholderIndex++;
+      }
+    });
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: No fields provided for update' });
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(id);
+    const query = `UPDATE pastor_automations SET ${updates.join(', ')} WHERE id = $${placeholderIndex} RETURNING *`;
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error PUT pastor_automations:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+  }
+});
+
+// DELETE /api/v1/pastor_automations/:id
+app.delete('/api/v1/pastor_automations/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM pastor_automations WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    console.error('[Contributors API] Error DELETE pastor_automations:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
   }
 });

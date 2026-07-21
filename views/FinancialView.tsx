@@ -28,9 +28,12 @@ import {
     AlertTriangle,
     FileSpreadsheet,
     PlusCircle,
-    Sparkles
+    Sparkles,
+    SlidersHorizontal,
+    Zap
 } from 'lucide-react';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency, formatDate, isPeriodClosed } from '../utils/formatters';
+import { PastorAutomationTab } from '../components/PastorAutomationTab';
 
 interface FinancialRecord {
     id: string;
@@ -69,14 +72,19 @@ const months = [
 ];
 
 export const FinancialView: React.FC = () => {
-    const { user } = useAuth();
+    const { user, subscription } = useAuth();
     const { churches, matchResults } = useContext(AppContext);
     const { showToast, setActiveView } = useUI();
     const { language } = useTranslation();
 
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
+
     const [records, setRecords] = useState<FinancialRecord[]>([]);
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'payable' | 'receivable' | 'payments' | 'reconciliation'>('payable');
+    const [activeTab, setActiveTab] = useState<'payable' | 'receivable' | 'payments' | 'reconciliation' | 'pastors'>('payable');
     
     // Reconciliation active states
     const [selectedDebitId, setSelectedDebitId] = useState<string | null>(null);
@@ -93,6 +101,60 @@ export const FinancialView: React.FC = () => {
     const [dateRangeType, setDateRangeType] = useState<'all' | 'this_month' | 'last_month' | 'last_30' | 'custom'>('all');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+
+    // Advanced Filters Modal States
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+    const [tempChurchId, setTempChurchId] = useState('all');
+    const [tempStatus, setTempStatus] = useState('all');
+    const [tempYear, setTempYear] = useState('all');
+    const [tempMonth, setTempMonth] = useState('all');
+    const [tempDateRangeType, setTempDateRangeType] = useState<'all' | 'this_month' | 'last_month' | 'last_30' | 'custom'>('all');
+    const [tempStartDate, setTempStartDate] = useState('');
+    const [tempEndDate, setTempEndDate] = useState('');
+
+    useEffect(() => {
+        if (isFilterModalOpen) {
+            setTempChurchId(selectedChurchId);
+            setTempStatus(selectedStatus);
+            setTempYear(selectedYear);
+            setTempMonth(selectedMonth);
+            setTempDateRangeType(dateRangeType);
+            setTempStartDate(startDate);
+            setTempEndDate(endDate);
+        }
+    }, [isFilterModalOpen, selectedChurchId, selectedStatus, selectedYear, selectedMonth, dateRangeType, startDate, endDate]);
+
+    const handleApplyFilters = () => {
+        setSelectedChurchId(tempChurchId);
+        setSelectedStatus(tempStatus);
+        setSelectedYear(tempYear);
+        setSelectedMonth(tempMonth);
+        setDateRangeType(tempDateRangeType);
+        setStartDate(tempStartDate);
+        setEndDate(tempEndDate);
+        setIsFilterModalOpen(false);
+    };
+
+    const handleClearAllFilters = () => {
+        setSelectedChurchId('all');
+        setSelectedStatus('all');
+        setSelectedYear('all');
+        setSelectedMonth('all');
+        setDateRangeType('all');
+        setStartDate('');
+        setEndDate('');
+        setIsFilterModalOpen(false);
+    };
+
+    const hasActiveFilters = selectedChurchId !== 'all' || selectedStatus !== 'all' || dateRangeType !== 'all' || selectedYear !== 'all' || selectedMonth !== 'all';
+    
+    const activeFiltersCount = [
+        selectedChurchId !== 'all',
+        selectedStatus !== 'all',
+        dateRangeType !== 'all',
+        selectedYear !== 'all',
+        selectedMonth !== 'all'
+    ].filter(Boolean).length;
 
     // New/Edit Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -135,6 +197,12 @@ export const FinancialView: React.FC = () => {
             setFormChurchId(churches[0].id);
         }
     }, [user?.id, churches]);
+
+    useEffect(() => {
+        if (isSecondaryUser && activeTab === 'reconciliation') {
+            setActiveTab('payable');
+        }
+    }, [isSecondaryUser, activeTab]);
 
     // Years dynamic option calculation
     const years = useMemo(() => {
@@ -272,6 +340,12 @@ export const FinancialView: React.FC = () => {
         e.preventDefault();
         if (!formTitle || !formAmount || !formType) {
             showToast('Por favor, preencha os campos obrigatórios.', 'error');
+            return;
+        }
+
+        const targetDate = formPaymentDate || formDueDate || new Date().toISOString().split('T')[0];
+        if (isSecondaryUser && isPeriodClosed(targetDate, matchResults)) {
+            showToast("Este período já foi fechado de forma definitiva pelo usuário principal. Não é permitido realizar novos lançamentos ou edições.", "error");
             return;
         }
 
@@ -548,50 +622,114 @@ export const FinancialView: React.FC = () => {
     }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth, dateRangeType, startDate, endDate]);
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-                        <Building className="w-6 h-6 text-orange-500" />
-                        Gestão de Contas
-                    </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Gerencie contas a pagar, contas a receber, pagamentos e faça a conciliação bancária do seu extrato.
-                    </p>
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full">
+            {/* Header Area */}
+            <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
+                {/* Top Row: Title & Subtitle + Action Buttons */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+                            <Building className="w-5 h-5 text-orange-500" />
+                            Gestão de Contas
+                        </h1>
+                        <p className="text-xs text-slate-400">
+                            Gerencie contas a pagar, contas a receber, pagamentos e faça a conciliação bancária do seu extrato.
+                        </p>
+                    </div>
+
+                    {/* Compact Action Buttons */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                        <button
+                            onClick={() => openModal(null)}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold px-4 py-2 rounded-xl shadow-md shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-95 transition-all text-xs cursor-pointer uppercase tracking-wider"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Novo Lançamento</span>
+                        </button>
+
+                        <button 
+                            onClick={fetchRecords} 
+                            className="flex items-center justify-center w-9 h-9 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 transition-all cursor-pointer active:scale-95 shrink-0"
+                            title="Atualizar"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
-                {/* Tabs on Top */}
-                <div className="flex bg-slate-100 dark:bg-black/30 p-1 rounded-xl w-full lg:w-auto shadow-inner border border-slate-200/50 dark:border-white/5 flex-wrap">
-                    <button
-                        onClick={() => setActiveTab('payable')}
-                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                    >
-                        Contas a Pagar
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('receivable')}
-                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'receivable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                    >
-                        Contas a Receber
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('payments')}
-                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payments' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                    >
-                        Pagamentos
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('reconciliation')}
-                        className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'reconciliation' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                    >
-                        <span>Conciliar Extrato</span>
-                        {pendingDebitsCount > 0 && (
-                            <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none animate-pulse">
-                                {pendingDebitsCount}
-                            </span>
+                {/* Bottom Row: Tabs Selector + Search Input & Filter Button */}
+                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 pt-3 border-t border-slate-100 dark:border-white/5">
+                    {/* Tabs on Top Left */}
+                    <div className="flex bg-slate-100 dark:bg-black/30 p-1 rounded-xl shadow-inner border border-slate-200/50 dark:border-white/5 flex-wrap">
+                        <button
+                            onClick={() => setActiveTab('payable')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                        >
+                            Contas a Pagar
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('receivable')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'receivable' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                        >
+                            Contas a Receber
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('payments')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === 'payments' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                        >
+                            Pagamentos
+                        </button>
+                        {!isSecondaryUser && (
+                            <button
+                                onClick={() => setActiveTab('reconciliation')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'reconciliation' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            >
+                                <span>Conciliar Extrato</span>
+                                {pendingDebitsCount > 0 && (
+                                    <span className="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none animate-pulse">
+                                        {pendingDebitsCount}
+                                    </span>
+                                )}
+                            </button>
                         )}
-                    </button>
+                        {!isSecondaryUser && (
+                            <button
+                                onClick={() => setActiveTab('pastors')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeTab === 'pastors' ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                            >
+                                <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <span>Automação de Recorrentes</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Compact Search & Icon-only Filter on Bottom Right */}
+                    {activeTab !== 'reconciliation' && (
+                        <div className="flex items-center gap-2 flex-1 lg:max-w-md">
+                            <div className="relative flex-1 w-full">
+                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por título, descrição ou beneficiário..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
+                                />
+                            </div>
+                            <button
+                                onClick={() => setIsFilterModalOpen(true)}
+                                className="flex items-center justify-center w-9 h-9 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-150 dark:border-white/5 rounded-xl transition-all shrink-0 cursor-pointer relative"
+                                title="Filtros Avançados"
+                            >
+                                <SlidersHorizontal className="w-4 h-4 text-orange-500" />
+                                {hasActiveFilters && (
+                                    <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center font-mono shadow-sm">
+                                        {activeFiltersCount}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -649,137 +787,6 @@ export const FinancialView: React.FC = () => {
                         <CheckCircle2 className="w-5 h-5" />
                     </div>
                 </div>
-            </div>
-
-            {/* Quick Filters / Search */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-4 rounded-2xl space-y-4 shadow-sm">
-                {activeTab !== 'reconciliation' && (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 animate-fade-in">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar por título, descrição ou beneficiário..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                />
-                            </div>
-
-                            <div>
-                                <select
-                                    value={selectedChurchId}
-                                    onChange={(e) => setSelectedChurchId(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                >
-                                    <option value="all">Todas as Igrejas</option>
-                                    {churches?.map((c: any) => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <select
-                                    value={selectedStatus}
-                                    onChange={(e) => setSelectedStatus(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                >
-                                    <option value="all">Todos os Status</option>
-                                    <option value="pending">Pendentes</option>
-                                    <option value="paid">Pagos</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <select
-                                    value={dateRangeType}
-                                    onChange={(e) => setDateRangeType(e.target.value as any)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-orange-50/50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/30 rounded-xl text-orange-700 dark:text-orange-300 focus:outline-none focus:border-orange-500"
-                                >
-                                    <option value="all">Qualquer Período</option>
-                                    <option value="this_month">Este Mês</option>
-                                    <option value="last_month">Mês Anterior</option>
-                                    <option value="last_30">Últimos 30 Dias</option>
-                                    <option value="custom">Personalizado...</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <select
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                >
-                                    <option value="all">Todos os Anos</option>
-                                    {years.map(y => (
-                                        <option key={y} value={y}>{y}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <select
-                                    value={selectedMonth}
-                                    onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="w-full px-4 py-2 text-xs font-semibold bg-slate-50 dark:bg-black/20 border border-slate-100 dark:border-white/5 rounded-xl text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                >
-                                    <option value="all">Todos os Meses</option>
-                                    {months.map(m => (
-                                        <option key={m.value} value={m.value}>{m.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {dateRangeType === 'custom' && (
-                            <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 dark:bg-black/10 p-3 rounded-xl border border-slate-100 dark:border-white/5 animate-fade-in max-w-md">
-                                <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">De:</span>
-                                    <input
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
-                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 w-full">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Até:</span>
-                                    <input
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
-                                        className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-150 dark:border-white/5 rounded-lg text-slate-700 dark:text-white focus:outline-none focus:border-orange-500"
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Actions Row at the Bottom of Filters */}
-                        <div className="flex items-center justify-between border-t border-slate-100 dark:border-white/5 pt-4 mt-4 flex-wrap gap-4">
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Ações Rápidas</span>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => openModal(null)}
-                                    className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold px-5 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 hover:shadow-orange-500/20 active:scale-95 transition-all text-xs cursor-pointer uppercase tracking-wider"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Novo Lançamento
-                                </button>
-
-                                <button 
-                                    onClick={fetchRecords} 
-                                    className="flex items-center gap-2 px-5 py-2.5 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 transition-all cursor-pointer text-xs font-bold uppercase active:scale-95"
-                                    title="Atualizar"
-                                >
-                                    <RefreshCw className="w-4 h-4" />
-                                    <span>Atualizar</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>            {/* Records List or Reconciliation Split View */}
             {activeTab === 'reconciliation' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fade-in">
@@ -1071,6 +1078,15 @@ export const FinancialView: React.FC = () => {
                         )}
                     </div>
                 </div>
+            ) : activeTab === 'pastors' ? (
+                <PastorAutomationTab
+                    user={user}
+                    churches={churches}
+                    records={records}
+                    fetchRecords={fetchRecords}
+                    showToast={showToast}
+                    language={language}
+                />
             ) : (
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
                     {loading ? (
@@ -1251,7 +1267,7 @@ export const FinancialView: React.FC = () => {
 
                         {/* Body */}
                         <div className="p-8 flex-1 overflow-y-auto w-full">
-                            <div className="max-w-4xl mx-auto space-y-6">
+                            <div className="space-y-6 w-full">
                                 {/* Title & Amount */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="md:col-span-2 space-y-3">
@@ -1444,6 +1460,163 @@ export const FinancialView: React.FC = () => {
                             </button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* Advanced Financial Filters Modal */}
+            {isFilterModalOpen && (
+                <div className="glass-overlay">
+                    <div className="glass-modal animate-fade-in">
+                        {/* Header Compacto */}
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-center justify-between flex-shrink-0">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-orange-500/10 dark:bg-orange-500/20 rounded-xl text-orange-500">
+                                    <SlidersHorizontal className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800 dark:text-white tracking-tight leading-none">Filtros Avançados</h3>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Refine sua busca na gestão de contas</p>
+                                </div>
+                            </div>
+                            <button type="button" onClick={() => setIsFilterModalOpen(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Content */}
+                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/30 dark:bg-[#0F172A]/50">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Igreja / Centro de Custo */}
+                                <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/30 space-y-3">
+                                    <div>
+                                        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Igreja / Centro de Custo</label>
+                                        <select
+                                            value={tempChurchId}
+                                            onChange={(e) => setTempChurchId(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                        >
+                                            <option value="all">Todas as Igrejas</option>
+                                            {churches?.map((c: any) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Status do Lançamento</label>
+                                        <select
+                                            value={tempStatus}
+                                            onChange={(e) => setTempStatus(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                        >
+                                            <option value="all">Todos os Status</option>
+                                            <option value="pending">Pendentes</option>
+                                            <option value="paid">Pagos</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Period & Date Filters */}
+                                <div className="p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50 bg-white/50 dark:bg-slate-800/30 space-y-3">
+                                    <div>
+                                        <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Filtrar por Período</label>
+                                        <select
+                                            value={tempDateRangeType}
+                                            onChange={(e) => setTempDateRangeType(e.target.value as any)}
+                                            className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                        >
+                                            <option value="all">Qualquer Período</option>
+                                            <option value="this_month">Este Mês</option>
+                                            <option value="last_month">Mês Anterior</option>
+                                            <option value="last_30">Últimos 30 Dias</option>
+                                            <option value="custom">Personalizado...</option>
+                                        </select>
+                                    </div>
+
+                                    {tempDateRangeType !== 'custom' ? (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Ano</label>
+                                                <select
+                                                    value={tempYear}
+                                                    onChange={(e) => setTempYear(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                >
+                                                    <option value="all">Todos os Anos</option>
+                                                    {years.map(y => (
+                                                        <option key={y} value={y}>{y}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mês</label>
+                                                <select
+                                                    value={tempMonth}
+                                                    onChange={(e) => setTempMonth(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                >
+                                                    <option value="all">Todos os Meses</option>
+                                                    {months.map(m => (
+                                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-2 animate-fade-in">
+                                            <div>
+                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">De</label>
+                                                <input
+                                                    type="date"
+                                                    value={tempStartDate}
+                                                    onChange={(e) => setTempStartDate(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Até</label>
+                                                <input
+                                                    type="date"
+                                                    value={tempEndDate}
+                                                    onChange={(e) => setTempEndDate(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Compacto */}
+                        <div className="bg-white dark:bg-slate-900 px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                            <button
+                                type="button"
+                                onClick={handleClearAllFilters}
+                                className="px-5 py-2.5 text-[10px] font-bold rounded-full border border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors uppercase tracking-wide cursor-pointer"
+                            >
+                                Limpar Filtros
+                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsFilterModalOpen(false)}
+                                    className="px-6 py-2.5 text-[10px] font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors uppercase tracking-wide cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleApplyFilters}
+                                    className="flex items-center gap-2 px-8 py-2.5 text-[10px] font-bold text-white rounded-full shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide bg-gradient-to-r from-orange-500 to-amber-500 hover:opacity-95 active:scale-95 cursor-pointer"
+                                >
+                                    <Check className="w-3.5 h-3.5" />
+                                    Aplicar Filtros
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

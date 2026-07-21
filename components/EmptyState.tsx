@@ -9,36 +9,44 @@ interface EmptyStateProps {
     text: string;
     onClick: () => void;
   };
+  flat?: boolean;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, message, action }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, message, action, flat }) => {
   return (
-    <div className="relative overflow-hidden text-center p-10 md:p-14 rounded-[2.5rem] shadow-2xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 max-w-xl mx-auto group transition-all duration-500 bg-white dark:bg-slate-800/50 backdrop-blur-xl">
+    <div className={flat 
+      ? "relative text-center py-4 w-full flex flex-col items-center group transition-all duration-500"
+      : "relative overflow-hidden text-center p-8 md:p-12 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 max-w-xl mx-auto group transition-all duration-500 bg-white dark:bg-slate-900/80 backdrop-blur-md"
+    }>
       
       {/* Decorative Gradients */}
-      <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent opacity-50"></div>
-      <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent opacity-50"></div>
-      
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-blue-500/10 transition-colors duration-700"></div>
-      <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-indigo-500/10 transition-colors duration-700"></div>
+      {!flat && (
+        <>
+          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-orange-500/10 to-transparent opacity-50"></div>
+          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-orange-500/10 to-transparent opacity-50"></div>
+          
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/5 dark:bg-orange-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-orange-500/10 transition-colors duration-700"></div>
+          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-[60px] pointer-events-none group-hover:bg-amber-500/10 transition-colors duration-700"></div>
+        </>
+      )}
 
       <div className="relative z-10 flex flex-col items-center">
         {/* Highlighted Icon Container */}
-        <div className="relative flex items-center justify-center h-28 w-28 rounded-[2rem] bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 border border-slate-200 dark:border-slate-600 mb-8 group-hover:scale-105 transition-transform duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) shadow-xl shadow-slate-200/50 dark:shadow-none">
-          <div className="absolute inset-0 rounded-[2rem] bg-blue-500/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="relative flex items-center justify-center h-20 w-20 rounded-2xl bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-white/5 mb-6 group-hover:scale-105 transition-transform duration-500 shadow-sm">
+          <div className="absolute inset-0 rounded-2xl bg-orange-500/5 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           {/* Inner Glow */}
-          <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-white/80 to-transparent opacity-50"></div>
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-white/40 to-transparent opacity-30"></div>
           
-          <div className="text-brand-blue relative z-10 drop-shadow-sm transform group-hover:-translate-y-1 transition-transform duration-500">
-             {React.cloneElement(icon as React.ReactElement<any>, { className: "w-12 h-12 stroke-[1.5]" })}
+          <div className="text-orange-500 dark:text-orange-400 relative z-10 drop-shadow-sm transform group-hover:-translate-y-0.5 transition-transform duration-500">
+             {React.cloneElement(icon as React.ReactElement<any>, { className: "w-8 h-8 stroke-[1.5]" })}
           </div>
         </div>
         
-        <h3 className="text-3xl font-black text-brand-graphite dark:text-white mb-4 tracking-tight leading-tight">
+        <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2 tracking-tight leading-tight">
             {title}
         </h3>
         
-        <p className="text-base text-slate-500 dark:text-slate-400 mb-10 max-w-sm mx-auto leading-relaxed font-medium">
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-6 max-w-sm mx-auto leading-relaxed font-semibold">
             {message}
         </p>
         
@@ -46,9 +54,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, message, ac
           <button
             type="button"
             onClick={action.onClick}
-            className="relative inline-flex items-center justify-center px-10 py-3.5 text-xs font-bold uppercase tracking-widest text-white transition-all duration-300 bg-gradient-to-r from-brand-blue to-amber-500 hover:opacity-95 rounded-xl shadow-lg shadow-orange-500/10 hover:-translate-y-0.5 active:scale-[0.98] group/btn border border-white/10 cursor-pointer"
+            className="relative inline-flex items-center justify-center px-8 py-2.5 text-xs font-bold uppercase tracking-wider text-white transition-all duration-300 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl shadow-md shadow-orange-500/10 hover:-translate-y-0.5 active:scale-95 border border-white/10 cursor-pointer"
           >
-            <span className="relative z-10 flex items-center gap-3">
+            <span className="relative z-10 flex items-center gap-2">
                 {action.text}
             </span>
           </button>

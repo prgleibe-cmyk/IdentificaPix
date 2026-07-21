@@ -74,7 +74,7 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
 
                 {/* Body */}
                 <div className="p-8 flex-1 overflow-y-auto w-full">
-                    <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="space-y-6 w-full">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-3">
                                 <label htmlFor="bank-key" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-bank-key">
@@ -194,7 +194,7 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
 
                 {/* Body */}
                 <div className="p-8 flex-1 overflow-y-auto w-full">
-                    <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="space-y-6 w-full">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-3">
                                 <label htmlFor="church-name" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">

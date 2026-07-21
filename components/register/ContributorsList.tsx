@@ -780,7 +780,7 @@ export const ContributorsList: React.FC = () => {
 
                         {/* Modal Body with inputs */}
                         <div className="p-8 flex-1 overflow-y-auto w-full">
-                            <div className="max-w-4xl mx-auto space-y-6">
+                            <div className="space-y-6 w-full">
                                 
                                 {/* FOTO DO CONTRIBUINTE (Visual only) */}
                                 <div className="flex flex-col items-center justify-center pb-5 border-b border-slate-100 dark:border-slate-800/80" id="photo-section">
@@ -1014,7 +1014,7 @@ export const ContributorsList: React.FC = () => {
 
                     {/* Body */}
                     <div className="p-8 flex-1 overflow-y-auto w-full">
-                        <div className="max-w-4xl mx-auto space-y-6">
+                        <div className="space-y-6 w-full">
                             {!importFile ? (
                                 /* Drag and Drop / Select File Zone */
                                 <div className="flex flex-col items-center justify-center">

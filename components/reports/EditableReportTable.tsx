@@ -2,7 +2,8 @@ import React, { useState, useContext, memo, useCallback, useMemo, useEffect } fr
 import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, isPeriodClosed } from '../../utils/formatters';
+import { useAuth } from '../../contexts/AuthContext';
 import { GitFork, Printer, X } from 'lucide-react';
 import { 
     PencilIcon, 
@@ -78,7 +79,8 @@ const MobileCard = memo(({
     onSplit,
     isSelected,
     onToggleSelection,
-    onGenerateReceipt
+    onGenerateReceipt,
+    isClosedPeriod
 }: any) => {
     const row = result as MatchResult;
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
@@ -169,22 +171,26 @@ const MobileCard = memo(({
                             <span>Recibo</span>
                         </button>
                         {confirmed ? (
-                            <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
-                                <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
-                            </button>
+                            !isClosedPeriod && (
+                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="flex-1 py-2 rounded-xl text-indigo-600 bg-indigo-50 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                                    <LockOpenIcon className="w-3.5 h-3.5" /> Abrir Registro
+                                </button>
+                            )
                         ) : (
-                            <>
-                                <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
-                                {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
-                                {onSplit && (
-                                    <button 
-                                        onClick={() => onSplit(row)} 
-                                        className="px-3.5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-                                    >
-                                        <GitFork className="w-3.5 h-3.5" /> Ratear
-                                    </button>
-                                )}
-                            </>
+                            !isClosedPeriod && (
+                                <>
+                                    <button onClick={() => onDelete(row)} className="p-2.5 rounded-xl text-rose-600 bg-rose-50" title="Excluir"><TrashIcon className="w-4 h-4" /></button>
+                                    {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-2.5 rounded-xl text-amber-600 bg-amber-50" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-4 h-4" /></button>}
+                                    {onSplit && (
+                                        <button 
+                                            onClick={() => onSplit(row)} 
+                                            className="px-3.5 py-2 rounded-xl text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <GitFork className="w-3.5 h-3.5" /> Ratear
+                                        </button>
+                                    )}
+                                </>
+                            )
                         )}
                     </div>
         </div>
@@ -201,7 +207,8 @@ const IncomeRow = memo(({
     onSplit,
     isSelected,
     onToggleSelection,
-    onGenerateReceipt
+    onGenerateReceipt,
+    isClosedPeriod
 }: any) => {
     const row = result as MatchResult;
     // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
@@ -297,23 +304,27 @@ const IncomeRow = memo(({
                         </button>
 
                         {confirmed ? (
-                            <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
-                                <LockOpenIcon className="w-3.5 h-3.5" />
-                            </button>
+                            !isClosedPeriod && (
+                                <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
+                                    <LockOpenIcon className="w-3.5 h-3.5" />
+                                </button>
+                            )
                         ) : (
-                            <>
-                                {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
-                                <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
-                                {onSplit && (
-                                    <button 
-                                        onClick={() => onSplit(row)} 
-                                        className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer" 
-                                        title="Desmembrar / Ratear Lançamento"
-                                    >
-                                        <GitFork className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
-                            </>
+                            !isClosedPeriod && (
+                                <>
+                                    {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                                    <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
+                                    {onSplit && (
+                                        <button 
+                                            onClick={() => onSplit(row)} 
+                                            className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors cursor-pointer" 
+                                            title="Desmembrar / Ratear Lançamento"
+                                        >
+                                            <GitFork className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </>
+                            )
                         )}
                     </div>
                 </div>
@@ -384,7 +395,13 @@ function valorPorExtenso(valor: number): string {
 
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit }) => {
     const { t, language } = useTranslation();
-    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches } = useContext(AppContext);
+    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches, matchResults } = useContext(AppContext);
+    const { subscription, user } = useAuth();
+
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedReceipt, setSelectedReceipt] = useState<MatchResult | null>(null);
@@ -472,21 +489,25 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                        {paginatedData.map(result => (
-                            <IncomeRow 
-                                key={result.transaction.id}
-                                result={result}
-                                language={language}
-                                isSelected={selectedIds.includes(result.transaction.id)}
-                                onToggleSelection={toggleSelection}
-                                onEdit={() => {}}
-                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
-                                onUndo={undoIdentification}
-                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
-                                onSplit={onSplit}
-                                onGenerateReceipt={setSelectedReceipt}
-                            />
-                        ))}
+                        {paginatedData.map(result => {
+                            const isClosedPeriod = isSecondaryUser && isPeriodClosed(result.transaction?.date || result.contributor?.date, matchResults);
+                            return (
+                                <IncomeRow 
+                                    key={result.transaction.id}
+                                    result={result}
+                                    language={language}
+                                    isSelected={selectedIds.includes(result.transaction.id)}
+                                    onToggleSelection={toggleSelection}
+                                    onEdit={() => {}}
+                                    onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
+                                    onUndo={undoIdentification}
+                                    onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                                    onSplit={onSplit}
+                                    onGenerateReceipt={setSelectedReceipt}
+                                    isClosedPeriod={isClosedPeriod}
+                                />
+                            );
+                        })}
                     </tbody>
                 </table>
 
@@ -504,21 +525,25 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{data.length} registros</span>
                     </div>
-                    {paginatedData.map(result => (
-                        <MobileCard 
-                            key={result.transaction.id}
-                            result={result}
-                            language={language}
-                            isSelected={selectedIds.includes(result.transaction.id)}
-                            onToggleSelection={toggleSelection}
-                            onEdit={() => {}}
-                            onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
-                            onUndo={undoIdentification}
-                            onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
-                            onSplit={onSplit}
-                            onGenerateReceipt={setSelectedReceipt}
-                        />
-                    ))}
+                    {paginatedData.map(result => {
+                        const isClosedPeriod = isSecondaryUser && isPeriodClosed(result.transaction?.date || result.contributor?.date, matchResults);
+                        return (
+                            <MobileCard 
+                                key={result.transaction.id}
+                                result={result}
+                                language={language}
+                                isSelected={selectedIds.includes(result.transaction.id)}
+                                onToggleSelection={toggleSelection}
+                                onEdit={() => {}}
+                                onDelete={(row: MatchResult) => openDeleteConfirmation({ type: 'report-row', id: row.transaction.id, name: `Transação ${row.transaction.id}`, meta: { reportType } })}
+                                onUndo={undoIdentification}
+                                onToggleLock={(id: string, lock: boolean) => toggleConfirmation([id], lock)}
+                                onSplit={onSplit}
+                                onGenerateReceipt={setSelectedReceipt}
+                                isClosedPeriod={isClosedPeriod}
+                            />
+                        );
+                    })}
                 </div>
             </div>
             {data.length > ITEMS_PER_PAGE && (
