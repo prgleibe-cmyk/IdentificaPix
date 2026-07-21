@@ -190,6 +190,7 @@ class SmartPool {
     try {
       const dbPath = path.join(__dirname, 'local_fallback.db');
       console.log('[Contributors API] SQLite fallback active at:', dbPath);
+      const { DatabaseSync } = requireFallback('node:sqlite') as any;
       this.sqliteDb = new DatabaseSync(dbPath);
       this.sqliteDb.function('gen_random_uuid', () => crypto.randomUUID());
       this.sqliteDb.function('now', () => new Date().toISOString());
