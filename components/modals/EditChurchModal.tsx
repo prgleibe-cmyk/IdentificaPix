@@ -5,11 +5,14 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { ChurchFormData } from '../../types';
 import { XMarkIcon } from '../Icons';
+import { QrCode } from 'lucide-react';
+import { ChurchPortalShareModal } from '../admin/ChurchPortalShareModal';
 
 export const EditChurchModal: React.FC = () => {
     const { editingChurch, updateChurch, closeEditChurch } = useContext(AppContext);
     const { t } = useTranslation();
     const [formData, setFormData] = useState<ChurchFormData>({ name: '', address: '', pastor: '', logoUrl: '' });
+    const [showPortalShare, setShowPortalShare] = useState(false);
 
     useEffect(() => {
         if (editingChurch) {
@@ -77,7 +80,32 @@ export const EditChurchModal: React.FC = () => {
 
                 {/* Body */}
                 <div className="p-8 flex-1 overflow-y-auto w-full">
-                    <div className="space-y-6 w-full">
+                    <div className="space-y-6 w-full max-w-4xl">
+                        
+                        {/* Section: PORTAL DO CONTRIBUINTE */}
+                        <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-500/20 dark:border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 block">
+                                    PORTAL DO CONTRIBUINTE
+                                </span>
+                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-white">
+                                    Divulgação e QR Code Oficial da Congregação
+                                </h4>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">
+                                    Gere o QR Code exclusivo da congregação e compartilhe o link direto para os contribuintes.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowPortalShare(true)}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex-shrink-0"
+                            >
+                                <QrCode className="w-4 h-4" />
+                                <span>Divulgar Portal</span>
+                            </button>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-3">
                                 <label htmlFor="name" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
@@ -136,6 +164,14 @@ export const EditChurchModal: React.FC = () => {
                     <button type="submit" className="px-8 py-3 rounded-full shadow-lg shadow-emerald-500/30 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 transition-all uppercase tracking-wide">{t('common.save')}</button>
                 </div>
             </form>
+
+            {/* Portal Share Modal */}
+            {showPortalShare && editingChurch && (
+                <ChurchPortalShareModal
+                    church={editingChurch}
+                    onClose={() => setShowPortalShare(false)}
+                />
+            )}
         </div>
     );
 };

@@ -2,17 +2,20 @@ import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { SearchIcon, UserIcon, PencilIcon, TrashIcon } from '../Icons';
+import { QrCode } from 'lucide-react';
 import { RegisterListItem } from './RegisterListItem';
+import { ChurchPortalShareModal } from '../admin/ChurchPortalShareModal';
 
 export const ChurchesList: React.FC = () => {
     const { churches, openEditChurch, openDeleteConfirmation } = useContext(AppContext);
     const { t } = useTranslation();
     const [search, setSearch] = useState('');
+    const [selectedChurchForPortal, setSelectedChurchForPortal] = useState<any | null>(null);
 
     const filteredChurches = useMemo(() => 
         churches.filter((c: any) => 
             c.name.toLowerCase().includes(search.toLowerCase()) || 
-            c.pastor.toLowerCase().includes(search.toLowerCase())
+            (c.pastor && c.pastor.toLowerCase().includes(search.toLowerCase()))
         ), [churches, search]
     );
 
@@ -33,25 +36,35 @@ export const ChurchesList: React.FC = () => {
                     <RegisterListItem
                         key={church.id}
                         actions={
-                             <>
+                             <div className="flex items-center gap-1.5">
+                                <button
+                                    onClick={() => setSelectedChurchForPortal(church)}
+                                    title="Divulgar Portal do Contribuinte (QR Code & Link)"
+                                    className="p-1.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 transition-colors shadow-sm flex items-center gap-1 text-[10px] font-bold"
+                                >
+                                    <QrCode className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Portal</span>
+                                </button>
                                 <button
                                     onClick={() => openEditChurch(church)}
+                                    title="Editar Congregação"
                                     className="p-1.5 rounded-lg text-brand-blue bg-blue-50 hover:bg-blue-100 active:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 transition-colors shadow-sm"
                                 >
                                     <PencilIcon className="w-3 h-3" />
                                 </button>
                                 <button
                                      onClick={() => openDeleteConfirmation({ type: 'church', id: church.id, name: church.name })}
+                                     title="Excluir Congregação"
                                      className="p-1.5 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 active:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors shadow-sm"
                                 >
                                     <TrashIcon className="w-3 h-3" />
                                 </button>
-                            </>
+                            </div>
                         }
                     >
                          <div className="flex items-center space-x-3">
                             <img 
-                                src={church.logoUrl} 
+                                src={church.logoUrl || 'https://placehold.co/100x100/e2e8f0/64748b?text=?'} 
                                 alt={`Logo ${church.name}`} 
                                 className="w-8 h-8 rounded-lg object-cover bg-indigo-50 dark:bg-indigo-900/30 flex-shrink-0 border border-indigo-100 dark:border-indigo-800 shadow-sm transition-transform group-hover:scale-105" 
                             />
@@ -72,6 +85,14 @@ export const ChurchesList: React.FC = () => {
                     </div>
                 )}
             </ul>
+
+            {/* Portal Share Modal */}
+            {selectedChurchForPortal && (
+                <ChurchPortalShareModal
+                    church={selectedChurchForPortal}
+                    onClose={() => setSelectedChurchForPortal(null)}
+                />
+            )}
         </div>
     );
 };

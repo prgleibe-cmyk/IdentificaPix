@@ -29,6 +29,7 @@
     "lucide-react": "^0.577.0",
     "mammoth": "^1.6.0",
     "pg": "^8.21.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "xlsx": "^0.18.5"
