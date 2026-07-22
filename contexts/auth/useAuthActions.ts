@@ -12,10 +12,12 @@ export const useAuthActions = (
     const addSubscriptionDays = useCallback(async (days: number) => {
         if (!user) return;
         const { data: p } = await (supabase.from('profiles') as any).select('subscription_ends_at').eq('id', user.id).single();
-        const current = (p as any)?.subscription_ends_at ? new Date((p as any).subscription_ends_at) : new Date();
-        const next = new Date(current.getTime() + days * 86400000);
+        const now = new Date();
+        const currentEnd = (p as any)?.subscription_ends_at ? new Date((p as any).subscription_ends_at) : now;
+        const baseDate = currentEnd.getTime() < now.getTime() ? now : currentEnd;
+        const next = new Date(baseDate.getTime() + days * 86400000);
         await (supabase.from('profiles') as any).update({ subscription_status: 'active', subscription_ends_at: next.toISOString() }).eq('id', user.id);
-        refreshSubscription();
+        await refreshSubscription();
     }, [user, refreshSubscription]);
 
     const updateLimits = useCallback(async (slots: number) => {

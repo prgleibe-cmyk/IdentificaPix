@@ -91,7 +91,7 @@ export const usePaymentController = () => {
 
         setIsLoading(true);
         try {
-            const description = `Plano: ${numSlots} Slots Unificados com Inteligência Ilimitada`;
+            const description = `Plano IgGestor: ${numSlots} Cadastro(s)`;
             const data = await paymentService.createPayment(
                 calculateTotal, 
                 user?.user_metadata?.full_name || user?.email || 'Cliente', 

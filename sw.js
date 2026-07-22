@@ -1,12 +1,13 @@
 
-// Service Worker IdentificaPix - Versão 10
-const CACHE_NAME = 'identificapix-v10';
+// Service Worker IdentificaPix - Versão 15
+const CACHE_NAME = 'identificapix-v15';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/logo.png',
   '/pwa/icon-192.png',
+  '/pwa/icon-512.png',
   '/pwa/maskable-icon-512.png'
 ];
 

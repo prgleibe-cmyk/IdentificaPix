@@ -13,12 +13,14 @@ import { AppContext } from './contexts/AppContext';
 // --- Views & Router ---
 import { AppRouter, ModalsRenderer } from './views/AppRouter';
 import { AuthView } from './views/AuthView';
+import { PortalRouter } from './portal/PortalRouter';
 
 // --- Layout & Components ---
 import { Sidebar } from './components/layout/Sidebar';
 import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
 import { ManualIdModal } from './components/modals/ManualIdModal';
+import { ExpiredBlockOverlay } from './components/shared/ExpiredBlockOverlay';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
@@ -53,6 +55,7 @@ const MainLayout: React.FC = () => {
                         </div>
 
                         <ModalsRenderer />
+                        <ExpiredBlockOverlay />
 
                         {isLoading && (
                             <div className="absolute inset-0 z-[100] flex items-center justify-center backdrop-blur-[1px]">
@@ -71,7 +74,30 @@ const MainLayout: React.FC = () => {
 };
 
 // --- App Controller & Session Guard ---
+const isPortalRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    return path.startsWith('/portal') || hash.startsWith('#/portal');
+};
+
 const AppContent: React.FC = () => {
+    const [isPortal, setIsPortal] = React.useState(isPortalRoute());
+
+    React.useEffect(() => {
+        const checkRoute = () => setIsPortal(isPortalRoute());
+        window.addEventListener('popstate', checkRoute);
+        window.addEventListener('hashchange', checkRoute);
+        return () => {
+            window.removeEventListener('popstate', checkRoute);
+            window.removeEventListener('hashchange', checkRoute);
+        };
+    }, []);
+
+    if (isPortal) {
+        return <PortalRouter />;
+    }
+
     const { session, loading } = useSessionController();
 
     if (loading) {

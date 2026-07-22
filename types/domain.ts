@@ -49,6 +49,7 @@ export interface Transaction {
   // Fix: Added isConfirmed to Transaction interface to resolve property missing errors
   isConfirmed?: boolean;
   type?: string;
+  contribution_request_id?: string;
 }
 
 export interface Contributor {

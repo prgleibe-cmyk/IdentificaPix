@@ -27,9 +27,8 @@ export const PaymentActionPanel: React.FC<PaymentActionPanelProps> = ({
     };
 
     return (
-        <div className="relative bg-gradient-to-br from-[#020610] to-[#0F172A] p-8 flex flex-col text-white overflow-hidden border-l border-white/5">
+        <div className="relative bg-gradient-to-br from-[#020610] to-[#0F172A] p-6 sm:p-8 flex flex-col text-white overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/10 min-h-[380px]">
             <div className="absolute top-0 right-0 w-64 h-64 bg-brand-blue/10 rounded-full blur-[80px] pointer-events-none -mr-16 -mt-16"></div>
-            <button onClick={handleClose} className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/70 transition-colors z-20"><XMarkIcon className="w-5 h-5" /></button>
 
             <div className="relative z-10 flex flex-col h-full justify-between">
                 {step === 'config' && (

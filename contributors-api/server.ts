@@ -380,6 +380,8 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS report_id VARCHAR(255);');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(255);');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_type VARCHAR(255);');
+    await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_request_id UUID;');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_contrib_req ON consolidated_transactions(church_id, contribution_request_id);');
     console.log('[Contributors API] Table "consolidated_transactions" verified or successfully created.');
 
     // Create table learned_associations
@@ -494,6 +496,59 @@ async function initializeDatabase() {
     `);
     console.log('[Contributors API] Table "pastor_automations" verified or successfully created.');
 
+    // Create table contribution_requests
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contribution_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        church_id UUID NOT NULL,
+        contributor_id UUID NOT NULL,
+        amount NUMERIC(12, 2) NOT NULL,
+        description TEXT,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS church_id UUID;');
+    await client.query('ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS contributor_id UUID;');
+    await client.query('ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2);');
+    await client.query('ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS description TEXT;');
+    await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'pending';");
+    await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("ALTER TABLE contribution_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contribution_requests_church ON contribution_requests(church_id);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contribution_requests_contributor ON contribution_requests(church_id, contributor_id);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contribution_requests_status ON contribution_requests(church_id, status);");
+    console.log('[Contributors API] Table "contribution_requests" verified or successfully created.');
+
+    // Create table church_pix_keys
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS church_pix_keys (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        church_id UUID NOT NULL,
+        bank_id UUID,
+        pix_type VARCHAR(50) NOT NULL,
+        pix_key VARCHAR(255) NOT NULL,
+        holder_name VARCHAR(255),
+        description TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query('ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS church_id UUID;');
+    await client.query('ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS bank_id UUID;');
+    await client.query('ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS pix_type VARCHAR(50);');
+    await client.query('ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS pix_key VARCHAR(255);');
+    await client.query('ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS holder_name VARCHAR(255);');
+    await client.query('ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS description TEXT;');
+    await client.query("ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;");
+    await client.query("ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("ALTER TABLE church_pix_keys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_church_pix_keys_church ON church_pix_keys(church_id);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_church_pix_keys_active ON church_pix_keys(church_id, is_active);");
+    console.log('[Contributors API] Table "church_pix_keys" verified or successfully created.');
+
   } catch (err) {
     console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
   } finally {
@@ -548,6 +603,590 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[Contributors API] Error processing get contributors request:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST & GET /api/v1/contributors/identify (Single-record identification endpoint for Portal do Contribuinte - LGPD & Multi-church secure)
+const identifyContributorHandler = async (req: Request, res: Response) => {
+  try {
+    const church_id = (req.body.church_id || req.query.church_id) as string | undefined;
+    const identifier = (req.body.identifier || req.query.identifier) as string | undefined;
+    const identifier_type = (req.body.identifier_type || req.query.identifier_type) as string | undefined;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'church_id é obrigatório e deve ser um UUID válido.' });
+    }
+
+    if (!identifier || typeof identifier !== 'string' || !identifier.trim()) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'identifier é obrigatório.' });
+    }
+
+    const typeLower = (identifier_type || 'cpf').trim().toLowerCase();
+    if (!['cpf', 'phone', 'email'].includes(typeLower)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'identifier_type inválido. Tipos permitidos: cpf, phone, email.' });
+    }
+
+    const rawVal = identifier.trim();
+    let matchedContributor: any = null;
+
+    if (typeLower === 'cpf') {
+      const cleanDigits = rawVal.replace(/\D/g, '');
+      if (!cleanDigits) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'CPF inválido.' });
+      }
+
+      const result = await pool.query(
+        `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+         FROM contributors 
+         WHERE status = $1 AND church_id = $2 AND (cpf = $3 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $3)
+         LIMIT 1`,
+        ['active', church_id, cleanDigits]
+      );
+
+      if (result.rows.length > 0) {
+        matchedContributor = result.rows[0];
+      } else {
+        const allRes = await pool.query(
+          `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+           FROM contributors 
+           WHERE status = $1 AND church_id = $2`,
+          ['active', church_id]
+        );
+        matchedContributor = allRes.rows.find((c: any) => c.cpf && String(c.cpf).replace(/\D/g, '') === cleanDigits) || null;
+      }
+
+    } else if (typeLower === 'phone') {
+      const cleanDigits = rawVal.replace(/\D/g, '');
+      if (!cleanDigits) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Telefone inválido.' });
+      }
+
+      const result = await pool.query(
+        `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+         FROM contributors 
+         WHERE status = $1 AND church_id = $2 AND (phone = $3 OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '(', ''), ')', ''), '-', ''), '+', '') = $3)
+         LIMIT 1`,
+        ['active', church_id, cleanDigits]
+      );
+
+      if (result.rows.length > 0) {
+        matchedContributor = result.rows[0];
+      } else {
+        const allRes = await pool.query(
+          `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+           FROM contributors 
+           WHERE status = $1 AND church_id = $2`,
+          ['active', church_id]
+        );
+        matchedContributor = allRes.rows.find((c: any) => c.phone && String(c.phone).replace(/\D/g, '') === cleanDigits) || null;
+      }
+
+    } else if (typeLower === 'email') {
+      const cleanEmail = rawVal.toLowerCase();
+
+      const result = await pool.query(
+        `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+         FROM contributors 
+         WHERE status = $1 AND church_id = $2 AND LOWER(TRIM(email)) = $3
+         LIMIT 1`,
+        ['active', church_id, cleanEmail]
+      );
+
+      if (result.rows.length > 0) {
+        matchedContributor = result.rows[0];
+      } else {
+        const allRes = await pool.query(
+          `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+           FROM contributors 
+           WHERE status = $1 AND church_id = $2`,
+          ['active', church_id]
+        );
+        matchedContributor = allRes.rows.find((c: any) => c.email && String(c.email).trim().toLowerCase() === cleanEmail) || null;
+      }
+    }
+
+    if (matchedContributor) {
+      return res.json({
+        found: true,
+        contributor: {
+          id: matchedContributor.id,
+          canonical_name: matchedContributor.canonical_name,
+          cpf: matchedContributor.cpf || null,
+          email: matchedContributor.email || null,
+          phone: matchedContributor.phone || null,
+          status: matchedContributor.status
+        }
+      });
+    } else {
+      return res.json({
+        found: false,
+        contributor: null,
+        message: 'Nenhum contribuinte localizado para os dados informados.'
+      });
+    }
+
+  } catch (err) {
+    console.error('[Contributors API] Error identifying contributor:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Erro interno ao consultar contribuinte.' });
+  }
+};
+
+app.post('/api/v1/contributors/identify', identifyContributorHandler);
+app.get('/api/v1/contributors/identify', identifyContributorHandler);
+
+// POST /api/v1/contribution-requests (Register contribution request intention)
+app.post('/api/v1/contribution-requests', async (req: Request, res: Response) => {
+  try {
+    const { church_id, contributor_id, amount, description } = req.body;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+    // 1. Validate church_id
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'church_id é obrigatório e deve ser um UUID válido.'
+      });
+    }
+
+    // Verify church exists
+    const churchRes = await pool.query('SELECT id, name FROM churches WHERE id = $1 LIMIT 1', [church_id]);
+    if (churchRes.rows.length === 0) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Igreja informada não existe ou não foi encontrada.'
+      });
+    }
+
+    // 2. Validate contributor_id
+    if (!contributor_id || typeof contributor_id !== 'string' || !uuidRegex.test(contributor_id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'contributor_id é obrigatório e deve ser um UUID válido.'
+      });
+    }
+
+    // Verify contributor exists AND belongs to the specified church (Multi-church tenant protection)
+    const contribRes = await pool.query(
+      'SELECT id, church_id, canonical_name FROM contributors WHERE id = $1 LIMIT 1',
+      [contributor_id]
+    );
+
+    if (contribRes.rows.length === 0) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Contribuinte informado não foi encontrado.'
+      });
+    }
+
+    const contributor = contribRes.rows[0];
+    if (contributor.church_id !== church_id) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Contribuinte pertence a outra igreja e não pode realizar solicitação nesta igreja.'
+      });
+    }
+
+    // 3. Validate amount
+    const parsedAmount = typeof amount === 'number' ? amount : parseFloat(String(amount));
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'O valor da contribuição deve ser um número maior que zero.'
+      });
+    }
+
+    const cleanDescription = typeof description === 'string' && description.trim() 
+      ? description.trim() 
+      : 'Intenção de Contribuição';
+
+    // 4. Anti-duplication check: same contributor, church, amount, pending status within last 2 minutes
+    const existingReqRes = await pool.query(
+      `SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at
+       FROM contribution_requests
+       WHERE church_id = $1 
+         AND contributor_id = $2 
+         AND amount = $3 
+         AND status = 'pending'
+         AND created_at >= NOW() - INTERVAL '2 minutes'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [church_id, contributor_id, parsedAmount]
+    );
+
+    if (existingReqRes.rows.length > 0) {
+      const existingReq = existingReqRes.rows[0];
+      return res.status(200).json({
+        ...existingReq,
+        reused: true,
+        message: 'Solicitação recente reaproveitada para evitar duplicidade.'
+      });
+    }
+
+    // 5. Create new contribution request record with status 'pending'
+    const insertRes = await pool.query(
+      `INSERT INTO contribution_requests (church_id, contributor_id, amount, description, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
+       RETURNING id, church_id, contributor_id, amount, description, status, created_at, updated_at`,
+      [church_id, contributor_id, parsedAmount, cleanDescription]
+    );
+
+    const newRequest = insertRes.rows[0];
+
+    return res.status(201).json(newRequest);
+
+  } catch (err: any) {
+    console.error('[Contributors API] Error creating contribution request:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro interno ao registrar intenção de contribuição.'
+    });
+  }
+});
+
+// GET /api/v1/contribution-requests/:id (Fetch single request)
+app.get('/api/v1/contribution-requests/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { church_id } = req.query;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!id || !uuidRegex.test(id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da solicitação é inválido.'
+      });
+    }
+
+    const result = await pool.query(
+      'SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at FROM contribution_requests WHERE id = $1 LIMIT 1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Solicitação de contribuição não encontrada.'
+      });
+    }
+
+    const requestObj = result.rows[0];
+
+    // Multi-tenant protection check
+    if (church_id && typeof church_id === 'string' && requestObj.church_id !== church_id) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Acesso negado: a solicitação pertence a outra igreja.'
+      });
+    }
+
+    return res.json(requestObj);
+  } catch (err: any) {
+    console.error('[Contributors API] Error fetching contribution request:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao buscar solicitação de contribuição.'
+    });
+  }
+});
+
+// GET /api/v1/contribution-requests (List requests for a church)
+app.get('/api/v1/contribution-requests', async (req: Request, res: Response) => {
+  try {
+    const { church_id, contributor_id, status } = req.query;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'church_id é obrigatório para consultar solicitações.'
+      });
+    }
+
+    let query = 'SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at FROM contribution_requests WHERE church_id = $1';
+    const params: any[] = [church_id];
+    let paramCounter = 2;
+
+    if (contributor_id && typeof contributor_id === 'string' && uuidRegex.test(contributor_id)) {
+      query += ` AND contributor_id = $${paramCounter}`;
+      params.push(contributor_id);
+      paramCounter++;
+    }
+
+    if (status && typeof status === 'string') {
+      query += ` AND status = $${paramCounter}`;
+      params.push(status);
+      paramCounter++;
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error listing contribution requests:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao listar solicitações de contribuição.'
+    });
+  }
+});
+
+// POST /api/v1/church-pix-keys (Create church Pix key)
+app.post('/api/v1/church-pix-keys', async (req: Request, res: Response) => {
+  try {
+    const { church_id, bank_id, pix_type, pix_key, holder_name, description } = req.body;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+    // 1. Validate church_id
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'church_id é obrigatório e deve ser um UUID válido.'
+      });
+    }
+
+    // Verify church exists
+    const churchRes = await pool.query('SELECT id, name FROM churches WHERE id = $1 LIMIT 1', [church_id]);
+    if (churchRes.rows.length === 0) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Igreja informada não existe ou não foi encontrada.'
+      });
+    }
+
+    // 2. Validate pix_type
+    const allowedTypes = ['cpf', 'cnpj', 'phone', 'email', 'random'];
+    const normalizedType = typeof pix_type === 'string' ? pix_type.trim().toLowerCase() : '';
+    if (!allowedTypes.includes(normalizedType)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Tipo de chave Pix inválido. Tipos permitidos: cpf, cnpj, phone, email, random.'
+      });
+    }
+
+    // 3. Validate pix_key
+    if (!pix_key || typeof pix_key !== 'string' || !pix_key.trim()) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'A chave Pix é obrigatória.'
+      });
+    }
+    const cleanPixKey = pix_key.trim();
+
+    // 4. Validate bank_id if provided
+    let cleanBankId: string | null = null;
+    if (bank_id && typeof bank_id === 'string' && uuidRegex.test(bank_id)) {
+      cleanBankId = bank_id;
+    }
+
+    // 5. Check duplicate active key for this church
+    const duplicateRes = await pool.query(
+      `SELECT id FROM church_pix_keys 
+       WHERE church_id = $1 
+         AND LOWER(pix_type) = LOWER($2) 
+         AND LOWER(pix_key) = LOWER($3) 
+         AND is_active = true 
+       LIMIT 1`,
+      [church_id, normalizedType, cleanPixKey]
+    );
+
+    if (duplicateRes.rows.length > 0) {
+      return res.status(400).json({
+        error: 'DUPLICATE_KEY',
+        message: 'Esta chave Pix já está cadastrada e ativa para esta igreja.'
+      });
+    }
+
+    // 6. Insert Pix key
+    const insertRes = await pool.query(
+      `INSERT INTO church_pix_keys (church_id, bank_id, pix_type, pix_key, holder_name, description, is_active, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+       RETURNING id, church_id, bank_id, pix_type, pix_key, holder_name, description, is_active, created_at, updated_at`,
+      [
+        church_id,
+        cleanBankId,
+        normalizedType,
+        cleanPixKey,
+        typeof holder_name === 'string' ? holder_name.trim() : null,
+        typeof description === 'string' ? description.trim() : null
+      ]
+    );
+
+    return res.status(201).json(insertRes.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error creating church Pix key:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro interno ao cadastrar chave Pix da igreja.'
+    });
+  }
+});
+
+// GET /api/v1/church-pix-keys/public (Public active Pix key consultation for Portal)
+app.get('/api/v1/church-pix-keys/public', async (req: Request, res: Response) => {
+  try {
+    const { church_id } = req.query;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'church_id é obrigatório para consultar as chaves Pix ativas.'
+      });
+    }
+
+    const query = `
+      SELECT 
+        k.id, 
+        k.church_id, 
+        k.pix_type, 
+        k.pix_key, 
+        k.holder_name, 
+        k.description, 
+        k.is_active, 
+        k.created_at,
+        b.name as bank_name
+      FROM church_pix_keys k
+      LEFT JOIN banks b ON k.bank_id = b.id
+      WHERE k.church_id = $1 AND k.is_active = true
+      ORDER BY k.created_at DESC
+    `;
+
+    const result = await pool.query(query, [church_id]);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error fetching public church Pix keys:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao consultar chaves Pix da igreja.'
+    });
+  }
+});
+
+// GET /api/v1/church-pix-keys (List all Pix keys for a church)
+app.get('/api/v1/church-pix-keys', async (req: Request, res: Response) => {
+  try {
+    const { church_id, is_active } = req.query;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'church_id é obrigatório para listar as chaves Pix.'
+      });
+    }
+
+    let query = `
+      SELECT 
+        k.id, 
+        k.church_id, 
+        k.bank_id, 
+        k.pix_type, 
+        k.pix_key, 
+        k.holder_name, 
+        k.description, 
+        k.is_active, 
+        k.created_at, 
+        k.updated_at,
+        b.name as bank_name
+      FROM church_pix_keys k
+      LEFT JOIN banks b ON k.bank_id = b.id
+      WHERE k.church_id = $1
+    `;
+    const params: any[] = [church_id];
+
+    if (is_active !== undefined) {
+      params.push(String(is_active) === 'true');
+      query += ` AND k.is_active = $${params.length}`;
+    }
+
+    query += ' ORDER BY k.created_at DESC';
+
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err: any) {
+    console.error('[Contributors API] Error listing church Pix keys:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao listar chaves Pix da igreja.'
+    });
+  }
+});
+
+// PATCH /api/v1/church-pix-keys/:id (Update Pix key status or details)
+app.patch('/api/v1/church-pix-keys/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { is_active, description, holder_name, church_id } = req.body;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!id || !uuidRegex.test(id)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'ID da chave Pix é inválido.'
+      });
+    }
+
+    // Check existing
+    const existingRes = await pool.query(
+      'SELECT id, church_id, is_active FROM church_pix_keys WHERE id = $1 LIMIT 1',
+      [id]
+    );
+
+    if (existingRes.rows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Chave Pix não encontrada.'
+      });
+    }
+
+    const existingKey = existingRes.rows[0];
+
+    // Multi-tenant check
+    if (church_id && typeof church_id === 'string' && existingKey.church_id !== church_id) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Acesso negado: a chave Pix pertence a outra igreja.'
+      });
+    }
+
+    const updates: string[] = ['updated_at = NOW()'];
+    const params: any[] = [id];
+
+    if (typeof is_active === 'boolean') {
+      params.push(is_active);
+      updates.push(`is_active = $${params.length}`);
+    }
+
+    if (typeof description === 'string') {
+      params.push(description.trim());
+      updates.push(`description = $${params.length}`);
+    }
+
+    if (typeof holder_name === 'string') {
+      params.push(holder_name.trim());
+      updates.push(`holder_name = $${params.length}`);
+    }
+
+    const updateQuery = `
+      UPDATE church_pix_keys 
+      SET ${updates.join(', ')}
+      WHERE id = $1
+      RETURNING id, church_id, bank_id, pix_type, pix_key, holder_name, description, is_active, created_at, updated_at
+    `;
+
+    const result = await pool.query(updateQuery, params);
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error updating church Pix key:', err);
+    return res.status(500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: 'Erro ao atualizar chave Pix da igreja.'
+    });
   }
 });
 
@@ -1118,11 +1757,71 @@ app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
 // CONSOLIDATED TRANSACTIONS ENDPOINTS
 // ==========================================
 
+async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
+  id?: string;
+  church_id?: string | null;
+  contributor_id?: string | null;
+  amount: number | string;
+  contribution_request_id?: string | null;
+}): Promise<string | null> {
+  try {
+    if (!tx.church_id || !tx.contributor_id || tx.amount === undefined || tx.amount === null) {
+      return tx.contribution_request_id || null;
+    }
+
+    const numericAmount = Number(tx.amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return tx.contribution_request_id || null;
+    }
+
+    if (tx.contribution_request_id) {
+      return tx.contribution_request_id;
+    }
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(String(tx.church_id)) || !uuidRegex.test(String(tx.contributor_id))) {
+      return null;
+    }
+
+    // Deterministic match: search oldest pending request for same church, contributor, and exact amount
+    const matchRes = await clientOrPool.query(
+      `SELECT id, amount 
+       FROM contribution_requests 
+       WHERE church_id = $1 
+         AND contributor_id = $2 
+         AND status = 'pending' 
+         AND ABS(amount - $3) < 0.01
+       ORDER BY created_at ASC 
+       LIMIT 1`,
+      [tx.church_id, tx.contributor_id, numericAmount]
+    );
+
+    if (matchRes.rows.length > 0) {
+      const matchedReqId = matchRes.rows[0].id;
+
+      // Atomically update request status to 'confirmed'
+      await clientOrPool.query(
+        `UPDATE contribution_requests 
+         SET status = 'confirmed', updated_at = NOW() 
+         WHERE id = $1 AND status = 'pending'`,
+        [matchedReqId]
+      );
+
+      return matchedReqId;
+    }
+
+    return null;
+  } catch (err) {
+    console.error('[Contributors API] Error matching contribution request:', err);
+    return tx.contribution_request_id || null;
+  }
+}
+
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
     const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids } = req.query;
-    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type FROM consolidated_transactions WHERE 1=1';
+    let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
 
@@ -1194,7 +1893,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 // POST /api/v1/consolidated_transactions
 app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
-    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type } = req.body;
+    const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
     if (amount === undefined || amount === null || !description || !type || !user_id || !transaction_date) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
@@ -1207,13 +1906,20 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
       }
     }
 
+    const finalContribReqId = await matchAndLinkContributionRequest(pool, {
+      church_id,
+      contributor_id,
+      amount,
+      contribution_request_id
+    });
+
     const finalId = id || undefined;
     let query = '';
     let params: any[] = [];
     if (finalId) {
       query = `INSERT INTO consolidated_transactions 
-        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
+        (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
         ON CONFLICT (id) DO UPDATE SET 
           amount = EXCLUDED.amount, 
           description = EXCLUDED.description, 
@@ -1224,14 +1930,15 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           contributor_id = EXCLUDED.contributor_id,
           report_id = EXCLUDED.report_id,
           payment_method = EXCLUDED.payment_method,
-          contribution_type = EXCLUDED.contribution_type
+          contribution_type = EXCLUDED.contribution_type,
+          contribution_request_id = EXCLUDED.contribution_request_id
         RETURNING *`;
-      params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null];
+      params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
     } else {
       query = `INSERT INTO consolidated_transactions 
-        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`;
-      params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null];
+        (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`;
+      params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
     }
 
     const result = await pool.query(query, params);
@@ -1255,15 +1962,22 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     const inserted: any[] = [];
 
     for (const tx of transactions) {
-      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type } = tx;
+      const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = tx;
       
+      const finalContribReqId = await matchAndLinkContributionRequest(client, {
+        church_id,
+        contributor_id,
+        amount,
+        contribution_request_id
+      });
+
       const finalId = id || undefined;
       let query = '';
       let params: any[] = [];
       if (finalId) {
         query = `INSERT INTO consolidated_transactions 
-          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
+          (id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
           ON CONFLICT (id) DO UPDATE SET 
             amount = EXCLUDED.amount, 
             description = EXCLUDED.description, 
@@ -1274,14 +1988,15 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             contributor_id = EXCLUDED.contributor_id,
             report_id = EXCLUDED.report_id,
             payment_method = EXCLUDED.payment_method,
-            contribution_type = EXCLUDED.contribution_type
+            contribution_type = EXCLUDED.contribution_type,
+            contribution_request_id = EXCLUDED.contribution_request_id
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
       } else {
         query = `INSERT INTO consolidated_transactions 
-          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null];
+          (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`;
+        params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
       }
 
       const result = await client.query(query, params);
@@ -1303,8 +2018,23 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type } = req.body;
+    const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
     
+    let finalContribReqId = contribution_request_id;
+    if (!finalContribReqId && (church_id || contributor_id || amount !== undefined)) {
+      // Get existing values if necessary
+      const currentTx = await pool.query('SELECT church_id, contributor_id, amount, contribution_request_id FROM consolidated_transactions WHERE id = $1 LIMIT 1', [id]);
+      if (currentTx.rows.length > 0) {
+        const row = currentTx.rows[0];
+        finalContribReqId = await matchAndLinkContributionRequest(pool, {
+          church_id: church_id || row.church_id,
+          contributor_id: contributor_id || row.contributor_id,
+          amount: amount !== undefined ? amount : row.amount,
+          contribution_request_id: row.contribution_request_id
+        });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE consolidated_transactions SET 
         amount = COALESCE($1, amount), 
@@ -1321,9 +2051,10 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
         contributor_id = COALESCE($12, contributor_id),
         report_id = COALESCE($13, report_id),
         payment_method = COALESCE($14, payment_method),
-        contribution_type = COALESCE($15, contribution_type)
-      WHERE id = $16 RETURNING *`,
-      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, id]
+        contribution_type = COALESCE($15, contribution_type),
+        contribution_request_id = COALESCE($16, contribution_request_id)
+      WHERE id = $17 RETURNING *`,
+      [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json(result.rows[0]);

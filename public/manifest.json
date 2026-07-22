@@ -6,19 +6,19 @@
   "description": "Gestão financeira completa para igrejas e instituições.",
   "icons": [
     {
-      "src": "/pwa/icon-192.png",
+      "src": "/pwa/icon-192.png?v=15",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
-      "src": "/pwa/maskable-icon-512.png",
+      "src": "/pwa/icon-512.png?v=15",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "/pwa/maskable-icon-512.png",
+      "src": "/pwa/maskable-icon-512.png?v=15",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
@@ -27,7 +27,7 @@
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#051024",
-  "background_color": "#051024",
+  "background_color": "#ffffff",
   "orientation": "any",
   "scope": "/"
 }

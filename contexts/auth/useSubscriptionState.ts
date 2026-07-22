@@ -133,5 +133,18 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         }
     }, [settingsRef]);
 
+    // 🔄 REATIVAÇÃO AUTOMÁTICA EM TEMPO REAL QUANDO EXPIRADO
+    React.useEffect(() => {
+        if (!subscription.isExpired) return;
+        
+        const interval = setInterval(() => {
+            if (lastProcessedUserId.current) {
+                calculateSubscription(lastProcessedUserId.current, true);
+            }
+        }, 4000);
+
+        return () => clearInterval(interval);
+    }, [subscription.isExpired, calculateSubscription]);
+
     return { subscription, setSubscription, calculateSubscription, lastProcessedUserId };
 };
