@@ -103,6 +103,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                         requestId={wizardState.contributionRequestId}
                         totalAmount={getTotalAmount()}
                         referenceNumber={wizardState.referenceNumber}
+                        items={wizardState.contributionItems}
                         onBack={prevStep}
                         onFinish={nextStep}
                     />

@@ -120,7 +120,7 @@ export const UserManagementView: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
+        <div className="flex flex-col h-full animate-fade-in gap-3 pb-2 relative">
             {/* Header Section */}
             <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div>
@@ -221,107 +221,122 @@ export const UserManagementView: React.FC = () => {
 
             {/* Modal de Edição/Adição */}
             {showAddModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-white/20 animate-in fade-in zoom-in duration-200">
-                        <form onSubmit={handleSaveUser} className="flex flex-col min-h-0">
-                            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                                <header className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                        {editingUser ? <Edit2 className="w-5 h-5 text-blue-500" /> : <UserPlus className="w-5 h-5 text-blue-500" />}
-                                        {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
-                                    </h2>
-                                    <button type="button" onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all">
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </header>
-
-                                <div className="space-y-4">
-                                    {!editingUser && (
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">E-mail do Usuário</label>
-                                            <input 
-                                                type="email" 
-                                                value={email}
-                                                onChange={e => setEmail(e.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl p-4 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all"
-                                                placeholder="exemplo@email.com"
-                                                required
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Papel</label>
-                                            <select 
-                                                value={role}
-                                                onChange={e => setRole(e.target.value as any)}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl p-4 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all appearance-none"
-                                            >
-                                                <option value="treasurer">Tesoureiro</option>
-                                                <option value="admin">Administrador</option>
-                                            </select>
-                                        </div>
-                                        {role === 'treasurer' && (
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Congregação</label>
-                                                <select 
-                                                    value={congregationId}
-                                                    onChange={e => setCongregationId(e.target.value)}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl p-4 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all appearance-none"
-                                                    required
-                                                >
-                                                    <option value="">Selecionar...</option>
-                                                    {churches.map(c => (
-                                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        )}
+                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
+                    <form onSubmit={handleSaveUser} className="flex flex-col h-full w-full">
+                        {/* Header */}
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
+                                        <UserPlus className="w-6 h-6" />
                                     </div>
-
                                     <div>
-                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Permissões Específicas</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {Object.keys(permissions).map((key) => (
-                                                <button
-                                                    key={key}
-                                                    type="button"
-                                                    onClick={() => togglePermission(key as any)}
-                                                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-                                                        permissions[key as keyof typeof permissions]
-                                                            ? 'bg-blue-500/10 border-blue-500/30 text-blue-600'
-                                                            : 'bg-slate-50 dark:bg-slate-900 border-transparent text-slate-400'
-                                                    }`}
-                                                >
-                                                    <span className="text-[10px] font-black uppercase tracking-tight">
-                                                        {PERMISSION_LABELS[key] || key.replace(/_/g, ' ')}
-                                                    </span>
-                                                    {permissions[key as keyof typeof permissions] ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                            {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                            {editingUser ? 'Alterar Dados do Usuário' : 'Cadastro de Acesso e Permissões'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 flex-shrink-0">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowAddModal(false)}
-                                    className="px-6 py-3 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    type="submit"
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all"
-                                >
-                                    Salvar Alterações
+                            <div className="flex items-center gap-2 self-end md:self-auto">
+                                <button type="button" onClick={() => setShowAddModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors">
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
-                        </form>
-                    </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-8 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0">
+                            <div className="space-y-6 w-full">
+                                {!editingUser && (
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">E-mail do Usuário</label>
+                                        <input 
+                                            type="email" 
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all"
+                                            placeholder="exemplo@email.com"
+                                            required
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">Papel</label>
+                                        <select 
+                                            value={role}
+                                            onChange={e => setRole(e.target.value as any)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none"
+                                        >
+                                            <option value="treasurer">Tesoureiro</option>
+                                            <option value="admin">Administrador</option>
+                                        </select>
+                                    </div>
+                                    {role === 'treasurer' && (
+                                        <div className="space-y-2">
+                                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">Congregação</label>
+                                            <select 
+                                                value={congregationId}
+                                                onChange={e => setCongregationId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all appearance-none"
+                                                required
+                                            >
+                                                <option value="">Selecionar...</option>
+                                                {churches.map(c => (
+                                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">Permissões Específicas</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        {Object.keys(permissions).map((key) => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => togglePermission(key as any)}
+                                                className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${
+                                                    permissions[key as keyof typeof permissions]
+                                                        ? 'bg-blue-500/10 border-blue-500/30 text-blue-600'
+                                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+                                                }`}
+                                            >
+                                                <span className="text-[10px] font-black uppercase tracking-tight">
+                                                    {PERMISSION_LABELS[key] || key.replace(/_/g, ' ')}
+                                                </span>
+                                                {permissions[key as keyof typeof permissions] ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowAddModal(false)}
+                                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="submit"
+                                className="px-8 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2"
+                            >
+                                Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChurchPixKeyPublic } from '../types/portal';
 
-export function usePortalPix(churchId?: string) {
+export function usePortalPix(churchId?: string, bankId?: string) {
     const [pixKeys, setPixKeys] = useState<ChurchPixKeyPublic[]>([]);
     const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchPixKeys = useCallback(async () => {
-        if (!churchId) {
+        if (!churchId && !bankId) {
             setPixKeys([]);
             setSelectedKeyId(null);
             return;
@@ -18,7 +18,8 @@ export function usePortalPix(churchId?: string) {
         setError(null);
 
         try {
-            const response = await fetch(`/api/v1/church-pix-keys/public?church_id=${encodeURIComponent(churchId)}`, {
+            const queryParam = bankId ? `bank_id=${encodeURIComponent(bankId)}` : `church_id=${encodeURIComponent(churchId!)}`;
+            const response = await fetch(`/api/v1/church-pix-keys/public?${queryParam}`, {
                 cache: 'no-store'
             });
 
@@ -40,17 +41,17 @@ export function usePortalPix(churchId?: string) {
             }
         } catch (err: any) {
             console.error('[usePortalPix] Erro ao buscar chaves Pix:', err);
-            setError(err.message || 'Erro ao carregar dados Pix da igreja.');
+            setError(err.message || 'Erro ao carregar dados Pix.');
             setPixKeys([]);
             setSelectedKeyId(null);
         } finally {
             setLoading(false);
         }
-    }, [churchId, selectedKeyId]);
+    }, [churchId, bankId, selectedKeyId]);
 
     useEffect(() => {
         fetchPixKeys();
-    }, [churchId]);
+    }, [churchId, bankId]);
 
     const selectedKey = pixKeys.find(k => k.id === selectedKeyId) || (pixKeys.length > 0 ? pixKeys[0] : null);
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { 
     ContributionWizardState, 
     ContributorMockProfile, 
@@ -44,6 +44,36 @@ export const usePortalWizard = (churchId?: string) => {
     const [isSearching, setIsSearching] = useState<boolean>(false);
     const [isSaving, setIsSaving] = useState<boolean>(false);
     const [apiError, setApiError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchPublicTypes = async () => {
+            try {
+                const res = await fetch('/api/v1/contribution-types/public');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted && Array.isArray(data) && data.length > 0) {
+                        const mapped: ContributionItemMock[] = data.map((item: any, idx: number) => ({
+                            id: item.id,
+                            label: item.name,
+                            description: item.category || `Contribuição destinada para ${item.name}`,
+                            selected: idx === 0,
+                            amount: idx === 0 ? 100 : 0,
+                            bank_id: item.bank_id
+                        }));
+                        setWizardState(prev => ({
+                            ...prev,
+                            contributionItems: mapped
+                        }));
+                    }
+                }
+            } catch (err) {
+                console.error('[usePortalWizard] Erro ao carregar tipos de contribuição:', err);
+            }
+        };
+        fetchPublicTypes();
+        return () => { isMounted = false; };
+    }, []);
 
     const setStep = useCallback((step: number) => {
         setWizardState(prev => ({ ...prev, step: Math.max(1, Math.min(6, step)) }));

@@ -42,6 +42,7 @@ export interface ContributionItemMock {
     description: string;
     selected: boolean;
     amount: number;
+    bank_id?: string;
 }
 
 export interface ContributionWizardState {
@@ -59,12 +60,14 @@ export interface ContributionWizardState {
 
 export interface ChurchPixKeyPublic {
     id: string;
-    church_id: string;
+    bank_id?: string;
+    church_id?: string;
     pix_type: 'cpf' | 'cnpj' | 'phone' | 'email' | 'random' | string;
     pix_key: string;
     holder_name?: string | null;
     description?: string | null;
     bank_name?: string | null;
+    accepted_contribution_types?: string[] | null;
     is_active: boolean;
     created_at?: string;
 }

@@ -263,7 +263,7 @@ export const UsersManagementPage: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col h-full gap-6 animate-fade-in pb-6 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-col h-full gap-6 animate-fade-in pb-6 overflow-y-auto custom-scrollbar relative">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div className="flex items-center gap-3">
@@ -439,36 +439,57 @@ export const UsersManagementPage: React.FC = () => {
 
             {/* Modal de Cadastro/Edição */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-brand-deep/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-scale-in border border-slate-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
-                        <div className="px-8 pt-8 pb-4 flex justify-between items-center flex-shrink-0">
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                                {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
-                            </h3>
-                            <button 
-                                onClick={handleCloseModal}
-                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400"
-                            >
-                                <XMarkIcon className="w-6 h-6" />
-                            </button>
+                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden">
+                    <form onSubmit={handleSubmitUser} className="flex flex-col h-full w-full">
+                        {/* Header */}
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
+                                        <UserIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                            {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                            {editingUser ? 'Alterar Dados e Permissões do Usuário' : 'Cadastro de Acesso e Permissões de Usuário'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end md:self-auto">
+                                <button 
+                                    type="button"
+                                    onClick={handleCloseModal}
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors"
+                                >
+                                    <XMarkIcon className="w-6 h-6" />
+                                </button>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleSubmitUser} className="flex flex-col flex-1 min-h-0">
-                            <div className="px-8 py-4 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                        {/* Body */}
+                        <div className="p-8 flex-1 overflow-y-auto custom-scrollbar w-full min-h-0">
+                            <div className="space-y-6 w-full">
                                 {statusMessage && (
                                     <div className={`p-4 rounded-2xl text-sm font-bold flex items-center gap-3 animate-fade-in ${
                                         statusMessage.type === 'success' 
-                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                                            : 'bg-red-50 text-red-700 border border-red-100'
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800' 
+                                            : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-800'
                                     }`}>
                                         <div className={`w-2 h-2 rounded-full ${statusMessage.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
                                         {statusMessage.text}
                                     </div>
                                 )}
-                                <div className="space-y-4">
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Nome */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Nome Completo</label>
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                            Nome Completo
+                                        </label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                                                 <UserIcon className="w-5 h-5" />
@@ -485,8 +506,10 @@ export const UsersManagementPage: React.FC = () => {
                                     </div>
 
                                     {/* Email */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">E-mail</label>
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                            E-mail
+                                        </label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                                                 <EnvelopeIcon className="w-5 h-5" />
@@ -503,8 +526,8 @@ export const UsersManagementPage: React.FC = () => {
                                     </div>
 
                                     {/* Senha */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">
+                                    <div className="space-y-2 md:col-span-2">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
                                             {editingUser ? 'Nova Senha (deixe em branco para manter)' : 'Senha Provisória'}
                                         </label>
                                         <div className="relative">
@@ -521,11 +544,15 @@ export const UsersManagementPage: React.FC = () => {
                                             />
                                         </div>
                                     </div>
+                                </div>
 
-                                    {/* Congregações */}
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Congregações Autorizadas</label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar p-1">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                                    {/* Congregações Autorizadas */}
+                                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                            Congregações Autorizadas
+                                        </label>
+                                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                             {churches.length > 0 ? (
                                                 churches.map(church => (
                                                     <label 
@@ -556,10 +583,12 @@ export const UsersManagementPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Bancos */}
-                                    <div className="space-y-3">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Bancos Autorizados</label>
-                                        <div className="grid grid-cols-1 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar p-1">
+                                    {/* Bancos Autorizados */}
+                                    <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                            Bancos Autorizados
+                                        </label>
+                                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                                             {banks.length > 0 ? (
                                                 banks.map(bank => (
                                                     <label 
@@ -592,9 +621,11 @@ export const UsersManagementPage: React.FC = () => {
                                 </div>
 
                                 {/* Permissões */}
-                                <div className="space-y-3">
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Permissões de Acesso</label>
-                                    <div className="grid grid-cols-1 gap-2">
+                                <div className="bg-slate-50/70 dark:bg-slate-900/60 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
+                                        Permissões de Acesso
+                                    </label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                         {[
                                             { key: 'confirmFinal', label: 'Confirmar final' },
                                             { key: 'identifyPayments', label: 'Identificar pagamentos' },
@@ -620,32 +651,33 @@ export const UsersManagementPage: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 rounded-b-[2.5rem] border-t border-slate-100 dark:border-slate-700/50 flex-shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={handleCloseModal}
-                                    className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className={`px-8 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                >
-                                    {loading ? (
-                                        <>
-                                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            <span>Processando...</span>
-                                        </>
-                                    ) : (
-                                        editingUser ? 'Salvar Alterações' : 'Criar Usuário'
-                                    )}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                        {/* Footer */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
+                            <button
+                                type="button"
+                                onClick={handleCloseModal}
+                                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className={`px-8 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            >
+                                {loading ? (
+                                    <>
+                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Processando...</span>
+                                    </>
+                                ) : (
+                                    editingUser ? 'Salvar Alterações' : 'Criar Usuário'
+                                )}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
         </div>

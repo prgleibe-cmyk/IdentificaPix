@@ -18,6 +18,20 @@ export interface Bank {
   name: string;
   bank_key?: string | null;
   account_name?: string | null;
+  accepted_contribution_types?: string[] | null;
+}
+
+export interface ContributionType {
+  id: string;
+  name: string;
+  type: 'entrada' | 'saida';
+  category?: string | null;
+  bank_id?: string | null;
+  order?: number;
+  is_active?: boolean;
+  user_id?: string | null;
+  created_at?: string;
+  bank_name?: string | null;
 }
 
 export interface Church {

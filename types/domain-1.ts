@@ -18,6 +18,7 @@ export interface Bank {
   name: string;
   bank_key?: string | null;
   account_name?: string | null;
+  accepted_contribution_types?: string[] | null;
 }
 
 export interface Church {

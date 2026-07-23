@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Bank, Church, ChurchFormData, LearnedAssociation, MatchResult } from '../types';
+import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +21,23 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     
     const [contributionKeywords, setContributionKeywords] = usePersistentState<string[]>(`identificapix-contrib-keywords${userSuffix}`, DEFAULT_CONTRIBUTION_KEYWORDS);
     const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
+    const [contributionTypes, setContributionTypes] = useState<ContributionType[]>([]);
+
+    const fetchContributionTypes = useCallback(async () => {
+        try {
+            const res = await fetch('/api/v1/contribution-types');
+            if (res.ok) {
+                const data = await res.json();
+                setContributionTypes(data);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar tipos de contribuição:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchContributionTypes();
+    }, [fetchContributionTypes]);
 
     // ✅ MIGRATION/CLEANUP logic to ensure only 'DÍZIMO', 'OFERTA' for contribution types and 'PIX', 'DINHEIRO' for payment methods
     const hasMigratedRef = useRef(false);
@@ -294,20 +311,20 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const openEditBank = useCallback((bank: Bank) => setEditingBank(bank), []);
     const closeEditBank = useCallback(() => setEditingBank(null), []);
 
-    const updateBank = useCallback(async (bankId: string, name: string) => {
+    const updateBank = useCallback(async (bankId: string, name: string, accepted_contribution_types?: string[] | null) => {
         const account_name = name;
-        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name } : b));
+        setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name, accepted_contribution_types } : b));
         closeEditBank();
-        console.log(`[WRITE:UPDATE] Atualizando banco name e account_name (ID: ${bankId}) no VPS`);
+        console.log(`[WRITE:UPDATE] Atualizando banco name, account_name e accepted_contribution_types (ID: ${bankId}) no VPS`);
         await fetch(`/api/v1/banks/${bankId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, account_name })
+            body: JSON.stringify({ name, account_name, accepted_contribution_types })
         });
         showToast('Banco atualizado.', 'success');
     }, [closeEditBank, setBanks, showToast]);
 
-    const addBank = useCallback(async (nameOrPayload: string | { name: string; bank_key?: string | null; account_name?: string | null }, bank_key_legacy?: string | null): Promise<boolean> => {
+    const addBank = useCallback(async (nameOrPayload: string | { name: string; bank_key?: string | null; account_name?: string | null; accepted_contribution_types?: string[] | null }, bank_key_legacy?: string | null): Promise<any> => {
         if(!user || !effectiveUserId) return false;
         if (banks.length >= (subscription.maxBanks || 1)) {
             showToast(`Limite atingido.`, 'error');
@@ -317,6 +334,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         let name: string;
         let bank_key: string | null = null;
         let account_name: string | null = null;
+        let accepted_contribution_types: string[] | null = null;
 
         if (typeof nameOrPayload === 'string') {
             name = nameOrPayload;
@@ -326,6 +344,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             name = nameOrPayload.name;
             bank_key = nameOrPayload.bank_key || null;
             account_name = nameOrPayload.account_name ?? nameOrPayload.name;
+            accepted_contribution_types = nameOrPayload.accepted_contribution_types || null;
         }
 
         const normalizedBankKey = bank_key || null;
@@ -351,7 +370,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 name,
                 user_id: effectiveUserId,
                 bank_key: bank_key ?? null,
-                account_name: account_name ?? name
+                account_name: account_name ?? name,
+                accepted_contribution_types
             })
         });
 
@@ -359,7 +379,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             const newBank = await res.json();
             setBanks(prev => [...prev, newBank]);
             showToast('Banco adicionado.', 'success');
-            return true;
+            return newBank;
         }
         return false;
     }, [user, effectiveUserId, banks, subscription.maxBanks, setBanks, showToast]);
@@ -426,17 +446,86 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast("Forma removida.", "success");
     }, [setPaymentMethods, showToast]);
 
+    const addContributionType = useCallback(async (data: { name: string; type: 'entrada' | 'saida'; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
+        try {
+            const res = await fetch('/api/v1/contribution-types', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...data, user_id: effectiveUserId })
+            });
+            if (res.ok) {
+                const newType = await res.json();
+                setContributionTypes(prev => [...prev, newType]);
+                showToast(`Tipo "${newType.name}" cadastrado.`, 'success');
+                return newType;
+            } else {
+                const errJson = await res.json().catch(() => ({}));
+                showToast(errJson.message || 'Erro ao cadastrar tipo.', 'error');
+                return false;
+            }
+        } catch (err: any) {
+            console.error('Erro ao cadastrar tipo:', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            return false;
+        }
+    }, [effectiveUserId, showToast]);
+
+    const updateContributionType = useCallback(async (id: string, data: { name: string; type: 'entrada' | 'saida'; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
+        try {
+            const res = await fetch(`/api/v1/contribution-types/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                setContributionTypes(prev => prev.map(item => item.id === id ? updated : item));
+                showToast(`Tipo "${updated.name}" atualizado.`, 'success');
+                return updated;
+            } else {
+                const errJson = await res.json().catch(() => ({}));
+                showToast(errJson.message || 'Erro ao atualizar tipo.', 'error');
+                return false;
+            }
+        } catch (err: any) {
+            console.error('Erro ao atualizar tipo:', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            return false;
+        }
+    }, [showToast]);
+
+    const removeContributionType = useCallback(async (id: string) => {
+        try {
+            const res = await fetch(`/api/v1/contribution-types/${id}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                setContributionTypes(prev => prev.filter(item => item.id !== id));
+                showToast('Tipo de contribuição removido.', 'success');
+                return true;
+            } else {
+                showToast('Erro ao excluir tipo.', 'error');
+                return false;
+            }
+        } catch (err) {
+            console.error('Erro ao excluir tipo:', err);
+            showToast('Erro ao comunicar com o servidor.', 'error');
+            return false;
+        }
+    }, [showToast]);
+
     return useMemo(() => ({
         banks, churches, reports, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         contributionKeywords, addContributionKeyword, removeContributionKeyword,
         paymentMethods, addPaymentMethod, removePaymentMethod,
+        contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
         editingChurch, openEditChurch, closeEditChurch, updateChurch, addChurch,
         setBanks, setChurches, setLearnedAssociations
     }), [
         banks, churches, reports, similarityLevel, dayTolerance, 
-        contributionKeywords, paymentMethods, learnedAssociations, learnAssociation, 
+        contributionKeywords, paymentMethods, contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType, learnedAssociations, learnAssociation, 
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
