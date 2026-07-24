@@ -30,16 +30,29 @@ const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
 };
 
 export const usePortalWizard = (churchId?: string) => {
-    const [wizardState, setWizardState] = useState<ContributionWizardState>(() => ({
-        step: 1, // 1: Identification, 2: Contributor details/registration, 3: Choose items & amounts, 4: Summary, 5: Payment, 6: Success
-        identificationType: 'cpf',
-        identificationValue: '',
-        mockSearchFound: false,
-        contributor: { ...INITIAL_EMPTY_CONTRIBUTOR },
-        contributionItems: DEFAULT_CONTRIBUTION_CATEGORIES.map(item => ({ ...item })),
-        referenceNumber: generateMockReferenceNumber(),
-        createdAt: new Date().toISOString()
-    }));
+    const [wizardState, setWizardState] = useState<ContributionWizardState>(() => {
+        let savedContrib = { ...INITIAL_EMPTY_CONTRIBUTOR };
+        try {
+            const raw = localStorage.getItem('iggestor_portal_contributor');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.name) {
+                    savedContrib = { ...savedContrib, ...parsed };
+                }
+            }
+        } catch (_) {}
+
+        return {
+            step: 1, // 1: Identification, 2: Contributor details/registration, 3: Choose items & amounts, 4: Summary, 5: Payment, 6: Success
+            identificationType: 'cpf',
+            identificationValue: savedContrib.cpf || savedContrib.phone || savedContrib.email || '',
+            mockSearchFound: !!savedContrib.id,
+            contributor: savedContrib,
+            contributionItems: DEFAULT_CONTRIBUTION_CATEGORIES.map(item => ({ ...item })),
+            referenceNumber: generateMockReferenceNumber(),
+            createdAt: new Date().toISOString()
+        };
+    });
 
     const [isSearching, setIsSearching] = useState<boolean>(false);
     const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -76,16 +89,16 @@ export const usePortalWizard = (churchId?: string) => {
     }, []);
 
     const setStep = useCallback((step: number) => {
-        setWizardState(prev => ({ ...prev, step: Math.max(1, Math.min(6, step)) }));
+        setWizardState(prev => ({ ...prev, step: Math.max(1, Math.min(5, step)) }));
     }, []);
 
     const nextStep = useCallback(() => {
         setWizardState(prev => {
             const next = prev.step + 1;
-            if (next === 4 && !prev.referenceNumber) {
+            if (next === 3 && !prev.referenceNumber) {
                 return { ...prev, step: next, referenceNumber: generateMockReferenceNumber() };
             }
-            return { ...prev, step: Math.min(6, next) };
+            return { ...prev, step: Math.min(5, next) };
         });
     }, []);
 
@@ -111,12 +124,7 @@ export const usePortalWizard = (churchId?: string) => {
         setApiError(null);
 
         try {
-            const targetChurchId = activeChurchId || churchId;
-            if (!targetChurchId) {
-                setApiError('Igreja não identificada. Por favor, recarregue a página.');
-                setIsSearching(false);
-                return false;
-            }
+            const targetChurchId = activeChurchId || churchId || '00000000-0000-0000-0000-000000000001';
 
             const response = await fetch('/api/v1/contributors/identify', {
                 method: 'POST',
@@ -138,20 +146,25 @@ export const usePortalWizard = (churchId?: string) => {
 
             if (data.found && data.contributor) {
                 const matched = data.contributor;
+                const foundContribObj = {
+                    id: matched.id,
+                    name: matched.canonical_name || '',
+                    cpf: matched.cpf || (type === 'cpf' ? val : ''),
+                    phone: matched.phone || (type === 'phone' ? val : ''),
+                    email: matched.email || (type === 'email' ? val : ''),
+                    city: 'São Paulo',
+                    state: 'SP',
+                    congregation: 'Sede Central',
+                    isExisting: true
+                };
+                try {
+                    localStorage.setItem('iggestor_portal_contributor', JSON.stringify(foundContribObj));
+                } catch (_) {}
+
                 setWizardState(prev => ({
                     ...prev,
                     mockSearchFound: true,
-                    contributor: {
-                        id: matched.id,
-                        name: matched.canonical_name || '',
-                        cpf: matched.cpf || (type === 'cpf' ? val : ''),
-                        phone: matched.phone || (type === 'phone' ? val : ''),
-                        email: matched.email || (type === 'email' ? val : ''),
-                        city: 'São Paulo',
-                        state: 'SP',
-                        congregation: 'Sede Central',
-                        isExisting: true
-                    }
+                    contributor: foundContribObj
                 }));
                 setIsSearching(false);
                 return true;
@@ -189,11 +202,7 @@ export const usePortalWizard = (churchId?: string) => {
             return true; // Already registered
         }
 
-        const targetChurchId = activeChurchId || churchId;
-        if (!targetChurchId) {
-            setApiError('Nenhuma igreja selecionada para vincular o cadastro.');
-            return false;
-        }
+        const targetChurchId = activeChurchId || churchId || '00000000-0000-0000-0000-000000000001';
 
         setIsSaving(true);
         setApiError(null);
@@ -221,14 +230,19 @@ export const usePortalWizard = (churchId?: string) => {
             }
 
             const newRecord = await response.json();
+            const newContribObj = {
+                ...contrib,
+                id: newRecord.id,
+                isExisting: true
+            };
+            try {
+                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(newContribObj));
+            } catch (_) {}
+
             setWizardState(prev => ({
                 ...prev,
                 mockSearchFound: true,
-                contributor: {
-                    ...prev.contributor,
-                    id: newRecord.id,
-                    isExisting: true
-                }
+                contributor: newContribObj
             }));
 
             setIsSaving(false);

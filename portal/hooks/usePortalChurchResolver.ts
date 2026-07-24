@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
 import { PortalChurch } from '../types/portal';
 
+const DEFAULT_PORTAL_CHURCH: PortalChurch = {
+    id: '00000000-0000-0000-0000-000000000001',
+    name: 'Igreja Sede Central',
+    slug: 'igreja-sede-central',
+    address: 'Sede Central',
+    logoUrl: '',
+    pastor: 'Pr. Responsável',
+    description: 'Plataforma Oficial de Contribuição e Ofertas'
+};
+
 export const usePortalChurchResolver = (churchSlug?: string) => {
-    const [church, setChurch] = useState<PortalChurch | null>(null);
-    const [churchesList, setChurchesList] = useState<PortalChurch[]>([]);
+    const [church, setChurch] = useState<PortalChurch | null>(DEFAULT_PORTAL_CHURCH);
+    const [churchesList, setChurchesList] = useState<PortalChurch[]>([DEFAULT_PORTAL_CHURCH]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -52,13 +62,15 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
                         setChurch(formattedChurches[0]);
                     }
                 } else {
-                    setChurchesList([]);
-                    setChurch(null);
+                    setChurchesList([DEFAULT_PORTAL_CHURCH]);
+                    setChurch(DEFAULT_PORTAL_CHURCH);
                 }
             } catch (err: any) {
                 if (isMounted) {
                     console.error('[usePortalChurchResolver] Erro:', err);
                     setError(err.message || 'Erro ao carregar dados da igreja');
+                    setChurchesList([DEFAULT_PORTAL_CHURCH]);
+                    setChurch(DEFAULT_PORTAL_CHURCH);
                 }
             } finally {
                 if (isMounted) {

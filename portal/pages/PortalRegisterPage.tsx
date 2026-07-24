@@ -14,7 +14,7 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({ onNaviga
     } = usePortalWizard();
 
     return (
-        <PortalContainer maxWidth="md">
+        <PortalContainer maxWidth="7xl">
             <PortalContributorStep
                 contributor={wizardState.contributor}
                 mockSearchFound={false}

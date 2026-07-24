@@ -7,17 +7,16 @@ interface PortalStepperProps {
 
 const STEPS = [
     { number: 1, label: 'Identificação' },
-    { number: 2, label: 'Contribuinte' },
-    { number: 3, label: 'Contribuição' },
-    { number: 4, label: 'Resumo' },
-    { number: 5, label: 'Pagamento' },
-    { number: 6, label: 'Conclusão' }
+    { number: 2, label: 'Contribuição' },
+    { number: 3, label: 'Resumo' },
+    { number: 4, label: 'Pagamento' },
+    { number: 5, label: 'Conclusão' }
 ];
 
 export const PortalStepper: React.FC<PortalStepperProps> = ({ currentStep, onStepClick }) => {
     return (
         <div className="w-full mb-6 sm:mb-8">
-            <div className="flex items-center justify-between relative max-w-2xl mx-auto">
+            <div className="flex items-center justify-between relative max-w-4xl mx-auto px-2">
                 {/* Connecting progress line */}
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-slate-200 dark:bg-slate-800 w-full z-0 rounded-full" />
                 <div 

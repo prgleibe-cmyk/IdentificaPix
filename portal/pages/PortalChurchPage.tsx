@@ -11,7 +11,7 @@ interface PortalChurchPageProps {
 
 export const PortalChurchPage: React.FC<PortalChurchPageProps> = ({ church, onNavigate }) => {
     return (
-        <PortalContainer maxWidth="lg">
+        <PortalContainer maxWidth="7xl">
             <PortalCard
                 title={church?.name || 'Página da Igreja'}
                 subtitle={church?.description || 'Ambiente Oficial de Contribuição'}

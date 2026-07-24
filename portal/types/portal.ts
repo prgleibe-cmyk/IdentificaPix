@@ -4,6 +4,8 @@ export interface PortalChurch {
     slug: string;
     city?: string;
     state?: string;
+    address?: string;
+    pastor?: string;
     logoUrl?: string;
     description?: string;
 }
@@ -13,6 +15,7 @@ export type PortalRoute =
     | 'church'
     | 'identify'
     | 'register'
+    | 'reports'
     | 'coming_soon'
     | 'not_found';
 

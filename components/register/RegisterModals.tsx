@@ -250,7 +250,7 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
                                             type="text"
                                             value={description}
                                             onChange={e => setDescription(e.target.value)}
-                                            placeholder="Ex: Conta principal de dízimos e ofertas"
+                                            placeholder="Ex: Conta principal de contribuições"
                                             className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none"
                                             disabled={isSubmitting}
                                         />

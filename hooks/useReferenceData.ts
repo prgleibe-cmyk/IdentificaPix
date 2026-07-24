@@ -25,7 +25,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     const fetchContributionTypes = useCallback(async () => {
         try {
-            const res = await fetch('/api/v1/contribution-types');
+            const url = effectiveUserId 
+                ? `/api/v1/contribution-types?user_id=${encodeURIComponent(effectiveUserId)}`
+                : '/api/v1/contribution-types';
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
                 setContributionTypes(data);
@@ -33,7 +36,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         } catch (err) {
             console.error('Erro ao buscar tipos de contribuição:', err);
         }
-    }, []);
+    }, [effectiveUserId]);
 
     useEffect(() => {
         fetchContributionTypes();
@@ -314,7 +317,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const updateBank = useCallback(async (bankId: string, name: string, accepted_contribution_types?: string[] | null) => {
         const account_name = name;
         setBanks(prev => prev.map(b => b.id === bankId ? { ...b, name, account_name, accepted_contribution_types } : b));
-        closeEditBank();
         console.log(`[WRITE:UPDATE] Atualizando banco name, account_name e accepted_contribution_types (ID: ${bankId}) no VPS`);
         await fetch(`/api/v1/banks/${bankId}`, {
             method: 'PUT',
@@ -322,7 +324,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             body: JSON.stringify({ name, account_name, accepted_contribution_types })
         });
         showToast('Banco atualizado.', 'success');
-    }, [closeEditBank, setBanks, showToast]);
+    }, [setBanks, showToast]);
 
     const addBank = useCallback(async (nameOrPayload: string | { name: string; bank_key?: string | null; account_name?: string | null; accepted_contribution_types?: string[] | null }, bank_key_legacy?: string | null): Promise<any> => {
         if(!user || !effectiveUserId) return false;

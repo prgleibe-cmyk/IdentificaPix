@@ -36,7 +36,7 @@ export const AuthHero: React.FC = () => {
                 
                 <div className="border-l-4 border-brand-blue pl-6">
                     <p className="text-lg text-slate-600 leading-relaxed font-medium">
-                        Plataforma inteligente de gestão financeira completa para igrejas. Automatize a conciliação bancária, controle dízimos, ofertas, despesas e relatórios em tempo real de forma simples e segura.
+                        Plataforma inteligente de gestão financeira completa para igrejas. Automatize a conciliação bancária, controle contribuições, despesas e relatórios em tempo real de forma simples e segura.
                     </p>
                 </div>
 

@@ -40,12 +40,13 @@ export const EditBankModal: React.FC = () => {
                 if (!isMounted) return;
                 const matchingKey = keys.find((k: any) => k.bank_id === editingBank.id) || (keys.length > 0 ? keys[0] : null);
                 if (matchingKey) {
-                    setEnablePix(true);
+                    const activeState = matchingKey.is_active ?? true;
+                    setEnablePix(activeState);
                     setPixType(matchingKey.pix_type || 'cpf');
                     setPixKey(matchingKey.pix_key || '');
                     setHolderName(matchingKey.holder_name || '');
                     setDescription(matchingKey.description || '');
-                    setIsActive(matchingKey.is_active ?? true);
+                    setIsActive(activeState);
                     setExistingPixKeyId(matchingKey.id);
                 } else {
                     setEnablePix(false);
@@ -216,7 +217,11 @@ export const EditBankModal: React.FC = () => {
                                 <input
                                     type="checkbox"
                                     checked={enablePix}
-                                    onChange={e => setEnablePix(e.target.checked)}
+                                    onChange={e => {
+                                        const checked = e.target.checked;
+                                        setEnablePix(checked);
+                                        setIsActive(checked);
+                                    }}
                                     className="sr-only peer"
                                 />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
@@ -306,7 +311,7 @@ export const EditBankModal: React.FC = () => {
                                         type="text"
                                         value={description}
                                         onChange={e => setDescription(e.target.value)}
-                                        placeholder="Ex: Conta principal de dízimos e ofertas"
+                                        placeholder="Ex: Conta principal de contribuições"
                                         className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-3 px-4 text-xs font-bold outline-none"
                                     />
                                 </div>

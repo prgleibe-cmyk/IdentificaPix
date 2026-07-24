@@ -108,7 +108,7 @@ export const PortalSummaryStep: React.FC<PortalSummaryStepProps> = ({
                 )}
 
                 {/* Navigation */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-2">
                     <PortalButton
                         variant="outline"
                         size="md"
@@ -120,7 +120,6 @@ export const PortalSummaryStep: React.FC<PortalSummaryStepProps> = ({
                     <PortalButton
                         variant="primary"
                         size="md"
-                        className="flex-1"
                         onClick={onContinue}
                         disabled={isSaving}
                     >

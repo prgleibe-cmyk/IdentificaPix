@@ -44,30 +44,21 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                     <PortalIdentifyStep
                         identificationType={wizardState.identificationType}
                         identificationValue={wizardState.identificationValue}
+                        contributor={wizardState.contributor}
                         mockSearchFound={wizardState.mockSearchFound}
                         isSearching={isSearching}
+                        isSaving={isSaving}
                         apiError={apiError}
                         onTypeChange={setIdentificationType}
                         onValueChange={setIdentificationValue}
                         onPerformSearch={() => performSearchContributor(church?.id)}
+                        onUpdateContributor={updateContributor}
+                        onSaveContributor={() => saveContributor(church?.id)}
                         onMockSearchToggle={setMockSearchFound}
                         onContinue={nextStep}
                     />
                 );
             case 2:
-                return (
-                    <PortalContributorStep
-                        contributor={wizardState.contributor}
-                        mockSearchFound={wizardState.mockSearchFound}
-                        isSaving={isSaving}
-                        apiError={apiError}
-                        onUpdateContributor={updateContributor}
-                        onSaveContributor={() => saveContributor(church?.id)}
-                        onBack={prevStep}
-                        onContinue={nextStep}
-                    />
-                );
-            case 3:
                 return (
                     <PortalContributionsStep
                         items={wizardState.contributionItems}
@@ -78,7 +69,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                         onContinue={nextStep}
                     />
                 );
-            case 4:
+            case 3:
                 return (
                     <PortalSummaryStep
                         contributor={wizardState.contributor}
@@ -96,7 +87,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                         }}
                     />
                 );
-            case 5:
+            case 4:
                 return (
                     <PortalPaymentStep
                         churchId={church?.id}
@@ -108,7 +99,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                         onFinish={nextStep}
                     />
                 );
-            case 6:
+            case 5:
                 return (
                     <PortalSuccessStep
                         churchId={church?.id}
@@ -126,7 +117,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
     };
 
     return (
-        <PortalContainer maxWidth="lg">
+        <PortalContainer maxWidth="7xl">
             {/* Header / Intro banner */}
             <div className="text-center mb-6 sm:mb-8">
                 <span className="px-3 py-1 text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-brand-blue dark:text-blue-400 rounded-full inline-block mb-2">
