@@ -5,6 +5,7 @@ import { PortalChurchPage } from './pages/PortalChurchPage';
 import { PortalIdentifyPage } from './pages/PortalIdentifyPage';
 import { PortalRegisterPage } from './pages/PortalRegisterPage';
 import { PortalReportsPage } from './pages/PortalReportsPage';
+import { PortalPledgesPage } from './pages/PortalPledgesPage';
 import { PortalComingSoonPage } from './pages/PortalComingSoonPage';
 import { PortalNotFoundPage } from './pages/PortalNotFoundPage';
 import { usePortalChurchResolver } from './hooks/usePortalChurchResolver';
@@ -34,6 +35,8 @@ export const PortalRouter: React.FC = () => {
                 setCurrentRoute('register');
             } else if (parts[0] === 'reports') {
                 setCurrentRoute('reports');
+            } else if (parts[0] === 'pledges') {
+                setCurrentRoute('pledges');
             } else if (parts[0] === 'coming_soon') {
                 setCurrentRoute('coming_soon');
             } else if (parts[0] === 'church' && parts[1]) {
@@ -85,6 +88,8 @@ export const PortalRouter: React.FC = () => {
                 return <PortalRegisterPage onNavigate={handleNavigate} />;
             case 'reports':
                 return <PortalReportsPage church={church} onNavigate={handleNavigate} />;
+            case 'pledges':
+                return <PortalPledgesPage church={church} onNavigate={handleNavigate} />;
             case 'coming_soon':
                 return <PortalComingSoonPage onNavigate={handleNavigate} />;
             case 'not_found':

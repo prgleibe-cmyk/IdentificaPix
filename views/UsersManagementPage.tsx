@@ -293,7 +293,7 @@ export const UsersManagementPage: React.FC = () => {
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl shadow-md shadow-orange-500/10 hover:-translate-y-0.5 transition-all tracking-wide uppercase"
+                        className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
                     >
                         <PlusCircleIcon className="w-3.5 h-3.5" />
                         <span>Criar Usuário</span>
@@ -658,14 +658,14 @@ export const UsersManagementPage: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleCloseModal}
-                                className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors uppercase tracking-wide"
+                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`px-8 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:from-orange-700 active:to-amber-700 transition-all uppercase hover:-translate-y-0.5 active:translate-y-0 tracking-wide flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
                             >
                                 {loading ? (
                                     <>

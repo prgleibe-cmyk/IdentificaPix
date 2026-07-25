@@ -53,8 +53,11 @@ export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({
             <div className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center gap-3 justify-center">
                 <button 
                     onClick={onRankingClick} 
-                    className={`relative flex items-center justify-center gap-2 px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 group border
-                        ${activeTemplate === 'ranking' ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/30 border-transparent transform scale-105' : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-orange-600 border-slate-200 dark:border-slate-700'}`}
+                    className={`relative flex items-center justify-center gap-2 px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 shadow-md hover:-translate-y-0.5 active:scale-95 group border cursor-pointer ${
+                        activeTemplate === 'ranking' 
+                            ? 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 text-white shadow-orange-500/20 border-transparent' 
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
                 >
                     <TrophyIcon className={`w-3.5 h-3.5 ${activeTemplate === 'ranking' ? 'text-amber-300 stroke-[2]' : ''}`} />
                     <span>Gerar Ranking</span>
@@ -62,8 +65,11 @@ export const AnalysisToolbar: React.FC<AnalysisToolbarProps> = ({
 
                 <button 
                     onClick={onManualClick}
-                    className={`relative flex items-center justify-center gap-2 px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:scale-95 group border
-                        ${activeTemplate === 'manual_structure' ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/30 border-transparent transform scale-105' : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-orange-600 border-slate-200 dark:border-slate-700'}`}
+                    className={`relative flex items-center justify-center gap-2 px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 shadow-md hover:-translate-y-0.5 active:scale-95 group border cursor-pointer ${
+                        activeTemplate === 'manual_structure' 
+                            ? 'bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 text-white shadow-orange-500/20 border-transparent' 
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
                 >
                     <TableCellsIcon className="w-3.5 h-3.5" />
                     <span>Nova Planilha</span>

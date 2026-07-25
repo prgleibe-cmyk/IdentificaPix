@@ -115,14 +115,14 @@ export const RecompareModal: React.FC = () => {
 
                 {/* Footer */}
                 <div className="bg-slate-50 dark:bg-slate-900/30 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-700/50">
-                    <button type="button" onClick={closeRecompareModal} className="px-5 py-2.5 text-xs font-bold rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all uppercase tracking-wide">
+                    <button type="button" onClick={closeRecompareModal} className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer">
                         {t('common.cancel')}
                     </button>
                     <button 
                         type="button" 
                         onClick={handleRun} 
                         disabled={isProcessing}
-                        className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:opacity-95 rounded-full shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 transition-all uppercase tracking-wide disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="flex items-center gap-1.5 px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                         {isProcessing ? (
                             <>

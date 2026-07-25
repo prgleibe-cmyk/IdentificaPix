@@ -291,7 +291,7 @@ export const ReportsView: React.FC = () => {
                 {ctrl.activeCategory === 'churches' && !isSecondaryUser && (
                     <button
                         onClick={() => setIsClosingModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md shadow-orange-500/10 hover:shadow-orange-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
                     >
                         <Building2 className="w-3.5 h-3.5" />
                         <span>Realizar Fechamento & Transferir Saldo</span>

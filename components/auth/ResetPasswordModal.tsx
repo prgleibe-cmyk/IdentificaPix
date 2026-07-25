@@ -93,14 +93,14 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ onClose 
                             <button 
                                 type="button" 
                                 onClick={onClose} 
-                                className="flex-1 py-3 px-4 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
+                                className="flex-1 px-5 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button 
                                 type="submit" 
                                 disabled={loading} 
-                                className="flex-1 py-3 px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-orange-500/10 transition-all disabled:opacity-70"
+                                className="flex-1 px-5 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
                             >
                                 {loading ? 'Salvando...' : 'Salvar Senha'}
                             </button>

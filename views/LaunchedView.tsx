@@ -117,9 +117,9 @@ export const LaunchedView: React.FC = () => {
                     {/* Botão Salvar Novo Relatório */}
                     <button 
                         onClick={handleSaveReport}
-                        className="relative flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-500/30 hover:-translate-y-0.5 transition-all active:scale-95 border border-white/10"
+                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                     >
-                        <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+                        <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                         <span>{t('reports.saveReport')}</span>
                     </button>
                 </div>

@@ -18,6 +18,8 @@ import { UsersManagementPage } from './UsersManagementPage';
 import { LaunchedView } from './LaunchedView';
 import { ConnectorsView } from './ConnectorsView';
 import { FinancialView } from './FinancialView';
+import { PledgesView } from './PledgesView';
+import { PatrimonyView } from './PatrimonyView';
 
 // --- Modals ---
 import { EditBankModal } from '../components/modals/EditBankModal';
@@ -48,6 +50,8 @@ export const AppRouter: React.FC = () => {
         case 'launched': return <LaunchedView />;
         case 'connectors': return <ConnectorsView />;
         case 'financial': return <FinancialView />;
+        case 'pledges': return <PledgesView />;
+        case 'patrimonio': return <PatrimonyView />;
         case 'novo_lancamento': return <ManualIdModal />;
         case 'users': return isOwner ? <UsersManagementPage /> : <DashboardView />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;

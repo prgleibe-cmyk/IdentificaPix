@@ -448,6 +448,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         showToast("Forma removida.", "success");
     }, [setPaymentMethods, showToast]);
 
+    const updatePaymentMethod = useCallback((oldMethod: string, newMethod: string) => {
+        const upperOld = oldMethod.trim().toUpperCase();
+        const upperNew = newMethod.trim().toUpperCase();
+        if (!upperNew) return;
+        if (upperOld !== upperNew && paymentMethods.includes(upperNew)) {
+            showToast(`A forma "${upperNew}" já existe.`, 'warning');
+            return;
+        }
+        setPaymentMethods(prev => prev.map(m => m === upperOld ? upperNew : m));
+        showToast(`Forma "${upperNew}" atualizada.`, 'success');
+    }, [paymentMethods, setPaymentMethods, showToast]);
+
     const addContributionType = useCallback(async (data: { name: string; type: 'entrada' | 'saida'; category?: string; bank_id?: string; order?: number; is_active?: boolean }) => {
         try {
             const res = await fetch('/api/v1/contribution-types', {
@@ -519,7 +531,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     return useMemo(() => ({
         banks, churches, reports, similarityLevel, setSimilarityLevel, dayTolerance, setDayTolerance,
         contributionKeywords, addContributionKeyword, removeContributionKeyword,
-        paymentMethods, addPaymentMethod, removePaymentMethod,
+        paymentMethods, addPaymentMethod, removePaymentMethod, updatePaymentMethod,
         contributionTypes, fetchContributionTypes, addContributionType, updateContributionType, removeContributionType,
         learnedAssociations, learnAssociation,
         editingBank, openEditBank, closeEditBank, updateBank, addBank,
@@ -531,6 +543,6 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         editingBank, editingChurch, setBanks, setChurches, setSimilarityLevel, 
         setDayTolerance, openEditBank, closeEditBank, updateBank, addBank, 
         openEditChurch, closeEditChurch, updateChurch, addChurch,
-        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod
+        addContributionKeyword, removeContributionKeyword, addPaymentMethod, removePaymentMethod, updatePaymentMethod
     ]);
 };

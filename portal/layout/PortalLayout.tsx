@@ -2,6 +2,7 @@ import React from 'react';
 import { PortalHeader } from '../components/PortalHeader';
 import { PortalFooter } from '../components/PortalFooter';
 import { PortalChurch } from '../types/portal';
+import { usePortalPwaSync } from '../hooks/usePortalPwaSync';
 
 interface PortalLayoutProps {
     children: React.ReactNode;
@@ -14,6 +15,9 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     church,
     onNavigate
 }) => {
+    // Dynamically sync Title, Favicon, Meta Tags, and PWA Manifest with the Church's Name & Logo
+    usePortalPwaSync(church);
+
     return (
         <div className="h-[100dvh] w-screen flex flex-col bg-gradient-to-b from-[#E6EFEA] via-[#D8E8DF] to-[#CADFD4] dark:from-[#0B1411] dark:to-[#050D0A] text-slate-900 dark:text-slate-100 font-sans antialiased overflow-y-auto custom-scrollbar relative">
             {/* Ambient Background Globs */}

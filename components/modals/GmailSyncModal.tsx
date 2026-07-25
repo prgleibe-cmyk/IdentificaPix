@@ -148,7 +148,7 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
                             <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
                                 <strong>{foundCount}</strong> transações foram extraídas e adicionadas ao seu painel de conciliação.
                             </p>
-                            <button onClick={onClose} className="px-8 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 rounded-full font-bold text-xs uppercase tracking-wide hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                            <button onClick={onClose} className="px-8 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 rounded-2xl font-bold text-xs uppercase tracking-wide hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer">
                                 Fechar
                             </button>
                         </div>
@@ -164,10 +164,10 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
                                 Não foi possível completar a sincronização. Verifique sua conexão ou tente novamente.
                             </p>
                             <div className="flex gap-3 justify-center">
-                                <button onClick={onClose} className="px-6 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 rounded-full font-bold text-xs uppercase hover:bg-slate-50 transition-colors">
+                                <button onClick={onClose} className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer">
                                     Cancelar
                                 </button>
-                                <button onClick={startSync} className="px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-full font-bold text-xs uppercase shadow-lg shadow-orange-500/10 transition-all cursor-pointer">
+                                <button onClick={startSync} className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer">
                                     Tentar Novamente
                                 </button>
                             </div>

@@ -5,6 +5,7 @@ import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
 const logoImg = '/logo.png?v=15';
+import { BookmarkPlus, Building2 } from 'lucide-react';
 import { 
     HomeIcon, 
     UploadIcon, 
@@ -118,6 +119,8 @@ export const Sidebar: React.FC = () => {
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
             { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-5 h-5"/> },
+            { view: 'pledges', labelKey: 'Carnês & Propósitos', icon: <BookmarkPlus className="w-5 h-5"/> },
+            { view: 'patrimonio', labelKey: 'Patrimônio', icon: <Building2 className="w-5 h-5"/> },
         );
 
         // Configurações apenas para o proprietário (Owner)

@@ -76,14 +76,14 @@ export const AdminUsersTab: React.FC = () => {
                             <div className="flex justify-end gap-3">
                                 <button 
                                     onClick={() => setUserToDelete(null)}
-                                    className="px-5 py-2 text-xs font-bold rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors uppercase"
+                                    className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                                 >
                                     Cancelar
                                 </button>
                                 <button 
                                     onClick={confirmDeleteUser}
                                     disabled={isDeleting === userToDelete.id}
-                                    className="px-6 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-full shadow-lg shadow-red-500/30 transition-all uppercase flex items-center gap-2"
+                                    className="px-6 py-2.5 text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded-full shadow-md transition-all tracking-wider uppercase cursor-pointer hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2"
                                 >
                                     {isDeleting === userToDelete.id ? (
                                         <>

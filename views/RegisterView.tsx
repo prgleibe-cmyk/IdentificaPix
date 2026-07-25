@@ -84,10 +84,10 @@ export const RegisterView: React.FC = () => {
                                 </div>
                             </div>
                              {!bankLimitReached && (
-                                <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-90 rounded-xl shadow-md shadow-brand-blue/20 hover:-translate-y-0.5 transition-all tracking-wide uppercase">
+                                <button onClick={() => setShowNewBankForm(true)} className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer">
                                     <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
                                 </button>
-                            )}
+                             )}
                         </div>
                     )}
 
@@ -101,7 +101,7 @@ export const RegisterView: React.FC = () => {
                                 </div>
                             </div>
                             {!churchLimitReached && (
-                                <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-4 py-2 text-[10px] font-bold text-white bg-gradient-to-l from-brand-deep to-brand-blue hover:opacity-90 rounded-xl shadow-md shadow-brand-blue/20 hover:-translate-y-0.5 transition-all tracking-wide uppercase">
+                                <button onClick={() => setShowNewChurchForm(true)} className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer">
                                     <PlusCircleIcon className="w-3.5 h-3.5" /><span>{t('common.new')}</span>
                                 </button>
                             )}

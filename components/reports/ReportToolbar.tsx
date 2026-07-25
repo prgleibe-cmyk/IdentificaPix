@@ -57,7 +57,7 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
                 </div>
             )}
 
-            <button onClick={onAiClick} className="relative flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold text-white bg-gradient-to-r from-brand-blue to-brand-teal hover:opacity-90 shadow-md transition-all active:scale-95 group border border-white/10" title="Conciliação Automática de Vínculos">
+            <button onClick={onAiClick} className="relative flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-2xl text-[10px] uppercase font-bold text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 hover:opacity-95 shadow-md transition-all active:scale-95 group cursor-pointer" title="Conciliação Automática de Vínculos">
                 <SparklesIcon className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
                 <span>Conciliação Inteligente</span>
             </button>

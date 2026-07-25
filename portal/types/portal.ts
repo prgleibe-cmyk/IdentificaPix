@@ -16,8 +16,28 @@ export type PortalRoute =
     | 'identify'
     | 'register'
     | 'reports'
+    | 'pledges'
     | 'coming_soon'
     | 'not_found';
+
+export interface ContributionPledge {
+    id: string;
+    title: string;
+    category: string;
+    type: 'carne' | 'proposito' | 'recorrente';
+    amountPerInstallment: number;
+    totalInstallments: number; // 0 for infinite/recurring
+    dueDay: number; // 1-31
+    frequency: 'mensal' | 'quinzenal' | 'semanal' | 'unica';
+    startDate: string;
+    reminderDaysBefore: number; // 0 = on due date, 1, 3, 5, 7
+    reminderChannel: 'whatsapp' | 'email' | 'sms' | 'todos';
+    status: 'active' | 'completed' | 'paused' | 'cancelled';
+    paidInstallments: number;
+    created_at: string;
+    church_id?: string;
+    contributor_id?: string;
+}
 
 export interface PortalRouteParams {
     churchSlug?: string;
