@@ -31,7 +31,9 @@ import {
     FileText, 
     ChevronRight,
     ArrowUpRight,
-    Megaphone
+    Megaphone,
+    Save,
+    RotateCcw
 } from 'lucide-react';
 
 export interface ChurchCampaign {
@@ -258,6 +260,70 @@ export const PledgesView: React.FC = () => {
 
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
     const [whatsAppPledge, setWhatsAppPledge] = useState<ContributorPledgeAdmin | null>(null);
+    const [whatsappCustomMessage, setWhatsappCustomMessage] = useState<string>('');
+
+    // Swipe to dismiss states
+    const [campaignSwipeY, setCampaignSwipeY] = useState<number>(0);
+    const [isCampaignSwiping, setIsCampaignSwiping] = useState<boolean>(false);
+    const campaignSwipeStartRef = React.useRef<number>(0);
+
+    const [whatsappSwipeY, setWhatsappSwipeY] = useState<number>(0);
+    const [isWhatsappSwiping, setIsWhatsappSwiping] = useState<boolean>(false);
+    const whatsappSwipeStartRef = React.useRef<number>(0);
+
+    // Global listeners for campaign swipe
+    useEffect(() => {
+        if (!isCampaignSwiping) return;
+        const onMove = (e: TouchEvent | MouseEvent) => {
+            const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+            const diff = clientY - campaignSwipeStartRef.current;
+            if (diff > 0) setCampaignSwipeY(diff);
+        };
+        const onEnd = () => {
+            setIsCampaignSwiping(false);
+            setCampaignSwipeY((prev) => {
+                if (prev > 90) setIsCampaignModalOpen(false);
+                return 0;
+            });
+        };
+        window.addEventListener('touchmove', onMove);
+        window.addEventListener('touchend', onEnd);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        return () => {
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onEnd);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onEnd);
+        };
+    }, [isCampaignSwiping]);
+
+    // Global listeners for whatsapp swipe
+    useEffect(() => {
+        if (!isWhatsappSwiping) return;
+        const onMove = (e: TouchEvent | MouseEvent) => {
+            const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+            const diff = clientY - whatsappSwipeStartRef.current;
+            if (diff > 0) setWhatsappSwipeY(diff);
+        };
+        const onEnd = () => {
+            setIsWhatsappSwiping(false);
+            setWhatsappSwipeY((prev) => {
+                if (prev > 90) setIsWhatsAppModalOpen(false);
+                return 0;
+            });
+        };
+        window.addEventListener('touchmove', onMove);
+        window.addEventListener('touchend', onEnd);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        return () => {
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onEnd);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onEnd);
+        };
+    }, [isWhatsappSwiping]);
 
     // Campaign Form fields
     const [campTitle, setCampTitle] = useState<string>('');
@@ -279,8 +345,7 @@ export const PledgesView: React.FC = () => {
             if (storedCamps) {
                 setCampaigns(JSON.parse(storedCamps));
             } else {
-                setCampaigns(DEFAULT_CHURCH_CAMPAIGNS);
-                localStorage.setItem('iggestor_admin_campaigns', JSON.stringify(DEFAULT_CHURCH_CAMPAIGNS));
+                setCampaigns([]);
             }
 
             // Load Pledges
@@ -288,8 +353,7 @@ export const PledgesView: React.FC = () => {
             if (storedPledges) {
                 setPledges(JSON.parse(storedPledges));
             } else {
-                setPledges(MOCK_PLEDGES_ADMIN);
-                localStorage.setItem('iggestor_admin_pledges', JSON.stringify(MOCK_PLEDGES_ADMIN));
+                setPledges([]);
             }
         } catch (e) {
             console.error('[PledgesView] Erro ao carregar dados:', e);
@@ -497,22 +561,72 @@ export const PledgesView: React.FC = () => {
         };
     }, [pledges, campaigns]);
 
-    // WhatsApp Reminder Helper
-    const generateWhatsAppLink = (p: ContributorPledgeAdmin) => {
-        if (!p.contributorPhone) return '';
-        const cleanPhone = p.contributorPhone.replace(/\D/g, '');
-        const message = `Olá, *${p.contributorName}*! Paz do Senhor.
-        
+    // WhatsApp Reminder Helpers
+    const generateDefaultWhatsAppMessage = (p: ContributorPledgeAdmin) => {
+        const savedTemplate = localStorage.getItem('iggestor_admin_whatsapp_template');
+        if (savedTemplate) {
+            return savedTemplate
+                .replace(/\{NOME\}/g, p.contributorName || '')
+                .replace(/\{CAMPANHA\}/g, p.campaignTitle || '')
+                .replace(/\{PARCELA\}/g, String((p.paidInstallments || 0) + 1))
+                .replace(/\{TOTAL_PARCELAS\}/g, p.totalInstallments === 0 ? 'Recorrente' : String(p.totalInstallments || ''))
+                .replace(/\{VALOR\}/g, formatCurrency(p.amountPerInstallment || 0))
+                .replace(/\{VENCIMENTO\}/g, String(p.dueDay || ''));
+        }
+        return `Olá, *${p.contributorName}*! Paz do Senhor.
+
 Lembramos com carinho do seu compromisso de fé (*${p.campaignTitle}*).
 
 *Detalhes da Parcela:*
-• Parcela nº: ${p.paidInstallments + 1} de ${p.totalInstallments === 0 ? 'Recorrente' : p.totalInstallments}
+• Parcela nº: ${(p.paidInstallments || 0) + 1} de ${p.totalInstallments === 0 ? 'Recorrente' : p.totalInstallments}
 • Valor: ${formatCurrency(p.amountPerInstallment)}
 • Dia do Vencimento: dia ${p.dueDay}
 
 Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundantemente.`;
+    };
 
-        return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    const handleOpenWhatsAppModal = (p: ContributorPledgeAdmin) => {
+        setWhatsAppPledge(p);
+        setWhatsappCustomMessage(generateDefaultWhatsAppMessage(p));
+        setIsWhatsAppModalOpen(true);
+    };
+
+    const insertTag = (tag: string) => {
+        setWhatsappCustomMessage(prev => prev + tag);
+    };
+
+    const handleSaveWhatsAppTemplate = () => {
+        if (!whatsappCustomMessage.trim()) return;
+        localStorage.setItem('iggestor_admin_whatsapp_template', whatsappCustomMessage);
+        showToast('Modelo de mensagem de WhatsApp salvo com sucesso!', 'success');
+    };
+
+    const handleRestoreDefaultTemplate = () => {
+        localStorage.removeItem('iggestor_admin_whatsapp_template');
+        if (whatsAppPledge) {
+            setWhatsappCustomMessage(`Olá, *${whatsAppPledge.contributorName}*! Paz do Senhor.
+
+Lembramos com carinho do seu compromisso de fé (*${whatsAppPledge.campaignTitle}*).
+
+*Detalhes da Parcela:*
+• Parcela nº: ${whatsAppPledge.paidInstallments + 1} de ${whatsAppPledge.totalInstallments === 0 ? 'Recorrente' : whatsAppPledge.totalInstallments}
+• Valor: ${formatCurrency(whatsAppPledge.amountPerInstallment)}
+• Dia do Vencimento: dia ${whatsAppPledge.dueDay}
+
+Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundantemente.`);
+        }
+        showToast('Modelo restaurado para o padrão do sistema.', 'info');
+    };
+
+    const handleSendWhatsApp = () => {
+        if (!whatsAppPledge || !whatsAppPledge.contributorPhone) {
+            showToast('Destinatário sem telefone cadastrado.', 'error');
+            return;
+        }
+        const cleanPhone = whatsAppPledge.contributorPhone.replace(/\D/g, '');
+        const encoded = encodeURIComponent(whatsappCustomMessage);
+        window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank');
+        setIsWhatsAppModalOpen(false);
     };
 
     return (
@@ -547,10 +661,9 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                 showToast('Nenhum carnê pendente para envio de aviso.', 'error');
                                 return;
                             }
-                            setWhatsAppPledge(overdueList[0]);
-                            setIsWhatsAppModalOpen(true);
+                            handleOpenWhatsAppModal(overdueList[0]);
                         }}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                     >
                         <Send className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                         Avisos no WhatsApp
@@ -825,15 +938,13 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                                                         </button>
 
                                                         {item.contributorPhone && (
-                                                            <a
-                                                                href={generateWhatsAppLink(item)}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
+                                                            <button
+                                                                onClick={() => handleOpenWhatsAppModal(item)}
                                                                 className="p-1.5 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 rounded-lg font-bold transition-colors cursor-pointer"
                                                                 title="Enviar Lembrete via WhatsApp"
                                                             >
                                                                 <MessageSquare className="w-4 h-4" />
-                                                            </a>
+                                                            </button>
                                                         )}
 
                                                         <button
@@ -950,10 +1061,36 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
 
             {/* Modal: Create/Edit Campaign */}
             {isCampaignModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl">
+                <div 
+                    style={{
+                        transform: `translateY(${campaignSwipeY}px)`,
+                        opacity: isCampaignSwiping ? Math.max(0.3, 1 - campaignSwipeY / 400) : 1,
+                        transition: isCampaignSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
+                    }}
+                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                >
                     <form onSubmit={handleSaveCampaign} className="flex flex-col h-full w-full overflow-hidden">
+                        {/* Swipe Handle Bar */}
+                        <div 
+                            onMouseDown={(e) => {
+                                campaignSwipeStartRef.current = e.clientY;
+                                setIsCampaignSwiping(true);
+                            }}
+                            onTouchStart={(e) => {
+                                campaignSwipeStartRef.current = e.touches[0].clientY;
+                                setIsCampaignSwiping(true);
+                            }}
+                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            title="Deslize para baixo para fechar"
+                        >
+                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-orange-500 group-hover:w-20" />
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                                Deslize para baixo para fechar
+                            </span>
+                        </div>
+
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
                             <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
                                 <div className="flex items-center gap-4">
                                     <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20">
@@ -1221,75 +1358,218 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
                 </div>
             )}
 
-            {/* Modal: Bulk WhatsApp Notification Preview */}
+            {/* Panel View: WhatsApp Avisos & Message Content Editor */}
             {isWhatsAppModalOpen && whatsAppPledge && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 relative space-y-4">
-                        <button
-                            onClick={() => setIsWhatsAppModalOpen(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                <div 
+                    style={{
+                        transform: `translateY(${whatsappSwipeY}px)`,
+                        opacity: isWhatsappSwiping ? Math.max(0.3, 1 - whatsappSwipeY / 400) : 1,
+                        transition: isWhatsappSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
+                    }}
+                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                >
+                    <div className="flex flex-col h-full w-full overflow-hidden">
+                        {/* Swipe Handle Bar */}
+                        <div 
+                            onMouseDown={(e) => {
+                                whatsappSwipeStartRef.current = e.clientY;
+                                setIsWhatsappSwiping(true);
+                            }}
+                            onTouchStart={(e) => {
+                                whatsappSwipeStartRef.current = e.touches[0].clientY;
+                                setIsWhatsappSwiping(true);
+                            }}
+                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            title="Deslize para baixo para fechar"
                         >
-                            <X className="w-5 h-5" />
-                        </button>
+                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-emerald-500 group-hover:w-20" />
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                                Deslize para baixo para fechar
+                            </span>
+                        </div>
 
-                        <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-                            <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center">
-                                <MessageSquare className="w-5 h-5" />
+                        {/* Header */}
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
+                                        <MessageSquare className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                            Avisos no WhatsApp & Lembretes Pastorais
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                            Edite a mensagem personalizada, escolha o destinatário e envie o aviso direto pelo WhatsApp
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                                    Enviar Lembrete Pastoral via WhatsApp
-                                </h2>
-                                <p className="text-xs text-slate-500">
-                                    Disparo direto do lembrete de carnê com chave Pix inclusa.
-                                </p>
+
+                            <div className="flex items-center gap-2 self-end md:self-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsWhatsAppModalOpen(false)}
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
                             </div>
                         </div>
 
-                        <div className="space-y-3 text-xs">
-                            <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <span className="font-bold text-slate-500 block">Destinatário:</span>
-                                <span className="font-black text-slate-900 dark:text-white text-sm">
-                                    {whatsAppPledge.contributorName} ({whatsAppPledge.contributorPhone})
-                                </span>
+                        {/* Scrollable Body */}
+                        <div className="p-8 flex-1 overflow-y-auto space-y-8 custom-scrollbar text-xs">
+                            
+                            {/* Section 1: Seleção de Destinatário */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                    1. Destinatário Selecionado
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                                    <div className="md:col-span-2 space-y-2">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Selecionar Contribuinte / Carnê Pendente
+                                        </label>
+                                        <select
+                                            value={whatsAppPledge.id}
+                                            onChange={(e) => {
+                                                const selected = pledges.find(p => p.id === e.target.value);
+                                                if (selected) {
+                                                    handleOpenWhatsAppModal(selected);
+                                                }
+                                            }}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-emerald-500/10 py-3.5 px-5 transition-all outline-none text-sm font-bold cursor-pointer"
+                                        >
+                                            {pledges
+                                                .filter(p => p.contributorPhone)
+                                                .map(p => (
+                                                    <option key={p.id} value={p.id}>
+                                                        {p.contributorName} — {p.campaignTitle} ({formatCurrency(p.amountPerInstallment)})
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="bg-emerald-50/60 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800/60 flex items-center justify-between">
+                                        <div>
+                                            <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 block uppercase tracking-wider">Telefone / WhatsApp</span>
+                                            <span className="font-black text-slate-900 dark:text-white text-sm">
+                                                {whatsAppPledge.contributorPhone || 'Sem telefone'}
+                                            </span>
+                                        </div>
+                                        <span className="px-2.5 py-1 text-[10px] font-black rounded-full uppercase bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                                            {whatsAppPledge.status === 'overdue' ? 'Atrasado' : 'Em Dia'}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                                    Prévia da Mensagem Personalizada
-                                </label>
-                                <div className="p-3 bg-emerald-50/50 dark:bg-slate-800/80 border border-emerald-200/60 dark:border-slate-700 rounded-2xl text-slate-800 dark:text-slate-200 font-sans text-xs space-y-2 whitespace-pre-line leading-relaxed">
-                                    {`Olá, *${whatsAppPledge.contributorName}*! Paz do Senhor.
+                            {/* Section 2: Editor de Mensagem */}
+                            <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                        2. Editar Conteúdo da Mensagem
+                                    </h3>
                                     
-Lembramos com carinho do seu compromisso de fé (*${whatsAppPledge.campaignTitle}*).
+                                    {/* Tags / Variáveis */}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="text-[10px] font-bold text-slate-400 mr-1">Tags Dinâmicas:</span>
+                                        {[
+                                            { tag: '{NOME}', label: 'Nome' },
+                                            { tag: '{CAMPANHA}', label: 'Campanha' },
+                                            { tag: '{PARCELA}', label: 'Parcela' },
+                                            { tag: '{VALOR}', label: 'Valor' },
+                                            { tag: '{VENCIMENTO}', label: 'Vencimento' },
+                                        ].map((item) => (
+                                            <button
+                                                key={item.tag}
+                                                type="button"
+                                                onClick={() => insertTag(item.tag)}
+                                                className="px-2.5 py-1 text-[10px] font-mono font-bold bg-slate-100 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-emerald-950/60 text-slate-700 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-300 rounded-lg transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                                                title={`Inserir ${item.label}`}
+                                            >
+                                                + {item.tag}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
 
-*Detalhes da Parcela:*
-• Parcela nº: ${whatsAppPledge.paidInstallments + 1} de ${whatsAppPledge.totalInstallments || 'Recorrente'}
-• Valor: ${formatCurrency(whatsAppPledge.amountPerInstallment)}
-• Dia do Vencimento: dia ${whatsAppPledge.dueDay}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Area de Edição */}
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Texto Personalizável da Mensagem
+                                        </label>
+                                        <textarea
+                                            rows={10}
+                                            value={whatsappCustomMessage}
+                                            onChange={(e) => setWhatsappCustomMessage(e.target.value)}
+                                            placeholder="Escreva a mensagem personalizada aqui..."
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-emerald-500/10 py-3.5 px-5 transition-all outline-none text-xs font-mono leading-relaxed"
+                                        />
+                                        <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-1">
+                                            <span>Suporta formatação do WhatsApp (*negrito*, _itálico_)</span>
+                                            <span>{whatsappCustomMessage.length} caracteres</span>
+                                        </div>
+                                    </div>
 
-Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundantemente.`}
+                                    {/* Visualizador / Prévia no balão do WhatsApp */}
+                                    <div className="space-y-2">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Prévia Visual no WhatsApp
+                                        </label>
+                                        <div className="bg-[#E5DDD5] dark:bg-[#0B141A] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 min-h-[220px] flex flex-col justify-end">
+                                            <div className="bg-white dark:bg-[#202C33] text-slate-900 dark:text-slate-100 p-4 rounded-2xl shadow-sm border border-slate-200/50 dark:border-white/5 space-y-2 whitespace-pre-line text-xs font-sans leading-relaxed max-w-md self-end relative">
+                                                {whatsappCustomMessage}
+                                                <div className="text-[9px] text-slate-400 text-right mt-2 font-mono">
+                                                    12:00 ✓✓
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-2">
+                        {/* Footer Actions */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
                             <button
-                                onClick={() => setIsWhatsAppModalOpen(false)}
-                                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                                type="button"
+                                onClick={handleRestoreDefaultTemplate}
+                                className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all tracking-wider uppercase cursor-pointer"
                             >
-                                Fechar
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                Restaurar Padrão
                             </button>
-                            <a
-                                href={generateWhatsAppLink(whatsAppPledge)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={() => setIsWhatsAppModalOpen(false)}
-                                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm flex items-center justify-center gap-2 text-center"
-                            >
-                                <Send className="w-4 h-4" />
-                                Abrir WhatsApp
-                            </a>
+
+                            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsWhatsAppModalOpen(false)}
+                                    className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                >
+                                    Cancelar
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSaveWhatsAppTemplate}
+                                    className="flex items-center gap-2 px-6 py-2.5 text-[10px] font-black text-slate-800 dark:text-white bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-full shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                >
+                                    <Save className="w-3.5 h-3.5" />
+                                    Salvar Modelo
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSendWhatsApp}
+                                    className="flex items-center gap-2 px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full shadow-md shadow-emerald-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    Abrir WhatsApp
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

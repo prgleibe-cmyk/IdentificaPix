@@ -180,12 +180,12 @@ export const PatrimonyView: React.FC = () => {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             }
         } catch (e) {
             console.error('Erro ao carregar patrimônio:', e);
         }
-        return INITIAL_PATRIMONY_DATA;
+        return [];
     });
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -199,6 +199,69 @@ export const PatrimonyView: React.FC = () => {
     const [editingAsset, setEditingAsset] = useState<PatrimonyItem | null>(null);
     const [viewingAsset, setViewingAsset] = useState<PatrimonyItem | null>(null);
     const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+
+    // Swipe to dismiss states
+    const [modalSwipeY, setModalSwipeY] = useState<number>(0);
+    const [isModalSwiping, setIsModalSwiping] = useState<boolean>(false);
+    const modalSwipeStartRef = React.useRef<number>(0);
+
+    const [viewSwipeY, setViewSwipeY] = useState<number>(0);
+    const [isViewSwiping, setIsViewSwiping] = useState<boolean>(false);
+    const viewSwipeStartRef = React.useRef<number>(0);
+
+    // Global listeners for modal panel swipe
+    useEffect(() => {
+        if (!isModalSwiping) return;
+        const onMove = (e: TouchEvent | MouseEvent) => {
+            const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+            const diff = clientY - modalSwipeStartRef.current;
+            if (diff > 0) setModalSwipeY(diff);
+        };
+        const onEnd = () => {
+            setIsModalSwiping(false);
+            setModalSwipeY((prev) => {
+                if (prev > 90) setIsModalOpen(false);
+                return 0;
+            });
+        };
+        window.addEventListener('touchmove', onMove);
+        window.addEventListener('touchend', onEnd);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        return () => {
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onEnd);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onEnd);
+        };
+    }, [isModalSwiping]);
+
+    // Global listeners for viewing asset panel swipe
+    useEffect(() => {
+        if (!isViewSwiping) return;
+        const onMove = (e: TouchEvent | MouseEvent) => {
+            const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+            const diff = clientY - viewSwipeStartRef.current;
+            if (diff > 0) setViewSwipeY(diff);
+        };
+        const onEnd = () => {
+            setIsViewSwiping(false);
+            setViewSwipeY((prev) => {
+                if (prev > 90) setViewingAsset(null);
+                return 0;
+            });
+        };
+        window.addEventListener('touchmove', onMove);
+        window.addEventListener('touchend', onEnd);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        return () => {
+            window.removeEventListener('touchmove', onMove);
+            window.removeEventListener('touchend', onEnd);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onEnd);
+        };
+    }, [isViewSwiping]);
 
     // Form state
     const [formCode, setFormCode] = useState('');
@@ -767,8 +830,34 @@ export const PatrimonyView: React.FC = () => {
 
             {/* Modal / Panel: Create / Edit Asset */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl">
+                <div 
+                    style={{
+                        transform: `translateY(${modalSwipeY}px)`,
+                        opacity: isModalSwiping ? Math.max(0.3, 1 - modalSwipeY / 400) : 1,
+                        transition: isModalSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
+                    }}
+                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                >
                     <form onSubmit={handleSaveAsset} className="flex flex-col h-full w-full overflow-hidden">
+                        {/* Swipe Handle Bar */}
+                        <div 
+                            onMouseDown={(e) => {
+                                modalSwipeStartRef.current = e.clientY;
+                                setIsModalSwiping(true);
+                            }}
+                            onTouchStart={(e) => {
+                                modalSwipeStartRef.current = e.touches[0].clientY;
+                                setIsModalSwiping(true);
+                            }}
+                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            title="Deslize para baixo para fechar"
+                        >
+                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-amber-500 group-hover:w-20" />
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                                Deslize para baixo para fechar
+                            </span>
+                        </div>
+
                         {/* Header */}
                         <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
@@ -1154,45 +1243,72 @@ export const PatrimonyView: React.FC = () => {
                 </div>
             )}
 
-            {/* Modal: View Asset Dossier / Ficha Técnica do Bem */}
+            {/* Panel: View Asset Dossier / Ficha Técnica do Bem */}
             {viewingAsset && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 md:p-6 overflow-hidden">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-800 relative flex flex-col h-full max-h-[90vh] overflow-hidden">
+                <div 
+                    style={{
+                        transform: `translateY(${viewSwipeY}px)`,
+                        opacity: isViewSwiping ? Math.max(0.3, 1 - viewSwipeY / 400) : 1,
+                        transition: isViewSwiping ? 'none' : 'transform 0.25s ease-out, opacity 0.25s ease-out'
+                    }}
+                    className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden rounded-3xl shadow-2xl"
+                >
+                    <div className="flex flex-col h-full w-full overflow-hidden">
+                        {/* Swipe Handle Bar */}
+                        <div 
+                            onMouseDown={(e) => {
+                                viewSwipeStartRef.current = e.clientY;
+                                setIsViewSwiping(true);
+                            }}
+                            onTouchStart={(e) => {
+                                viewSwipeStartRef.current = e.touches[0].clientY;
+                                setIsViewSwiping(true);
+                            }}
+                            className="w-full flex flex-col items-center pt-3 pb-1 cursor-grab active:cursor-grabbing select-none group hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-white/5 shrink-0"
+                            title="Deslize para baixo para fechar"
+                        >
+                            <div className="w-16 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full transition-all group-hover:bg-amber-500 group-hover:w-20" />
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100">
+                                Deslize para baixo para fechar
+                            </span>
+                        </div>
                         
                         {/* Printable Section Header */}
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/80 dark:bg-slate-900/80">
-                            <div className="flex items-center gap-3">
-                                <span className="font-mono font-black text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800">
-                                    {viewingAsset.code}
-                                </span>
-                                <div>
-                                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                                        Pasta Técnica do Bem Patrimonial
-                                    </h2>
-                                    <span className="text-xs text-slate-500">
-                                        Dossiê oficial de documentos, dados de aquisição e situação
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                            <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
+                                <div className="flex items-center gap-3">
+                                    <span className="font-mono font-black text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800">
+                                        {viewingAsset.code}
                                     </span>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                            Pasta Técnica do Bem Patrimonial
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
+                                            Dossiê oficial de documentos, dados de aquisição e situação
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3 self-end md:self-auto">
                                 <button
                                     onClick={handlePrintFicha}
-                                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-full text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                                 >
                                     <Printer className="w-4 h-4" /> Imprimir Ficha
                                 </button>
                                 <button
                                     onClick={() => setViewingAsset(null)}
-                                    className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Dossier Body */}
-                        <div className="p-6 md:p-8 overflow-y-auto space-y-6 flex-1 text-xs custom-scrollbar">
+                        <div className="p-8 overflow-y-auto space-y-6 flex-1 text-xs custom-scrollbar">
                             
                             {/* Top Details Card */}
                             <div className="bg-slate-50 dark:bg-slate-800/60 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700 space-y-4">
@@ -1347,17 +1463,17 @@ export const PatrimonyView: React.FC = () => {
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/90 flex items-center justify-between shrink-0">
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/50 mt-auto shrink-0">
                             <button
                                 onClick={() => handleOpenEditModal(viewingAsset)}
-                                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-2xl transition-colors text-xs inline-flex items-center gap-2 cursor-pointer"
+                                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-full transition-colors text-[10px] tracking-wider uppercase inline-flex items-center gap-2 cursor-pointer shadow-sm"
                             >
                                 <Edit3 className="w-4 h-4" /> Editar Este Bem
                             </button>
 
                             <button
                                 onClick={() => setViewingAsset(null)}
-                                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-md transition-all text-xs cursor-pointer"
+                                className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                             >
                                 Fechar Pasta
                             </button>
