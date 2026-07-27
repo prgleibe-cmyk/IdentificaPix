@@ -38,6 +38,16 @@ export const AppRouter: React.FC = () => {
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
     const isOwner = subscription.role === 'owner';
     
+    const isSecondaryUser = (subscription.ownerId && subscription.ownerId !== user?.id) &&
+        subscription.role !== 'owner' &&
+        subscription.role !== 'admin' &&
+        subscription.role !== 'principal';
+
+    const perms = (subscription.permissions || {}) as Record<string, any>;
+    const canManageAccounts = !isSecondaryUser || (perms.gestao_contas !== false && perms.manageAccounts !== false);
+    const canManagePledges = !isSecondaryUser || (perms.carnes_propositos !== false && perms.managePledges !== false);
+    const canManagePatrimony = !isSecondaryUser || (perms.patrimonio !== false && perms.managePatrimony !== false);
+
     switch (activeView) {
         case 'dashboard': return <DashboardView />;
         case 'upload': return <UploadView />;
@@ -49,9 +59,9 @@ export const AppRouter: React.FC = () => {
         case 'smart_analysis': return <SmartAnalysisView />;
         case 'launched': return <LaunchedView />;
         case 'connectors': return <ConnectorsView />;
-        case 'financial': return <FinancialView />;
-        case 'pledges': return <PledgesView />;
-        case 'patrimonio': return <PatrimonyView />;
+        case 'financial': return canManageAccounts ? <FinancialView /> : <DashboardView />;
+        case 'pledges': return canManagePledges ? <PledgesView /> : <DashboardView />;
+        case 'patrimonio': return canManagePatrimony ? <PatrimonyView /> : <DashboardView />;
         case 'novo_lancamento': return <ManualIdModal />;
         case 'users': return isOwner ? <UsersManagementPage /> : <DashboardView />;
         case 'admin': return isAdmin ? <AdminView /> : <DashboardView />;

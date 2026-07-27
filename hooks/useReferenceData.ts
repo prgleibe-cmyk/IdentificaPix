@@ -453,7 +453,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         const upperNew = newMethod.trim().toUpperCase();
         if (!upperNew) return;
         if (upperOld !== upperNew && paymentMethods.includes(upperNew)) {
-            showToast(`A forma "${upperNew}" já existe.`, 'warning');
+            showToast(`A forma "${upperNew}" já existe.`, 'error');
             return;
         }
         setPaymentMethods(prev => prev.map(m => m === upperOld ? upperNew : m));

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useUI } from '../contexts/UIContext';
 import { 
     Building2, 
     Plus, 
@@ -32,7 +34,12 @@ import {
     Laptop, 
     ChefHat, 
     Info, 
-    ExternalLink
+    ExternalLink,
+    BellRing,
+    Receipt,
+    CreditCard,
+    CalendarDays,
+    RefreshCw
 } from 'lucide-react';
 
 export interface PatrimonyDocument {
@@ -41,6 +48,19 @@ export interface PatrimonyDocument {
     type: 'nota_fiscal' | 'escritura' | 'apolice' | 'manual' | 'contrato' | 'foto' | 'outro';
     fileName: string;
     uploadedAt: string;
+    notes?: string;
+}
+
+export interface PatrimonyCommitment {
+    id: string;
+    title: string;
+    type: 'imposto' | 'taxa' | 'seguro' | 'manutencao' | 'outro';
+    amount: number;
+    dueDate: string;
+    status: 'pending' | 'paid';
+    recurrence?: 'none' | 'monthly' | 'yearly';
+    syncToFinancial?: boolean;
+    financialRecordId?: string;
     notes?: string;
 }
 
@@ -61,6 +81,7 @@ export interface PatrimonyItem {
     status: 'Ativo' | 'Em Manutenção' | 'Em Vistoria' | 'Baixado/Doado' | 'Empréstimo';
     notes?: string;
     documents: PatrimonyDocument[];
+    commitments?: PatrimonyCommitment[];
     updatedAt: string;
 }
 
@@ -86,6 +107,30 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
             { id: 'doc-1', title: 'Escritura Pública e Matrícula RGI', type: 'escritura', fileName: 'Escritura_Templo_Sede.pdf', uploadedAt: '2025-01-15' },
             { id: 'doc-2', title: 'Apólice de Seguro de Imóvel', type: 'apolice', fileName: 'Apolice_Seguro_2026.pdf', uploadedAt: '2026-01-10' }
         ],
+        commitments: [
+            {
+                id: 'com-1',
+                title: 'IPTU 2026 - Cota Única',
+                type: 'imposto',
+                amount: 4500.00,
+                dueDate: '2026-08-15',
+                status: 'pending',
+                recurrence: 'yearly',
+                syncToFinancial: true,
+                notes: 'Imposto Predial Urbano Templo Sede'
+            },
+            {
+                id: 'com-2',
+                title: 'Apólice de Seguro de Imóvel - Parcela 1/2',
+                type: 'seguro',
+                amount: 3200.00,
+                dueDate: '2026-12-01',
+                status: 'pending',
+                recurrence: 'yearly',
+                syncToFinancial: true,
+                notes: 'Seguro contra incêndio e vendaval'
+            }
+        ],
         updatedAt: new Date().toISOString()
     },
     {
@@ -107,6 +152,7 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
             { id: 'doc-3', title: 'Nota Fiscal de Compra e Garantia', type: 'nota_fiscal', fileName: 'NF_88412_SQ6.pdf', uploadedAt: '2024-08-22' },
             { id: 'doc-4', title: 'Manual em Português', type: 'manual', fileName: 'Manual_SQ6_PT.pdf', uploadedAt: '2024-08-22' }
         ],
+        commitments: [],
         updatedAt: new Date().toISOString()
     },
     {
@@ -126,6 +172,7 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
         documents: [
             { id: 'doc-5', title: 'Termo de Doação e Recebimento', type: 'contrato', fileName: 'Termo_Doacao_Piano.pdf', uploadedAt: '2023-11-06' }
         ],
+        commitments: [],
         updatedAt: new Date().toISOString()
     },
     {
@@ -145,6 +192,19 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
         notes: 'Chamado aberto para higienização e recarga de gás refrigerante.',
         documents: [
             { id: 'doc-6', title: 'Ordem de Serviço de Manutenção Preventiva', type: 'contrato', fileName: 'OS_Manutencao_Ar.pdf', uploadedAt: '2026-06-10' }
+        ],
+        commitments: [
+            {
+                id: 'com-3',
+                title: 'Manutenção Preventiva & Troca de Filtros',
+                type: 'manutencao',
+                amount: 850.00,
+                dueDate: '2026-08-10',
+                status: 'pending',
+                recurrence: 'none',
+                syncToFinancial: true,
+                notes: 'ClimaFrio Refrigeração'
+            }
         ],
         updatedAt: new Date().toISOString()
     },
@@ -167,6 +227,30 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
             { id: 'doc-7', title: 'Documento CRLV Digital', type: 'outro', fileName: 'CRLV_Sprinter_2026.pdf', uploadedAt: '2026-02-01' },
             { id: 'doc-8', title: 'Apólice de Seguro Total', type: 'apolice', fileName: 'Apolice_Seguro_Sprinter.pdf', uploadedAt: '2025-10-10' }
         ],
+        commitments: [
+            {
+                id: 'com-4',
+                title: 'IPVA 2026 - Parcela 1/3',
+                type: 'imposto',
+                amount: 1850.00,
+                dueDate: '2026-09-10',
+                status: 'pending',
+                recurrence: 'yearly',
+                syncToFinancial: true,
+                notes: 'Imposto Veicular DETRAN'
+            },
+            {
+                id: 'com-5',
+                title: 'Licenciamento Anual DETRAN',
+                type: 'taxa',
+                amount: 220.00,
+                dueDate: '2026-10-15',
+                status: 'pending',
+                recurrence: 'yearly',
+                syncToFinancial: true,
+                notes: 'Emissão de CRLV'
+            }
+        ],
         updatedAt: new Date().toISOString()
     }
 ];
@@ -174,18 +258,21 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
 export const PatrimonyView: React.FC = () => {
     const context = useContext(AppContext);
     const churches = context?.churches || [];
+    const setActiveView = context?.setActiveView;
+    const { user } = useAuth();
+    const { showToast } = useUI();
 
     const [assets, setAssets] = useState<PatrimonyItem[]>(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             }
         } catch (e) {
             console.error('Erro ao carregar patrimônio:', e);
         }
-        return [];
+        return INITIAL_PATRIMONY_DATA;
     });
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -279,11 +366,21 @@ export const PatrimonyView: React.FC = () => {
     const [formStatus, setFormStatus] = useState<PatrimonyItem['status']>('Ativo');
     const [formNotes, setFormNotes] = useState('');
     const [formDocuments, setFormDocuments] = useState<PatrimonyDocument[]>([]);
+    const [formCommitments, setFormCommitments] = useState<PatrimonyCommitment[]>([]);
 
     // Document addition state
     const [newDocTitle, setNewDocTitle] = useState('');
     const [newDocType, setNewDocType] = useState<PatrimonyDocument['type']>('nota_fiscal');
     const [newDocFile, setNewDocFile] = useState<File | null>(null);
+
+    // Commitment addition state
+    const [newComTitle, setNewComTitle] = useState('');
+    const [newComType, setNewComType] = useState<PatrimonyCommitment['type']>('imposto');
+    const [newComAmount, setNewComAmount] = useState('');
+    const [newComDueDate, setNewComDueDate] = useState('');
+    const [newComRecurrence, setNewComRecurrence] = useState<PatrimonyCommitment['recurrence']>('yearly');
+    const [newComSync, setNewComSync] = useState(true);
+    const [newComNotes, setNewComNotes] = useState('');
 
     // Save state to localStorage whenever assets changes
     useEffect(() => {
@@ -293,6 +390,84 @@ export const PatrimonyView: React.FC = () => {
             console.error('Erro ao salvar patrimônio:', e);
         }
     }, [assets]);
+
+    // Financial Record Sync Helper
+    const syncCommitmentToFinancial = async (
+        commitment: PatrimonyCommitment,
+        assetCode: string,
+        assetTitle: string,
+        churchName: string,
+        supplierOrDonor?: string
+    ): Promise<string | undefined> => {
+        try {
+            if (!user?.id) return commitment.financialRecordId;
+            const matchedChurch = churches.find(c => c.name?.toLowerCase().trim() === churchName?.toLowerCase().trim()) || churches[0];
+            const churchId = matchedChurch?.id || user.church_id || null;
+
+            const payload = {
+                user_id: user.id,
+                church_id: churchId,
+                title: `[Patrimônio: ${assetCode}] ${commitment.title}`,
+                description: `Compromisso do bem patrimonial: ${assetTitle}. ${commitment.notes ? `Nota: ${commitment.notes}` : ''}`,
+                amount: commitment.amount,
+                type: 'invoice',
+                status: commitment.status,
+                recipient_name: supplierOrDonor || assetTitle,
+                recipient_type: 'supplier',
+                due_date: commitment.dueDate ? `${commitment.dueDate}T12:00:00Z` : null,
+                payment_date: commitment.status === 'paid' ? new Date().toISOString() : null,
+                recurrence: commitment.recurrence || 'none'
+            };
+
+            if (commitment.financialRecordId) {
+                const res = await fetch(`/api/v1/financial_records/${commitment.financialRecordId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) return commitment.financialRecordId;
+            }
+
+            const res = await fetch('/api/v1/financial_records', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                return data.id;
+            }
+        } catch (err) {
+            console.error('Erro ao sincronizar compromisso patrimonial:', err);
+        }
+        return commitment.financialRecordId;
+    };
+
+    const handleToggleCommitmentStatus = async (assetId: string, commitmentId: string, currentStatus: 'pending' | 'paid') => {
+        const newStatus = currentStatus === 'pending' ? 'paid' : 'pending';
+        const targetAsset = assets.find(a => a.id === assetId);
+        if (!targetAsset) return;
+
+        const updatedCommitments = await Promise.all((targetAsset.commitments || []).map(async (com) => {
+            if (com.id === commitmentId) {
+                const updatedCom: PatrimonyCommitment = { ...com, status: newStatus };
+                if (com.syncToFinancial) {
+                    const recordId = await syncCommitmentToFinancial(updatedCom, targetAsset.code, targetAsset.title, targetAsset.churchName, targetAsset.supplierOrDonor);
+                    if (recordId) updatedCom.financialRecordId = recordId;
+                }
+                return updatedCom;
+            }
+            return com;
+        }));
+
+        const updatedAsset: PatrimonyItem = { ...targetAsset, commitments: updatedCommitments, updatedAt: new Date().toISOString() };
+        setAssets(prev => prev.map(a => a.id === assetId ? updatedAsset : a));
+        if (viewingAsset && viewingAsset.id === assetId) {
+            setViewingAsset(updatedAsset);
+        }
+        showToast(`Compromisso marcado como ${newStatus === 'paid' ? 'PAGO' : 'PENDENTE'} e sincronizado na Gestão de Contas!`, 'success');
+    };
 
     const handleOpenCreateModal = () => {
         setEditingAsset(null);
@@ -312,6 +487,10 @@ export const PatrimonyView: React.FC = () => {
         setFormStatus('Ativo');
         setFormNotes('');
         setFormDocuments([]);
+        setFormCommitments([]);
+        setNewComTitle('');
+        setNewComAmount('');
+        setNewComDueDate('');
         setIsModalOpen(true);
     };
 
@@ -332,6 +511,10 @@ export const PatrimonyView: React.FC = () => {
         setFormStatus(item.status);
         setFormNotes(item.notes || '');
         setFormDocuments(item.documents || []);
+        setFormCommitments(item.commitments || []);
+        setNewComTitle('');
+        setNewComAmount('');
+        setNewComDueDate('');
         setIsModalOpen(true);
     };
 
@@ -353,29 +536,74 @@ export const PatrimonyView: React.FC = () => {
         setFormDocuments(prev => prev.filter(d => d.id !== docId));
     };
 
-    const handleSaveAsset = (e: React.FormEvent) => {
+    const handleAddCommitmentToForm = () => {
+        if (!newComTitle.trim() || !newComDueDate) {
+            showToast('Informe o título e a data de vencimento do compromisso.', 'error');
+            return;
+        }
+        const amt = parseFloat(newComAmount.replace(',', '.')) || 0;
+        const newCom: PatrimonyCommitment = {
+            id: `com-${Date.now()}`,
+            title: newComTitle.trim(),
+            type: newComType,
+            amount: amt,
+            dueDate: newComDueDate,
+            status: 'pending',
+            recurrence: newComRecurrence,
+            syncToFinancial: newComSync,
+            notes: newComNotes.trim() || undefined
+        };
+        setFormCommitments(prev => [...prev, newCom]);
+        setNewComTitle('');
+        setNewComAmount('');
+        setNewComDueDate('');
+        setNewComNotes('');
+        showToast('Compromisso financeiro adicionado ao formulário!', 'success');
+    };
+
+    const handleRemoveCommitmentFromForm = (comId: string) => {
+        setFormCommitments(prev => prev.filter(c => c.id !== comId));
+    };
+
+    const handleSaveAsset = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formTitle.trim() || !formCode.trim()) return;
 
         const valFloat = parseFloat(formAcquisitionValue.replace(',', '.')) || 0;
+        const assetCode = formCode.trim().toUpperCase();
+        const assetTitle = formTitle.trim();
+        const churchName = formChurchName || 'Sede Principal';
+        const supplierOrDonor = formSupplierOrDonor.trim() || undefined;
+
+        // Sync commitments with financial records
+        const syncedCommitments = await Promise.all(formCommitments.map(async (com) => {
+            if (com.syncToFinancial) {
+                const recordId = await syncCommitmentToFinancial(com, assetCode, assetTitle, churchName, supplierOrDonor);
+                if (recordId) {
+                    return { ...com, financialRecordId: recordId };
+                }
+            }
+            return com;
+        }));
 
         const newItem: PatrimonyItem = {
             id: editingAsset ? editingAsset.id : `pat-${Date.now()}`,
-            code: formCode.trim().toUpperCase(),
-            title: formTitle.trim(),
+            code: assetCode,
+            title: assetTitle,
             category: formCategory,
-            churchName: formChurchName || 'Sede Principal',
+            churchName: churchName,
             locationDetails: formLocationDetails.trim(),
             acquisitionValue: valFloat,
             acquisitionDate: formAcquisitionDate || new Date().toISOString().split('T')[0],
             invoiceNumber: formInvoiceNumber.trim() || undefined,
-            supplierOrDonor: formSupplierOrDonor.trim() || undefined,
+            supplierOrDonor: supplierOrDonor,
             warrantyExpiration: formWarrantyExpiration || undefined,
             insuranceExpiration: formInsuranceExpiration || undefined,
             condition: formCondition,
             status: formStatus,
             notes: formNotes.trim() || undefined,
             documents: formDocuments,
+            commitments: syncedCommitments,
             updatedAt: new Date().toISOString()
         };
 
@@ -384,8 +612,10 @@ export const PatrimonyView: React.FC = () => {
             if (viewingAsset && viewingAsset.id === editingAsset.id) {
                 setViewingAsset(newItem);
             }
+            showToast('Bem patrimonial e seus compromissos financeiros atualizados!', 'success');
         } else {
             setAssets(prev => [newItem, ...prev]);
+            showToast('Novo bem patrimonial cadastrado com sucesso!', 'success');
         }
 
         setIsModalOpen(false);
@@ -1221,6 +1451,124 @@ export const PatrimonyView: React.FC = () => {
                                 )}
                             </div>
 
+                            {/* Section 5: Compromissos Financeiros e Lembretes */}
+                            <div className="space-y-4 pt-2">
+                                <h3 className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
+                                    <span>5. Compromissos Financeiros & Encargos</span>
+                                    <span className="text-[10px] text-slate-400 font-normal">IPTU, IPVA, Seguro, Licenciamento, Manutenção</span>
+                                </h3>
+
+                                <div className="bg-amber-50/50 dark:bg-amber-950/20 p-5 rounded-2xl border border-amber-200/60 dark:border-amber-800/50 space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Compromisso</label>
+                                            <input
+                                                type="text"
+                                                value={newComTitle}
+                                                onChange={(e) => setNewComTitle(e.target.value)}
+                                                placeholder="Ex: IPTU 2026, IPVA, Seguro..."
+                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
+                                            <select
+                                                value={newComType}
+                                                onChange={(e) => setNewComType(e.target.value as any)}
+                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none cursor-pointer"
+                                            >
+                                                <option value="imposto">Imposto (IPTU / IPVA)</option>
+                                                <option value="seguro">Seguro</option>
+                                                <option value="taxa">Taxa / Licenciamento</option>
+                                                <option value="manutencao">Manutenção Preventiva</option>
+                                                <option value="outro">Outro Encargo</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Valor do Encargo (R$)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={newComAmount}
+                                                onChange={(e) => setNewComAmount(e.target.value)}
+                                                placeholder="0.00"
+                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase">Data de Vencimento</label>
+                                            <input
+                                                type="date"
+                                                value={newComDueDate}
+                                                onChange={(e) => setNewComDueDate(e.target.value)}
+                                                className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2.5 px-3.5 text-xs font-bold transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+                                        <div className="flex items-center gap-4">
+                                            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={newComSync}
+                                                    onChange={(e) => setNewComSync(e.target.checked)}
+                                                    className="w-4 h-4 text-amber-500 rounded border-slate-300 focus:ring-amber-500"
+                                                />
+                                                <span>Lançar também nas Contas a Pagar (Gestão de Contas)</span>
+                                            </label>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleAddCommitmentToForm}
+                                            className="px-5 py-2 bg-gradient-to-r from-orange-500 to-amber-600 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                            <Plus className="w-4 h-4" /> Incluir Compromisso
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Listed Commitments in Form */}
+                                {formCommitments.length > 0 && (
+                                    <div className="space-y-2">
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                                            Compromissos Agendados ({formCommitments.length}):
+                                        </span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {formCommitments.map((com) => (
+                                                <div key={com.id} className="p-3.5 bg-white dark:bg-slate-900 border border-amber-200 dark:border-slate-700 rounded-2xl flex items-center justify-between">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                                            <Receipt className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <span className="font-bold text-slate-900 dark:text-white text-xs block truncate">
+                                                                {com.title}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-500 block">
+                                                                R$ {com.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Venc: {new Date(com.dueDate).toLocaleDateString('pt-BR')}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveCommitmentFromForm(com.id)}
+                                                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer ml-2 shrink-0"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
 
                         {/* Footer Actions */}
@@ -1456,6 +1804,73 @@ export const PatrimonyView: React.FC = () => {
                                                 </button>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Commitments & Financial Charges List in Dossier */}
+                            <div className="space-y-3 pt-2">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider flex items-center gap-2">
+                                        <Receipt className="w-4 h-4 text-amber-500" />
+                                        Compromissos Financeiros & Encargos do Bem ({viewingAsset.commitments?.length || 0})
+                                    </h4>
+
+                                    {setActiveView && (
+                                        <button
+                                            onClick={() => setActiveView('financial')}
+                                            className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <ExternalLink className="w-3.5 h-3.5" /> Ver na Gestão de Contas
+                                        </button>
+                                    )}
+                                </div>
+
+                                {!viewingAsset.commitments || viewingAsset.commitments.length === 0 ? (
+                                    <div className="p-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center text-slate-400 text-xs">
+                                        Nenhum compromisso financeiro (IPTU, IPVA, Seguro) registrado para este bem.
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {viewingAsset.commitments.map((com) => {
+                                            const isPaid = com.status === 'paid';
+                                            return (
+                                                <div key={com.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex items-center gap-2.5 min-w-0">
+                                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPaid ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400'}`}>
+                                                                <CreditCard className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <span className="font-bold text-slate-900 dark:text-white text-xs block truncate">
+                                                                    {com.title}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 block uppercase font-medium">
+                                                                    {com.type} • Vencimento: {new Date(com.dueDate).toLocaleDateString('pt-BR')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider ${isPaid ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}`}>
+                                                            {isPaid ? 'Pago' : 'Pendente'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/50">
+                                                        <span className="font-black text-slate-900 dark:text-white text-sm">
+                                                            R$ {com.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </span>
+
+                                                        <button
+                                                            onClick={() => handleToggleCommitmentStatus(viewingAsset.id, com.id, com.status)}
+                                                            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${isPaid ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'}`}
+                                                        >
+                                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                                            {isPaid ? 'Marcar Pendente' : 'Marcar como Pago'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

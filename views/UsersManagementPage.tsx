@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { Eye, EyeOff, Key, Copy, Check } from 'lucide-react';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppContext } from '../contexts/AppContext';
@@ -18,6 +19,8 @@ export const UsersManagementPage: React.FC = () => {
     const [editingUser, setEditingUser] = useState<any | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [copiedPassword, setCopiedPassword] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -25,11 +28,14 @@ export const UsersManagementPage: React.FC = () => {
         churchIds: [] as string[],
         bankIds: [] as string[],
         permissions: {
-            confirmFinal: false,
-            identifyPayments: false,
-            undoIdentification: false,
-            downloadFile: false,
-            printReport: false
+            confirmFinal: true,
+            identifyPayments: true,
+            undoIdentification: true,
+            downloadFile: true,
+            printReport: true,
+            manageAccounts: true,
+            managePledges: true,
+            managePatrimony: true
         }
     });
 
@@ -96,6 +102,9 @@ export const UsersManagementPage: React.FC = () => {
             "desfazer_identificacao": formData.permissions.undoIdentification,
             "baixar_arquivo": formData.permissions.downloadFile,
             "imprimir": formData.permissions.printReport,
+            "gestao_contas": formData.permissions.manageAccounts,
+            "carnes_propositos": formData.permissions.managePledges,
+            "patrimonio": formData.permissions.managePatrimony,
             "bankIds": formData.bankIds,
             "congregationIds": formData.churchIds
         };
@@ -156,6 +165,23 @@ export const UsersManagementPage: React.FC = () => {
         }
     };
 
+    const handleGeneratePassword = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+        let newPassword = '';
+        for (let i = 0; i < 10; i++) {
+            newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        setFormData(prev => ({ ...prev, password: newPassword }));
+        setShowPassword(true);
+    };
+
+    const handleCopyPassword = () => {
+        if (!formData.password) return;
+        navigator.clipboard.writeText(formData.password);
+        setCopiedPassword(true);
+        setTimeout(() => setCopiedPassword(false), 2000);
+    };
+
     const handleEditClick = (user: any) => {
         const perms = user.permissions || {};
         const congregationRaw = user.congregation;
@@ -177,19 +203,24 @@ export const UsersManagementPage: React.FC = () => {
             bankIds = perms.bankIds;
         }
 
+        setShowPassword(false);
+        setCopiedPassword(false);
         setEditingUser(user);
         setFormData({
             name: user.name || '',
             email: user.email || '',
-            password: '', // Não editamos senha aqui por enquanto
+            password: '', // Não expomos hashes de senha
             churchIds: churchIds,
             bankIds: bankIds,
             permissions: {
-                confirmFinal: !!perms.confirmar_final,
-                identifyPayments: !!perms.identificar,
-                undoIdentification: !!perms.desfazer_identificacao,
-                downloadFile: !!perms.baixar_arquivo,
-                printReport: !!perms.imprimir
+                confirmFinal: perms.confirmar_final !== undefined ? !!perms.confirmar_final : (perms.confirmFinal !== undefined ? !!perms.confirmFinal : true),
+                identifyPayments: perms.identificar !== undefined ? !!perms.identificar : (perms.identifyPayments !== undefined ? !!perms.identifyPayments : true),
+                undoIdentification: perms.desfazer_identificacao !== undefined ? !!perms.desfazer_identificacao : (perms.undoIdentification !== undefined ? !!perms.undoIdentification : true),
+                downloadFile: perms.baixar_arquivo !== undefined ? !!perms.baixar_arquivo : (perms.downloadFile !== undefined ? !!perms.downloadFile : true),
+                printReport: perms.imprimir !== undefined ? !!perms.imprimir : (perms.printReport !== undefined ? !!perms.printReport : true),
+                manageAccounts: perms.gestao_contas !== undefined ? !!perms.gestao_contas : (perms.manageAccounts !== undefined ? !!perms.manageAccounts : true),
+                managePledges: perms.carnes_propositos !== undefined ? !!perms.carnes_propositos : (perms.managePledges !== undefined ? !!perms.managePledges : true),
+                managePatrimony: perms.patrimonio !== undefined ? !!perms.patrimonio : (perms.managePatrimony !== undefined ? !!perms.managePatrimony : true)
             }
         });
         setIsModalOpen(true);
@@ -199,6 +230,8 @@ export const UsersManagementPage: React.FC = () => {
         setIsModalOpen(false);
         setEditingUser(null);
         setStatusMessage(null);
+        setShowPassword(false);
+        setCopiedPassword(false);
         setFormData({
             name: '',
             email: '',
@@ -206,11 +239,14 @@ export const UsersManagementPage: React.FC = () => {
             churchIds: [] as string[],
             bankIds: [] as string[],
             permissions: {
-                confirmFinal: false,
-                identifyPayments: false,
-                undoIdentification: false,
-                downloadFile: false,
-                printReport: false
+                confirmFinal: true,
+                identifyPayments: true,
+                undoIdentification: true,
+                downloadFile: true,
+                printReport: true,
+                manageAccounts: true,
+                managePledges: true,
+                managePatrimony: true
             }
         });
     };
@@ -527,22 +563,68 @@ export const UsersManagementPage: React.FC = () => {
 
                                     {/* Senha */}
                                     <div className="space-y-2 md:col-span-2">
-                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 ml-1">
-                                            {editingUser ? 'Nova Senha (deixe em branco para manter)' : 'Senha Provisória'}
-                                        </label>
+                                        <div className="flex items-center justify-between ml-1">
+                                            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                                                {editingUser ? 'Nova Senha (deixe em branco para manter a atual)' : 'Senha Provisória'}
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={handleGeneratePassword}
+                                                className="flex items-center gap-1.5 text-[10px] font-bold text-brand-blue hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer bg-blue-50 dark:bg-blue-950/40 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-800"
+                                            >
+                                                <Key className="w-3 h-3" />
+                                                <span>Gerar Senha Sugerida</span>
+                                            </button>
+                                        </div>
+
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                                                 <LockClosedIcon className="w-5 h-5" />
                                             </div>
                                             <input
-                                                type="password"
+                                                type={showPassword ? 'text' : 'password'}
                                                 required={!editingUser}
                                                 value={formData.password}
                                                 onChange={e => setFormData({...formData, password: e.target.value})}
-                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
-                                                placeholder="••••••••"
+                                                className="w-full pl-12 pr-28 py-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-slate-900 dark:text-white font-medium"
+                                                placeholder={editingUser ? "•••••••• (Manter a senha atual)" : "Digite ou gere uma senha provisória"}
                                             />
+
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
+                                                {formData.password && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleCopyPassword}
+                                                        className="p-2 text-slate-400 hover:text-brand-blue dark:hover:text-white transition-colors cursor-pointer rounded-xl hover:bg-slate-200/50 dark:hover:bg-slate-700/50 flex items-center gap-1 text-[10px] font-bold"
+                                                        title="Copiar senha"
+                                                    >
+                                                        {copiedPassword ? (
+                                                            <>
+                                                                <Check className="w-4 h-4 text-emerald-500" />
+                                                                <span className="text-emerald-500 hidden sm:inline">Copiado</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Copy className="w-4 h-4" />
+                                                                <span className="hidden sm:inline">Copiar</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer rounded-xl hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                                                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                                                >
+                                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                                </button>
+                                            </div>
                                         </div>
+
+                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium ml-1 flex items-start gap-1.5 pt-1">
+                                            <span>💡 Por diretrizes de segurança (OWASP/Google), senhas salvas são encriptadas (hash unidirecional) e não podem ser reveladas após o registro. Use o ícone de olho ou "Gerar Senha Sugerida" para visualizar/copiar a senha provisória antes de salvar e repassar ao usuário.</span>
+                                        </p>
                                     </div>
                                 </div>
 
@@ -631,7 +713,10 @@ export const UsersManagementPage: React.FC = () => {
                                             { key: 'identifyPayments', label: 'Identificar pagamentos' },
                                             { key: 'undoIdentification', label: 'Desfazer identificação' },
                                             { key: 'downloadFile', label: 'Baixar arquivo' },
-                                            { key: 'printReport', label: 'Imprimir relatório' }
+                                            { key: 'printReport', label: 'Imprimir relatório' },
+                                            { key: 'manageAccounts', label: 'Gestão de Contas' },
+                                            { key: 'managePledges', label: 'Carnês e Propósitos' },
+                                            { key: 'managePatrimony', label: 'Patrimônio' }
                                         ].map(perm => (
                                             <label 
                                                 key={perm.key}

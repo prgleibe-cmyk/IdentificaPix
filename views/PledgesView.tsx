@@ -615,7 +615,7 @@ Lembramos com carinho do seu compromisso de fé (*${whatsAppPledge.campaignTitle
 
 Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundantemente.`);
         }
-        showToast('Modelo restaurado para o padrão do sistema.', 'info');
+        showToast('Modelo restaurado para o padrão do sistema.', 'success');
     };
 
     const handleSendWhatsApp = () => {

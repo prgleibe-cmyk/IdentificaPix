@@ -114,14 +114,28 @@ export const Sidebar: React.FC = () => {
             items.push({ view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> });
         }
 
+        const perms = (subscription.permissions || {}) as Record<string, any>;
+        const canManageAccounts = !isSecondaryUser || (perms.gestao_contas !== false && perms.manageAccounts !== false);
+        const canManagePledges = !isSecondaryUser || (perms.carnes_propositos !== false && perms.managePledges !== false);
+        const canManagePatrimony = !isSecondaryUser || (perms.patrimonio !== false && perms.managePatrimony !== false);
+
         items.push(
             { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
-            { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> },
-            { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-5 h-5"/> },
-            { view: 'pledges', labelKey: 'Carnês & Propósitos', icon: <BookmarkPlus className="w-5 h-5"/> },
-            { view: 'patrimonio', labelKey: 'Patrimônio', icon: <Building2 className="w-5 h-5"/> },
+            { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> }
         );
+
+        if (canManageAccounts) {
+            items.push({ view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-5 h-5"/> });
+        }
+
+        if (canManagePledges) {
+            items.push({ view: 'pledges', labelKey: 'Carnês & Propósitos', icon: <BookmarkPlus className="w-5 h-5"/> });
+        }
+
+        if (canManagePatrimony) {
+            items.push({ view: 'patrimonio', labelKey: 'Patrimônio', icon: <Building2 className="w-5 h-5"/> });
+        }
 
         // Configurações apenas para o proprietário (Owner)
         if (!isSecondaryUser) {
@@ -130,7 +144,7 @@ export const Sidebar: React.FC = () => {
 
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <UserIcon className="w-5 h-5"/>, special: true });
         return items;
-    }, [isAdmin, subscription.role, isSecondaryUser]);
+    }, [isAdmin, subscription.role, isSecondaryUser, subscription.permissions]);
 
     const getStatusStyle = () => {
         if (subscription.isExpired) return 'border-red-200 text-red-700 bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:bg-red-500/10 hover:bg-red-500/20';
