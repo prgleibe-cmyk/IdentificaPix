@@ -240,6 +240,14 @@ export const useReportsController = () => {
             }
         }
 
+        // Secondary user church isolation guard for general, unidentified, expenses
+        if (isSecondary && subscription?.congregationIds && subscription.congregationIds.length > 0) {
+            filteredData = filteredData.filter(r => {
+                const churchId = r.church?.id || r._churchId || 'unidentified';
+                return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
+            });
+        }
+
         // Apply filters
         if (selectedBankId && selectedBankId !== 'all') {
             filteredData = filteredData.filter(r => String(r.transaction?.bank_id) === selectedBankId);

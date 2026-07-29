@@ -208,7 +208,10 @@ const IncomeRow = memo(({
     isSelected,
     onToggleSelection,
     onGenerateReceipt,
-    isClosedPeriod
+    isClosedPeriod,
+    canConfirmFinal = true,
+    canUndoIdentification = true,
+    canPrintReceipt = true
 }: any) => {
     const row = result as MatchResult;
     // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
@@ -295,16 +298,18 @@ const IncomeRow = memo(({
                 <div className="flex gap-1.5 items-center justify-center">
                     {/* Todas as ações visíveis no hover */}
                     <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <button 
-                            onClick={() => onGenerateReceipt(row)} 
-                            className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
-                            title="Gerar e Imprimir Recibo"
-                        >
-                            <Printer className="w-3.5 h-3.5" />
-                        </button>
+                        {canPrintReceipt && (
+                            <button 
+                                onClick={() => onGenerateReceipt(row)} 
+                                className="p-1.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-all border border-blue-100/50 dark:border-blue-900/20 cursor-pointer shadow-sm" 
+                                title="Gerar e Imprimir Recibo"
+                            >
+                                <Printer className="w-3.5 h-3.5" />
+                            </button>
+                        )}
 
                         {confirmed ? (
-                            !isClosedPeriod && (
+                            (!isClosedPeriod && canConfirmFinal) && (
                                 <button onClick={() => onToggleLock(row.transaction.id, false)} className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 cursor-pointer" title="Remover Bloqueio">
                                     <LockOpenIcon className="w-3.5 h-3.5" />
                                 </button>
@@ -312,7 +317,7 @@ const IncomeRow = memo(({
                         ) : (
                             !isClosedPeriod && (
                                 <>
-                                    {isIdentified && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
+                                    {isIdentified && canUndoIdentification && <button onClick={() => onUndo(row.transaction.id)} className="p-1.5 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 cursor-pointer" title="Desfazer auto-identificação"><ArrowUturnLeftIcon className="w-3.5 h-3.5" /></button>}
                                     <button onClick={() => onDelete(row)} className="p-1.5 rounded-lg text-rose-600 bg-rose-50 hover:bg-rose-100 cursor-pointer" title="Excluir"><TrashIcon className="w-3.5 h-3.5" /></button>
                                     {onSplit && (
                                         <button 
@@ -402,6 +407,11 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
         subscription?.role !== 'owner' &&
         subscription?.role !== 'admin' &&
         subscription?.role !== 'principal';
+
+    const perms = (subscription?.permissions || {}) as Record<string, any>;
+    const canConfirmFinal = !isSecondaryUser || (perms.confirmar_final !== false && perms.confirmFinal !== false);
+    const canUndoIdentification = !isSecondaryUser || (perms.desfazer_identificacao !== false && perms.undoIdentification !== false);
+    const canPrintReceipt = !isSecondaryUser || (perms.imprimir !== false && perms.printReport !== false);
     
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedReceipt, setSelectedReceipt] = useState<MatchResult | null>(null);
@@ -505,6 +515,9 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     onSplit={onSplit}
                                     onGenerateReceipt={setSelectedReceipt}
                                     isClosedPeriod={isClosedPeriod}
+                                    canConfirmFinal={canConfirmFinal}
+                                    canUndoIdentification={canUndoIdentification}
+                                    canPrintReceipt={canPrintReceipt}
                                 />
                             );
                         })}

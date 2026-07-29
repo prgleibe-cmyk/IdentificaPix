@@ -1,6 +1,7 @@
 import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ContributorsReportSection } from '../components/reports/ContributorsReportSection';
 import { ExportService } from '../services/ExportService';
 import { 
@@ -29,6 +30,7 @@ import {
     ChevronUp,
     Check,
     RotateCcw,
+    RefreshCw,
     Tag,
     X,
     FileSpreadsheet,
@@ -64,13 +66,51 @@ export const RelatoriosView: React.FC = () => {
     // Export dropdown state
     const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
     const [showExportBalancete, setShowExportBalancete] = useState<boolean>(false);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+    const isHydratingFromCloud = context?.isHydratingFromCloud || context?.isHydrating || false;
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            if (typeof context?.hydrate === 'function') {
+                await context.hydrate();
+            }
+            showToast('Relatório recarregado com sucesso!', 'success');
+        } catch (err) {
+            console.error('Erro ao recarregar relatório:', err);
+            showToast('Erro ao recarregar os dados do relatório.', 'error');
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
     const categoryDropdownRef = useRef<HTMLDivElement>(null);
     const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
     const exportBalanceteRef = useRef<HTMLDivElement>(null);
 
-    const churches = context?.churches || [];
+    const { user, subscription } = useAuth();
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
+
+    const perms = (subscription?.permissions || {}) as Record<string, any>;
+    const canDownload = !isSecondaryUser || (perms.baixar_arquivo !== false && perms.downloadFile !== false);
+    const canPrint = !isSecondaryUser || (perms.imprimir !== false && perms.printReport !== false);
+
+    const allowedChurchIds = useMemo(() => {
+        if (!isSecondaryUser) return null;
+        return subscription?.congregationIds || [];
+    }, [isSecondaryUser, subscription?.congregationIds]);
+
+    const churches = useMemo(() => {
+        const raw = context?.churches || [];
+        if (!isSecondaryUser || !allowedChurchIds || allowedChurchIds.length === 0) return raw;
+        return raw.filter((c: any) => allowedChurchIds.includes(c.id));
+    }, [context?.churches, isSecondaryUser, allowedChurchIds]);
+
     const reportData = context?.reportData || [];
     const contributorFiles = context?.contributorFiles || [];
 
@@ -140,6 +180,17 @@ export const RelatoriosView: React.FC = () => {
         }
 
         return reportData.filter((item: any) => {
+            // Secondary user church restriction
+            if (isSecondaryUser && allowedChurchIds && allowedChurchIds.length > 0) {
+                const itemChurchId = item.churchId || item.church;
+                const matchesAllowed = allowedChurchIds.some(cId => {
+                    if (itemChurchId === cId) return true;
+                    const chObj = churches.find((c: any) => c.id === cId);
+                    return chObj && (item.church === chObj.name || item.churchId === chObj.id);
+                });
+                if (!matchesAllowed) return false;
+            }
+
             // Multi-church filter
             if (selectedChurchIds.length > 0) {
                 const itemChurchId = item.churchId || item.church;
@@ -354,6 +405,10 @@ export const RelatoriosView: React.FC = () => {
     // Export Handler for Livro Caixa
     const handleExportLivroCaixa = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
         setShowExportLivroCaixa(false);
+        if (!canDownload) {
+            showToast('Você não tem permissão para baixar arquivos ou relatórios.', 'error');
+            return;
+        }
         const dateStr = new Date().toISOString().slice(0, 10);
         
         if (format === 'pdf') {
@@ -371,6 +426,10 @@ export const RelatoriosView: React.FC = () => {
     // Export Handler for Balancete
     const handleExportBalancete = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
         setShowExportBalancete(false);
+        if (!canDownload) {
+            showToast('Você não tem permissão para baixar arquivos ou relatórios.', 'error');
+            return;
+        }
         const dateStr = new Date().toISOString().slice(0, 10);
         const typeName = balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil';
         const title = `Balancete ${typeName} Financeiro`;
@@ -413,6 +472,10 @@ export const RelatoriosView: React.FC = () => {
     };
 
     const handlePrint = () => {
+        if (!canPrint) {
+            showToast('Você não tem permissão para imprimir relatórios.', 'error');
+            return;
+        }
         if (activeTab === 'balancete') {
             const typeName = balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil';
             ExportService.printBalanceteHtml(
@@ -646,6 +709,17 @@ export const RelatoriosView: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Recarregar Button */}
+                                <button
+                                    onClick={handleRefresh}
+                                    disabled={isRefreshing || isHydratingFromCloud}
+                                    className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    title="Recarregar dados do Livro Caixa"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : ''}`} />
+                                    <span className="hidden sm:inline text-xs font-semibold">Recarregar</span>
+                                </button>
 
                                 {/* Export & Print Menu */}
                                 <div className="relative" ref={exportLivroCaixaRef}>
@@ -922,6 +996,17 @@ export const RelatoriosView: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Recarregar Button */}
+                                <button
+                                    onClick={handleRefresh}
+                                    disabled={isRefreshing || isHydratingFromCloud}
+                                    className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    title="Recarregar dados do Balancete"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-blue-500' : ''}`} />
+                                    <span className="hidden sm:inline text-xs font-semibold">Recarregar</span>
+                                </button>
 
                                 {/* Export Menu */}
                                 <div className="relative" ref={exportBalanceteRef}>

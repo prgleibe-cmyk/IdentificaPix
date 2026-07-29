@@ -53,13 +53,16 @@ export default () => {
         validateOwnerAccess(req, ownerId);
 
         const permissionsObject = {
-            "confirmar_final": permissions.confirmar_final,
-            "identificar": permissions.identificar,
-            "desfazer_identificacao": permissions.desfazer_identificacao,
-            "baixar_arquivo": permissions.baixar_arquivo,
-            "imprimir": permissions.imprimir,
+            "confirmar_final": permissions.confirmar_final !== undefined ? permissions.confirmar_final : true,
+            "identificar": permissions.identificar !== undefined ? permissions.identificar : true,
+            "desfazer_identificacao": permissions.desfazer_identificacao !== undefined ? permissions.desfazer_identificacao : true,
+            "baixar_arquivo": permissions.baixar_arquivo !== undefined ? permissions.baixar_arquivo : true,
+            "imprimir": permissions.imprimir !== undefined ? permissions.imprimir : true,
+            "gestao_contas": permissions.gestao_contas !== undefined ? permissions.gestao_contas : false,
+            "carnes_propositos": permissions.carnes_propositos !== undefined ? permissions.carnes_propositos : false,
+            "patrimonio": permissions.patrimonio !== undefined ? permissions.patrimonio : false,
             "bankIds": permissions.bankIds || [],
-            "congregationIds": churchIds // Armazenamos o array completo no JSON de permissões
+            "congregationIds": churchIds
         };
 
         try {

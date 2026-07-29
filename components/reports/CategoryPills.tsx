@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { RectangleStackIcon, BuildingOfficeIcon, ExclamationTriangleIcon, BanknotesIcon } from '../Icons';
-import { Users } from 'lucide-react';
 import { ReportCategory } from '../../hooks/useReportsController';
 
 interface CategoryPillsProps {
@@ -16,8 +15,7 @@ export const CategoryPills: React.FC<CategoryPillsProps> = ({ activeCategory, on
         { id: 'general', label: 'Geral', count: counts.general, icon: RectangleStackIcon, theme: 'slate' },
         { id: 'churches', label: 'Igrejas', count: counts.churches, icon: BuildingOfficeIcon, theme: 'blue' },
         { id: 'unidentified', label: 'Pendentes', count: counts.pending, icon: ExclamationTriangleIcon, theme: 'amber' },
-        { id: 'expenses', label: 'Saídas', count: counts.expenses, icon: BanknotesIcon, theme: 'rose' },
-        { id: 'contributors', label: 'Cadastros / Contribuintes', count: counts.contributors, icon: Users, theme: 'emerald' }
+        { id: 'expenses', label: 'Saídas', count: counts.expenses, icon: BanknotesIcon, theme: 'rose' }
     ];
 
     if (role === 'member') {
