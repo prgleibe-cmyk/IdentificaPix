@@ -26,6 +26,7 @@ interface UseCloudSyncProps {
     realtimeRefreshKey?: number;
     contributorFiles?: any[];
     setContributorFiles?: (files: any[]) => void;
+    setIsLoading?: (loading: boolean) => void;
 }
 
 export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
@@ -53,10 +54,12 @@ export const useCloudSync = ({
     setSearchFilters,
     realtimeRefreshKey,
     contributorFiles,
-    setContributorFiles
+    setContributorFiles,
+    setIsLoading
 }: UseCloudSyncProps) => {
     const lastCloudSyncRef = useRef<string>('');
     const isHydratingFromCloud = useRef<boolean>(false);
+    const [isHydrating, setIsHydrating] = useState<boolean>(false);
     const needsRetry = useRef<boolean>(false);
     const lastValidatedHash = useRef<string>('');
     const isValidating = useRef<boolean>(false);
@@ -177,6 +180,8 @@ export const useCloudSync = ({
 
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
             isHydratingFromCloud.current = true;
+            setIsHydrating(true);
+            if (setIsLoading) setIsLoading(true);
             needsRetry.current = false;
 
             try {
@@ -291,6 +296,8 @@ export const useCloudSync = ({
 
                 if ((!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
+                    setIsHydrating(false);
+                    if (setIsLoading) setIsLoading(false);
                     return;
                 }
 
@@ -524,6 +531,8 @@ export const useCloudSync = ({
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
             } finally {
                 isHydratingFromCloud.current = false;
+                setIsHydrating(false);
+                if (setIsLoading) setIsLoading(false);
                 setTimeout(() => {
                     console.log('[Hydration:FINISHED]');
                 }, 0);
@@ -965,6 +974,7 @@ export const useCloudSync = ({
 
     return {
         syncToCloud,
-        isHydratingFromCloud
+        isHydratingFromCloud,
+        isHydrating
     };
 };

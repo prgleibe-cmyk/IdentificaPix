@@ -3,12 +3,11 @@ import { useUI } from '../contexts/UIContext';
 import { EmptyState } from '../components/EmptyState';
 import { DocumentDuplicateIcon } from '../components/Icons';
 import { useSavedReportsController } from '../hooks/useSavedReportsController';
-import { SavedReportsHeader } from '../components/saved-reports/SavedReportsHeader';
 import { ReportsTable } from '../components/saved-reports/ReportsTable';
 
 /**
- * SAVED REPORTS VIEW (V3 - MODULAR REFACTORED)
- * Orchestrates listing and management of saved reconciliation history with a fully standardized page architecture.
+ * SAVED REPORTS VIEW (Planilhas Salvas)
+ * Gestão e consulta de todas as planilhas conciliadas e relatórios salvos.
  */
 export const SavedReportsView: React.FC = () => {
     const ctrl = useSavedReportsController();
@@ -19,7 +18,7 @@ export const SavedReportsView: React.FC = () => {
 
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-4">
-            {/* Standard Header Card to unify the visual look of the app */}
+            {/* Standard Header Card */}
             <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
@@ -28,22 +27,24 @@ export const SavedReportsView: React.FC = () => {
                             {ctrl.t('savedReports.title')}
                         </h1>
                         <p className="text-xs text-slate-400">
-                            Consulte e gerencie o histórico de planilhas e conciliações bancárias salvas no sistema.
+                            {ctrl.t('savedReports.subtitle')}
                         </p>
                     </div>
                     
-                    {/* Compact space usage tracker */}
-                    <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-black/20 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-white/5">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Espaço Utilizado:</span>
-                        <div className="h-2 w-20 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all duration-1000 ease-out ${ctrl.storageColor}`}
-                                style={{ width: `${ctrl.usagePercent}%` }}
-                            ></div>
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        {/* Compact space usage tracker */}
+                        <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-black/20 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-white/5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Espaço Utilizado:</span>
+                            <div className="h-2 w-20 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-1000 ease-out ${ctrl.storageColor}`}
+                                    style={{ width: `${ctrl.usagePercent}%` }}
+                                ></div>
+                            </div>
+                            <span className={`text-xs font-black font-mono ${ctrl.usagePercent > 80 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                {totalReports}/{ctrl.maxSavedReports}
+                            </span>
                         </div>
-                        <span className={`text-xs font-black font-mono ${ctrl.usagePercent > 80 ? 'text-red-500' : 'text-emerald-500'}`}>
-                            {totalReports}/{ctrl.maxSavedReports}
-                        </span>
                     </div>
                 </div>
             </div>
@@ -66,7 +67,7 @@ export const SavedReportsView: React.FC = () => {
                 <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                     {/* Header compact row for search inside the table */}
                     <div className="p-4 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-slate-50/50 dark:bg-black/10">
-                        <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Histórico de Arquivos</span>
+                        <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Histórico de Arquivos Salvos</span>
                         <div className="relative w-48 md:w-64">
                             <input
                                 type="text"

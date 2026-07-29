@@ -4,6 +4,13 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
+// Capture PWA install prompt globally
+window.addEventListener('beforeinstallprompt', (e: Event) => {
+  e.preventDefault();
+  (window as any).deferredPwaPrompt = e;
+  console.log('[PWA] Captured beforeinstallprompt globally');
+});
+
 // Registro do Service Worker com versionamento para forçar atualização de ícones no PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

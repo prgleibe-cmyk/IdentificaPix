@@ -34,12 +34,28 @@ export interface ContributionType {
   bank_name?: string | null;
 }
 
+export interface ChurchLeader {
+  id?: string;
+  name: string;
+  title: string;
+}
+
 export interface Church {
   id: string;
   name: string;
   address: string;
   logoUrl: string;
   pastor: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  pixKey?: string;
+  cep?: string;
+  city?: string;
+  state?: string;
+  treasurer?: string;
+  pastors?: ChurchLeader[];
+  treasurers?: ChurchLeader[];
 }
 
 export interface ChurchFormData {
@@ -47,6 +63,16 @@ export interface ChurchFormData {
   address: string;
   pastor: string;
   logoUrl: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  pixKey?: string;
+  cep?: string;
+  city?: string;
+  state?: string;
+  treasurer?: string;
+  pastors?: ChurchLeader[];
+  treasurers?: ChurchLeader[];
 }
 
 export interface Transaction {

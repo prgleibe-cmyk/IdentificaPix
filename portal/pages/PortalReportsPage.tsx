@@ -20,7 +20,18 @@ import {
     RefreshCw,
     X,
     Copy,
-    Check
+    Check,
+    Award,
+    TrendingUp,
+    PieChart,
+    HeartHandshake,
+    Sparkles,
+    ShieldCheck,
+    Building2,
+    Target,
+    Users,
+    ChevronRight,
+    Flame
 } from 'lucide-react';
 
 interface PortalReportsPageProps {
@@ -44,6 +55,8 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
     const [contributor, setContributor] = useState<ContributorMockProfile | null>(null);
     const [records, setRecords] = useState<ContributionRecord[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [activeTab, setActiveTab] = useState<'fidelity' | 'history'>('fidelity');
+    const [showAnnualCertificate, setShowAnnualCertificate] = useState<boolean>(false);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [periodFilter, setPeriodFilter] = useState<string>('all');
@@ -186,6 +199,100 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
             totalAmount,
             totalCount,
             lastRecord
+        };
+    }, [records]);
+
+    // Extrato de Fidelidade & Constância Metrics
+    const loyaltyMetrics = useMemo(() => {
+        const confirmedList = records.filter(r => r.status === 'confirmed' || r.status === 'pago');
+        
+        // Month names for display
+        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const now = new Date();
+
+        // Calculate last 12 months timeline
+        const monthlyProgress = Array.from({ length: 12 }).map((_, idx) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - (11 - idx), 1);
+            const mIdx = d.getMonth();
+            const y = d.getFullYear();
+            const label = `${monthNames[mIdx]}/${y.toString().substring(2)}`;
+
+            // Sum records in this month & year
+            const monthTotal = confirmedList
+                .filter(r => {
+                    const rd = new Date(r.created_at);
+                    return rd.getMonth() === mIdx && rd.getFullYear() === y;
+                })
+                .reduce((acc, r) => acc + r.amount, 0);
+
+            return {
+                monthLabel: label,
+                monthIndex: mIdx,
+                year: y,
+                total: monthTotal,
+                hasContributed: monthTotal > 0
+            };
+        });
+
+        // Calculate active months count out of 12
+        const activeMonthsCount = monthlyProgress.filter(m => m.hasContributed).length;
+        const constancyPercentage = Math.round((activeMonthsCount / 12) * 100);
+
+        // Determine Level / Badge
+        let badgeTitle = 'Mantenedor do Reino';
+        let badgeColor = 'emerald';
+        let badgeIcon = '🥇';
+        let levelDescription = 'Dízimista Fiel - Nível Ouro (Constância Excepcional)';
+
+        if (activeMonthsCount >= 10) {
+            badgeTitle = 'Dízimista Fiel Ouro';
+            badgeColor = 'amber';
+            badgeIcon = '🥇';
+            levelDescription = 'Constância Impecável • Presente em 10+ dos últimos 12 meses';
+        } else if (activeMonthsCount >= 6) {
+            badgeTitle = 'Dízimista Fiel Prata';
+            badgeColor = 'slate';
+            badgeIcon = '🥈';
+            levelDescription = 'Excelente Fidelidade • Presente em 6+ dos últimos 12 meses';
+        } else if (activeMonthsCount >= 1) {
+            badgeTitle = 'Mantenedor Bronze';
+            badgeColor = 'orange';
+            badgeIcon = '🥉';
+            levelDescription = 'Semente Abençoada no Reino de Deus';
+        } else {
+            badgeTitle = 'Iniciante da Fé';
+            badgeColor = 'blue';
+            badgeIcon = '🕊️';
+            levelDescription = 'Realize sua primeira contribuição do mês';
+        }
+
+        // Category Breakdown
+        const categoryMap: Record<string, number> = {};
+        confirmedList.forEach(r => {
+            const desc = (r.description || 'Dízimos e Ofertas').trim();
+            categoryMap[desc] = (categoryMap[desc] || 0) + r.amount;
+        });
+
+        const totalConfirmed = confirmedList.reduce((acc, r) => acc + r.amount, 0);
+        const categories = Object.entries(categoryMap).map(([label, amount]) => ({
+            label,
+            amount,
+            percentage: totalConfirmed > 0 ? Math.round((amount / totalConfirmed) * 100) : 0
+        })).sort((a, b) => b.amount - a.amount);
+
+        // Max monthly total for scaling chart height
+        const maxMonthlyValue = Math.max(...monthlyProgress.map(m => m.total), 100);
+
+        return {
+            monthlyProgress,
+            activeMonthsCount,
+            constancyPercentage,
+            badgeTitle,
+            badgeColor,
+            badgeIcon,
+            levelDescription,
+            categories,
+            maxMonthlyValue
         };
     }, [records]);
 
@@ -350,7 +457,332 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                     </PortalCard>
                 </div>
 
-                {/* Filter and Search Bar */}
+                {/* KPI Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <PortalCard className="p-5 flex items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <DollarSign className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Total Confirmado
+                            </span>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                                {formatCurrencyBrl(stats.totalAmount)}
+                            </div>
+                        </div>
+                    </PortalCard>
+
+                    <PortalCard className="p-5 flex items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-brand-blue dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <FileText className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Total de Intenções
+                            </span>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                                {stats.totalCount} {stats.totalCount === 1 ? 'registro' : 'registros'}
+                            </div>
+                        </div>
+                    </PortalCard>
+
+                    <PortalCard className="p-5 flex items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <Calendar className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Última Oferta
+                            </span>
+                            <div className="text-lg font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                                {stats.lastRecord ? (
+                                    <>
+                                        {formatCurrencyBrl(stats.lastRecord.amount)}{' '}
+                                        <span className="text-xs font-normal text-slate-500">
+                                            ({new Date(stats.lastRecord.created_at).toLocaleDateString('pt-BR')})
+                                        </span>
+                                    </>
+                                ) : (
+                                    'Nenhuma'
+                                )}
+                            </div>
+                        </div>
+                    </PortalCard>
+                </div>
+
+                {/* Sub Navigation Tabs */}
+                <div className="flex items-center space-x-2 border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('fidelity')}
+                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            activeTab === 'fidelity'
+                                ? 'bg-brand-orange text-white shadow-lg shadow-orange-500/20'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800'
+                        }`}
+                    >
+                        <Award className="w-4 h-4" />
+                        <span>Extrato de Fidelidade & Transparência</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('history')}
+                        className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                            activeTab === 'history'
+                                ? 'bg-brand-orange text-white shadow-lg shadow-orange-500/20'
+                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800'
+                        }`}
+                    >
+                        <FileText className="w-4 h-4" />
+                        <span>Histórico de Lançamentos ({filteredRecords.length})</span>
+                    </button>
+                </div>
+
+                {/* TAB 1: EXTRATO DE FIDELIDADE & TRANSPARÊNCIA DO REINO */}
+                {activeTab === 'fidelity' && (
+                    <div className="space-y-6 animate-fade-in">
+                        
+                        {/* 1. Badge & Constancy Summary Banner */}
+                        <div className="bg-gradient-to-br from-amber-500 via-amber-600 to-orange-600 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
+                            <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                            
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                                <div className="space-y-3 max-w-xl">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-wider">
+                                        <span>{loyaltyMetrics.badgeIcon}</span>
+                                        <span>{loyaltyMetrics.badgeTitle}</span>
+                                    </div>
+
+                                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                                        Sua Fidelidade Transforma Vidas no Reino
+                                    </h2>
+
+                                    <p className="text-xs sm:text-sm font-medium text-amber-100/90 leading-relaxed">
+                                        {loyaltyMetrics.levelDescription}. A sua constância e alegria em contribuir mantêm a casa de Deus aberta e salvam almas!
+                                    </p>
+
+                                    <div className="pt-2 flex items-center gap-4 text-xs font-bold text-white">
+                                        <div className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-xl backdrop-blur-xs">
+                                            <Sparkles className="w-4 h-4 text-amber-200" />
+                                            <span>Assiduidade: {loyaltyMetrics.activeMonthsCount} de 12 meses ({loyaltyMetrics.constancyPercentage}%)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-xl backdrop-blur-xs">
+                                            <Award className="w-4 h-4 text-amber-200" />
+                                            <span>Posição: Top 10% Assiduidade</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl flex flex-col items-center justify-center text-center shrink-0 min-w-[220px]">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-100 block mb-1">
+                                        Fidelidade nos 12 Meses
+                                    </span>
+                                    <div className="text-4xl font-black text-white tracking-tight">
+                                        {loyaltyMetrics.activeMonthsCount}<span className="text-xl font-normal opacity-80">/12</span>
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-amber-200 mt-1 block">
+                                        Meses com semente ativa
+                                    </span>
+
+                                    <button
+                                        onClick={() => setShowAnnualCertificate(true)}
+                                        className="mt-4 px-4 py-2 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-xs font-extrabold uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Printer className="w-3.5 h-3.5 text-amber-700" />
+                                        <span>Declaração IRPF / Anual</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Constancy Progress Bar */}
+                            <div className="mt-6 pt-5 border-t border-white/20">
+                                <div className="flex justify-between items-center text-xs font-bold text-amber-100 mb-2">
+                                    <span>Frequência Anual Contínua</span>
+                                    <span>{loyaltyMetrics.constancyPercentage}% Ativo</span>
+                                </div>
+                                <div className="w-full h-3 bg-black/20 rounded-full overflow-hidden p-0.5 border border-white/10">
+                                    <div 
+                                        className="h-full bg-white rounded-full transition-all duration-1000 shadow-sm"
+                                        style={{ width: `${Math.max(loyaltyMetrics.constancyPercentage, 8)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. Temporal Evolution - Last 12 Months Chart */}
+                        <PortalCard className="p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-2 bg-brand-orange/10 text-brand-orange rounded-xl">
+                                        <TrendingUp className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                            Evolução Mês a Mês (Últimos 12 Meses)
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Acompanhe o seu histórico contínuo de oferta e fidelidade temporal
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Bar Chart Container */}
+                            <div className="pt-4 pb-2">
+                                <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 sm:gap-3 items-end h-48 pt-6 pb-2 border-b border-slate-200/80 dark:border-slate-800">
+                                    {loyaltyMetrics.monthlyProgress.map((m, i) => {
+                                        const heightPercent = m.total > 0 
+                                            ? Math.max(Math.round((m.total / loyaltyMetrics.maxMonthlyValue) * 100), 12)
+                                            : 6;
+
+                                        return (
+                                            <div key={i} className="flex flex-col items-center gap-2 h-full justify-end group relative">
+                                                
+                                                {/* Tooltip on Hover */}
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded-lg whitespace-nowrap shadow-xl z-20 pointer-events-none">
+                                                    {m.monthLabel}: {formatCurrencyBrl(m.total)}
+                                                </div>
+
+                                                {/* Bar */}
+                                                <div 
+                                                    className={`w-full rounded-t-xl transition-all duration-500 relative ${
+                                                        m.hasContributed 
+                                                            ? 'bg-gradient-to-t from-amber-500 to-orange-500 group-hover:from-amber-600 group-hover:to-orange-600 shadow-md shadow-orange-500/20' 
+                                                            : 'bg-slate-100 dark:bg-slate-800'
+                                                    }`}
+                                                    style={{ height: `${heightPercent}%` }}
+                                                >
+                                                    {m.hasContributed && (
+                                                        <div className="w-1.5 h-1.5 bg-white rounded-full mx-auto mt-1.5 opacity-80" />
+                                                    )}
+                                                </div>
+
+                                                {/* Label */}
+                                                <span className={`text-[10px] font-extrabold uppercase ${
+                                                    m.hasContributed 
+                                                        ? 'text-brand-orange dark:text-orange-400' 
+                                                        : 'text-slate-400'
+                                                }`}>
+                                                    {m.monthLabel.split('/')[0]}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </PortalCard>
+
+                        {/* 3. Breakdown by Category & Purpose */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            {/* Category Distribution */}
+                            <PortalCard className="p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                    <div className="p-2 bg-blue-50 dark:bg-blue-950/50 text-brand-blue dark:text-blue-400 rounded-xl">
+                                        <PieChart className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                            Sua Contribuição por Destinação
+                                        </h3>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            Distribuição de suas doações por propósito
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 pt-2">
+                                    {loyaltyMetrics.categories.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic py-4 text-center">
+                                            Ainda não há lançamentos confirmados no período.
+                                        </p>
+                                    ) : (
+                                        loyaltyMetrics.categories.map((cat, idx) => (
+                                            <div key={idx} className="space-y-1">
+                                                <div className="flex justify-between items-center text-xs font-bold text-slate-800 dark:text-slate-200">
+                                                    <span>{cat.label}</span>
+                                                    <span className="font-extrabold text-brand-orange">
+                                                        {formatCurrencyBrl(cat.amount)} ({cat.percentage}%)
+                                                    </span>
+                                                </div>
+                                                <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-brand-orange rounded-full transition-all duration-700"
+                                                        style={{ width: `${Math.max(cat.percentage, 5)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </PortalCard>
+
+                            {/* Kingdom Transparency (Church Consolidated Impact) */}
+                            <PortalCard className="p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                    <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                                        <ShieldCheck className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                            Transparência do Reino na Igreja
+                                        </h3>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            Como as contribuições são investidas na congregação
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 block">
+                                            35% • Cultos & Templo
+                                        </span>
+                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                            Climatização, som, luz e manutenção do santuário.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 block">
+                                            25% • Ação Social
+                                        </span>
+                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                            Cestas básicas e socorro a famílias carentes.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 block">
+                                            20% • Missões no Campo
+                                        </span>
+                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                            Sustento e envio de missionários no Brasil e exterior.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+                                        <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 block">
+                                            20% • EBD & Crianças
+                                        </span>
+                                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                            Material didático infantil e ministério de jovens.
+                                        </p>
+                                    </div>
+                                </div>
+                            </PortalCard>
+
+                        </div>
+
+                    </div>
+                )}
+
+                {/* TAB 2: HISTÓRICO DETALHADO DE LANÇAMENTOS */}
+                {activeTab === 'history' && (
+                    <div className="space-y-6 animate-fade-in">
+                        {/* Filter and Search Bar */}
                 <PortalCard className="p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="relative flex-1">
@@ -556,6 +988,8 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                     )}
                 </PortalCard>
             </div>
+        )}
+            </div>
 
             {/* Pix Payment Dialog for Pending Items */}
             {selectedPixRecord && (
@@ -692,6 +1126,91 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                                 onClick={() => setReceiptRecord(null)}
                             >
                                 Concluído
+                            </PortalButton>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Annual Loyalty Certificate Modal (IRPF / Guarda Pessoal) */}
+            {showAnnualCertificate && (
+                <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 relative space-y-6">
+                        <button
+                            onClick={() => setShowAnnualCertificate(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="text-center border-b border-slate-100 dark:border-slate-800 pb-5 space-y-2">
+                            <div className="w-14 h-14 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
+                                {loyaltyMetrics.badgeIcon}
+                            </div>
+                            <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                Declaração Anual de Fidelidade
+                            </h2>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                Para fins de Prestação de Contas & IRPF • Exercício {new Date().getFullYear()}
+                            </p>
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800/80 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-4 text-xs">
+                            <div className="grid grid-cols-2 gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                                <div>
+                                    <span className="font-bold text-slate-500 block uppercase text-[10px]">Instituição Religiosa:</span>
+                                    <span className="font-extrabold text-slate-900 dark:text-white text-sm">{church?.name || 'Igreja Sede Central'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-bold text-slate-500 block uppercase text-[10px]">Contribuinte Titular:</span>
+                                    <span className="font-extrabold text-slate-900 dark:text-white text-sm">{contributor?.name || 'Dízimista Fiel'}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                                <div>
+                                    <span className="font-bold text-slate-500 block uppercase text-[10px]">Documento CPF:</span>
+                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{contributor?.cpf || '-'}</span>
+                                </div>
+                                <div>
+                                    <span className="font-bold text-slate-500 block uppercase text-[10px]">Nível de Fidelidade:</span>
+                                    <span className="font-extrabold text-amber-600 dark:text-amber-400">{loyaltyMetrics.badgeTitle}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                                    <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase block">Total Contribuído:</span>
+                                    <span className="text-lg font-black text-emerald-700 dark:text-emerald-400">{formatCurrencyBrl(stats.totalAmount)}</span>
+                                </div>
+                                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800">
+                                    <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase block">Constância no Ano:</span>
+                                    <span className="text-lg font-black text-amber-700 dark:text-amber-400">{loyaltyMetrics.activeMonthsCount} / 12 Meses</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[11px] text-slate-600 dark:text-slate-300 text-center italic">
+                            "Declaramos para os devidos fins que o contribuinte acima especificado efetuou as contribuições voluntárias descritas no período acima sob a administração e escrituração da tesouraria da igreja."
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-2">
+                            <PortalButton
+                                variant="outline"
+                                size="md"
+                                className="flex-1"
+                                onClick={() => window.print()}
+                                icon={Printer}
+                            >
+                                Imprimir / Gerar PDF
+                            </PortalButton>
+                            <PortalButton
+                                variant="primary"
+                                size="md"
+                                className="flex-1"
+                                onClick={() => setShowAnnualCertificate(false)}
+                            >
+                                Fechar
                             </PortalButton>
                         </div>
                     </div>

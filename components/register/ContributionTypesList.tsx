@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { BanknotesIcon, PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from '../Icons';
 import { ContributionType, Bank } from '../../types';
@@ -13,6 +13,7 @@ export const ContributionTypesList: React.FC = () => {
         fetchContributionTypes
     } = useContext(AppContext);
 
+    const [selectedTab, setSelectedTab] = useState<'entrada' | 'saida' | 'todos'>('todos');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingType, setEditingType] = useState<ContributionType | null>(null);
 
@@ -32,9 +33,17 @@ export const ContributionTypesList: React.FC = () => {
         }
     }, [fetchContributionTypes]);
 
+    const filteredContributionTypes = useMemo(() => {
+        if (!contributionTypes) return [];
+        return contributionTypes.filter((item: ContributionType) => {
+            if (selectedTab === 'todos') return true;
+            return item.type === selectedTab;
+        });
+    }, [contributionTypes, selectedTab]);
+
     const handleOpenCreate = () => {
         setEditingType(null);
-        setType('entrada');
+        setType(selectedTab === 'saida' ? 'saida' : 'entrada');
         setName('');
         setCategory('');
         setBankId(banks && banks.length > 0 ? banks[0].id : '');
@@ -109,8 +118,8 @@ export const ContributionTypesList: React.FC = () => {
     return (
         <div className="h-full flex flex-col space-y-3">
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/50">
-                <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0 flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/50 flex-wrap gap-2">
+                <div className="flex items-center space-x-3 flex-wrap gap-y-2">
                     <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50">
                         <BanknotesIcon className="w-4 h-4" />
                     </div>
@@ -118,9 +127,46 @@ export const ContributionTypesList: React.FC = () => {
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">
                             Tipos de Contribuição
                         </h3>
-                        <span className="text-[10px] font-bold text-emerald-600 mt-1 block uppercase">
-                            {contributionTypes ? contributionTypes.length : 0} cadastrados
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block uppercase">
+                            {filteredContributionTypes.length} cadastrados
                         </span>
+                    </div>
+
+                    {/* Switcher Tabs pill in front of the name */}
+                    <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px] ml-1">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTab('entrada')}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
+                                selectedTab === 'entrada'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            • Entrada
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTab('saida')}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
+                                selectedTab === 'saida'
+                                    ? 'bg-rose-600 text-white shadow-xs'
+                                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            • Saída
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTab('todos')}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer ${
+                                selectedTab === 'todos'
+                                    ? 'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 shadow-xs'
+                                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Todos
+                        </button>
                     </div>
                 </div>
 
@@ -285,12 +331,12 @@ export const ContributionTypesList: React.FC = () => {
 
             {/* Content List */}
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2">
-                {(!contributionTypes || contributionTypes.length === 0) ? (
+                {(!filteredContributionTypes || filteredContributionTypes.length === 0) ? (
                     <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-xs font-medium">
-                        Nenhum tipo de contribuição cadastrado.
+                        Nenhum tipo de contribuição encontrado.
                     </div>
                 ) : (
-                    contributionTypes.map((item: ContributionType) => {
+                    filteredContributionTypes.map((item: ContributionType) => {
                         const linkedBank = banks?.find((b: Bank) => b.id === item.bank_id);
                         const bankDisplayName = linkedBank ? (linkedBank.account_name || linkedBank.name) : (item.bank_name || null);
 

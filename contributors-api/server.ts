@@ -309,12 +309,30 @@ async function initializeDatabase() {
     `);
     
     // Ensure all columns exist (in case the table already existed under an older schema)
-    await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS cpf VARCHAR(11);');
-    await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS email VARCHAR(255);');
-    await client.query('ALTER TABLE contributors ADD COLUMN IF NOT EXISTS phone VARCHAR(50);');
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS cpf VARCHAR(11);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS email VARCHAR(255);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS phone VARCHAR(50);");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active';");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS person_type VARCHAR(20) DEFAULT 'PF';");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS trade_name VARCHAR(255);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS rg_ie VARCHAR(50);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS birth_date VARCHAR(50);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS category VARCHAR(100);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS pix_key VARCHAR(255);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_agency VARCHAR(50);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_cep VARCHAR(20);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_street VARCHAR(255);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_number VARCHAR(50);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_city VARCHAR(100);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS address_state VARCHAR(10);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS notes TEXT;");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT FALSE;");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS role_position VARCHAR(100);");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
 
     // Create table banks
@@ -354,6 +372,16 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pastor VARCHAR(255);');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS user_id UUID;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS cnpj VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS phone VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS email VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS "pixKey" VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS cep VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS city VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS state VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS treasurer VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pastors JSONB;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS treasurers JSONB;');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     console.log('[Contributors API] Table "churches" verified or successfully created.');
 
@@ -631,12 +659,12 @@ app.get('/health', (req: Request, res: Response) => {
 app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
     const { church_id, status } = req.query;
-    let query = 'SELECT id, church_id, canonical_name, cpf, email, phone, status, created_at, updated_at FROM contributors WHERE 1=1';
+    let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];
     let paramCounter = 1;
 
     if (church_id && typeof church_id === 'string') {
-      query += ` AND church_id = $${paramCounter}`;
+      query += ` AND (church_id = $${paramCounter} OR is_global = TRUE)`;
       params.push(church_id);
       paramCounter++;
     }
@@ -1531,7 +1559,13 @@ app.delete('/api/v1/contribution-types/:id', async (req: Request, res: Response)
 // POST /api/v1/contributors
 app.post('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
-    const { church_id, canonical_name, cpf, email, phone, status } = req.body;
+    const { 
+      church_id, canonical_name, cpf, email, phone, status,
+      person_type, trade_name, rg_ie, birth_date, contact_person,
+      category, pix_key, bank_name, bank_agency, bank_account,
+      address_cep, address_street, address_number, address_city, address_state, notes,
+      is_global, role_position
+    } = req.body;
 
     // UUID Pattern validation
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -1564,11 +1598,12 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
     const sanitizedEmail = email && typeof email === 'string' ? email.trim() : null;
     const sanitizedPhone = phone && typeof phone === 'string' ? phone.trim() : null;
     const sanitizedStatus = status === 'inactive' ? 'inactive' : 'active';
+    const isGlobalValue = Boolean(is_global);
 
     // If CPF was informed, check if there's already an active contributor with that CPF across the DB
     if (sanitizedCpf && sanitizedCpf.length > 0) {
       const duplicateCheck = await pool.query(
-        'SELECT id, canonical_name, cpf, email, phone, status FROM contributors WHERE status = $1 AND (cpf = $2 OR REPLACE(REPLACE(REPLACE(cpf, \'.\', \'\'), \'-\', \'\'), \'/\', \'\') = $2) LIMIT 1',
+        'SELECT id, canonical_name, cpf, email, phone, status, is_global FROM contributors WHERE status = $1 AND (cpf = $2 OR REPLACE(REPLACE(REPLACE(cpf, \'.\', \'\'), \'-\', \'\'), \'/\', \'\') = $2) LIMIT 1',
         ['active', sanitizedCpf]
       );
 
@@ -1579,32 +1614,36 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
           `UPDATE contributors 
            SET canonical_name = $1, 
                email = COALESCE($2, email), 
-               phone = COALESCE($3, phone), 
+               phone = COALESCE($3, phone),
+               is_global = CASE WHEN $5 = TRUE THEN TRUE ELSE is_global END,
                updated_at = NOW() 
            WHERE id = $4 
-           RETURNING id, canonical_name, cpf, email, phone, status`,
-          [sanitizedName, sanitizedEmail, sanitizedPhone, existing.id]
+           RETURNING *`,
+          [sanitizedName, sanitizedEmail, sanitizedPhone, existing.id, isGlobalValue]
         );
         return res.status(200).json(updateResult.rows[0] || existing);
       }
     }
 
-    // Insert contributor record
+    // Insert contributor record with all extended fields
     const insertResult = await pool.query(
-      'INSERT INTO contributors (church_id, canonical_name, cpf, email, phone, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, canonical_name, cpf, email, phone, status',
-      [cleanChurchId, sanitizedName, sanitizedCpf, sanitizedEmail, sanitizedPhone, sanitizedStatus]
+      `INSERT INTO contributors (
+        church_id, canonical_name, cpf, email, phone, status,
+        person_type, trade_name, rg_ie, birth_date, contact_person,
+        category, pix_key, bank_name, bank_agency, bank_account,
+        address_cep, address_street, address_number, address_city, address_state, notes, is_global, role_position
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+      RETURNING *`,
+      [
+        cleanChurchId, sanitizedName, sanitizedCpf, sanitizedEmail, sanitizedPhone, sanitizedStatus,
+        person_type || 'PF', trade_name || null, rg_ie || null, birth_date || null, contact_person || null,
+        category || null, pix_key || null, bank_name || null, bank_agency || null, bank_account || null,
+        address_cep || null, address_street || null, address_number || null, address_city || null, address_state || null, notes || null,
+        isGlobalValue, role_position || null
+      ]
     );
 
-    const newContributor = insertResult.rows[0];
-
-    return res.status(201).json({
-      id: newContributor.id,
-      canonical_name: newContributor.canonical_name,
-      cpf: newContributor.cpf,
-      email: newContributor.email,
-      phone: newContributor.phone,
-      status: newContributor.status
-    });
+    return res.status(201).json(insertResult.rows[0]);
 
   } catch (err) {
     console.error('[Contributors API] Error processing post contributors request:', err);
@@ -1620,7 +1659,13 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
 app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { church_id, canonical_name, cpf, email, phone, status } = req.body;
+    const { 
+      church_id, canonical_name, cpf, email, phone, status,
+      person_type, trade_name, rg_ie, birth_date, contact_person,
+      category, pix_key, bank_name, bank_agency, bank_account,
+      address_cep, address_street, address_number, address_city, address_state, notes,
+      is_global, role_position
+    } = req.body;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!uuidRegex.test(id)) {
@@ -1631,52 +1676,65 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     const params: any[] = [id];
     let counter = 2;
 
+    const addField = (fieldName: string, val: any) => {
+      if (val !== undefined) {
+        updates.push(`${fieldName} = $${counter}`);
+        params.push(val);
+        counter++;
+      }
+    };
+
     if (church_id !== undefined) {
       if (!uuidRegex.test(church_id)) {
         return res.status(400).json({ error: 'VALIDATION_ERROR' });
       }
-      updates.push(`church_id = $${counter}`);
-      params.push(church_id);
-      counter++;
+      addField('church_id', church_id);
     }
 
     if (canonical_name !== undefined) {
       if (typeof canonical_name !== 'string' || !canonical_name.trim()) {
         return res.status(400).json({ error: 'VALIDATION_ERROR' });
       }
-      const sanitizedName = canonical_name.trim().replace(/\s+/g, ' ').toUpperCase();
-      updates.push(`canonical_name = $${counter}`);
-      params.push(sanitizedName);
-      counter++;
+      addField('canonical_name', canonical_name.trim().replace(/\s+/g, ' ').toUpperCase());
     }
 
     if (cpf !== undefined) {
-      const sanitizedCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
-      updates.push(`cpf = $${counter}`);
-      params.push(sanitizedCpf);
-      counter++;
+      addField('cpf', cpf ? String(cpf).replace(/\D/g, '') : null);
     }
 
     if (email !== undefined) {
-      const sanitizedEmail = email && typeof email === 'string' ? email.trim() : null;
-      updates.push(`email = $${counter}`);
-      params.push(sanitizedEmail);
-      counter++;
+      addField('email', email && typeof email === 'string' ? email.trim() : null);
     }
 
     if (phone !== undefined) {
-      const sanitizedPhone = phone && typeof phone === 'string' ? phone.trim() : null;
-      updates.push(`phone = $${counter}`);
-      params.push(sanitizedPhone);
-      counter++;
+      addField('phone', phone && typeof phone === 'string' ? phone.trim() : null);
     }
 
     if (status !== undefined) {
-      const sanitizedStatus = status === 'inactive' ? 'inactive' : 'active';
-      updates.push(`status = $${counter}`);
-      params.push(sanitizedStatus);
-      counter++;
+      addField('status', status === 'inactive' ? 'inactive' : 'active');
     }
+
+    if (is_global !== undefined) {
+      addField('is_global', Boolean(is_global));
+    }
+
+    addField('person_type', person_type);
+    addField('trade_name', trade_name);
+    addField('rg_ie', rg_ie);
+    addField('birth_date', birth_date);
+    addField('contact_person', contact_person);
+    addField('category', category);
+    addField('role_position', role_position);
+    addField('pix_key', pix_key);
+    addField('bank_name', bank_name);
+    addField('bank_agency', bank_agency);
+    addField('bank_account', bank_account);
+    addField('address_cep', address_cep);
+    addField('address_street', address_street);
+    addField('address_number', address_number);
+    addField('address_city', address_city);
+    addField('address_state', address_state);
+    addField('notes', notes);
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'NO_UPDATES_PROVIDED' });
@@ -1684,7 +1742,7 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 
     updates.push(`updated_at = NOW()`);
 
-    const query = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING id, church_id, canonical_name, cpf, email, phone, status`;
+    const query = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
     const result = await pool.query(query, params);
 
     if (result.rows.length === 0) {
@@ -1829,7 +1887,7 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
 app.get('/api/v1/churches', async (req: Request, res: Response) => {
   try {
     const { user_id } = req.query;
-    let query = 'SELECT id, name, address, "logoUrl", pastor, user_id, created_at FROM churches WHERE 1=1';
+    let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
     if (user_id) {
       query += ' AND user_id = $1';
@@ -1847,13 +1905,33 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
 // POST /api/v1/churches
 app.post('/api/v1/churches', async (req: Request, res: Response) => {
   try {
-    const { name, address, logoUrl, pastor, user_id } = req.body;
+    const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, user_id } = req.body;
     if (!name || !user_id) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
+    const pastorsVal = pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null;
+    const treasurersVal = treasurers ? (typeof treasurers === 'string' ? treasurers : JSON.stringify(treasurers)) : null;
+
     const result = await pool.query(
-      'INSERT INTO churches (name, address, "logoUrl", pastor, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, address || '', logoUrl || '', pastor || '', user_id]
+      `INSERT INTO churches (name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey", cep, city, state, treasurer, pastors, treasurers, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      [
+        name,
+        address || '',
+        logoUrl || '',
+        pastor || '',
+        cnpj || '',
+        phone || '',
+        email || '',
+        pixKey || '',
+        cep || '',
+        city || '',
+        state || '',
+        treasurer || '',
+        pastorsVal,
+        treasurersVal,
+        user_id
+      ]
     );
     return res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -1866,10 +1944,44 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
 app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, address, logoUrl, pastor } = req.body;
+    const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers } = req.body;
+    const pastorsVal = pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null;
+    const treasurersVal = treasurers ? (typeof treasurers === 'string' ? treasurers : JSON.stringify(treasurers)) : null;
+
     const result = await pool.query(
-      'UPDATE churches SET name = COALESCE($1, name), address = COALESCE($2, address), "logoUrl" = COALESCE($3, "logoUrl"), pastor = COALESCE($4, pastor) WHERE id = $5 RETURNING *',
-      [name, address, logoUrl, pastor, id]
+      `UPDATE churches SET 
+        name = COALESCE($1, name), 
+        address = COALESCE($2, address), 
+        "logoUrl" = COALESCE($3, "logoUrl"), 
+        pastor = COALESCE($4, pastor),
+        cnpj = COALESCE($5, cnpj),
+        phone = COALESCE($6, phone),
+        email = COALESCE($7, email),
+        "pixKey" = COALESCE($8, "pixKey"),
+        cep = COALESCE($9, cep),
+        city = COALESCE($10, city),
+        state = COALESCE($11, state),
+        treasurer = COALESCE($12, treasurer),
+        pastors = COALESCE($13, pastors),
+        treasurers = COALESCE($14, treasurers)
+       WHERE id = $15 RETURNING *`,
+      [
+        name,
+        address,
+        logoUrl,
+        pastor,
+        cnpj,
+        phone,
+        email,
+        pixKey,
+        cep,
+        city,
+        state,
+        treasurer,
+        pastorsVal,
+        treasurersVal,
+        id
+      ]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json(result.rows[0]);

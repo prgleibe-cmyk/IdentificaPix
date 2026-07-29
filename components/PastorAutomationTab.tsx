@@ -21,6 +21,7 @@ import {
 import { PastorAutomation } from '../types/domain';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { Language } from '../types/ui';
+import { WhatsAppTemplateConfig } from './WhatsAppTemplateConfig';
 
 interface PastorAutomationTabProps {
     user: any;
@@ -605,6 +606,9 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Section: Configuração de Mensagens de Agradecimento e Bênção Pastoral via WhatsApp */}
+            <WhatsAppTemplateConfig showToast={showToast as any} />
 
             {/* MODAL 1: Create or Edit Rule - Standardized Full-Page Takeover */}
             {isRuleModalOpen && (

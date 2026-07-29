@@ -9,6 +9,7 @@ import { DashboardView } from './DashboardView';
 import { UploadView } from './UploadView';
 import { RegisterView } from './RegisterView';
 import { ReportsView } from './ReportsView';
+import { RelatoriosView } from './RelatoriosView';
 import { SettingsView } from './SettingsView';
 import { SearchView } from './SearchView';
 import { SavedReportsView } from './SavedReportsView';
@@ -31,6 +32,7 @@ import { SaveReportModal } from '../components/modals/SaveReportModal';
 import { SearchFiltersModal } from '../components/modals/SearchFiltersModal';
 import { DivergenceConfirmationModal } from '../components/modals/DivergenceConfirmationModal';
 import { PaymentModal } from '../components/modals/PaymentModal';
+import { WhatsAppReceiptModal } from '../components/modals/WhatsAppReceiptModal';
 
 export const AppRouter: React.FC = () => {
     const { activeView } = useUI();
@@ -53,6 +55,7 @@ export const AppRouter: React.FC = () => {
         case 'upload': return <UploadView />;
         case 'cadastro': return isOwner ? <RegisterView /> : <DashboardView />;
         case 'reports': return <ReportsView />;
+        case 'relatorios': return <RelatoriosView />;
         case 'search': return <SearchView />;
         case 'savedReports': return <SavedReportsView />;
         case 'settings': return <SettingsView />;
@@ -82,7 +85,10 @@ export const ModalsRenderer: React.FC = () => {
         savingReportState, 
         isSearchFiltersOpen, 
         divergenceConfirmation,
-        isPaymentModalOpen
+        isPaymentModalOpen,
+        isWhatsAppReceiptModalOpen,
+        whatsAppReceiptData,
+        closeWhatsAppReceiptModal
     } = context;
 
     return (
@@ -96,6 +102,13 @@ export const ModalsRenderer: React.FC = () => {
             {isSearchFiltersOpen && <SearchFiltersModal />}
             {divergenceConfirmation && <DivergenceConfirmationModal />}
             {isPaymentModalOpen && <PaymentModal />}
+            {isWhatsAppReceiptModalOpen && whatsAppReceiptData && (
+                <WhatsAppReceiptModal
+                    isOpen={isWhatsAppReceiptModalOpen}
+                    onClose={closeWhatsAppReceiptModal}
+                    data={whatsAppReceiptData}
+                />
+            )}
         </>
     );
 };

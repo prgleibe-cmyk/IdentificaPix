@@ -17,6 +17,7 @@ import { ReportToolbar } from '../components/reports/ReportToolbar';
 import { ChurchChipsList } from '../components/reports/ChurchChipsList';
 import { BankChipsList } from '../components/reports/BankChipsList';
 import { StatsStrip } from '../components/reports/StatsStrip';
+import { ContributorsReportSection } from '../components/reports/ContributorsReportSection';
 
 const formatDateBRL = (dateStr: string) => {
     if (!dateStr) return '';
@@ -64,6 +65,7 @@ export const ReportsView: React.FC = () => {
     // Se o período não estiver selecionado e não estamos visualizando um relatório salvo/snapshot carregado
     if ((!startSelected || !endSelected) && !hasActiveReport && !hasPreviewData) {
         const handleConfirmPeriod = () => {
+            if (ctrl.setIsLoading) ctrl.setIsLoading(true);
             if (selectionMode === 'month') {
                 const { start, end } = getDatesFromMonthYear(selectedMonth, selectedYear);
                 ctrl.setSearchFilters((prev: any) => ({
@@ -73,6 +75,7 @@ export const ReportsView: React.FC = () => {
             } else {
                 if (!customStart || !customEnd) {
                     alert('Por favor, selecione ambas as datas de início e fim.');
+                    if (ctrl.setIsLoading) ctrl.setIsLoading(false);
                     return;
                 }
                 ctrl.setSearchFilters((prev: any) => ({
@@ -106,10 +109,10 @@ export const ReportsView: React.FC = () => {
                     <div>
                         <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                             <Calendar className="w-5 h-5 text-orange-500" />
-                            Relatórios & Conciliação
+                            Conciliação & Destinação
                         </h1>
                         <p className="text-xs text-slate-400">
-                            Selecione o período desejado para carregar e gerenciar os relatórios e conciliações financeiras.
+                            Selecione o período desejado para realizar identificação, rastreamento e destinação dos lançamentos por igreja.
                         </p>
                     </div>
                 </div>
@@ -226,22 +229,39 @@ export const ReportsView: React.FC = () => {
         );
     }
 
-    if (!ctrl.reportPreviewData) {
+    if (ctrl.isHydrating || ctrl.isLoading || ctrl.isSyncing || !ctrl.reportPreviewData) {
         return (
-            <div className="flex-1 flex items-center justify-center">
-                <EmptyState
-                    icon={<ChartBarIcon className="w-12 h-12 text-brand-blue dark:text-orange-400" />}
-                    title={t('empty.reports.title')}
-                    message={t('empty.reports.message')}
-                    action={{ text: t('empty.dashboard.saved.action'), onClick: () => ctrl.setActiveView('upload') }}
-                />
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in">
+                <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
+                    <div>
+                        <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
+                            <Calendar className="w-5 h-5 text-orange-500" />
+                            Conciliação & Destinação
+                        </h1>
+                        <p className="text-xs text-slate-400">
+                            Sincronizando e carregando lançamentos do período selecionado...
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-8 rounded-2xl shadow-sm min-h-[400px] gap-4">
+                    <div className="relative flex items-center justify-center">
+                        <div className="w-16 h-16 border-4 border-orange-200 dark:border-orange-950/40 border-t-orange-500 rounded-full animate-spin" />
+                        <Calendar className="w-6 h-6 text-orange-500 absolute" />
+                    </div>
+                    <div className="text-center space-y-1">
+                        <h3 className="text-base font-black text-slate-800 dark:text-white">Carregando dados do relatório...</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Aguarde enquanto os lançamentos do período selecionado são processados.</p>
+                    </div>
+                </div>
             </div>
         );
     }
 
     const reportDisplayName = ctrl.activeCategory === 'general' ? 'Todas as Entradas (Completo)' : 
         ctrl.activeCategory === 'churches' ? ctrl.churchList.find(c => c.id === ctrl.selectedReportId)?.name || 'Selecione uma Igreja' :
-        ctrl.activeCategory === 'unidentified' ? 'Transações Pendentes' : 'Saídas e Despesas';
+        ctrl.activeCategory === 'unidentified' ? 'Transações Pendentes' :
+        ctrl.activeCategory === 'contributors' ? 'Relatório de Cadastros / Contribuintes' : 'Saídas e Despesas';
 
     return (
         <div className="flex flex-col h-full animate-fade-in gap-2 pb-2 px-1">
@@ -252,94 +272,104 @@ export const ReportsView: React.FC = () => {
                         <CategoryPills activeCategory={ctrl.activeCategory} onCategoryChange={ctrl.setActiveCategory} counts={ctrl.counts} role={subscription.role} />
                     </div>
                 </div>
-                {/* Fix: Removed invalid onSaveChanges prop as it is not defined in ReportToolbarProps and not used in the component */}
-                <ReportToolbar 
-                    onAiClick={ctrl.runAiAutoIdentification} 
-                    onUpdateSource={() => ctrl.setActiveView('upload')}
-                    onDownload={ctrl.handleDownload} 
-                    onDownloadExcel={ctrl.handleDownloadExcel}
-                    onDownloadPdf={ctrl.handleDownloadPdf}
-                    onPrint={ctrl.handlePrint}
-                    onSaveReport={ctrl.handleSaveReport}
-                    hasActiveReport={!!ctrl.activeReportId}
-                    role={subscription.role}
-                />
-            </div>
-
-            {/* Barra de Período Selecionado com opção de alteração e botão de fechamento */}
-            <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
-                {startSelected && endSelected && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/80 rounded-xl text-xs text-slate-600 dark:text-slate-300 w-fit">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        <span>
-                            Período: <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(startSelected)}</strong> até <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(endSelected)}</strong>
-                        </span>
-                        <button 
-                            onClick={() => {
-                                ctrl.setSearchFilters((prev: any) => ({
-                                    ...prev,
-                                    dateRange: { start: '', end: '' }
-                                }));
-                            }}
-                            className="ml-2 text-[10px] font-black uppercase text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
-                        >
-                            Alterar
-                        </button>
-                    </div>
-                )}
-
-                {ctrl.activeCategory === 'churches' && !isSecondaryUser && (
-                    <button
-                        onClick={() => setIsClosingModalOpen(true)}
-                        className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
-                    >
-                        <Building2 className="w-3.5 h-3.5" />
-                        <span>Realizar Fechamento & Transferir Saldo</span>
-                    </button>
+                {ctrl.activeCategory !== 'contributors' && (
+                    <ReportToolbar 
+                        onAiClick={ctrl.runAiAutoIdentification} 
+                        onUpdateSource={() => ctrl.setActiveView('upload')}
+                        onDownload={ctrl.handleDownload} 
+                        onDownloadExcel={ctrl.handleDownloadExcel}
+                        onDownloadPdf={ctrl.handleDownloadPdf}
+                        onDownloadOfx={ctrl.handleDownloadOfx}
+                        onPrint={ctrl.handlePrint}
+                        onSaveReport={ctrl.handleSaveReport}
+                        hasActiveReport={!!ctrl.activeReportId}
+                        role={subscription.role}
+                    />
                 )}
             </div>
 
-            {ctrl.activeCategory === 'churches' && (
-                <ChurchChipsList list={ctrl.churchList} selectedId={ctrl.selectedReportId} onSelect={setSelectedIdSafe(ctrl)} />
-            )}
-
-            {ctrl.bankList.length > 0 && (
-                <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Filtrar por Banco</label>
-                    <BankChipsList list={ctrl.bankList} selectedId={ctrl.selectedBankId} onSelect={ctrl.setSelectedBankId} />
+            {ctrl.activeCategory === 'contributors' ? (
+                <div className="flex-1 min-h-0">
+                    <ContributorsReportSection />
                 </div>
-            )}
+            ) : (
+                <>
+                    {/* Barra de Período Selecionado com opção de alteração e botão de fechamento */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
+                        {startSelected && endSelected && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/80 rounded-xl text-xs text-slate-600 dark:text-slate-300 w-fit">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                <span>
+                                    Período: <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(startSelected)}</strong> até <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(endSelected)}</strong>
+                                </span>
+                                <button 
+                                    onClick={() => {
+                                        ctrl.setSearchFilters((prev: any) => ({
+                                            ...prev,
+                                            dateRange: { start: '', end: '' }
+                                        }));
+                                    }}
+                                    className="ml-2 text-[10px] font-black uppercase text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+                                >
+                                    Alterar
+                                </button>
+                            </div>
+                        )}
 
-            <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative">
-                <StatsStrip 
-                    category={ctrl.activeCategory} 
-                    reportName={reportDisplayName} 
-                    summary={ctrl.activeSummary} 
-                    searchTerm={ctrl.searchTerm} 
-                    onSearchChange={ctrl.setSearchTerm} 
-                    language={language}
-                />
-                
-                <div className="flex-1 min-h-0 relative">
-                    {ctrl.sortedData.length > 0 ? (
-                        <div className="absolute inset-0">
-                            <EditableReportTable 
-                                data={ctrl.sortedData}
-                                onRowChange={(row) => ctrl.updateReportData(row)}
-                                reportType={ctrl.activeCategory === 'expenses' ? 'expenses' : 'income'}
-                                sortConfig={ctrl.sortConfig}
-                                onSort={ctrl.handleSort}
-                                onSplit={setSplitRow}
-                                loadingAiId={loadingAiId}
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <p className="text-xs italic">Nenhum dado encontrado para esta seleção.</p>
+                        {ctrl.activeCategory === 'churches' && !isSecondaryUser && (
+                            <button
+                                onClick={() => setIsClosingModalOpen(true)}
+                                className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                            >
+                                <Building2 className="w-3.5 h-3.5" />
+                                <span>Realizar Fechamento & Transferir Saldo</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {ctrl.activeCategory === 'churches' && (
+                        <ChurchChipsList list={ctrl.churchList} selectedId={ctrl.selectedReportId} onSelect={setSelectedIdSafe(ctrl)} />
+                    )}
+
+                    {ctrl.bankList.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Filtrar por Banco</label>
+                            <BankChipsList list={ctrl.bankList} selectedId={ctrl.selectedBankId} onSelect={ctrl.setSelectedBankId} />
                         </div>
                     )}
-                </div>
-            </div>
+
+                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative">
+                        <StatsStrip 
+                            category={ctrl.activeCategory} 
+                            reportName={reportDisplayName} 
+                            summary={ctrl.activeSummary} 
+                            searchTerm={ctrl.searchTerm} 
+                            onSearchChange={ctrl.setSearchTerm} 
+                            language={language}
+                        />
+                        
+                        <div className="flex-1 min-h-0 relative">
+                            {ctrl.sortedData.length > 0 ? (
+                                <div className="absolute inset-0">
+                                    <EditableReportTable 
+                                        data={ctrl.sortedData}
+                                        onRowChange={(row) => ctrl.updateReportData(row)}
+                                        reportType={ctrl.activeCategory === 'expenses' ? 'expenses' : 'income'}
+                                        sortConfig={ctrl.sortConfig}
+                                        onSort={ctrl.handleSort}
+                                        onSplit={setSplitRow}
+                                        loadingAiId={loadingAiId}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <p className="text-xs italic">Nenhum dado encontrado para esta seleção.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
 
             {splitRow && (
                 <SplitTransactionModal 

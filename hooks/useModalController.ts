@@ -8,6 +8,8 @@ export const useModalController = () => {
     const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null);
     const [isSearchFiltersOpen, setIsSearchFiltersOpen] = useState(false);
     const [modelRequiredData, setModelRequiredData] = useState<any | null>(null);
+    const [isWhatsAppReceiptModalOpen, setIsWhatsAppReceiptModalOpen] = useState(false);
+    const [whatsAppReceiptData, setWhatsAppReceiptData] = useState<any | null>(null);
 
     const openPaymentModal = useCallback(() => setIsPaymentModalOpen(true), []);
     const closePaymentModal = useCallback(() => setIsPaymentModalOpen(false), []);
@@ -24,6 +26,15 @@ export const useModalController = () => {
     const openModelRequired = useCallback((data: any) => setModelRequiredData(data), []);
     const closeModelRequired = useCallback(() => setModelRequiredData(null), []);
 
+    const openWhatsAppReceiptModal = useCallback((data: any) => {
+        setWhatsAppReceiptData(data);
+        setIsWhatsAppReceiptModalOpen(true);
+    }, []);
+    const closeWhatsAppReceiptModal = useCallback(() => {
+        setIsWhatsAppReceiptModalOpen(false);
+        setWhatsAppReceiptData(null);
+    }, []);
+
     return {
         isPaymentModalOpen,
         openPaymentModal,
@@ -39,6 +50,10 @@ export const useModalController = () => {
         closeSearchFilters,
         modelRequiredData,
         openModelRequired,
-        closeModelRequired
+        closeModelRequired,
+        isWhatsAppReceiptModalOpen,
+        whatsAppReceiptData,
+        openWhatsAppReceiptModal,
+        closeWhatsAppReceiptModal
     };
 };

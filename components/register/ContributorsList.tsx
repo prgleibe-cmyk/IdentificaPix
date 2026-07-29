@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
-import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles } from 'lucide-react';
+import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import * as XLSX from 'xlsx';
 
@@ -19,6 +20,10 @@ const formatCpfCnpj = (value: string) => {
 export const ContributorsList: React.FC = () => {
     const { showToast } = useUI();
     const { churches } = useContext(AppContext);
+    const { subscription, user } = useAuth();
+    
+    // Principal User check: owner, admin, principal or ownerId matching user.id
+    const isPrincipalUser = !subscription?.role || subscription?.role === 'owner' || subscription?.role === 'admin' || subscription?.role === 'principal' || subscription?.ownerId === user?.id;
     
     const [search, setSearch] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,12 +31,64 @@ export const ContributorsList: React.FC = () => {
     const [isLoadingContributors, setIsLoadingContributors] = useState<boolean>(true);
     const [editingContributor, setEditingContributor] = useState<any | null>(null);
     
-    // Form States
+    // Form States (Pessoa Física & Empresa / Fornecedor)
+    const [personType, setPersonType] = useState<'PF' | 'PJ'>('PF');
     const [fullName, setFullName] = useState('');
+    const [tradeName, setTradeName] = useState('');
     const [selectedChurchId, setSelectedChurchId] = useState('church-1');
+    const [isGlobal, setIsGlobal] = useState<boolean>(false);
     const [cpf, setCpf] = useState('');
+    const [rgIe, setRgIe] = useState('');
+    const [birthDate, setBirthDate] = useState('');
+    const [contactPerson, setContactPerson] = useState('');
+    const [category, setCategory] = useState('');
+    
+    // Vínculo / Cargo States
+    const DEFAULT_ROLES_LIST = [
+        'Membro',
+        'Visitante',
+        'Pastor / Pastora',
+        'Diácono / Diaconisa',
+        'Presbítero / Evangelista',
+        'Obreiro / Obreira',
+        'Líder de Ministério / Célula',
+        'Voluntário',
+        'Dizimista',
+        'Músico / Louvor',
+        'Prestador de Serviços',
+        'Fornecedor / Empresa',
+        'Concessionária / Utilidades',
+        'Outro'
+    ];
+    const [rolePosition, setRolePosition] = useState<string>('Membro');
+    const [customRoles, setCustomRoles] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('iggestor_custom_roles_v1');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {
+            console.error('Error loading custom roles', e);
+        }
+        return DEFAULT_ROLES_LIST;
+    });
+    const [isCreatingRole, setIsCreatingRole] = useState(false);
+    const [newRoleInput, setNewRoleInput] = useState('');
+    const [roleFilter, setRoleFilter] = useState('ALL');
+
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
+    const [pixKey, setPixKey] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [bankAgency, setBankAgency] = useState('');
+    const [bankAccount, setBankAccount] = useState('');
+    const [addressCep, setAddressCep] = useState('');
+    const [addressStreet, setAddressStreet] = useState('');
+    const [addressNumber, setAddressNumber] = useState('');
+    const [addressCity, setAddressCity] = useState('');
+    const [addressState, setAddressState] = useState('');
+    const [notes, setNotes] = useState('');
     const [status, setStatus] = useState<'Ativo' | 'Inativo'>('Ativo');
     const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
@@ -347,13 +404,60 @@ export const ContributorsList: React.FC = () => {
         setIsModalOpen(true);
     };
 
+    const handleAddCustomRole = () => {
+        const trimmed = newRoleInput.trim();
+        if (!trimmed) return;
+        
+        if (!customRoles.includes(trimmed)) {
+            const updated = [...customRoles, trimmed];
+            setCustomRoles(updated);
+            try {
+                localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(updated));
+            } catch (e) {
+                console.error('Error saving custom roles', e);
+            }
+        }
+        setRolePosition(trimmed);
+        setNewRoleInput('');
+        setIsCreatingRole(false);
+        showToast(`Vínculo/Cargo "${trimmed}" adicionado e selecionado!`, "success");
+    };
+
     const handleEditClick = (contributor: any) => {
         setEditingContributor(contributor);
-        setFullName(contributor.canonical_name);
-        setSelectedChurchId(contributor.church_id);
+        setPersonType(contributor.person_type === 'PJ' || (contributor.cpf && contributor.cpf.replace(/\D/g, '').length === 14) ? 'PJ' : 'PF');
+        setFullName(contributor.canonical_name || '');
+        setTradeName(contributor.trade_name || '');
+        setSelectedChurchId(contributor.church_id || 'church-1');
+        setIsGlobal(Boolean(contributor.is_global));
         setCpf(contributor.cpf || '');
-        setEmail(contributor.email || '');
+        setRgIe(contributor.rg_ie || '');
+        setBirthDate(contributor.birth_date || '');
+        setContactPerson(contributor.contact_person || '');
+        setCategory(contributor.category || '');
+
+        const savedRole = contributor.role_position || contributor.category || 'Membro';
+        setRolePosition(savedRole);
+        if (savedRole && !customRoles.includes(savedRole)) {
+            const nextRoles = [...customRoles, savedRole];
+            setCustomRoles(nextRoles);
+            try {
+                localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(nextRoles));
+            } catch(e) {}
+        }
+
         setPhone(contributor.phone || '');
+        setEmail(contributor.email || '');
+        setPixKey(contributor.pix_key || '');
+        setBankName(contributor.bank_name || '');
+        setBankAgency(contributor.bank_agency || '');
+        setBankAccount(contributor.bank_account || '');
+        setAddressCep(contributor.address_cep || '');
+        setAddressStreet(contributor.address_street || '');
+        setAddressNumber(contributor.address_number || '');
+        setAddressCity(contributor.address_city || '');
+        setAddressState(contributor.address_state || '');
+        setNotes(contributor.notes || '');
         setStatus(contributor.status === 'inactive' ? 'Inativo' : 'Ativo');
         setIsModalOpen(true);
     };
@@ -424,11 +528,31 @@ export const ContributorsList: React.FC = () => {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingContributor(null);
+        setPersonType('PF');
         setFullName('');
+        setTradeName('');
         setSelectedChurchId('church-1');
+        setIsGlobal(false);
         setCpf('');
+        setRgIe('');
+        setBirthDate('');
+        setContactPerson('');
+        setCategory('');
+        setRolePosition('Membro');
+        setIsCreatingRole(false);
+        setNewRoleInput('');
         setPhone('');
         setEmail('');
+        setPixKey('');
+        setBankName('');
+        setBankAgency('');
+        setBankAccount('');
+        setAddressCep('');
+        setAddressStreet('');
+        setAddressNumber('');
+        setAddressCity('');
+        setAddressState('');
+        setNotes('');
         setStatus('Ativo');
         setAttemptedSubmit(false);
 
@@ -472,11 +596,29 @@ export const ContributorsList: React.FC = () => {
 
             const payload = {
                 church_id: selectedChurchId,
+                is_global: isGlobal,
                 canonical_name,
+                role_position: rolePosition || category || 'Membro',
                 cpf: sanitizedCpf,
                 email: sanitizedEmail,
                 phone: sanitizedPhone,
-                status: sanitizedStatus
+                status: sanitizedStatus,
+                person_type: personType,
+                trade_name: tradeName.trim() || null,
+                rg_ie: rgIe.trim() || null,
+                birth_date: birthDate || null,
+                contact_person: contactPerson.trim() || null,
+                category: category || rolePosition || null,
+                pix_key: pixKey.trim() || null,
+                bank_name: bankName.trim() || null,
+                bank_agency: bankAgency.trim() || null,
+                bank_account: bankAccount.trim() || null,
+                address_cep: addressCep.trim() || null,
+                address_street: addressStreet.trim() || null,
+                address_number: addressNumber.trim() || null,
+                address_city: addressCity.trim() || null,
+                address_state: addressState.trim() || null,
+                notes: notes.trim() || null
             };
 
             let response;
@@ -521,12 +663,20 @@ export const ContributorsList: React.FC = () => {
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
 
     const filteredContributors = contributors.filter(c => {
+        const roleVal = c.role_position || c.category;
+        const roleMatch = roleFilter === 'ALL' || roleVal === roleFilter;
+        if (!roleMatch) return false;
+
         const query = search.toLowerCase().trim();
         if (!query) return true;
+
         const nameMatch = c.canonical_name?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(query.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
         const cleanQueryCpf = query.replace(/\D/g, '');
         const cpfMatch = cleanQueryCpf ? c.cpf?.replace(/\D/g, '').includes(cleanQueryCpf) : false;
-        return nameMatch || cpfMatch;
+        const roleQueryMatch = roleVal?.toLowerCase().includes(query);
+        const tradeMatch = c.trade_name?.toLowerCase().includes(query);
+        const contactMatch = c.contact_person?.toLowerCase().includes(query);
+        return nameMatch || cpfMatch || roleQueryMatch || tradeMatch || contactMatch;
     });
 
     return (
@@ -568,17 +718,34 @@ export const ContributorsList: React.FC = () => {
                 </div>
             </div>
 
-            {/* Visual Search input below the header */}
-            <div className="relative mb-6 flex-shrink-0">
-                <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
-                <input 
-                    type="text" 
-                    placeholder="Buscar por nome, razão social, CPF ou CNPJ..." 
-                    value={search} 
-                    onChange={e => setSearch(e.target.value)} 
-                    className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
-                    id="contributors-search"
-                />
+            {/* Visual Search input & Role Filter below the header */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 flex-shrink-0">
+                <div className="relative flex-1">
+                    <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                    <input 
+                        type="text" 
+                        placeholder="Buscar por nome, razão social, vínculo/cargo, CPF ou CNPJ..." 
+                        value={search} 
+                        onChange={e => setSearch(e.target.value)} 
+                        className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
+                        id="contributors-search"
+                    />
+                </div>
+
+                <div className="flex-shrink-0 flex items-center gap-2">
+                    <Tag className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+                    <select 
+                        value={roleFilter} 
+                        onChange={e => setRoleFilter(e.target.value)}
+                        className="p-2.5 rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 text-xs font-bold outline-none cursor-pointer hover:border-amber-400 transition-all"
+                        id="contributors-role-filter"
+                    >
+                        <option value="ALL">Todos os Vínculos / Cargos</option>
+                        {customRoles.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             {/* Content list or empty states */}
@@ -626,38 +793,71 @@ export const ContributorsList: React.FC = () => {
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30 font-sans">
                             {filteredContributors.map((c) => {
                                 const church = churches.find((ch: any) => ch.id === c.church_id);
+                                const isPJ = c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14);
                                 return (
                                     <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors animate-fade-in">
                                         <td className="px-4 py-3.5 whitespace-nowrap">
                                             <div className="flex items-center space-x-3">
-                                                <div className="w-8 h-8 rounded-full bg-brand-blue/5 dark:bg-slate-800/80 flex items-center justify-center font-black text-brand-blue text-[10px] uppercase shrink-0 select-none">
-                                                    {c.canonical_name?.substring(0, 2)}
+                                                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs uppercase shrink-0 select-none shadow-sm ${
+                                                    isPJ 
+                                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40' 
+                                                        : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40'
+                                                }`}>
+                                                    {isPJ ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
                                                 </div>
-                                                <div className="truncate max-w-[185px]">
+                                                <div className="truncate max-w-[220px]">
+                                                    <div className="flex items-center space-x-1.5 mb-0.5">
+                                                        <span className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${
+                                                            isPJ ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+                                                        }`}>
+                                                            {isPJ ? 'PJ / EMPRESA' : 'PF'}
+                                                        </span>
+                                                        {c.category && (
+                                                            <span className="inline-block px-1.5 py-0.2 rounded text-[8px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 truncate max-w-[100px]">
+                                                                {c.category}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <h5 className="text-xs font-extrabold text-slate-800 dark:text-white uppercase tracking-tight truncate">
                                                         {c.canonical_name}
                                                     </h5>
-                                                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase block mt-0.5">
-                                                        ID: {c.id?.substring(0, 8)}...
-                                                    </span>
+                                                    {c.trade_name && (
+                                                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block truncate">
+                                                            Fantasia: {c.trade_name}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
                                         
                                         <td className="px-4 py-3.5 whitespace-nowrap">
-                                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                                {church ? church.name : 'Igreja não identificada'}
-                                            </span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                                    {church ? church.name : 'Igreja não identificada'}
+                                                </span>
+                                                {c.is_global && (
+                                                    <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                        <Globe className="w-3 h-3" />
+                                                        Todas as Igrejas (Global)
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
 
                                         <td className="px-4 py-3.5">
-                                            <div className="space-y-0.5 max-w-[200px] truncate">
+                                            <div className="space-y-0.5 max-w-[220px] truncate">
                                                 {c.cpf && (
-                                                    <div className="text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400 flex items-center">
+                                                    <div className="text-[10px] font-mono font-medium text-slate-600 dark:text-slate-300 flex items-center">
                                                         <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">
                                                             {c.cpf.replace(/\D/g, '').length === 14 ? 'CNPJ:' : 'CPF:'}
                                                         </span>
                                                         {formatCpfCnpj(c.cpf)}
+                                                    </div>
+                                                )}
+                                                {c.contact_person && (
+                                                    <div className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex items-center truncate">
+                                                        <span className="text-[9px] font-black text-slate-400 mr-1 uppercase">CONTATO:</span>
+                                                        <span className="truncate">{c.contact_person}</span>
                                                     </div>
                                                 )}
                                                 {c.phone && (
@@ -672,7 +872,7 @@ export const ContributorsList: React.FC = () => {
                                                         <span className="truncate">{c.email}</span>
                                                     </div>
                                                 )}
-                                                {!c.cpf && !c.phone && !c.email && (
+                                                {!c.cpf && !c.phone && !c.email && !c.contact_person && (
                                                     <span className="text-[10px] italic text-slate-400">-</span>
                                                 )}
                                             </div>
@@ -780,12 +980,42 @@ export const ContributorsList: React.FC = () => {
 
                         {/* Modal Body with inputs */}
                         <div className="p-8 flex-1 overflow-y-auto w-full">
-                            <div className="space-y-6 w-full">
+                            <div className="space-y-6 w-full max-w-5xl mx-auto">
                                 
-                                {/* FOTO DO CONTRIBUINTE (Visual only) */}
+                                {/* TOGGLE PF / PJ */}
+                                <div className="flex items-center justify-center p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl max-w-lg mx-auto mb-4 shadow-inner" id="toggle-person-type">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPersonType('PF')}
+                                        className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            personType === 'PF'
+                                                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-md scale-[1.01]'
+                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                        id="btn-type-pf"
+                                    >
+                                        <User className="w-4 h-4" />
+                                        <span>Pessoa Física (PF)</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPersonType('PJ')}
+                                        className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            personType === 'PJ'
+                                                ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-md scale-[1.01]'
+                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                        id="btn-type-pj"
+                                    >
+                                        <Building2 className="w-4 h-4" />
+                                        <span>Empresa / Fornecedor (PJ)</span>
+                                    </button>
+                                </div>
+
+                                {/* FOTO / LOGO DO CONTRIBUINTE */}
                                 <div className="flex flex-col items-center justify-center pb-5 border-b border-slate-100 dark:border-slate-800/80" id="photo-section">
                                     <span className="block text-xs font-bold uppercase text-slate-400 dark:text-slate-500 mb-3 tracking-wide" id="lbl-photo-section">
-                                        Logo / Foto (Empresa ou Pessoa)
+                                        {personType === 'PF' ? 'Foto da Pessoa' : 'Logo / Marca da Empresa'}
                                     </span>
                                     
                                     <div className="relative group mb-3 shadow-md rounded-full" id="photo-avatar-wrapper">
@@ -793,13 +1023,15 @@ export const ContributorsList: React.FC = () => {
                                             {photoPreview ? (
                                                 <img 
                                                     src={photoPreview} 
-                                                    alt="Preview do contribuinte" 
+                                                    alt="Preview do cadastrado" 
                                                     className="w-full h-full object-cover"
                                                     id="photo-avatar-preview"
                                                     referrerPolicy="no-referrer"
                                                 />
+                                            ) : personType === 'PF' ? (
+                                                <User className="w-10 h-10 text-slate-300 dark:text-slate-600" />
                                             ) : (
-                                                <UsersIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 animate-pulse" />
+                                                <Building2 className="w-10 h-10 text-amber-400 dark:text-amber-600" />
                                             )}
                                         </div>
                                     </div>
@@ -820,7 +1052,7 @@ export const ContributorsList: React.FC = () => {
                                             id="btn-select-photo"
                                         >
                                             <Camera className="w-3.5 h-3.5" />
-                                            <span>Selecionar Foto</span>
+                                            <span>{personType === 'PF' ? 'Selecionar Foto' : 'Selecionar Logo'}</span>
                                         </button>
                                         
                                         {photoPreview && (
@@ -831,127 +1063,517 @@ export const ContributorsList: React.FC = () => {
                                                 id="btn-remove-photo"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
-                                                <span>Remover Foto</span>
+                                                <span>Remover</span>
                                             </button>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Nome Completo */}
-                                    <div className="space-y-3">
-                                        <label htmlFor="contributor-fullname" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-fullname">
-                                            Nome / Razão Social <span className="text-rose-500">*</span>
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-fullname" 
-                                            value={fullName} 
-                                            onChange={(e) => setFullName(e.target.value)} 
-                                            placeholder="Digite o nome completo (Pessoa) ou Razão Social (Empresa)"
-                                            className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all font-bold ${
-                                                isNameInvalid 
-                                                    ? 'border-2 border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10' 
-                                                    : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10'
-                                            }`}
-                                        />
-                                        {isNameInvalid && (
-                                            <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="name-warning">
-                                                O nome ou a razão social é obrigatório.
-                                            </p>
+                                {/* BLOCO 1: DADOS DE IDENTIFICAÇÃO */}
+                                <div className="space-y-4 bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-2">
+                                        {personType === 'PF' ? <User className="w-4 h-4 text-blue-500" /> : <Building2 className="w-4 h-4 text-amber-500" />}
+                                        <span>{personType === 'PF' ? 'Dados Pessoais & Vínculo' : 'Dados Fiscais & Corporativos'}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Nome / Razão Social */}
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-fullname" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                {personType === 'PF' ? 'Nome Completo' : 'Razão Social'} <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-fullname" 
+                                                value={fullName} 
+                                                onChange={(e) => setFullName(e.target.value)} 
+                                                placeholder={personType === 'PF' ? 'Ex: João da Silva' : 'Ex: ABC Materiais de Construção LTDA'}
+                                                className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none transition-all font-bold ${
+                                                    isNameInvalid 
+                                                        ? 'border-2 border-rose-500 focus:border-rose-500' 
+                                                        : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue'
+                                                }`}
+                                            />
+                                            {isNameInvalid && (
+                                                <p className="text-rose-500 text-[10px] font-semibold mt-1">
+                                                    Campo obrigatório.
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Nome Fantasia (Apenas PJ) ou Vínculo / Cargo (PF) */}
+                                        {personType === 'PJ' ? (
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-tradename" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Nome Fantasia
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-tradename" 
+                                                    value={tradeName} 
+                                                    onChange={(e) => setTradeName(e.target.value)} 
+                                                    placeholder="Ex: Depósito ABC"
+                                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none transition-all focus:border-brand-blue font-bold"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label htmlFor="contributor-role-position" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                        Vínculo / Cargo
+                                                    </label>
+                                                    {!isCreatingRole && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsCreatingRole(true)}
+                                                            className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                                        >
+                                                            <PlusCircleIcon className="w-3 h-3" />
+                                                            + Criar Novo
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {isCreatingRole ? (
+                                                    <div className="p-2.5 bg-amber-50/90 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800 flex items-center gap-2 animate-scale-in">
+                                                        <input 
+                                                            type="text" 
+                                                            value={newRoleInput}
+                                                            onChange={(e) => setNewRoleInput(e.target.value)}
+                                                            placeholder="Ex: Tesoureiro, Sonoplasta, Líder..."
+                                                            className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs p-2 rounded-xl border border-amber-300 dark:border-amber-700 outline-none font-bold"
+                                                            autoFocus
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleAddCustomRole();
+                                                                }
+                                                            }}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleAddCustomRole}
+                                                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                                        >
+                                                            Salvar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setIsCreatingRole(false); setNewRoleInput(''); }}
+                                                            className="px-2 py-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 text-xs font-bold cursor-pointer"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <select 
+                                                        id="contributor-role-position" 
+                                                        value={rolePosition} 
+                                                        onChange={(e) => {
+                                                            setRolePosition(e.target.value);
+                                                            setCategory(e.target.value);
+                                                        }} 
+                                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                                    >
+                                                        <option value="">Selecione o vínculo ou cargo...</option>
+                                                        {customRoles.map((role) => (
+                                                            <option key={role} value={role}>
+                                                                {role}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
 
-                                    {/* Igreja */}
-                                    <div className="space-y-3">
-                                        <label htmlFor="contributor-church" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-church">
-                                            Igreja <span className="text-rose-500">*</span>
-                                        </label>
-                                        <select 
-                                            id="contributor-church" 
-                                            value={selectedChurchId} 
-                                            onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                            className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all cursor-pointer font-bold ${
-                                                isChurchInvalid 
-                                                    ? 'border-2 border-rose-500 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10' 
-                                                    : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10'
-                                            }`}
-                                        >
-                                            {tempChurches.map((church) => (
-                                                <option key={church.id} value={church.id}>
-                                                    {church.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        {isChurchInvalid && (
-                                            <p className="text-rose-500 text-[10px] font-semibold mt-1.5 ml-1 animate-fade-in" id="church-warning">
-                                                A seleção da igreja é obrigatória.
-                                            </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {/* CPF / CNPJ */}
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-cpf" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                {personType === 'PF' ? 'CPF' : 'CNPJ'}
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-cpf" 
+                                                value={cpf} 
+                                                onChange={(e) => setCpf(e.target.value)} 
+                                                placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        {/* RG / IE */}
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-rg-ie" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                {personType === 'PF' ? 'RG' : 'Inscrição Estadual (IE)'}
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-rg-ie" 
+                                                value={rgIe} 
+                                                onChange={(e) => setRgIe(e.target.value)} 
+                                                placeholder={personType === 'PF' ? '00.000.000-0' : 'Isento ou número da IE'}
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        {/* Data de Nasc (PF) ou Contato Responsável (PJ) */}
+                                        {personType === 'PF' ? (
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-birth" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Data de Nascimento
+                                                </label>
+                                                <input 
+                                                    type="date" 
+                                                    id="contributor-birth" 
+                                                    value={birthDate} 
+                                                    onChange={(e) => setBirthDate(e.target.value)} 
+                                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-contact-person" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Pessoa de Contato / Vendedor
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-contact-person" 
+                                                    value={contactPerson} 
+                                                    onChange={(e) => setContactPerson(e.target.value)} 
+                                                    placeholder="Ex: Carlos (Gerente de Vendas)"
+                                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Se for PJ, Categoria de Fornecedor */}
+                                    {personType === 'PJ' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-pj-category" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Ramo de Atuação / Categoria do Fornecedor
+                                                </label>
+                                                <select 
+                                                    id="contributor-pj-category" 
+                                                    value={category} 
+                                                    onChange={(e) => setCategory(e.target.value)} 
+                                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                                >
+                                                    <option value="">Selecione o ramo de atuação...</option>
+                                                    <option value="Construção e Reformas">Construção e Reformas</option>
+                                                    <option value="Equipamentos e Som">Equipamentos de Som / Iluminação</option>
+                                                    <option value="Prestação de Serviços">Prestação de Serviços Técnicos</option>
+                                                    <option value="Utilitários e Consumo">Água, Energia, Internet e Concessionárias</option>
+                                                    <option value="Alimentação e Eventos">Alimentação, Eventos e Buffet</option>
+                                                    <option value="Gráfica e Material">Gráfica, Comunicação Visual e Papelaria</option>
+                                                    <option value="Outros Fornecedores">Outros Fornecedores</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-church" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Igreja <span className="text-rose-500">*</span>
+                                                </label>
+                                                <select 
+                                                    id="contributor-church" 
+                                                    value={selectedChurchId} 
+                                                    onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                                    className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold ${
+                                                        isChurchInvalid 
+                                                            ? 'border-2 border-rose-500' 
+                                                            : 'border border-slate-200 dark:border-slate-700'
+                                                    }`}
+                                                >
+                                                    {tempChurches.map((church) => (
+                                                        <option key={church.id} value={church.id}>
+                                                            {church.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Se for PF, Igreja e Status na mesma linha */}
+                                    {personType === 'PF' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-church" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Igreja <span className="text-rose-500">*</span>
+                                                </label>
+                                                <select 
+                                                    id="contributor-church" 
+                                                    value={selectedChurchId} 
+                                                    onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                                    className={`block w-full rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold ${
+                                                        isChurchInvalid 
+                                                            ? 'border-2 border-rose-500' 
+                                                            : 'border border-slate-200 dark:border-slate-700'
+                                                    }`}
+                                                >
+                                                    {tempChurches.map((church) => (
+                                                        <option key={church.id} value={church.id}>
+                                                            {church.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label htmlFor="contributor-status" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Status do Cadastro
+                                                </label>
+                                                <select 
+                                                    id="contributor-status" 
+                                                    value={status} 
+                                                    onChange={(e) => setStatus(e.target.value as 'Ativo' | 'Inativo')} 
+                                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                                >
+                                                    <option value="Ativo">Ativo</option>
+                                                    <option value="Inativo">Inativo</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* OPÇÃO DE COMPARTILHAMENTO GLOBAL ENTRE TODAS AS IGREJAS */}
+                                    <div className="mt-3 p-3.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3" id="global-share-card">
+                                        <div className="flex items-start space-x-2.5">
+                                            <Globe className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
+                                                    Tornar disponível para todas as Igrejas (Cadastro Global)
+                                                </span>
+                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                                                    {isPrincipalUser 
+                                                        ? "Permite lançar despesas, doações ou serviços desta pessoa/empresa em qualquer igreja do sistema."
+                                                        : "Recurso restrito ao Usuário Principal para disponibilizar fornecedores/pessoas em todas as igrejas."}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {isPrincipalUser ? (
+                                            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 self-start sm:self-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={isGlobal} 
+                                                    onChange={(e) => setIsGlobal(e.target.checked)} 
+                                                    className="sr-only peer"
+                                                    id="chk-contributor-is-global"
+                                                />
+                                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                                            </label>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg flex-shrink-0">
+                                                Somente Usuário Principal
+                                            </span>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {/* CPF */}
-                                    <div className="space-y-3">
-                                        <label htmlFor="contributor-cpf" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-cpf">
-                                            CPF / CNPJ
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-cpf" 
-                                            value={cpf} 
-                                            onChange={(e) => setCpf(e.target.value)} 
-                                            placeholder="Digite o CPF ou CNPJ"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 font-bold"
-                                        />
+                                {/* BLOCO 2: CONTATO */}
+                                <div className="space-y-4 bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-2">
+                                        <Phone className="w-4 h-4 text-emerald-500" />
+                                        <span>Contato & Comunicação</span>
                                     </div>
 
-                                    {/* Telefone */}
-                                    <div className="space-y-3">
-                                        <label htmlFor="contributor-phone" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-phone">
-                                            Telefone
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-phone" 
-                                            value={phone} 
-                                            onChange={(e) => setPhone(e.target.value)} 
-                                            placeholder="(00) 00000-0000"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 font-bold"
-                                        />
-                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-phone" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                {personType === 'PF' ? 'Telefone / WhatsApp' : 'Telefone Comercial / WhatsApp'}
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-phone" 
+                                                value={phone} 
+                                                onChange={(e) => setPhone(e.target.value)} 
+                                                placeholder="(00) 00000-0000"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
 
-                                    {/* E-mail */}
-                                    <div className="space-y-3">
-                                        <label htmlFor="contributor-email" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-email">
-                                            E-mail
-                                        </label>
-                                        <input 
-                                            type="email" 
-                                            id="contributor-email" 
-                                            value={email} 
-                                            onChange={(e) => setEmail(e.target.value)} 
-                                            placeholder="exemplo@igreja.com.br"
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-sm p-4 outline-none transition-all focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 font-bold"
-                                        />
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-email" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                {personType === 'PF' ? 'E-mail Pessoal' : 'E-mail Oficial / NFe'}
+                                            </label>
+                                            <input 
+                                                type="email" 
+                                                id="contributor-email" 
+                                                value={email} 
+                                                onChange={(e) => setEmail(e.target.value)} 
+                                                placeholder="exemplo@contato.com"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Status */}
-                                <div className="space-y-3">
-                                    <label htmlFor="contributor-status" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1" id="lbl-status">
-                                        Status
+                                {/* BLOCO 3: ENDEREÇO */}
+                                <div className="space-y-4 bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-2">
+                                        <MapPin className="w-4 h-4 text-purple-500" />
+                                        <span>{personType === 'PF' ? 'Endereço Residencial' : 'Endereço da Sede / Filial'}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-cep" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                CEP
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-cep" 
+                                                value={addressCep} 
+                                                onChange={(e) => setAddressCep(e.target.value)} 
+                                                placeholder="00000-000"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        <div className="md:col-span-2 space-y-2">
+                                            <label htmlFor="contributor-street" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Logradouro / Endereço
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-street" 
+                                                value={addressStreet} 
+                                                onChange={(e) => setAddressStreet(e.target.value)} 
+                                                placeholder="Ex: Rua das Flores, Av. Central"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-number" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Número / Bairro
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-number" 
+                                                value={addressNumber} 
+                                                onChange={(e) => setAddressNumber(e.target.value)} 
+                                                placeholder="Nº 123, Bairro Centro"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="md:col-span-2 space-y-2">
+                                            <label htmlFor="contributor-city" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Cidade
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-city" 
+                                                value={addressCity} 
+                                                onChange={(e) => setAddressCity(e.target.value)} 
+                                                placeholder="Ex: São Paulo"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-state" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                UF / Estado
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-state" 
+                                                value={addressState} 
+                                                onChange={(e) => setAddressState(e.target.value.toUpperCase())} 
+                                                placeholder="SP"
+                                                maxLength={2}
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold uppercase"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* BLOCO 4: DADOS BANCÁRIOS & PIX */}
+                                <div className="space-y-4 bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider mb-2">
+                                        <Landmark className="w-4 h-4 text-cyan-500" />
+                                        <span>Dados Bancários & Chave Pix (Para Pagamentos/Transferências)</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-pix" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Chave Pix Principal
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-pix" 
+                                                value={pixKey} 
+                                                onChange={(e) => setPixKey(e.target.value)} 
+                                                placeholder="E-mail, CPF/CNPJ, Telefone ou Chave Aleatória"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-bankname" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Banco
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-bankname" 
+                                                value={bankName} 
+                                                onChange={(e) => setBankName(e.target.value)} 
+                                                placeholder="Ex: Itaú, Bradesco, Banco do Brasil, Nubank"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-bankagency" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Agência
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-bankagency" 
+                                                value={bankAgency} 
+                                                onChange={(e) => setBankAgency(e.target.value)} 
+                                                placeholder="0000"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="contributor-bankaccount" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                Conta Corrente / Poupança
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                id="contributor-bankaccount" 
+                                                value={bankAccount} 
+                                                onChange={(e) => setBankAccount(e.target.value)} 
+                                                placeholder="00000-0"
+                                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* BLOCO 5: OBSERVAÇÕES */}
+                                <div className="space-y-2 bg-slate-50/50 dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <label htmlFor="contributor-notes" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                        Observações / Anotações Internas
                                     </label>
-                                    <select 
-                                        id="contributor-status" 
-                                        value={status} 
-                                        onChange={(e) => setStatus(e.target.value as 'Ativo' | 'Inativo')} 
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 text-sm p-4 outline-none transition-all cursor-pointer font-bold"
-                                    >
-                                        <option value="Ativo">Ativo</option>
-                                        <option value="Inativo">Inativo</option>
-                                    </select>
+                                    <textarea 
+                                        id="contributor-notes" 
+                                        value={notes} 
+                                        onChange={(e) => setNotes(e.target.value)} 
+                                        rows={3}
+                                        placeholder="Anotações sobre condições de pagamento, contratos ou histórico de fornecimento..."
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-medium resize-none"
+                                    />
                                 </div>
 
                             </div>

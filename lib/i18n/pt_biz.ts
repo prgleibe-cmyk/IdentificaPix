@@ -50,9 +50,9 @@ export const ptBiz = {
     'reports.session.continue': 'Continuar Editando',
     'reports.session.discard': 'Descartar e Recomeçar',
 
-    // Saved Reports
+    // Saved Reports (Planilhas Salvas)
     'savedReports.title': 'Planilhas Salvas',
-    'savedReports.subtitle': 'Acesse e gerencie planilhas que você salvou anteriormente.',
+    'savedReports.subtitle': 'Consulte e gerencie todas as planilhas conciladas e relatórios salvos no sistema.',
     'savedReports.search': 'Buscar planilha por nome...',
     'savedReports.empty.title': 'Nenhuma Planilha Salva',
     'savedReports.empty.message': 'Quando você salvar uma planilha da tela de visualização, ela aparecerá aqui.',

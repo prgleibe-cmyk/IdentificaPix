@@ -11,17 +11,40 @@ interface PortalHeaderProps {
 export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }) => {
     const [contributor, setContributor] = useState<ContributorMockProfile | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(() => (window as any).deferredPwaPrompt || null);
     const [showInstallModal, setShowInstallModal] = useState(false);
 
     useEffect(() => {
+        if ((window as any).deferredPwaPrompt) {
+            setDeferredPrompt((window as any).deferredPwaPrompt);
+        }
         const handler = (e: Event) => {
             e.preventDefault();
+            (window as any).deferredPwaPrompt = e;
             setDeferredPrompt(e);
         };
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
+
+    const handleDownloadApp = async () => {
+        const promptEvent = deferredPrompt || (window as any).deferredPwaPrompt;
+        if (promptEvent) {
+            try {
+                promptEvent.prompt();
+                const { outcome } = await promptEvent.userChoice;
+                if (outcome === 'accepted') {
+                    (window as any).deferredPwaPrompt = null;
+                    setDeferredPrompt(null);
+                }
+            } catch (err) {
+                console.error('Erro ao acionar prompt PWA:', err);
+                setShowInstallModal(true);
+            }
+        } else {
+            setShowInstallModal(true);
+        }
+    };
 
     useEffect(() => {
         const updateContributor = () => {
@@ -113,7 +136,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                     {/* Baixar App Button */}
                     <button
                         type="button"
-                        onClick={() => setShowInstallModal(true)}
+                        onClick={handleDownloadApp}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold shadow-sm shadow-emerald-500/20 transition-all cursor-pointer transform hover:scale-105"
                         title="Baixar aplicativo no celular"
                     >
@@ -190,7 +213,7 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                     </button>
 
                     <button
-                        onClick={() => { setShowInstallModal(true); setMobileMenuOpen(false); }}
+                        onClick={() => { handleDownloadApp(); setMobileMenuOpen(false); }}
                         className="w-full flex items-center gap-3 p-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-sm cursor-pointer"
                     >
                         <Smartphone className="w-4 h-4" />

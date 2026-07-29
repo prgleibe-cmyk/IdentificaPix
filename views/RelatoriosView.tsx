@@ -1,0 +1,1678 @@
+import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
+import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
+import { ContributorsReportSection } from '../components/reports/ContributorsReportSection';
+import { ExportService } from '../services/ExportService';
+import { 
+    Users, 
+    FileText, 
+    Building2, 
+    BookOpen, 
+    TrendingUp, 
+    TrendingDown, 
+    DollarSign, 
+    Calendar, 
+    Search, 
+    Download, 
+    Printer, 
+    ArrowRight, 
+    PieChart, 
+    AlertCircle, 
+    CheckCircle2, 
+    Filter,
+    ArrowUpRight,
+    ArrowDownRight,
+    Sparkles,
+    Table2,
+    Layers,
+    ChevronDown,
+    ChevronUp,
+    Check,
+    RotateCcw,
+    Tag,
+    X,
+    FileSpreadsheet,
+    FileCode
+} from 'lucide-react';
+
+export const RelatoriosView: React.FC = () => {
+    const { setActiveView, showToast } = useUI();
+    const context = useContext(AppContext);
+
+    // Active sub-tab state
+    const [activeTab, setActiveTab] = useState<'contributors' | 'livro-caixa' | 'balancete' | 'churches' | 'expenses'>('contributors');
+
+    // Balancete Sub-type state (Sintético, Analítico, Contábil)
+    const [balanceteType, setBalanceteType] = useState<'sintetico' | 'analitico' | 'contabil'>('sintetico');
+
+    // Global filters for financial reports
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('all');
+    const [customStartDate, setCustomStartDate] = useState<string>('');
+    const [customEndDate, setCustomEndDate] = useState<string>('');
+    
+    // Multi-select church filter
+    const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
+    const [isChurchDropdownOpen, setIsChurchDropdownOpen] = useState<boolean>(false);
+
+    // Expenses tab multi-category filter & drilldown state
+    const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>([]);
+    const [expenseCategorySearch, setExpenseCategorySearch] = useState<string>('');
+    const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState<boolean>(false);
+
+    // Export dropdown state
+    const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
+    const [showExportBalancete, setShowExportBalancete] = useState<boolean>(false);
+
+    const churchDropdownRef = useRef<HTMLDivElement>(null);
+    const categoryDropdownRef = useRef<HTMLDivElement>(null);
+    const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
+    const exportBalanceteRef = useRef<HTMLDivElement>(null);
+
+    const churches = context?.churches || [];
+    const reportData = context?.reportData || [];
+    const contributorFiles = context?.contributorFiles || [];
+
+    // Click outside listener for dropdown popovers
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (churchDropdownRef.current && !churchDropdownRef.current.contains(event.target as Node)) {
+                setIsChurchDropdownOpen(false);
+            }
+            if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+                setIsCategoryDropdownOpen(false);
+            }
+            if (exportLivroCaixaRef.current && !exportLivroCaixaRef.current.contains(event.target as Node)) {
+                setShowExportLivroCaixa(false);
+            }
+            if (exportBalanceteRef.current && !exportBalanceteRef.current.contains(event.target as Node)) {
+                setShowExportBalancete(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const formatBRL = (val: number) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+    };
+
+    const formatDateBRL = (dateStr: string) => {
+        if (!dateStr) return '-';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
+    };
+
+    const getChurchName = (cId: string) => {
+        return churches.find((c: any) => c.id === cId)?.name || 'Igreja Sede';
+    };
+
+    // Toggle multi-select church filter
+    const toggleChurchSelection = (churchId: string) => {
+        if (churchId === 'ALL') {
+            setSelectedChurchIds([]);
+            return;
+        }
+        setSelectedChurchIds(prev => {
+            if (prev.includes(churchId)) {
+                return prev.filter(id => id !== churchId);
+            } else {
+                return [...prev, churchId];
+            }
+        });
+    };
+
+    // Filter reportData by search, multi-church, and period filters
+    const filteredReportData = useMemo(() => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        let lastMonthYear = currentYear;
+        let lastMonthIndex = currentMonth - 1;
+        if (lastMonthIndex < 0) {
+            lastMonthIndex = 11;
+            lastMonthYear = currentYear - 1;
+        }
+
+        return reportData.filter((item: any) => {
+            // Multi-church filter
+            if (selectedChurchIds.length > 0) {
+                const itemChurchId = item.churchId || item.church;
+                const matchesAny = selectedChurchIds.some(cId => {
+                    if (itemChurchId === cId) return true;
+                    const chObj = churches.find((c: any) => c.id === cId);
+                    return chObj && (item.church === chObj.name || item.churchId === chObj.id);
+                });
+                if (!matchesAny) return false;
+            }
+
+            // Search query
+            if (searchTerm.trim()) {
+                const term = searchTerm.toLowerCase();
+                const desc = (item.desc || item.description || item.historico || '').toLowerCase();
+                const payer = (item.payer || item.contribuinte || item.nome || '').toLowerCase();
+                const cat = (item.category || item.categoria || '').toLowerCase();
+                const val = String(item.amount || item.val || '');
+                const ch = (item.church || '').toLowerCase();
+                if (!desc.includes(term) && !payer.includes(term) && !cat.includes(term) && !val.includes(term) && !ch.includes(term)) {
+                    return false;
+                }
+            }
+
+            // Date filter
+            if (item.date) {
+                const itemDate = new Date(item.date + (item.date.includes('T') ? '' : 'T12:00:00'));
+                
+                if (dateRange === 'month') {
+                    if (itemDate.getMonth() !== currentMonth || itemDate.getFullYear() !== currentYear) return false;
+                } else if (dateRange === 'last-month') {
+                    if (itemDate.getMonth() !== lastMonthIndex || itemDate.getFullYear() !== lastMonthYear) return false;
+                } else if (dateRange === 'quarter') {
+                    const currentQuarter = Math.floor(currentMonth / 3);
+                    const itemQuarter = Math.floor(itemDate.getMonth() / 3);
+                    if (itemQuarter !== currentQuarter || itemDate.getFullYear() !== currentYear) return false;
+                } else if (dateRange === 'year') {
+                    if (itemDate.getFullYear() !== currentYear) return false;
+                } else if (dateRange === 'custom') {
+                    if (customStartDate) {
+                        const start = new Date(customStartDate + 'T00:00:00');
+                        if (itemDate < start) return false;
+                    }
+                    if (customEndDate) {
+                        const end = new Date(customEndDate + 'T23:59:59');
+                        if (itemDate > end) return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    }, [reportData, selectedChurchIds, searchTerm, dateRange, customStartDate, customEndDate, churches]);
+
+    // Financial totals
+    const financialTotals = useMemo(() => {
+        let income = 0;
+        let expenses = 0;
+        let pending = 0;
+        let pendingCount = 0;
+
+        filteredReportData.forEach((tx: any) => {
+            const amount = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const isPending = tx.status === 'pending' || tx.unidentified || tx.isPending;
+
+            if (isPending) {
+                pending += amount;
+                pendingCount++;
+            }
+
+            if (isExpense) {
+                expenses += amount;
+            } else {
+                income += amount;
+            }
+        });
+
+        return {
+            income,
+            expenses,
+            balance: income - expenses,
+            pending,
+            pendingCount,
+            totalTransactions: filteredReportData.length
+        };
+    }, [filteredReportData]);
+
+    // Church summaries
+    const churchSummaries = useMemo(() => {
+        const totalSystemIncome = financialTotals.income || 1;
+        return churches.map((church: any) => {
+            const txs = reportData.filter((tx: any) => tx.churchId === church.id || tx.church === church.name);
+            const totalIncome = txs.filter((tx: any) => tx.type !== 'expense' && (Number(tx.amount) > 0 || Number(tx.val) > 0 || !tx.type))
+                .reduce((acc: number, tx: any) => acc + (Number(tx.amount) || Number(tx.val) || 0), 0);
+            const totalExpenses = txs.filter((tx: any) => tx.type === 'expense' || Number(tx.amount) < 0)
+                .reduce((acc: number, tx: any) => acc + Math.abs(Number(tx.amount) || Number(tx.val) || 0), 0);
+            
+            const cf = contributorFiles.find((f: any) => f.churchId === church.id || f.church?.id === church.id);
+            const contributorCount = cf?.contributors?.length || 0;
+            const sharePercent = Math.min(100, Math.round((totalIncome / totalSystemIncome) * 100));
+
+            return {
+                id: church.id,
+                name: church.name,
+                cnpJ: church.cnpj || church.cnpjCpf || 'N/A',
+                city: church.city || 'N/A',
+                txCount: txs.length,
+                totalIncome,
+                totalExpenses,
+                netBalance: totalIncome - totalExpenses,
+                contributorCount,
+                sharePercent
+            };
+        });
+    }, [churches, reportData, contributorFiles, financialTotals.income]);
+
+    // Group expenses by category
+    const expenseCategories = useMemo(() => {
+        const map: { [key: string]: { category: string; amount: number; count: number } } = {};
+        
+        filteredReportData.forEach((tx: any) => {
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            if (isExpense) {
+                const catName = tx.category || tx.categoria || 'Despesas Gerais / Manutenção';
+                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (!map[catName]) {
+                    map[catName] = { category: catName, amount: 0, count: 0 };
+                }
+                map[catName].amount += amt;
+                map[catName].count += 1;
+            }
+        });
+
+        return Object.values(map).sort((a, b) => b.amount - a.amount);
+    }, [filteredReportData]);
+
+    // Group income by category
+    const incomeCategories = useMemo(() => {
+        const map: { [key: string]: { category: string; amount: number; count: number } } = {};
+        
+        filteredReportData.forEach((tx: any) => {
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            if (!isExpense) {
+                const catName = tx.category || tx.categoria || 'Dízimos & Ofertas';
+                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                if (!map[catName]) {
+                    map[catName] = { category: catName, amount: 0, count: 0 };
+                }
+                map[catName].amount += amt;
+                map[catName].count += 1;
+            }
+        });
+
+        return Object.values(map).sort((a, b) => b.amount - a.amount);
+    }, [filteredReportData]);
+
+    // All unique category names for expenses
+    const allExpenseCategoryNames = useMemo(() => {
+        return expenseCategories.map(c => c.category);
+    }, [expenseCategories]);
+
+    // Filtered expense categories based on selection and search
+    const displayedExpenseCategories = useMemo(() => {
+        return expenseCategories.filter(cat => {
+            if (selectedExpenseCategories.length > 0 && !selectedExpenseCategories.includes(cat.category)) {
+                return false;
+            }
+            if (expenseCategorySearch.trim()) {
+                const term = expenseCategorySearch.toLowerCase();
+                return cat.category.toLowerCase().includes(term);
+            }
+            return true;
+        });
+    }, [expenseCategories, selectedExpenseCategories, expenseCategorySearch]);
+
+    // Totals for filtered expense categories
+    const selectedExpenseTotals = useMemo(() => {
+        const totalAmount = displayedExpenseCategories.reduce((sum, cat) => sum + cat.amount, 0);
+        const totalCount = displayedExpenseCategories.reduce((sum, cat) => sum + cat.count, 0);
+        const percentOfTotal = financialTotals.expenses > 0 ? Math.round((totalAmount / financialTotals.expenses) * 100) : 0;
+        return {
+            totalAmount,
+            totalCount,
+            percentOfTotal,
+            categoriesCount: displayedExpenseCategories.length
+        };
+    }, [displayedExpenseCategories, financialTotals.expenses]);
+
+    // Toggle single expense category filter
+    const toggleExpenseCategory = (catName: string) => {
+        setSelectedExpenseCategories(prev => 
+            prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
+        );
+    };
+
+    // Expand/collapse category drilldown
+    const toggleExpandCategory = (catName: string) => {
+        setExpandedCategory(prev => prev === catName ? null : catName);
+    };
+
+    // Get individual expense items for a category
+    const getExpenseCategoryTransactions = (categoryName: string) => {
+        return filteredReportData.filter((tx: any) => {
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            if (!isExpense) return false;
+            const catName = tx.category || tx.categoria || 'Despesas Gerais / Manutenção';
+            return catName === categoryName;
+        });
+    };
+
+    // Export Handler for Livro Caixa
+    const handleExportLivroCaixa = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
+        setShowExportLivroCaixa(false);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        
+        if (format === 'pdf') {
+            ExportService.downloadLivroCaixaPdf(filteredReportData, churches, 'Livro Caixa - Extrato Analítico', `livro_caixa_${dateStr}.pdf`, selectedChurchIds[0]);
+        } else if (format === 'excel') {
+            ExportService.downloadLivroCaixaExcel(filteredReportData, churches, `livro_caixa_${dateStr}.xlsx`);
+        } else if (format === 'csv') {
+            ExportService.downloadLivroCaixaCsv(filteredReportData, churches, `livro_caixa_${dateStr}.csv`);
+        } else if (format === 'ofx') {
+            ExportService.downloadLivroCaixaOfx(filteredReportData, churches, `livro_caixa_${dateStr}.ofx`);
+        }
+        showToast(`Livro Caixa exportado em formato ${format.toUpperCase()} com sucesso!`, 'success');
+    };
+
+    // Export Handler for Balancete
+    const handleExportBalancete = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
+        setShowExportBalancete(false);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const typeName = balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil';
+        const title = `Balancete ${typeName} Financeiro`;
+        const filename = `balancete_${balanceteType}_${dateStr}`;
+
+        if (format === 'pdf') {
+            ExportService.downloadBalancetePdf(
+                financialTotals, 
+                expenseCategories, 
+                title, 
+                `${filename}.pdf`, 
+                churches, 
+                selectedChurchIds[0],
+                balanceteType,
+                filteredReportData,
+                incomeCategories
+            );
+        } else if (format === 'excel') {
+            ExportService.downloadBalanceteExcel(
+                financialTotals, 
+                expenseCategories, 
+                `${filename}.xlsx`, 
+                balanceteType, 
+                filteredReportData, 
+                incomeCategories
+            );
+        } else if (format === 'csv') {
+            ExportService.downloadBalanceteCsv(
+                financialTotals, 
+                expenseCategories, 
+                `${filename}.csv`, 
+                balanceteType, 
+                filteredReportData, 
+                incomeCategories
+            );
+        } else if (format === 'ofx') {
+            ExportService.downloadBalanceteOfx(financialTotals, expenseCategories, `${filename}.ofx`);
+        }
+        showToast(`Balancete ${typeName} exportado em formato ${format.toUpperCase()} com sucesso!`, 'success');
+    };
+
+    const handlePrint = () => {
+        if (activeTab === 'balancete') {
+            const typeName = balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil';
+            ExportService.printBalanceteHtml(
+                financialTotals,
+                expenseCategories,
+                incomeCategories,
+                filteredReportData,
+                churches,
+                `Balancete ${typeName} Financeiro`,
+                selectedChurchIds[0],
+                balanceteType
+            );
+        } else {
+            window.print();
+        }
+    };
+
+    return (
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-4">
+            {/* Header Card */}
+            <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl text-white shadow-md shadow-orange-500/20">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
+                                    Central de Relatórios IgGestor
+                                </h1>
+                                <p className="text-xs text-slate-400">
+                                    Livro Caixa, Balancete Sintético, Dízimos, Contribuintes e Demonstrativos Financeiros.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sub-Tab Navigation Bar */}
+                    <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/50 dark:border-white/5 overflow-x-auto no-scrollbar">
+                        <button
+                            onClick={() => setActiveTab('contributors')}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                activeTab === 'contributors'
+                                    ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Dizimistas & Contribuintes</span>
+                        </button>
+                        
+                        <button
+                            onClick={() => setActiveTab('livro-caixa')}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                activeTab === 'livro-caixa'
+                                    ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                            <BookOpen className="w-3.5 h-3.5 text-orange-500" />
+                            <span>Livro Caixa</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('balancete')}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                activeTab === 'balancete'
+                                    ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                            <PieChart className="w-3.5 h-3.5 text-blue-500" />
+                            <span>Balancete</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('churches')}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                activeTab === 'churches'
+                                    ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                            <Building2 className="w-3.5 h-3.5" />
+                            <span>Resumo por Igreja</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('expenses')}
+                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                activeTab === 'expenses'
+                                    ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                            <TrendingDown className="w-3.5 h-3.5" />
+                            <span>Saídas por Categoria</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Section Content */}
+            <div className="flex-1 min-h-0">
+                {/* TAB 1: Contribuintes & Dízimos */}
+                {activeTab === 'contributors' && (
+                    <ContributorsReportSection />
+                )}
+
+                {/* TAB 2: Livro Caixa (Extrato Analítico Cronológico) */}
+                {activeTab === 'livro-caixa' && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                        {/* Control & Filter Header */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <BookOpen className="w-4 h-4 text-orange-500" />
+                                    Livro Caixa (Extrato Analítico Cronológico)
+                                </h3>
+                                <p className="text-xs text-slate-400">Detalhamento individualizado de todas as entradas e saídas financeiras.</p>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                                {/* Search */}
+                                <div className="relative flex-1 md:w-52">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar no Livro Caixa..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="pl-9 pr-3 py-1.5 w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
+                                    />
+                                </div>
+
+                                {/* Date Range Filter */}
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value={dateRange}
+                                        onChange={(e: any) => setDateRange(e.target.value)}
+                                        className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
+                                    >
+                                        <option value="all">Todo o Período</option>
+                                        <option value="month">Este Mês</option>
+                                        <option value="last-month">Mês Anterior</option>
+                                        <option value="quarter">Este Trimestre</option>
+                                        <option value="year">Este Ano</option>
+                                        <option value="custom">Período Personalizado / Agenda</option>
+                                    </select>
+
+                                    {dateRange === 'custom' && (
+                                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs animate-fade-in">
+                                            <input
+                                                type="date"
+                                                value={customStartDate}
+                                                onChange={e => setCustomStartDate(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+                                                title="Data Inicial"
+                                            />
+                                            <span className="text-slate-400 text-xs font-bold">até</span>
+                                            <input
+                                                type="date"
+                                                value={customEndDate}
+                                                onChange={e => setCustomEndDate(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+                                                title="Data Final"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Multi-Select Church Filter */}
+                                <div className="relative" ref={churchDropdownRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
+                                        className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+                                    >
+                                        <Building2 className="w-3.5 h-3.5 text-orange-500" />
+                                        <span>
+                                            {selectedChurchIds.length === 0 
+                                                ? 'Todas as Igrejas' 
+                                                : selectedChurchIds.length === 1 
+                                                ? getChurchName(selectedChurchIds[0]) 
+                                                : `${selectedChurchIds.length} Igrejas Selecionadas`}
+                                        </span>
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                    </button>
+
+                                    {isChurchDropdownOpen && (
+                                        <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
+                                                <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px]">Filtrar por Igrejas</span>
+                                                {selectedChurchIds.length > 0 && (
+                                                    <button 
+                                                        onClick={() => setSelectedChurchIds([])}
+                                                        className="text-[10px] text-orange-600 dark:text-orange-400 font-bold hover:underline"
+                                                    >
+                                                        Selecionar Todas
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pt-1">
+                                                <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedChurchIds.length === 0}
+                                                        onChange={() => setSelectedChurchIds([])}
+                                                        className="accent-orange-500 rounded"
+                                                    />
+                                                    <span className="font-bold text-slate-800 dark:text-white">Todas as Igrejas</span>
+                                                </label>
+
+                                                {churches.map((c: any) => {
+                                                    const isChecked = selectedChurchIds.includes(c.id);
+                                                    return (
+                                                        <label key={c.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => toggleChurchSelection(c.id)}
+                                                                className="accent-orange-500 rounded"
+                                                            />
+                                                            <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{c.name}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Export & Print Menu */}
+                                <div className="relative" ref={exportLivroCaixaRef}>
+                                    <button
+                                        onClick={() => setShowExportLivroCaixa(!showExportLivroCaixa)}
+                                        className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        <span>Exportar Livro Caixa</span>
+                                        <ChevronDown className="w-3 h-3 ml-0.5" />
+                                    </button>
+
+                                    {showExportLivroCaixa && (
+                                        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
+                                            <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos Livro Caixa</div>
+                                            <button
+                                                onClick={() => handleExportLivroCaixa('pdf')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileText className="w-4 h-4 text-red-500" />
+                                                <span>Baixar como PDF</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportLivroCaixa('excel')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                                                <span>Baixar como Excel (.xlsx)</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportLivroCaixa('csv')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4 text-blue-500" />
+                                                <span>Baixar como CSV</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportLivroCaixa('ofx')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileCode className="w-4 h-4 text-purple-500" />
+                                                <span>Baixar como OFX (ERP/Contábil)</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button
+                                    onClick={handlePrint}
+                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                                    title="Imprimir Relatório"
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span>Imprimir</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Financial Totals Strip */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-4 rounded-xl border border-emerald-200/60 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20 flex justify-between items-center">
+                                <div>
+                                    <span className="text-[10px] uppercase font-black tracking-wider text-emerald-600 dark:text-emerald-400 block">Entradas Totais</span>
+                                    <span className="text-xl font-mono font-black text-emerald-700 dark:text-emerald-300">{formatBRL(financialTotals.income)}</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    <ArrowUpRight className="w-6 h-6" />
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-xl border border-rose-200/60 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20 flex justify-between items-center">
+                                <div>
+                                    <span className="text-[10px] uppercase font-black tracking-wider text-rose-600 dark:text-rose-400 block">Saídas Totais</span>
+                                    <span className="text-xl font-mono font-black text-rose-700 dark:text-rose-300">{formatBRL(financialTotals.expenses)}</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                                    <ArrowDownRight className="w-6 h-6" />
+                                </div>
+                            </div>
+
+                            <div className={`p-4 rounded-xl border ${financialTotals.balance >= 0 ? 'border-blue-200/60 dark:border-blue-950 bg-blue-50/40 dark:bg-blue-950/20' : 'border-amber-200/60 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20'} flex justify-between items-center`}>
+                                <div>
+                                    <span className="text-[10px] uppercase font-black tracking-wider text-slate-600 dark:text-slate-400 block">Saldo Operacional do Caixa</span>
+                                    <span className={`text-xl font-mono font-black ${financialTotals.balance >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>{formatBRL(financialTotals.balance)}</span>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-slate-500/10 text-slate-600 dark:text-slate-400">
+                                    <DollarSign className="w-6 h-6" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Livro Caixa Table */}
+                        <div className="flex-1 min-h-[350px] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                            <div className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                                <span>Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
+                                <span>IgGestor Módulo Financeiro</span>
+                            </div>
+
+                            <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-100/70 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-3">Data</th>
+                                            <th className="px-4 py-3">Descrição / Histórico</th>
+                                            <th className="px-4 py-3">Contribuinte / Favorecido</th>
+                                            <th className="px-4 py-3">Categoria</th>
+                                            <th className="px-4 py-3">Igreja</th>
+                                            <th className="px-4 py-3 text-right">Valor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                        {filteredReportData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="text-center py-12 text-slate-400 italic">
+                                                    Nenhum lançamento encontrado no Livro Caixa para os filtros selecionados.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredReportData.map((tx: any, idx: number) => {
+                                                const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+                                                const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+
+                                                return (
+                                                    <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                                        <td className="px-4 py-2.5 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
+                                                            {formatDateBRL(tx.date)}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200 max-w-xs truncate">
+                                                            {tx.desc || tx.description || tx.historico || 'Lançamento de Caixa'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                                                            {tx.payer || tx.contribuinte || tx.nome || '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5">
+                                                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                {tx.category || tx.categoria || 'Geral'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 text-[11px]">
+                                                            {tx.church || getChurchName(tx.churchId)}
+                                                        </td>
+                                                        <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                            {isExpense ? `- ${formatBRL(amt)}` : `+ ${formatBRL(amt)}`}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* TAB 3: Balancete (Sintético, Analítico e Contábil) */}
+                {activeTab === 'balancete' && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                        {/* Header & Controls */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <PieChart className="w-4 h-4 text-blue-500" />
+                                    Balancete Financeiro IgGestor
+                                </h3>
+                                <p className="text-xs text-slate-400">Apurativo do exercício financeiro em três visões: Sintética, Analítica e Contábil.</p>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                                {/* Search */}
+                                <div className="relative flex-1 md:w-48">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Filtrar lançamentos..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="pl-9 pr-3 py-1.5 w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500"
+                                    />
+                                </div>
+
+                                {/* Date Range */}
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value={dateRange}
+                                        onChange={(e: any) => setDateRange(e.target.value)}
+                                        className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-500"
+                                    >
+                                        <option value="all">Todo o Período</option>
+                                        <option value="month">Este Mês</option>
+                                        <option value="last-month">Mês Anterior</option>
+                                        <option value="quarter">Este Trimestre</option>
+                                        <option value="year">Este Ano</option>
+                                        <option value="custom">Período Personalizado / Agenda</option>
+                                    </select>
+
+                                    {dateRange === 'custom' && (
+                                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs animate-fade-in">
+                                            <input
+                                                type="date"
+                                                value={customStartDate}
+                                                onChange={e => setCustomStartDate(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+                                            />
+                                            <span className="text-slate-400 text-xs font-bold">até</span>
+                                            <input
+                                                type="date"
+                                                value={customEndDate}
+                                                onChange={e => setCustomEndDate(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Multi-Select Church */}
+                                <div className="relative" ref={churchDropdownRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
+                                        className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+                                    >
+                                        <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                                        <span>
+                                            {selectedChurchIds.length === 0 
+                                                ? 'Todas as Igrejas' 
+                                                : selectedChurchIds.length === 1 
+                                                ? getChurchName(selectedChurchIds[0]) 
+                                                : `${selectedChurchIds.length} Igrejas Selecionadas`}
+                                        </span>
+                                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                    </button>
+
+                                    {isChurchDropdownOpen && (
+                                        <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
+                                                <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px]">Filtrar por Igrejas</span>
+                                                {selectedChurchIds.length > 0 && (
+                                                    <button 
+                                                        onClick={() => setSelectedChurchIds([])}
+                                                        className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                                                    >
+                                                        Selecionar Todas
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pt-1">
+                                                <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedChurchIds.length === 0}
+                                                        onChange={() => setSelectedChurchIds([])}
+                                                        className="accent-blue-500 rounded"
+                                                    />
+                                                    <span className="font-bold text-slate-800 dark:text-white">Todas as Igrejas</span>
+                                                </label>
+
+                                                {churches.map((c: any) => {
+                                                    const isChecked = selectedChurchIds.includes(c.id);
+                                                    return (
+                                                        <label key={c.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => toggleChurchSelection(c.id)}
+                                                                className="accent-blue-500 rounded"
+                                                            />
+                                                            <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{c.name}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Export Menu */}
+                                <div className="relative" ref={exportBalanceteRef}>
+                                    <button
+                                        onClick={() => setShowExportBalancete(!showExportBalancete)}
+                                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        <span>Exportar Balancete</span>
+                                        <ChevronDown className="w-3 h-3 ml-0.5" />
+                                    </button>
+
+                                    {showExportBalancete && (
+                                        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 py-2 z-50 text-xs text-slate-700 dark:text-slate-200 animate-scale-in">
+                                            <div className="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Formatos Balancete</div>
+                                            <button
+                                                onClick={() => handleExportBalancete('pdf')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileText className="w-4 h-4 text-red-500" />
+                                                <span>Baixar como PDF</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportBalancete('excel')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                                                <span>Baixar como Excel (.xlsx)</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportBalancete('csv')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileSpreadsheet className="w-4 h-4 text-blue-500" />
+                                                <span>Baixar como CSV</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleExportBalancete('ofx')}
+                                                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 font-semibold transition-colors"
+                                            >
+                                                <FileCode className="w-4 h-4 text-purple-500" />
+                                                <span>Baixar como OFX (ERP/Contábil)</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button
+                                    onClick={handlePrint}
+                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                                    title="Imprimir Balancete"
+                                >
+                                    <Printer className="w-3.5 h-3.5" />
+                                    <span>Imprimir</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Balancete Type Selector Pills */}
+                        <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/90 rounded-2xl border border-slate-200/60 dark:border-white/5 w-full sm:w-auto self-start">
+                            <button
+                                onClick={() => setBalanceteType('sintetico')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                    balanceteType === 'sintetico'
+                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                <PieChart className="w-4 h-4" />
+                                <span>Balancete Sintético</span>
+                            </button>
+
+                            <button
+                                onClick={() => setBalanceteType('analitico')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                    balanceteType === 'analitico'
+                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                <Table2 className="w-4 h-4" />
+                                <span>Balancete Analítico</span>
+                            </button>
+
+                            <button
+                                onClick={() => setBalanceteType('contabil')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                                    balanceteType === 'contabil'
+                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                <FileText className="w-4 h-4" />
+                                <span>Balancete Contábil</span>
+                            </button>
+                        </div>
+
+                        {/* Top Key Metrics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                            <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20">
+                                <span className="text-[10px] uppercase font-black text-emerald-600 dark:text-emerald-400 block">Receitas Brutas</span>
+                                <span className="text-lg font-mono font-black text-emerald-700 dark:text-emerald-300 mt-0.5 block">{formatBRL(financialTotals.income)}</span>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20">
+                                <span className="text-[10px] uppercase font-black text-rose-600 dark:text-rose-400 block">Despesas & Custos</span>
+                                <span className="text-lg font-mono font-black text-rose-700 dark:text-rose-300 mt-0.5 block">{formatBRL(financialTotals.expenses)}</span>
+                            </div>
+
+                            <div className={`p-3.5 rounded-xl border ${financialTotals.balance >= 0 ? 'border-blue-200 dark:border-blue-950 bg-blue-50/40 dark:bg-blue-950/20' : 'border-amber-200 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20'}`}>
+                                <span className="text-[10px] uppercase font-black text-slate-600 dark:text-slate-400 block">Resultado Operacional</span>
+                                <span className={`text-lg font-mono font-black ${financialTotals.balance >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'} mt-0.5 block`}>{formatBRL(financialTotals.balance)}</span>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20">
+                                <span className="text-[10px] uppercase font-black text-amber-600 dark:text-amber-400 block">Pendentes Conciliação</span>
+                                <span className="text-lg font-mono font-black text-amber-700 dark:text-amber-300 mt-0.5 block">{formatBRL(financialTotals.pending)}</span>
+                            </div>
+                        </div>
+
+                        {/* TYPE 1: BALANCETE SINTÉTICO */}
+                        {balanceteType === 'sintetico' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
+                                {/* Entradas Demonstrative */}
+                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 space-y-3">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                                        <h4 className="text-xs font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5">
+                                            <ArrowUpRight className="w-4 h-4" />
+                                            Demonstrativo Sintético de Entradas
+                                        </h4>
+                                        <span className="text-xs font-mono font-bold text-emerald-600">{formatBRL(financialTotals.income)}</span>
+                                    </div>
+
+                                    {incomeCategories.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic py-4 text-center">Nenhuma entrada registrada no período.</p>
+                                    ) : (
+                                        <div className="space-y-2.5">
+                                            {incomeCategories.map((cat, idx) => {
+                                                const perc = financialTotals.income > 0 ? Math.round((cat.amount / financialTotals.income) * 100) : 0;
+                                                return (
+                                                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-1.5">
+                                                        <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                            <span>{cat.category}</span>
+                                                            <span className="font-mono text-emerald-600">{formatBRL(cat.amount)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                                                            <span>{cat.count} lançamentos</span>
+                                                            <span>{perc}% das entradas</span>
+                                                        </div>
+                                                        <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${perc}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Saídas Demonstrative */}
+                                <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 space-y-3">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                                        <h4 className="text-xs font-black uppercase text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1.5">
+                                            <ArrowDownRight className="w-4 h-4" />
+                                            Demonstrativo Sintético de Saídas por Categoria
+                                        </h4>
+                                        <span className="text-xs font-mono font-bold text-rose-600">{formatBRL(financialTotals.expenses)}</span>
+                                    </div>
+
+                                    {expenseCategories.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic py-4 text-center">Nenhuma saída registrada no período.</p>
+                                    ) : (
+                                        <div className="space-y-2.5">
+                                            {expenseCategories.map((cat, idx) => {
+                                                const perc = financialTotals.expenses > 0 ? Math.round((cat.amount / financialTotals.expenses) * 100) : 0;
+                                                return (
+                                                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 space-y-1.5">
+                                                        <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                            <span>{cat.category}</span>
+                                                            <span className="font-mono text-rose-600">{formatBRL(cat.amount)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                                                            <span>{cat.count} lançamentos</span>
+                                                            <span>{perc}% das saídas</span>
+                                                        </div>
+                                                        <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-rose-500 rounded-full" style={{ width: `${perc}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TYPE 2: BALANCETE ANALÍTICO */}
+                        {balanceteType === 'analitico' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl flex justify-between items-center text-xs">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                                        Detalhamento Item a Item do Balancete Analítico
+                                    </span>
+                                    <span className="font-mono font-bold text-slate-500">
+                                        {filteredReportData.length} lançamentos encontrados
+                                    </span>
+                                </div>
+
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-100 dark:bg-slate-800/80 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                                                    <th className="py-2.5 px-3">Data</th>
+                                                    <th className="py-2.5 px-3">Histórico / Descrição</th>
+                                                    <th className="py-2.5 px-3">Contribuinte / Favorecido</th>
+                                                    <th className="py-2.5 px-3">Categoria</th>
+                                                    <th className="py-2.5 px-3">Igreja</th>
+                                                    <th className="py-2.5 px-3 text-center">Tipo</th>
+                                                    <th className="py-2.5 px-3 text-right">Valor (R$)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                                {filteredReportData.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                                                            Nenhum lançamento encontrado para o período/filtro selecionado.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    filteredReportData.map((tx: any, idx: number) => {
+                                                        const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+                                                        const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                                                <td className="py-2 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">{tx.date || '---'}</td>
+                                                                <td className="py-2 px-3 font-bold text-slate-800 dark:text-white uppercase">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
+                                                                <td className="py-2 px-3 text-slate-600 dark:text-slate-300">{tx.payer || tx.contribuinte || tx.nome || '---'}</td>
+                                                                <td className="py-2 px-3 text-slate-500">{tx.category || tx.categoria || 'Geral'}</td>
+                                                                <td className="py-2 px-3 text-slate-400 text-[11px]">{getChurchName(tx.churchId || tx.church)}</td>
+                                                                <td className="py-2 px-3 text-center">
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isExpense ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'}`}>
+                                                                        {isExpense ? 'Saída' : 'Entrada'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className={`py-2 px-3 text-right font-mono font-bold ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                                    {isExpense ? '-' : '+'} {formatBRL(amt)}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TYPE 3: BALANCETE CONTÁBIL */}
+                        {balanceteType === 'contabil' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                        <span className="text-xs font-bold text-blue-900 dark:text-blue-200">
+                                            Estrutura de Plano de Contas Contábil da Igreja (Balancete Formal de Verificação)
+                                        </span>
+                                    </div>
+                                    <span className="text-[11px] font-mono font-bold bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 px-2.5 py-1 rounded-lg">
+                                        Equilíbrio Contábil OK
+                                    </span>
+                                </div>
+
+                                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
+                                                <th className="py-2.5 px-3">Código</th>
+                                                <th className="py-2.5 px-3">Plano de Contas</th>
+                                                <th className="py-2.5 px-3 text-center">Tipo</th>
+                                                <th className="py-2.5 px-3 text-right">Créditos / Entradas (R$)</th>
+                                                <th className="py-2.5 px-3 text-right">Débitos / Saídas (R$)</th>
+                                                <th className="py-2.5 px-3 text-right">Saldo Final (R$)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                            {/* GRUPO 1: RECEITAS */}
+                                            <tr className="bg-emerald-50/60 dark:bg-emerald-950/20 font-black">
+                                                <td className="py-2 px-3 font-mono text-emerald-800 dark:text-emerald-400">1.0.00</td>
+                                                <td className="py-2 px-3 text-emerald-800 dark:text-emerald-300 uppercase">RECEITAS OPERACIONAIS (DÍZIMOS, OFERTAS & CONTRIBUIÇÕES)</td>
+                                                <td className="py-2 px-3 text-center text-[10px] text-emerald-700">GRUPO</td>
+                                                <td className="py-2 px-3 text-right font-mono text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
+                                                <td className="py-2 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
+                                                <td className="py-2 px-3 text-right font-mono text-emerald-700 dark:text-emerald-400">{formatBRL(financialTotals.income)}</td>
+                                            </tr>
+
+                                            {incomeCategories.map((c, i) => (
+                                                <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                    <td className="py-1.5 px-3 pl-6 font-mono text-slate-400 text-[11px]">1.1.0{i + 1}</td>
+                                                    <td className="py-1.5 px-3 pl-6 text-slate-700 dark:text-slate-200">  • {c.category}</td>
+                                                    <td className="py-1.5 px-3 text-center text-[10px] font-bold text-emerald-600">Crédito</td>
+                                                    <td className="py-1.5 px-3 text-right font-mono text-emerald-600">{formatBRL(c.amount)}</td>
+                                                    <td className="py-1.5 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
+                                                    <td className="py-1.5 px-3 text-right font-mono text-emerald-600">{formatBRL(c.amount)}</td>
+                                                </tr>
+                                            ))}
+
+                                            {/* GRUPO 2: DESPESAS */}
+                                            <tr className="bg-rose-50/60 dark:bg-rose-950/20 font-black">
+                                                <td className="py-2 px-3 font-mono text-rose-800 dark:text-rose-400">2.0.00</td>
+                                                <td className="py-2 px-3 text-rose-800 dark:text-rose-300 uppercase">DESPESAS OPERACIONAIS & MANUTENÇÃO MINISTERIAL</td>
+                                                <td className="py-2 px-3 text-center text-[10px] text-rose-700">GRUPO</td>
+                                                <td className="py-2 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
+                                                <td className="py-2 px-3 text-right font-mono text-rose-700 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</td>
+                                                <td className="py-2 px-3 text-right font-mono text-rose-700 dark:text-rose-400">- {formatBRL(financialTotals.expenses)}</td>
+                                            </tr>
+
+                                            {expenseCategories.map((c, i) => (
+                                                <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                    <td className="py-1.5 px-3 pl-6 font-mono text-slate-400 text-[11px]">2.1.0{i + 1}</td>
+                                                    <td className="py-1.5 px-3 pl-6 text-slate-700 dark:text-slate-200">  • {c.category}</td>
+                                                    <td className="py-1.5 px-3 text-center text-[10px] font-bold text-rose-600">Débito</td>
+                                                    <td className="py-1.5 px-3 text-right font-mono text-slate-400">R$ 0,00</td>
+                                                    <td className="py-1.5 px-3 text-right font-mono text-rose-600">{formatBRL(c.amount)}</td>
+                                                    <td className="py-1.5 px-3 text-right font-mono text-rose-600">- {formatBRL(c.amount)}</td>
+                                                </tr>
+                                            ))}
+
+                                            {/* BALANÇO FINAL */}
+                                            <tr className="bg-slate-900 text-white font-black text-xs">
+                                                <td className="py-3 px-3 font-mono">3.0.00</td>
+                                                <td className="py-3 px-3 uppercase">RESULTADO LÍQUIDO DO EXERCÍCIO (SALDO FINAL CONTÁBIL)</td>
+                                                <td className="py-3 px-3 text-center text-[10px] text-amber-400">BALANÇO</td>
+                                                <td className="py-3 px-3 text-right font-mono text-emerald-400">{formatBRL(financialTotals.income)}</td>
+                                                <td className="py-3 px-3 text-right font-mono text-rose-400">{formatBRL(financialTotals.expenses)}</td>
+                                                <td className={`py-3 px-3 text-right font-mono text-sm ${financialTotals.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                    {formatBRL(financialTotals.balance)}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* TAB 4: Resumo por Igreja / Congregação */}
+                {activeTab === 'churches' && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-orange-500" />
+                                    Demonstrativo Consolidado por Congregação
+                                </h3>
+                                <p className="text-xs text-slate-400">Visão geral comparativa da arrecadação, despesas e saldo por unidade.</p>
+                            </div>
+                            <button
+                                onClick={() => setActiveView('reports')}
+                                className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                            >
+                                <span>Ir para Fechamento de Caixa</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+
+                        {churchSummaries.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400 text-xs">
+                                Nenhuma igreja cadastrada no sistema.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {churchSummaries.map((ch: any) => (
+                                    <div 
+                                        key={ch.id}
+                                        className="p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 hover:border-orange-500/30 transition-all space-y-4"
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h4 className="font-black text-sm text-slate-800 dark:text-white">{ch.name}</h4>
+                                                <span className="text-[10px] text-slate-400 block">CNPJ: {ch.cnpJ}</span>
+                                            </div>
+                                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400">
+                                                {ch.txCount} movimentações
+                                            </span>
+                                        </div>
+
+                                        {/* Progress bar contribution */}
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                                                <span>Participação no Total</span>
+                                                <span>{ch.sharePercent}%</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500"
+                                                    style={{ width: `${ch.sharePercent}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800 text-xs">
+                                            <div>
+                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Entradas Totais</span>
+                                                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatBRL(ch.totalIncome)}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Saídas Totais</span>
+                                                <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatBRL(ch.totalExpenses)}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between items-center pt-3 border-t border-slate-200/50 dark:border-slate-800 text-xs">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                                Contribuintes: <strong className="text-slate-700 dark:text-slate-300">{ch.contributorCount}</strong>
+                                            </span>
+                                            <span className={`font-mono font-black text-sm ${ch.netBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                {formatBRL(ch.netBalance)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* TAB 5: Saídas por Categoria / Fornecedor */}
+                {activeTab === 'expenses' && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+                        {/* Header & Overall Totals */}
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <TrendingDown className="w-4 h-4 text-rose-500" />
+                                    Relatório de Saídas e Despesas por Categoria
+                                </h3>
+                                <p className="text-xs text-slate-400">Visão analítica de custos operacionais com seleção e filtros dinâmicos de categoria.</p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-400">
+                                    Total Geral de Saídas: {formatBRL(financialTotals.expenses)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Dynamic Category Filter Bar */}
+                        <div className="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                                {/* Search Input */}
+                                <div className="relative flex-1">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Filtrar categorias por nome..."
+                                        value={expenseCategorySearch}
+                                        onChange={e => setExpenseCategorySearch(e.target.value)}
+                                        className="pl-9 pr-8 py-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-rose-500"
+                                    />
+                                    {expenseCategorySearch && (
+                                        <button 
+                                            onClick={() => setExpenseCategorySearch('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Multi-Select Category Dropdown */}
+                                <div className="relative" ref={categoryDropdownRef}>
+                                    <button
+                                        onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer w-full sm:w-auto justify-between ${
+                                            selectedExpenseCategories.length > 0
+                                                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <Filter className="w-3.5 h-3.5 text-rose-500" />
+                                            <span>
+                                                {selectedExpenseCategories.length === 0
+                                                    ? 'Todas as Categorias'
+                                                    : `${selectedExpenseCategories.length} Categoria${selectedExpenseCategories.length > 1 ? 's' : ''} Selecionada${selectedExpenseCategories.length > 1 ? 's' : ''}`
+                                                }
+                                            </span>
+                                        </div>
+                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isCategoryDropdownOpen && (
+                                        <div className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-30 p-3 space-y-2 animate-in fade-in duration-150">
+                                            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                <span className="text-[11px] font-black uppercase text-slate-500">Categorias de Despesas</span>
+                                                <button
+                                                    onClick={() => setSelectedExpenseCategories([])}
+                                                    className="text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                                                >
+                                                    Limpar Seleção
+                                                </button>
+                                            </div>
+
+                                            <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1">
+                                                {allExpenseCategoryNames.length === 0 ? (
+                                                    <p className="text-xs text-slate-400 italic py-2 text-center">Nenhuma categoria disponível.</p>
+                                                ) : (
+                                                    allExpenseCategoryNames.map((catName, idx) => {
+                                                        const isSelected = selectedExpenseCategories.includes(catName);
+                                                        const catObj = expenseCategories.find(c => c.category === catName);
+                                                        return (
+                                                            <label
+                                                                key={idx}
+                                                                className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-xs transition-colors"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isSelected}
+                                                                        onChange={() => toggleExpenseCategory(catName)}
+                                                                        className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                                                                    />
+                                                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{catName}</span>
+                                                                </div>
+                                                                {catObj && (
+                                                                    <span className="font-mono text-[10px] font-bold text-rose-600">
+                                                                        {formatBRL(catObj.amount)}
+                                                                    </span>
+                                                                )}
+                                                            </label>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+
+                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px] font-bold text-slate-400">
+                                                <span>{selectedExpenseCategories.length} de {allExpenseCategoryNames.length} marcadas</span>
+                                                <button
+                                                    onClick={() => setIsCategoryDropdownOpen(false)}
+                                                    className="px-2.5 py-1 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-xs font-bold cursor-pointer"
+                                                >
+                                                    Concluído
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Reset Filter Button */}
+                                {(selectedExpenseCategories.length > 0 || expenseCategorySearch) && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectedExpenseCategories([]);
+                                            setExpenseCategorySearch('');
+                                        }}
+                                        className="px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <RotateCcw className="w-3 h-3" />
+                                        <span>Resetar Filtros</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Quick Category Pills / Chips */}
+                            {allExpenseCategoryNames.length > 0 && (
+                                <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pt-1 pb-0.5 text-xs">
+                                    <button
+                                        onClick={() => setSelectedExpenseCategories([])}
+                                        className={`px-3 py-1 rounded-full font-bold transition-all whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1 ${
+                                            selectedExpenseCategories.length === 0
+                                                ? 'bg-rose-600 text-white shadow-xs'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-rose-400'
+                                        }`}
+                                    >
+                                        <span>Todas ({allExpenseCategoryNames.length})</span>
+                                    </button>
+
+                                    {allExpenseCategoryNames.map((catName, idx) => {
+                                        const isSelected = selectedExpenseCategories.includes(catName);
+                                        const catObj = expenseCategories.find(c => c.category === catName);
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => toggleExpenseCategory(catName)}
+                                                className={`px-3 py-1 rounded-full font-bold transition-all whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1.5 border ${
+                                                    isSelected
+                                                        ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 shadow-xs'
+                                                        : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                                                }`}
+                                            >
+                                                {isSelected && <Check className="w-3 h-3 text-rose-600 dark:text-rose-400" />}
+                                                <span>{catName}</span>
+                                                {catObj && (
+                                                    <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md ${
+                                                        isSelected ? 'bg-rose-200 dark:bg-rose-900/60 text-rose-900 dark:text-rose-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                    }`}>
+                                                        {formatBRL(catObj.amount)}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Summary Metrics for Filtered Selection */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="p-3 rounded-xl border border-rose-200/80 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20">
+                                <span className="text-[10px] uppercase font-black text-rose-700 dark:text-rose-400 block tracking-wider">Total Selecionado</span>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-lg font-mono font-black text-rose-700 dark:text-rose-300">{formatBRL(selectedExpenseTotals.totalAmount)}</span>
+                                    <span className="text-[10px] font-bold text-rose-600">({selectedExpenseTotals.percentOfTotal}% das saídas)</span>
+                                </div>
+                            </div>
+
+                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20">
+                                <span className="text-[10px] uppercase font-black text-slate-500 block tracking-wider">Categorias Exibidas</span>
+                                <span className="text-lg font-mono font-black text-slate-800 dark:text-white">
+                                    {selectedExpenseTotals.categoriesCount} <span className="text-xs font-normal text-slate-400">de {allExpenseCategoryNames.length}</span>
+                                </span>
+                            </div>
+
+                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20">
+                                <span className="text-[10px] uppercase font-black text-slate-500 block tracking-wider">Lançamentos Filtrados</span>
+                                <span className="text-lg font-mono font-black text-slate-800 dark:text-white">
+                                    {selectedExpenseTotals.totalCount} <span className="text-xs font-normal text-slate-400">movimentações</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Category Cards & Drilldown */}
+                        {displayedExpenseCategories.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400 text-xs italic bg-slate-50/50 dark:bg-black/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                                <p>Nenhuma categoria de saída encontrada para os filtros selecionados.</p>
+                                {(selectedExpenseCategories.length > 0 || expenseCategorySearch) && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectedExpenseCategories([]);
+                                            setExpenseCategorySearch('');
+                                        }}
+                                        className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-rose-700 transition-colors"
+                                    >
+                                        Limpar Filtros de Categoria
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {displayedExpenseCategories.map((cat, idx) => {
+                                    const percent = financialTotals.expenses > 0 ? Math.round((cat.amount / financialTotals.expenses) * 100) : 0;
+                                    const isExpanded = expandedCategory === cat.category;
+                                    const catTransactions = isExpanded ? getExpenseCategoryTransactions(cat.category) : [];
+
+                                    return (
+                                        <div 
+                                            key={idx}
+                                            className={`p-4 rounded-xl border transition-all flex flex-col space-y-3 ${
+                                                isExpanded
+                                                    ? 'border-rose-400 dark:border-rose-800 bg-white dark:bg-slate-900 shadow-md md:col-span-2'
+                                                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 hover:border-slate-300 dark:hover:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start gap-2">
+                                                <div>
+                                                    <h4 className="font-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                                                        <Tag className="w-3.5 h-3.5 text-rose-500" />
+                                                        {cat.category}
+                                                    </h4>
+                                                    <span className="text-[10px] text-slate-400 font-semibold">{cat.count} lançamentos • {percent}% do total de saídas</span>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    <span className="text-xs font-mono font-black text-rose-600 dark:text-rose-400 block">{formatBRL(cat.amount)}</span>
+                                                    <button
+                                                        onClick={() => toggleExpandCategory(cat.category)}
+                                                        className="mt-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 ml-auto"
+                                                    >
+                                                        <span>{isExpanded ? 'Ocultar Lançamentos' : 'Ver Detalhes'}</span>
+                                                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                                                    style={{ width: `${percent}%` }}
+                                                />
+                                            </div>
+
+                                            {/* DRILLDOWN TABLE FOR EXPANDED CATEGORY */}
+                                            {isExpanded && (
+                                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 animate-in fade-in duration-200">
+                                                    <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
+                                                        <span>Listagem de Lançamentos da Categoria ({catTransactions.length})</span>
+                                                        <span className="font-mono text-rose-600">Subtotal: {formatBRL(cat.amount)}</span>
+                                                    </div>
+
+                                                    <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                                                        <div className="overflow-x-auto max-h-60 custom-scrollbar">
+                                                            <table className="w-full text-left border-collapse">
+                                                                <thead>
+                                                                    <tr className="bg-slate-100 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                                                                        <th className="py-2 px-3">Data</th>
+                                                                        <th className="py-2 px-3">Histórico / Descrição</th>
+                                                                        <th className="py-2 px-3">Favorecido / Fornecedor</th>
+                                                                        <th className="py-2 px-3">Igreja</th>
+                                                                        <th className="py-2 px-3 text-right">Valor (R$)</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                                                    {catTransactions.length === 0 ? (
+                                                                        <tr>
+                                                                            <td colSpan={5} className="py-4 text-center text-slate-400 italic">
+                                                                                Nenhum lançamento detalhado encontrado.
+                                                                            </td>
+                                                                        </tr>
+                                                                    ) : (
+                                                                        catTransactions.map((tx: any, tIdx: number) => {
+                                                                            const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                                                                            return (
+                                                                                <tr key={tIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                                                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">{tx.date || '---'}</td>
+                                                                                    <td className="py-1.5 px-3 font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px]">{tx.desc || tx.description || tx.historico || 'Saída'}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-600 dark:text-slate-400 text-[11px]">{tx.payer || tx.contribuinte || tx.favorecido || '---'}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-400 text-[10px]">{getChurchName(tx.churchId || tx.church)}</td>
+                                                                                    <td className="py-1.5 px-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">{formatBRL(amt)}</td>
+                                                                                </tr>
+                                                                            );
+                                                                        })
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};

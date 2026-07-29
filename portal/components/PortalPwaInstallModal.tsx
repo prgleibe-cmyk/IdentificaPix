@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PortalChurch } from '../types/portal';
-import { Smartphone, Download, Share2, PlusSquare, X, Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Smartphone, Download, Share2, PlusSquare, X, Check, ArrowRight, ShieldCheck, ExternalLink } from 'lucide-react';
 
 interface PortalPwaInstallModalProps {
     church?: PortalChurch | null;
@@ -15,18 +15,31 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
 }) => {
     const [installed, setInstalled] = useState(false);
     const [isIos, setIsIos] = useState(false);
+    const [isInIframe, setIsInIframe] = useState(false);
+    const [isStandalone, setIsStandalone] = useState(false);
 
     useEffect(() => {
         const userAgent = window.navigator.userAgent.toLowerCase();
         setIsIos(/iphone|ipad|ipod/.test(userAgent));
+        try {
+            setIsInIframe(window.self !== window.top);
+            setIsStandalone(
+                window.matchMedia('(display-mode: standalone)').matches || 
+                (window.navigator as any).standalone === true
+            );
+        } catch (_) {}
     }, []);
 
+    const activePrompt = deferredPrompt || (window as any).deferredPwaPrompt;
+
     const handleDirectInstall = async () => {
-        if (!deferredPrompt) return;
+        const promptToUse = activePrompt;
+        if (!promptToUse) return;
         try {
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
+            promptToUse.prompt();
+            const { outcome } = await promptToUse.userChoice;
             if (outcome === 'accepted') {
+                (window as any).deferredPwaPrompt = null;
                 setInstalled(true);
                 setTimeout(() => onClose(), 2500);
             }
@@ -82,23 +95,46 @@ export const PortalPwaInstallModal: React.FC<PortalPwaInstallModalProps> = ({
                     </p>
                 </div>
 
-                {/* Installed Success View */}
-                {installed ? (
+                {/* Installed Success View or Already Standalone */}
+                {installed || isStandalone ? (
                     <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-center my-4 space-y-2 animate-fade-in">
                         <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto">
                             <Check className="w-6 h-6" />
                         </div>
                         <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                            Aplicativo Adicionado!
+                            {isStandalone ? 'Aplicativo em Execução!' : 'Aplicativo Adicionado!'}
                         </h4>
                         <p className="text-xs text-slate-600 dark:text-slate-300">
-                            O ícone com a logo da {appName} já foi adicionado na tela inicial do seu dispositivo.
+                            {isStandalone 
+                                ? `Você já está usando o app da ${appName} em modo aplicativo no seu dispositivo.` 
+                                : `O ícone com a logo da ${appName} foi adicionado à tela inicial do seu celular.`}
                         </p>
                     </div>
                 ) : (
                     <div className="space-y-4 my-2">
+                        {/* If in iframe, suggest opening in new tab */}
+                        {isInIframe && (
+                            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-slate-800 dark:text-slate-200 text-xs space-y-2">
+                                <div className="flex items-center gap-2 font-bold text-amber-600 dark:text-amber-400">
+                                    <ExternalLink className="w-4 h-4 shrink-0" />
+                                    <span>Navegação Incorporada</span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    Navegadores bloqueiam o botão de instalação automática quando a página está dentro de um preview ou quadro (iframe). Abra em uma nova aba para baixar.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => window.open(window.location.href, '_blank')}
+                                    className="w-full mt-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <span>Abrir Portal em Nova Aba para Baixar</span>
+                                </button>
+                            </div>
+                        )}
+
                         {/* Direct One-Click Install Button (if browser supports beforeinstallprompt) */}
-                        {deferredPrompt ? (
+                        {activePrompt ? (
                             <button
                                 type="button"
                                 onClick={handleDirectInstall}

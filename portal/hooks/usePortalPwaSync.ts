@@ -28,47 +28,15 @@ export const usePortalPwaSync = (church?: PortalChurch | null) => {
             appleTouchLink.href = logo;
         }
 
-        // 4. Update or Inject Dynamic PWA Manifest
+        // 4. Ensure standard valid manifest.json link is set
         try {
-            const currentPath = window.location.pathname;
-            const dynamicManifest = {
-                id: currentPath,
-                lang: 'pt-BR',
-                name: `${name} - Portal do Contribuinte`,
-                short_name: name,
-                description: `Portal de Ofertas e Dízimos da ${name}`,
-                icons: [
-                    {
-                        src: logo,
-                        type: 'image/png',
-                        sizes: '192x192 512x512',
-                        purpose: 'any'
-                    },
-                    {
-                        src: logo,
-                        type: 'image/png',
-                        sizes: '512x512',
-                        purpose: 'maskable'
-                    }
-                ],
-                start_url: currentPath,
-                display: 'standalone',
-                theme_color: '#051024',
-                background_color: '#ffffff',
-                orientation: 'any',
-                scope: '/'
-            };
-
-            const manifestBlob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/json' });
-            const manifestUrl = URL.createObjectURL(manifestBlob);
-
             let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
             if (manifestLink) {
-                manifestLink.href = manifestUrl;
+                manifestLink.href = "/manifest.json?v=15";
             } else {
                 manifestLink = document.createElement('link');
                 manifestLink.rel = 'manifest';
-                manifestLink.href = manifestUrl;
+                manifestLink.href = '/manifest.json?v=15';
                 document.head.appendChild(manifestLink);
             }
         } catch (err) {

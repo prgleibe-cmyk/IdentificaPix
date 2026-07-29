@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { XMarkIcon, SparklesIcon, CheckBadgeIcon, BuildingOfficeIcon, ChevronDownIcon } from '../Icons';
 import { Contributor, MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { extractNameAndCpf, findSimilarContributors } from '../../utils/contributorHelper';
+import { getStoredWhatsAppSettings } from './WhatsAppReceiptModal';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -31,7 +32,8 @@ export const ManualIdModal: React.FC = () => {
         contributionKeywords,
         paymentMethods,
         contributorFiles,
-        matchResults
+        matchResults,
+        openWhatsAppReceiptModal
     } = useContext(AppContext);
     const { t, language } = useTranslation();
     const { subscription, user } = useAuth();
@@ -43,7 +45,7 @@ export const ManualIdModal: React.FC = () => {
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(paymentMethods?.[0] || 'Transferência');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('DINHEIRO');
     const [isCustomType, setIsCustomType] = useState(false);
     const [isCustomPaymentMethod, setIsCustomPaymentMethod] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -53,6 +55,23 @@ export const ManualIdModal: React.FC = () => {
 
     // Auto-busca de contribuintes cadastrados ao digitar
     const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const paymentMethodsOptions = useMemo(() => {
+        const list = Array.isArray(paymentMethods) ? [...paymentMethods] : [];
+        if (!list.some(m => m.toUpperCase() === 'DINHEIRO')) {
+            list.unshift('DINHEIRO');
+        } else {
+            const idx = list.findIndex(m => m.toUpperCase() === 'DINHEIRO');
+            if (idx > 0) {
+                const [item] = list.splice(idx, 1);
+                list.unshift(item);
+            }
+        }
+        if (!list.some(m => m.toUpperCase() === 'PIX')) {
+            list.push('PIX');
+        }
+        return list;
+    }, [paymentMethods]);
 
     const allContributors = useMemo(() => {
         if (!contributorFiles) return [];
@@ -65,7 +84,21 @@ export const ManualIdModal: React.FC = () => {
     }, [contributorFiles, churches]);
 
     const filteredContributors = useMemo(() => {
-        if (!manualDescription || manualDescription.trim().length < 2) return [];
+        if (!manualDescription || manualDescription.trim().length < 1) {
+            const seenNames = new Set<string>();
+            const matches: any[] = [];
+            for (const c of allContributors) {
+                const name = c.name || '';
+                if (!name) continue;
+                const key = `${name.toLowerCase().trim()}_${c._churchId || ''}`;
+                if (!seenNames.has(key)) {
+                    seenNames.add(key);
+                    matches.push(c);
+                }
+                if (matches.length >= 10) break;
+            }
+            return matches;
+        }
         const query = manualDescription.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const queryDigits = query.replace(/\D/g, '');
         
@@ -88,7 +121,7 @@ export const ManualIdModal: React.FC = () => {
                     matches.push(c);
                 }
             }
-            if (matches.length >= 10) break;
+            if (matches.length >= 12) break;
         }
         return matches;
     }, [manualDescription, allContributors]);
@@ -149,164 +182,124 @@ export const ManualIdModal: React.FC = () => {
 
     const [manualType, setManualType] = useState<'entrada' | 'saida'>('entrada');
     const activeTxId = bulkIdentificationTxs?.[0]?.id;
+    const initializedTxIdRef = React.useRef<string | null>(null);
 
     // --- INICIALIZAR TODOS OS CAMPOS ---
     useEffect(() => {
-        if (bulkIdentificationTxs && bulkIdentificationTxs.length === 1) {
-            const tx = bulkIdentificationTxs[0];
-            const isManual = tx.id.startsWith('ghost-manual-');
-            if (isManual) {
-                const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
-                
-                // 1. Data/Date
-                if (tx.date) {
-                    setSelectedDate(tx.date);
-                } else if (matchedResult?.transaction?.date) {
-                    setSelectedDate(matchedResult.transaction.date);
-                } else {
-                    setSelectedDate(new Date().toISOString().split('T')[0]);
-                }
+        if (!bulkIdentificationTxs || bulkIdentificationTxs.length === 0) {
+            initializedTxIdRef.current = null;
+            return;
+        }
 
-                // 2. Amount
-                setManualAmount(tx.amount ? Math.abs(tx.amount).toString().replace('.', ',') : '');
+        const tx = bulkIdentificationTxs[0];
+        const isManual = tx.id?.startsWith('ghost-manual-');
 
-                // 3. Description
-                const desc = tx.description || '';
-                if (desc === 'Lançamento Manual Entrada' || desc === 'Lançamento Manual Saída') {
-                    setManualDescription('');
-                } else {
-                    setManualDescription(desc);
-                }
+        // Se já foi inicializado para a mesma transação, não sobreescreve escolhas do usuário
+        if (initializedTxIdRef.current === activeTxId) return;
+        initializedTxIdRef.current = activeTxId || null;
 
-                // 4. Church ID
-                if (matchedResult?.church?.id) {
-                    setSelectedChurchId(matchedResult.church.id);
-                } else if (churches.length === 1) {
-                    setSelectedChurchId(churches[0].id);
-                } else {
-                    setSelectedChurchId('');
-                }
-
-                // 5. Type
-                if (matchedResult?.contributionType) {
-                    setSelectedType(matchedResult.contributionType);
-                } else {
-                    setSelectedType(contributionKeywords?.[0] || 'Dízimo');
-                }
-
-                // 6. Payment Method
-                if (matchedResult?.paymentMethod) {
-                    setSelectedPaymentMethod(matchedResult.paymentMethod);
-                } else {
-                    setSelectedPaymentMethod(paymentMethods?.[0] || 'Transferência');
-                }
-
-                // 7. Manual Type
-                const isEnt = (tx.description || '').toLowerCase().includes('entrada') || tx.amount >= 0;
-                setManualType(isEnt ? 'entrada' : 'saida');
+        if (isManual) {
+            const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
+            
+            // 1. Data/Date
+            if (tx.date) {
+                setSelectedDate(tx.date);
+            } else if (matchedResult?.transaction?.date) {
+                setSelectedDate(matchedResult.transaction.date);
             } else {
-                // É transação bancária original. Vamos carregar o nome já identificado se houver, ou extrair do PIX.
-                const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
-                if (matchedResult && matchedResult.contributor) {
-                    setManualDescription(matchedResult.contributor.name || matchedResult.contributor.cleanedName || '');
-                } else {
-                    const { name } = extractNameAndCpf(tx.description);
-                    setManualDescription(name || '');
-                }
+                setSelectedDate(new Date().toISOString().split('T')[0]);
+            }
+
+            // 2. Amount
+            if (tx.amount) {
+                setManualAmount(Math.abs(tx.amount).toString().replace('.', ','));
+            } else {
                 setManualAmount('');
             }
-        } else {
-            setManualDescription('');
-            setManualAmount('');
-        }
-    }, [activeTxId, findMatchResult]);
 
-    // --- REALTIME SYNC DE VOLTA PARA O CONTEXTO ---
-    useEffect(() => {
-        if (!isManualLaunch || !activeTxId) return;
-
-        // Limpa string do valor para número float
-        const amtClean = parseFloat(manualAmount.replace(/\./g, '').replace(',', '.'));
-        const amtNum = isNaN(amtClean) ? 0 : amtClean;
-        const finalAmt = manualType === 'saida' ? -Math.abs(amtNum) : Math.abs(amtNum);
-
-        // 1. Atualizar bulkIdentificationTxs
-        setBulkIdentificationTxs((prev: any[]) => {
-            if (!prev || prev.length === 0 || prev[0].id !== activeTxId) return prev;
-            
-            // Só atualizar se houver mudança real para evitar loops
-            const current = prev[0];
-            if (
-                current.description === manualDescription &&
-                current.amount === finalAmt &&
-                current.date === selectedDate
-            ) {
-                return prev;
+            // 3. Description
+            const desc = tx.description || '';
+            if (desc === 'Lançamento Manual Entrada' || desc === 'Lançamento Manual Saída') {
+                setManualDescription('');
+            } else {
+                setManualDescription(desc);
             }
 
-            const updated = [...prev];
-            updated[0] = {
-                ...updated[0],
-                date: selectedDate,
-                description: manualDescription,
-                rawDescription: manualDescription,
-                amount: finalAmt,
-            };
-            return updated;
-        });
+            // 4. Church ID
+            if (matchedResult?.church?.id) {
+                setSelectedChurchId(matchedResult.church.id);
+            } else if (churches.length === 1) {
+                setSelectedChurchId(churches[0].id);
+            }
 
-        // 2. Atualizar matchResults
-        setMatchResults((prev: any[]) => {
-            if (!prev || prev.length === 0) return prev;
-            
-            let changed = false;
-            const nextList = prev.map(item => {
-                if (item.transaction.id !== activeTxId) return item;
-                
-                const churchObj = churches.find((c: any) => c.id === selectedChurchId) || item.church;
-                if (
-                    item.transaction.description === manualDescription &&
-                    item.transaction.amount === finalAmt &&
-                    item.transaction.date === selectedDate &&
-                    item.church?.id === churchObj?.id &&
-                    item.contributionType === selectedType &&
-                    item.paymentMethod === selectedPaymentMethod
-                ) {
-                    return item; // Sem mudanças reais
-                }
+            // 5. Manual Type
+            const descLower = (desc || '').toLowerCase();
+            const isSaida = descLower.includes('saída') || descLower.includes('saida') || tx.amount < 0;
+            const initType: 'entrada' | 'saida' = isSaida ? 'saida' : 'entrada';
+            setManualType(initType);
 
-                changed = true;
-                return {
-                    ...item,
-                    church: churchObj,
-                    contributionType: selectedType,
-                    paymentMethod: selectedPaymentMethod,
-                    transaction: {
-                        ...item.transaction,
-                        date: selectedDate,
-                        description: manualDescription,
-                        rawDescription: manualDescription,
-                        amount: finalAmt,
-                    }
-                };
-            });
+            // 6. Type
+            if (matchedResult?.contributionType) {
+                setSelectedType(matchedResult.contributionType);
+            } else if (initType === 'saida') {
+                setSelectedType('Despesa Geral');
+            } else {
+                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+            }
 
-            return changed ? nextList : prev;
-        });
-    }, [
-        selectedChurchId,
-        selectedType,
-        selectedPaymentMethod,
-        selectedDate,
-        manualDescription,
-        manualAmount,
-        manualType,
-        isManualLaunch,
-        activeTxId,
-        churches,
-        setBulkIdentificationTxs,
-        setMatchResults
-    ]);
+            // 7. Payment Method
+            if (matchedResult?.paymentMethod) {
+                setSelectedPaymentMethod(matchedResult.paymentMethod);
+            } else {
+                setSelectedPaymentMethod('DINHEIRO');
+            }
+        } else {
+            // É transação bancária original.
+            const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
+            if (matchedResult && matchedResult.contributor) {
+                setManualDescription(matchedResult.contributor.name || matchedResult.contributor.cleanedName || '');
+            } else {
+                const { name } = extractNameAndCpf(tx.description);
+                setManualDescription(name || '');
+            }
+            setManualAmount('');
+        }
+    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, contributionKeywords]);
+
+    // --- FUNÇÃO PARA ALTERNAR ENTRE ENTRADA E SAÍDA ---
+    const handleTypeSwitch = (type: 'entrada' | 'saida') => {
+        setManualType(type);
+        if (type === 'saida') {
+            if (!selectedType || (contributionKeywords && contributionKeywords.includes(selectedType))) {
+                setSelectedType('Despesa Geral');
+            }
+        } else {
+            if (!selectedType || selectedType === 'Despesa Geral' || selectedType === 'Fatura / Conta') {
+                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+            }
+        }
+    };
+
+    // --- OPÇÕES DINÂMICAS DE TIPO / CATEGORIA ---
+    const typeOptions = useMemo(() => {
+        if (manualType === 'saida') {
+            return [
+                'Despesa Geral',
+                'Fatura / Conta',
+                'Adiantamento',
+                'Fornecedor / Compra',
+                'Manutenção',
+                'Aluguel',
+                'Energia / Água',
+                'Folha / Preletor',
+                'Outros'
+            ];
+        }
+        const list = Array.isArray(contributionKeywords) ? [...contributionKeywords] : ['Dízimo', 'Oferta'];
+        if (!list.includes('Dízimo')) list.unshift('Dízimo');
+        if (!list.includes('Oferta')) list.push('Oferta');
+        return list;
+    }, [manualType, contributionKeywords]);
 
     // --- ATALHOS DE TECLADO ---
     useEffect(() => {
@@ -319,12 +312,10 @@ export const ManualIdModal: React.FC = () => {
     }, [closeManualIdentify, selectedChurchId, isSaving]);
 
     useEffect(() => {
-        if (churches.length === 1) {
+        if (churches.length === 1 && !selectedChurchId) {
             setSelectedChurchId(churches[0].id);
-        } else if (selectedAssociationType !== 'unify') {
-            setSelectedChurchId('');
         }
-    }, [churches, isBulk, selectedAssociationType]);
+    }, [churches, selectedChurchId]);
 
     if (!isBulk) return null;
     
@@ -342,6 +333,11 @@ export const ManualIdModal: React.FC = () => {
         try {
             if (isBulk) {
                 const ids = bulkIdentificationTxs.map(tx => tx.id);
+                const churchObj = churches?.find((c: any) => c.id === selectedChurchId);
+                const firstTx = bulkIdentificationTxs[0];
+                const contributorName = manualDescription || firstTx?.contributor?.name || firstTx?.description || 'Contribuinte';
+                const calculatedTotalAmount = isManualLaunch ? (parseFloat(manualAmount) || 0) : bulkIdentificationTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+
                 await confirmBulkManualIdentification(
                     ids, 
                     selectedChurchId, 
@@ -353,6 +349,17 @@ export const ManualIdModal: React.FC = () => {
                     selectedAssociationType === 'unify' ? selectedUnifiedField : undefined,
                     isManualLaunch ? manualType : undefined
                 );
+
+                const waSettings = getStoredWhatsAppSettings();
+                if (waSettings.autoOpenOnReconcile && openWhatsAppReceiptModal) {
+                    openWhatsAppReceiptModal({
+                        contributorName,
+                        amount: calculatedTotalAmount,
+                        contributionType: selectedType,
+                        churchName: churchObj?.name || 'Igreja',
+                        date: selectedDate
+                    });
+                }
             }
         } catch (error) {
             console.error("[ManualIdModal] Error confirming identification:", error);
@@ -385,37 +392,33 @@ export const ManualIdModal: React.FC = () => {
                         </div>
 
                         {/* Selector buttons right in front of the name, matching exact size and style of Cadastros top buttons */}
-                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-[10px]">
                             <button
                                 type="button"
-                                onClick={() => setManualType('entrada')}
-                                className={`relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
+                                onClick={() => handleTypeSwitch('entrada')}
+                                className={`px-3.5 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
                                     manualType === 'entrada'
-                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30 transform scale-105 z-10 border-transparent'
-                                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                                 }`}
                                 id="modal-btn-entrada"
                             >
-                                <svg className={`w-3.5 h-3.5 ${manualType === 'entrada' ? 'text-white' : 'text-emerald-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                </svg>
-                                <span>Entrada</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span>
+                                <span>• Entrada</span>
                             </button>
 
                             <button
                                 type="button"
-                                onClick={() => setManualType('saida')}
-                                className={`relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
+                                onClick={() => handleTypeSwitch('saida')}
+                                className={`px-3.5 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
                                     manualType === 'saida'
-                                        ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-md shadow-rose-500/30 transform scale-105 z-10 border-transparent'
-                                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                                        ? 'bg-rose-600 text-white shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                                 }`}
                                 id="modal-btn-saida"
                             >
-                                <svg className={`w-3.5 h-3.5 ${manualType === 'saida' ? 'text-white' : 'text-rose-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                                <span>Saída</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-300"></span>
+                                <span>• Saída</span>
                             </button>
                         </div>
                     </div>
@@ -465,9 +468,14 @@ export const ManualIdModal: React.FC = () => {
                         </div>
 
                         <div className="space-y-3" id="manual-description-container">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                Nome / Descrição
-                            </label>
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Buscar Contribuinte Cadastrado / Nome
+                                </label>
+                                <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    ⚡ Selecionar preenche a igreja automaticamente
+                                </span>
+                            </div>
                             <div className="relative group">
                                 <FileText className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <input
@@ -488,13 +496,14 @@ export const ManualIdModal: React.FC = () => {
                                         }
                                     }}
                                     onFocus={() => setShowSuggestions(true)}
-                                    placeholder="Ex: Doação / Oferta Especial"
+                                    placeholder="Digite o nome ou CPF do contribuinte..."
                                     className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold placeholder:text-slate-400 dark:placeholder:text-slate-600"
                                 />
                                 {showSuggestions && filteredContributors.length > 0 && (
                                     <div className="absolute left-0 right-0 top-[105%] z-50 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
-                                        <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2">
-                                            Empresas / Pessoas Cadastradas
+                                        <div className="p-2 border-b border-slate-100 dark:border-white/5 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-4 py-2 flex justify-between items-center">
+                                            <span>🔍 Pessoas / Empresas Cadastradas</span>
+                                            <span className="text-[8px] font-semibold text-emerald-600 dark:text-emerald-400">Preenche a Igreja</span>
                                         </div>
                                         {filteredContributors.map((col, cIdx) => (
                                             <button
@@ -509,7 +518,7 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedUnifiedField(col.id);
                                                     setShowSuggestions(false);
                                                 }}
-                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none"
+                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-800 dark:text-slate-200 text-sm font-semibold transition-colors flex justify-between items-center border-b border-slate-50 dark:border-white/5 last:border-none cursor-pointer"
                                             >
                                                 <div className="flex flex-col min-w-0 pr-2">
                                                     <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{col.name}</span>
@@ -519,14 +528,41 @@ export const ManualIdModal: React.FC = () => {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span className="text-[9px] font-black bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md truncate shrink-0 max-w-[150px]">
-                                                    {col._churchName}
+                                                <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50 shrink-0 max-w-[170px] truncate">
+                                                    🏛️ {col._churchName}
                                                 </span>
                                             </button>
                                         ))}
                                     </div>
                                 )}
                             </div>
+
+                            {/* Feedback de Vínculo Automático */}
+                            {selectedAssociationType === 'unify' && selectedUnifiedField && (
+                                <div className="flex items-center justify-between gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 animate-fade-in">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <CheckBadgeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                        <span className="truncate">
+                                            Contribuinte vinculado: <strong className="font-extrabold">{manualDescription}</strong>
+                                            {churches.find(c => c.id === selectedChurchId) && (
+                                                <span className="ml-1 text-[11px] font-medium opacity-90">
+                                                    • Igreja: <strong className="font-bold">{churches.find(c => c.id === selectedChurchId)?.name}</strong>
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedAssociationType('create_new');
+                                            setSelectedUnifiedField('');
+                                        }}
+                                        className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white underline cursor-pointer shrink-0"
+                                    >
+                                        Desvincular
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* SELEÇÃO DE ANÁLISE DE SIMILARIDADE E UNIFICAÇÃO DE CONTRIBUINTES */}
@@ -634,15 +670,22 @@ export const ManualIdModal: React.FC = () => {
                         )}
 
                         <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                               Escolha a Igreja de Destino
-                            </label>
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Escolha a Igreja de Destino
+                                </label>
+                                {selectedAssociationType === 'unify' && selectedChurchId && (
+                                    <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                        ✓ Auto-preenchida pelo contribuinte
+                                    </span>
+                                )}
+                            </div>
                             <div className="relative group">
                                 <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
                                 <select
                                     value={selectedChurchId}
                                     onChange={e => setSelectedChurchId(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none"
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">-- Clique para ver as igrejas --</option>
                                     {churches.map(church => (
@@ -696,9 +739,9 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedType(val);
                                                 }
                                             }}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
                                         >
-                                            {contributionKeywords.map((type: string) => (
+                                            {typeOptions.map((type: string) => (
                                                 <option key={type} value={type}>{type}</option>
                                             ))}
                                             <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
@@ -711,16 +754,21 @@ export const ManualIdModal: React.FC = () => {
                             </div>
 
                             <div className="space-y-3">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Forma
-                                </label>
+                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                        Forma de Pagamento
+                                    </label>
+                                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/50 dark:border-amber-800/50">
+                                        💵 Padrão Dinheiro (Lançamento Manual)
+                                    </span>
+                                </div>
                                 {isCustomPaymentMethod ? (
                                     <div className="flex gap-2 items-center">
                                         <input
                                             type="text"
                                             value={selectedPaymentMethod}
                                             onChange={e => setSelectedPaymentMethod(e.target.value.toUpperCase())}
-                                            placeholder="Digite a forma (ex: PIX, DINHEIRO)"
+                                            placeholder="Digite a forma (ex: DINHEIRO, PIX)"
                                             className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold"
                                             autoFocus
                                         />
@@ -728,7 +776,7 @@ export const ManualIdModal: React.FC = () => {
                                             type="button"
                                             onClick={() => {
                                                 setIsCustomPaymentMethod(false);
-                                                setSelectedPaymentMethod(paymentMethods?.[0] || 'Transferência');
+                                                setSelectedPaymentMethod('DINHEIRO');
                                             }}
                                             className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
                                         >
@@ -748,9 +796,9 @@ export const ManualIdModal: React.FC = () => {
                                                     setSelectedPaymentMethod(val);
                                                 }
                                             }}
-                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
                                         >
-                                            {paymentMethods.map((method: string) => (
+                                            {paymentMethodsOptions.map((method: string) => (
                                                 <option key={method} value={method}>{method}</option>
                                             ))}
                                             <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>
@@ -820,7 +868,7 @@ export const ManualIdModal: React.FC = () => {
                         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
                             <button
                                 type="button"
-                                onClick={() => setManualType('entrada')}
+                                onClick={() => handleTypeSwitch('entrada')}
                                 className={`relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
                                     manualType === 'entrada'
                                         ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30 transform scale-105 z-10 border-transparent'
@@ -836,7 +884,7 @@ export const ManualIdModal: React.FC = () => {
 
                             <button
                                 type="button"
-                                onClick={() => setManualType('saida')}
+                                onClick={() => handleTypeSwitch('saida')}
                                 className={`relative flex-shrink-0 flex items-center gap-2 px-5 py-2 rounded-xl transition-all duration-300 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
                                     manualType === 'saida'
                                         ? 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-md shadow-rose-500/30 transform scale-105 z-10 border-transparent'
@@ -1210,7 +1258,7 @@ export const ManualIdModal: React.FC = () => {
                                         }}
                                         className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
                                     >
-                                        {contributionKeywords.map((type: string) => (
+                                        {typeOptions.map((type: string) => (
                                             <option key={type} value={type}>{type}</option>
                                         ))}
                                         <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>

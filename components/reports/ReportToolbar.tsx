@@ -9,6 +9,7 @@ interface ReportToolbarProps {
     onDownload: () => void;
     onDownloadExcel?: () => void;
     onDownloadPdf?: () => void;
+    onDownloadOfx?: () => void;
     onPrint: () => void;
     onSaveReport: () => void;
     hasActiveReport: boolean;
@@ -21,6 +22,7 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
     onDownload, 
     onDownloadExcel,
     onDownloadPdf,
+    onDownloadOfx,
     onPrint, 
     onSaveReport, 
     hasActiveReport,
@@ -100,6 +102,15 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
                                 >
                                     <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                                     Baixar como PDF
+                                </button>
+                            )}
+                            {onDownloadOfx && (
+                                <button 
+                                    onClick={() => { onDownloadOfx(); setShowDownloadMenu(false); }} 
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 hover:text-brand-blue transition-colors cursor-pointer font-semibold"
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                    Baixar como OFX (Bancário/Contábil)
                                 </button>
                             )}
                         </div>

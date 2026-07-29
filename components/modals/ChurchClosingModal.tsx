@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { X, ArrowRight, Building2, Calendar, DollarSign, ArrowUpRight, ArrowDownRight, Check } from 'lucide-react';
+import { X, ArrowRight, Building2, Calendar, DollarSign, ArrowUpRight, ArrowDownRight, Check, MessageCircle } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { MatchResult, Church, ReconciliationStatus } from '../../types';
 
@@ -28,6 +28,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
         matchResults, 
         setMatchResults, 
         saveCurrentReportChanges,
+        openWhatsAppReceiptModal,
         language 
     } = useContext(AppContext);
     
@@ -237,9 +238,6 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
             }
 
             setSuccessMessage(`Fechamento concluído com sucesso! Saldo de ${formatCurrency(parsedAmount, language)} transportado da filial "${originChurch.name}" para a matriz "${destChurch.name}".`);
-            setTimeout(() => {
-                onClose();
-            }, 3000);
 
         } catch (error: any) {
             console.error('[ChurchClosingModal] Error performing closing:', error);
@@ -280,7 +278,7 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                 {/* Content */}
                 <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
                     {successMessage ? (
-                        <div className="p-8 text-center space-y-4">
+                        <div className="p-8 text-center space-y-5">
                             <div className="w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-500 mx-auto border border-emerald-100 dark:border-emerald-900/50 animate-bounce">
                                 <Check className="w-8 h-8" />
                             </div>
@@ -288,6 +286,37 @@ export const ChurchClosingModal: React.FC<ChurchClosingModalProps> = ({
                             <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 max-w-md mx-auto">
                                 {successMessage}
                             </p>
+
+                            <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (openWhatsAppReceiptModal) {
+                                            const originChurch = churches?.find(c => c.id === originChurchId);
+                                            openWhatsAppReceiptModal({
+                                                contributorName: 'Contribuintes & Dízimistas',
+                                                amount: parseFloat(transferAmount) || 0,
+                                                contributionType: 'Fechamento Mensal',
+                                                churchName: originChurch?.name || 'Igreja Sede',
+                                                date: closingDate
+                                            });
+                                        }
+                                        onClose();
+                                    }}
+                                    className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <MessageCircle className="w-4 h-4" />
+                                    <span>Notificar Dízimistas via WhatsApp (Link do Portal)</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="w-full sm:w-auto px-5 py-3 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <>

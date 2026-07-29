@@ -15,7 +15,9 @@ export const ChurchesList: React.FC = () => {
     const filteredChurches = useMemo(() => 
         churches.filter((c: any) => 
             c.name.toLowerCase().includes(search.toLowerCase()) || 
-            (c.pastor && c.pastor.toLowerCase().includes(search.toLowerCase()))
+            (c.pastor && c.pastor.toLowerCase().includes(search.toLowerCase())) ||
+            (c.treasurer && c.treasurer.toLowerCase().includes(search.toLowerCase())) ||
+            (c.cnpj && c.cnpj.includes(search))
         ), [churches, search]
     );
 
@@ -70,11 +72,36 @@ export const ChurchesList: React.FC = () => {
                             />
                             <div className="min-w-0">
                                 <span className="block font-bold text-slate-800 dark:text-slate-200 text-xs tracking-tight truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{church.name}</span>
-                                {church.pastor && (
-                                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center mt-0.5 truncate">
-                                        <UserIcon className="w-2.5 h-2.5 mr-1 flex-shrink-0 text-slate-400"/> {church.pastor}
-                                    </span>
-                                )}
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                    {/* Exibição dos Pastores */}
+                                    {Array.isArray(church.pastors) && church.pastors.filter((p: any) => p?.name?.trim()).length > 0 ? (
+                                        <span className="flex items-center truncate">
+                                            <UserIcon className="w-2.5 h-2.5 mr-1 flex-shrink-0 text-amber-500"/>
+                                            {church.pastors.filter((p: any) => p?.name?.trim()).map((p: any) => `${p.title ? `${p.title}: ` : ''}${p.name}`).join(' | ')}
+                                        </span>
+                                    ) : church.pastor ? (
+                                        <span className="flex items-center truncate">
+                                            <UserIcon className="w-2.5 h-2.5 mr-1 flex-shrink-0 text-amber-500"/> Pr: {church.pastor}
+                                        </span>
+                                    ) : null}
+
+                                    {/* Exibição dos Tesoureiros */}
+                                    {Array.isArray(church.treasurers) && church.treasurers.filter((t: any) => t?.name?.trim()).length > 0 ? (
+                                        <span className="flex items-center truncate text-emerald-600 dark:text-emerald-400">
+                                            • {church.treasurers.filter((t: any) => t?.name?.trim()).map((t: any) => `${t.title ? `${t.title}: ` : ''}${t.name}`).join(' | ')}
+                                        </span>
+                                    ) : church.treasurer ? (
+                                        <span className="flex items-center truncate text-emerald-600 dark:text-emerald-400">
+                                            • Tesoureiro: {church.treasurer}
+                                        </span>
+                                    ) : null}
+
+                                    {church.cnpj && (
+                                        <span className="truncate text-slate-400">
+                                            • CNPJ: {church.cnpj}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </RegisterListItem>

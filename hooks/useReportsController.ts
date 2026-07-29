@@ -9,7 +9,7 @@ import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
 
-export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses';
+export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses' | 'contributors';
 
 export const useReportsController = () => {
     const { 
@@ -27,7 +27,11 @@ export const useReportsController = () => {
         bankList,
         hydrate,
         regenerateReportPreview,
-        churches
+        churches,
+        isHydrating,
+        isSyncing,
+        isLoading,
+        setIsLoading
     } = useContext(AppContext);
     
     const { language } = useTranslation();
@@ -635,12 +639,17 @@ export const useReportsController = () => {
 
     const handleDownloadPdf = () => {
         const title = activeCategory === 'general' ? 'Relatório Geral' : activeCategory === 'churches' ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório') : activeCategory === 'unidentified' ? 'Pendentes' : 'Saídas';
-        ExportService.downloadPdf(sortedData, title, `relatorio_${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`);
+        ExportService.downloadPdf(sortedData, title, `relatorio_${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`, churches, selectedReportId || undefined);
+    };
+
+    const handleDownloadOfx = () => {
+        const title = activeCategory === 'general' ? 'Relatório Geral' : activeCategory === 'churches' ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório') : activeCategory === 'unidentified' ? 'Pendentes' : 'Saídas';
+        ExportService.downloadOfx(sortedData, `extrato_${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.ofx`);
     };
     
     const handlePrint = () => {
         const title = activeCategory === 'general' ? 'Relatório Geral' : activeCategory === 'churches' ? (churchList.find(c => c.id === selectedReportId)?.name || 'Relatório') : activeCategory === 'unidentified' ? 'Pendentes' : 'Saídas';
-        ExportService.printHtml(sortedData, title, activeSummary, language);
+        ExportService.printHtml(sortedData, title, activeSummary, language, churches, selectedReportId || undefined);
     };
 
     const handleSaveReport = () => openSaveReportModal({ type: 'global', results: matchResults, groupName: 'Geral' });
@@ -654,8 +663,9 @@ export const useReportsController = () => {
         handleSort,
         churchList, bankList, counts, activeSummary, sortedData,
         activeReportId, saveCurrentReportChanges, runAiAutoIdentification,
-        handleDownload, handleDownloadExcel, handleDownloadPdf, handlePrint, handleSaveReport, updateReportData,
+        handleDownload, handleDownloadExcel, handleDownloadPdf, handleDownloadOfx, handlePrint, handleSaveReport, updateReportData,
         setActiveView, reportPreviewData,
-        searchFilters, setSearchFilters
+        searchFilters, setSearchFilters,
+        isHydrating, isSyncing, isLoading, setIsLoading
     };
 };

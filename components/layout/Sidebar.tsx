@@ -5,7 +5,7 @@ import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
 const logoImg = '/logo.png?v=15';
-import { BookmarkPlus, Building2 } from 'lucide-react';
+import { BookmarkPlus, Building2, FileText } from 'lucide-react';
 import { 
     HomeIcon, 
     UploadIcon, 
@@ -120,8 +120,9 @@ export const Sidebar: React.FC = () => {
         const canManagePatrimony = !isSecondaryUser || (perms.patrimonio !== false && perms.managePatrimony !== false);
 
         items.push(
-            { view: 'reports', labelKey: 'nav.reports', icon: <ChartBarIcon className="w-5 h-5"/> },
-            { view: 'savedReports', labelKey: 'nav.savedReports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> },
+            { view: 'reports', labelKey: 'nav.reports', icon: <TableCellsIcon className="w-5 h-5"/> },
+            { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> },
+            { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> }
         );
 

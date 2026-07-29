@@ -222,7 +222,7 @@ export const useReconciliation = (props: any) => {
     const filteredMatchResults = useMemo(() => applySecurityFilters(matchResults), [matchResults, applySecurityFilters]);
     const filteredLaunchedResults = useMemo(() => applySecurityFilters(launchedResults), [launchedResults, applySecurityFilters]);
 
-    const { syncToCloud, isHydratingFromCloud } = cloud;
+    const { syncToCloud, isHydratingFromCloud, isHydrating } = cloud;
     const { handleStatementUpload, importGmailTransactions, removeBankStatementFile, handleContributorsUpload, removeContributorFile, toggleBankSelection } = files;
     const {
         handleCompare,
@@ -264,6 +264,7 @@ export const useReconciliation = (props: any) => {
     return useMemo(() => ({
         syncToCloud,
         isHydratingFromCloud,
+        isHydrating,
         handleStatementUpload,
         importGmailTransactions,
         removeBankStatementFile,
@@ -311,6 +312,7 @@ export const useReconciliation = (props: any) => {
     }), [
         syncToCloud,
         isHydratingFromCloud,
+        isHydrating,
         handleStatementUpload,
         importGmailTransactions,
         removeBankStatementFile,

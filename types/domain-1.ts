@@ -27,6 +27,14 @@ export interface Church {
   address: string;
   logoUrl: string;
   pastor: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  pixKey?: string;
+  cep?: string;
+  city?: string;
+  state?: string;
+  treasurer?: string;
 }
 
 export interface ChurchFormData {
@@ -34,6 +42,14 @@ export interface ChurchFormData {
   address: string;
   pastor: string;
   logoUrl: string;
+  cnpj?: string;
+  phone?: string;
+  email?: string;
+  pixKey?: string;
+  cep?: string;
+  city?: string;
+  state?: string;
+  treasurer?: string;
 }
 
 export interface Transaction {

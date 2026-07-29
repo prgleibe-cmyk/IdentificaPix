@@ -20,32 +20,62 @@ export const BANK_CATALOG: BankCatalogItem[] = [
   },
   {
     key: "caixa",
-    name: "Caixa",
+    name: "Caixa Econômica Federal",
     formats: [],
-    active: false
+    active: true
   },
   {
     key: "banco_do_brasil",
     name: "Banco do Brasil",
     formats: [],
-    active: false
+    active: true
   },
   {
     key: "itau",
-    name: "Itaú",
+    name: "Itaú Unibanco",
     formats: [],
-    active: false
+    active: true
   },
   {
     key: "bradesco",
-    name: "Bradesco",
+    name: "Banco Bradesco",
     formats: [],
-    active: false
+    active: true
+  },
+  {
+    key: "santander",
+    name: "Banco Santander",
+    formats: [],
+    active: true
   },
   {
     key: "nubank",
-    name: "Nubank",
+    name: "Nubank (Nu Pagamentos)",
     formats: [],
-    active: false
+    active: true
+  },
+  {
+    key: "inter",
+    name: "Banco Inter",
+    formats: [],
+    active: true
+  },
+  {
+    key: "mercado_pago",
+    name: "Mercado Pago",
+    formats: [],
+    active: true
+  },
+  {
+    key: "c6_bank",
+    name: "C6 Bank",
+    formats: [],
+    active: true
+  },
+  {
+    key: "pagbank",
+    name: "PagBank / PagSeguro",
+    formats: [],
+    active: true
   }
 ];
