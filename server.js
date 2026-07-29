@@ -18,6 +18,7 @@ console.log(`[Server] ASAAS_URL: ${process.env.ASAAS_URL || process.env.ASAAS_AP
 
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import { GoogleGenAI } from "@google/genai";
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -152,6 +153,7 @@ if (fs.existsSync(distPath)) {
 }
 
 // Middlewares
+app.use(compression());
 app.use(cors());
 
 // Condicional para aplicar express.json exceto em rotas /api/inbox (que possuem um parser resiliente próprio para evitar erros do MacroDroid)
@@ -349,8 +351,17 @@ try {
 
 // Servir arquivos estáticos do frontend apenas em produção
 if (process.env.NODE_ENV === 'production') {
-    // Pasta de arquivos estáticos
-    app.use(express.static(distPath));
+    // Pasta de arquivos estáticos com suporte a cache longo para assets imutáveis
+    app.use(express.static(distPath, {
+        maxAge: '7d',
+        etag: true,
+        setHeaders: (res, path) => {
+            if (path.endsWith('.html')) {
+                // index.html não deve ser retido sem verificação de e-tag
+                res.setHeader('Cache-Control', 'no-cache');
+            }
+        }
+    }));
 
     // SPA Fallback
     app.get('*', (req, res) => {
