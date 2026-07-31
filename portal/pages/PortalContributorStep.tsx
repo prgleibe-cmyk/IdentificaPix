@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
-import { ContributorMockProfile } from '../types/portal';
+import { ContributorMockProfile, PortalChurch } from '../types/portal';
 import { formatCpf, formatPhone, validateEmailVisual } from '../utils/portalFormatters';
 
 interface PortalContributorStepProps {
+    church?: PortalChurch | null;
     contributor: ContributorMockProfile;
     mockSearchFound: boolean;
     isSaving?: boolean;
@@ -16,6 +17,7 @@ interface PortalContributorStepProps {
 }
 
 export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
+    church,
     contributor,
     mockSearchFound,
     isSaving = false,
@@ -78,7 +80,7 @@ export const PortalContributorStep: React.FC<PortalContributorStepProps> = ({
                                 {contributor.name}
                             </h3>
                             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                Congregação: <span className="text-slate-700 dark:text-slate-200">{contributor.congregation}</span>
+                                Congregação: <span className="text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
                             </p>
                             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 pt-1">
                                 <span>🪪 {contributor.cpf}</span>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
-import { IdentificationType, ContributorMockProfile } from '../types/portal';
+import { IdentificationType, ContributorMockProfile, PortalChurch } from '../types/portal';
 import { 
     formatCpf, 
     formatPhone, 
@@ -28,6 +28,7 @@ import {
 const logoImg = '/logo.png?v=15';
 
 interface PortalIdentifyStepProps {
+    church?: PortalChurch | null;
     identificationType: IdentificationType;
     identificationValue: string;
     contributor: ContributorMockProfile;
@@ -45,6 +46,7 @@ interface PortalIdentifyStepProps {
 }
 
 export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
+    church,
     identificationType,
     identificationValue,
     contributor,
@@ -295,7 +297,7 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                                             {contributor.name}
                                         </h3>
                                         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                            Congregação: <span className="text-slate-700 dark:text-slate-200">{contributor.congregation || 'Sede Central'}</span>
+                                            Congregação: <span className="text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
                                         </p>
                                     </div>
 

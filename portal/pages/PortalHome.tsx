@@ -35,13 +35,14 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
         setItemAmount,
         getTotalAmount,
         resetWizard
-    } = usePortalWizard(church?.id);
+    } = usePortalWizard(church?.id, church?.name);
 
     const renderStepContent = () => {
         switch (wizardState.step) {
             case 1:
                 return (
                     <PortalIdentifyStep
+                        church={church}
                         identificationType={wizardState.identificationType}
                         identificationValue={wizardState.identificationValue}
                         contributor={wizardState.contributor}
@@ -72,6 +73,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
             case 3:
                 return (
                     <PortalSummaryStep
+                        church={church}
                         contributor={wizardState.contributor}
                         items={wizardState.contributionItems}
                         totalAmount={getTotalAmount()}

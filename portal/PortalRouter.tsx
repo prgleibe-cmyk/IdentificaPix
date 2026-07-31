@@ -83,9 +83,9 @@ export const PortalRouter: React.FC = () => {
             case 'church':
                 return <PortalHome church={church} onNavigate={handleNavigate} />;
             case 'identify':
-                return <PortalIdentifyPage onNavigate={handleNavigate} />;
+                return <PortalIdentifyPage church={church} onNavigate={handleNavigate} />;
             case 'register':
-                return <PortalRegisterPage onNavigate={handleNavigate} />;
+                return <PortalRegisterPage church={church} onNavigate={handleNavigate} />;
             case 'reports':
                 return <PortalReportsPage church={church} onNavigate={handleNavigate} />;
             case 'pledges':

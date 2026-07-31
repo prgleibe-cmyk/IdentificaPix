@@ -1,10 +1,11 @@
 import React from 'react';
 import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
-import { ContributorMockProfile, ContributionItemMock } from '../types/portal';
+import { ContributorMockProfile, ContributionItemMock, PortalChurch } from '../types/portal';
 import { formatCurrencyBrl } from '../utils/portalFormatters';
 
 interface PortalSummaryStepProps {
+    church?: PortalChurch | null;
     contributor: ContributorMockProfile;
     items: ContributionItemMock[];
     totalAmount: number;
@@ -16,6 +17,7 @@ interface PortalSummaryStepProps {
 }
 
 export const PortalSummaryStep: React.FC<PortalSummaryStepProps> = ({
+    church,
     contributor,
     items,
     totalAmount,
@@ -58,7 +60,7 @@ export const PortalSummaryStep: React.FC<PortalSummaryStepProps> = ({
                             {contributor.name}
                         </span>
                         <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                            {contributor.congregation}
+                            {(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}
                         </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">

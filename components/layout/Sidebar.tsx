@@ -211,20 +211,17 @@ export const Sidebar: React.FC = () => {
 
                 <div className="relative z-10 flex flex-col h-full">
                     
-                    <div className={`flex flex-col items-center justify-center pt-4 pb-2 transition-all duration-500 ${isCollapsed ? 'px-2' : 'px-6'}`}>
-                        <div className="relative group cursor-pointer perspective-[1000px] z-50" onClick={() => !isCollapsed && setActiveView('dashboard')}>
-                            <div className="absolute -inset-10 bg-amber-500/10 rounded-full blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                            <div className="relative transform-style-3d rotate-x-6 rotate-y-12 group-hover:rotate-x-0 group-hover:rotate-y-0 transition-transform duration-500 ease-out">
-                                <img 
-                                    src={logoImg} 
-                                    className={`${isCollapsed ? 'h-16' : 'h-32 md:h-52'} w-auto object-contain transition-all duration-500 drop-shadow-[0_15px_30px_rgba(0,0,0,0.12)]`} 
-                                    alt="Logo" 
-                                />
-                            </div>
+                    <div className={`flex items-center transition-all duration-300 border-b border-emerald-200/40 dark:border-white/5 ${isCollapsed ? 'justify-center py-4 px-2' : 'gap-3 px-5 py-4'}`}>
+                        <div className="relative group cursor-pointer shrink-0 z-50" onClick={() => setActiveView('dashboard')}>
+                            <img 
+                                src={logoImg} 
+                                className={`${isCollapsed ? 'h-8' : 'h-8 md:h-10'} w-auto object-contain transition-all duration-300 drop-shadow-sm group-hover:scale-105`} 
+                                alt="Logo" 
+                            />
                         </div>
                         {!isCollapsed && (
-                            <div className="mt-1 text-center">
-                                <span className="font-display font-black text-2xl tracking-tight text-slate-800 dark:text-white block leading-none">
+                            <div className="cursor-pointer min-w-0" onClick={() => setActiveView('dashboard')}>
+                                <span className="font-display font-black text-xl tracking-tight text-slate-800 dark:text-white block leading-none">
                                     Ig<span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500">Gestor</span>
                                 </span>
                             </div>

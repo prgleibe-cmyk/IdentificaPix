@@ -1074,7 +1074,7 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                                 Comprovante de Contribuição
                             </h2>
                             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
-                                {church?.name || 'Igreja Sede Central'}
+                                {church?.name || 'Igreja Local'}
                             </p>
                         </div>
 
@@ -1159,7 +1159,7 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                             <div className="grid grid-cols-2 gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
                                 <div>
                                     <span className="font-bold text-slate-500 block uppercase text-[10px]">Instituição Religiosa:</span>
-                                    <span className="font-extrabold text-slate-900 dark:text-white text-sm">{church?.name || 'Igreja Sede Central'}</span>
+                                    <span className="font-extrabold text-slate-900 dark:text-white text-sm">{church?.name || 'Igreja Local'}</span>
                                 </div>
                                 <div>
                                     <span className="font-bold text-slate-500 block uppercase text-[10px]">Contribuinte Titular:</span>

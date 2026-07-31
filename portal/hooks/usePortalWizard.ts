@@ -25,11 +25,11 @@ const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
     email: '',
     city: 'São Paulo',
     state: 'SP',
-    congregation: 'Sede Central',
+    congregation: '',
     isExisting: false
 };
 
-export const usePortalWizard = (churchId?: string) => {
+export const usePortalWizard = (churchId?: string, churchName?: string) => {
     const [wizardState, setWizardState] = useState<ContributionWizardState>(() => {
         let savedContrib = { ...INITIAL_EMPTY_CONTRIBUTOR };
         try {
@@ -38,6 +38,9 @@ export const usePortalWizard = (churchId?: string) => {
                 const parsed = JSON.parse(raw);
                 if (parsed && parsed.name) {
                     savedContrib = { ...savedContrib, ...parsed };
+                    if (savedContrib.congregation === 'Sede Central') {
+                        savedContrib.congregation = churchName || '';
+                    }
                 }
             }
         } catch (_) {}
@@ -154,7 +157,7 @@ export const usePortalWizard = (churchId?: string) => {
                     email: matched.email || (type === 'email' ? val : ''),
                     city: 'São Paulo',
                     state: 'SP',
-                    congregation: 'Sede Central',
+                    congregation: (matched.congregation && matched.congregation !== 'Sede Central') ? matched.congregation : (churchName || ''),
                     isExisting: true
                 };
                 try {
@@ -180,7 +183,7 @@ export const usePortalWizard = (churchId?: string) => {
                         email: type === 'email' ? val : '',
                         city: 'São Paulo',
                         state: 'SP',
-                        congregation: 'Sede Central',
+                        congregation: churchName || '',
                         isExisting: false
                     }
                 }));

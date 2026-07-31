@@ -2,12 +2,14 @@ import React from 'react';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalIdentifyStep } from './PortalIdentifyStep';
 import { usePortalWizard } from '../hooks/usePortalWizard';
+import { PortalChurch } from '../types/portal';
 
 interface PortalIdentifyPageProps {
+    church?: PortalChurch | null;
     onNavigate: (route: string, params?: Record<string, string>) => void;
 }
 
-export const PortalIdentifyPage: React.FC<PortalIdentifyPageProps> = ({ onNavigate }) => {
+export const PortalIdentifyPage: React.FC<PortalIdentifyPageProps> = ({ church, onNavigate }) => {
     const {
         wizardState,
         isSearching,
@@ -19,11 +21,12 @@ export const PortalIdentifyPage: React.FC<PortalIdentifyPageProps> = ({ onNaviga
         updateContributor,
         saveContributor,
         setMockSearchFound
-    } = usePortalWizard();
+    } = usePortalWizard(church?.id, church?.name);
 
     return (
         <PortalContainer maxWidth="7xl">
             <PortalIdentifyStep
+                church={church}
                 identificationType={wizardState.identificationType}
                 identificationValue={wizardState.identificationValue}
                 contributor={wizardState.contributor}
@@ -33,9 +36,9 @@ export const PortalIdentifyPage: React.FC<PortalIdentifyPageProps> = ({ onNaviga
                 apiError={apiError}
                 onTypeChange={setIdentificationType}
                 onValueChange={setIdentificationValue}
-                onPerformSearch={() => performSearchContributor()}
+                onPerformSearch={() => performSearchContributor(church?.id)}
                 onUpdateContributor={updateContributor}
-                onSaveContributor={() => saveContributor()}
+                onSaveContributor={() => saveContributor(church?.id)}
                 onMockSearchToggle={setMockSearchFound}
                 onContinue={() => onNavigate('home')}
             />

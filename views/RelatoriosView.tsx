@@ -57,7 +57,10 @@ export const RelatoriosView: React.FC = () => {
     const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
     const [isChurchDropdownOpen, setIsChurchDropdownOpen] = useState<boolean>(false);
 
-    // Expenses tab multi-category filter & drilldown state
+    // Expenses / Categories tab multi-category filter & drilldown state
+    const [categoryTypeFilter, setCategoryTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+    const [categoryPaymentMethodFilter, setCategoryPaymentMethodFilter] = useState<string>('all');
+    const [categoryRoleFilter, setCategoryRoleFilter] = useState<string>('all');
     const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>([]);
     const [expenseCategorySearch, setExpenseCategorySearch] = useState<string>('');
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -348,14 +351,174 @@ export const RelatoriosView: React.FC = () => {
         return Object.values(map).sort((a, b) => b.amount - a.amount);
     }, [filteredReportData]);
 
-    // All unique category names for expenses
-    const allExpenseCategoryNames = useMemo(() => {
-        return expenseCategories.map(c => c.category);
-    }, [expenseCategories]);
+    // Helper to resolve transaction category name
+    const getTxCategory = useCallback((tx: any) => {
+        const rawCat = tx.category || tx.categoria || tx.contributionType || tx.purpose || tx.proposito || tx.categoryName || tx.type_name;
+        if (rawCat && String(rawCat).trim()) {
+            return String(rawCat).trim();
+        }
+        const isExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
+        return isExp ? 'Despesas Gerais / Manutenção' : 'Dízimos & Ofertas';
+    }, []);
 
-    // Filtered expense categories based on selection and search
-    const displayedExpenseCategories = useMemo(() => {
-        return expenseCategories.filter(cat => {
+    // Helper to resolve payment method
+    const getTxPaymentMethod = useCallback((tx: any) => {
+        const pm = tx.paymentMethod || tx.formaPagamento || tx.payment_method || tx.paymentType || tx.metodo || tx.transaction?.paymentMethod;
+        if (pm && String(pm).trim()) return String(pm).trim().toUpperCase();
+        return 'NÃO INFORMADO';
+    }, []);
+
+    // Helper to resolve contributor role / cargo / vínculo
+    const getTxRole = useCallback((tx: any) => {
+        let role = tx.cargo || tx.vinculo || tx.role || tx.contributorRole || tx.position;
+        if (!role && contributorFiles.length > 0) {
+            const payerName = (tx.payer || tx.contribuinte || tx.nome || '').toLowerCase().trim();
+            if (payerName) {
+                for (const file of contributorFiles) {
+                    const found = file.contributors?.find((c: any) => 
+                        (c.name || c.cleanedName || '').toLowerCase().trim() === payerName
+                    );
+                    if (found && (found.cargo || found.vinculo || found.role || found.type || found.position)) {
+                        role = found.cargo || found.vinculo || found.role || found.type || found.position;
+                        break;
+                    }
+                }
+            }
+        }
+        return role && String(role).trim() ? String(role).trim() : 'Não Especificado';
+    }, [contributorFiles]);
+
+    // Master list of all system categories (from transactions, reference data, and defaults)
+    const allSystemCategoryNames = useMemo(() => {
+        const set = new Set<string>();
+        
+        reportData.forEach((tx: any) => {
+            const cat = getTxCategory(tx);
+            if (cat) set.add(cat);
+        });
+
+        if (context?.contributionTypes && Array.isArray(context.contributionTypes)) {
+            context.contributionTypes.forEach((ct: any) => {
+                if (ct.name) set.add(ct.name);
+                if (ct.category) set.add(ct.category);
+            });
+        }
+
+        set.add('Dízimos & Ofertas');
+        set.add('Despesas Gerais / Manutenção');
+
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [reportData, context?.contributionTypes, getTxCategory]);
+
+    // Available payment methods in system/data
+    const availablePaymentMethods = useMemo(() => {
+        const set = new Set<string>();
+        if (context?.paymentMethods && Array.isArray(context.paymentMethods)) {
+            context.paymentMethods.forEach((pm: string) => set.add(pm.toUpperCase()));
+        }
+        reportData.forEach((tx: any) => {
+            const pm = getTxPaymentMethod(tx);
+            if (pm && pm !== 'NÃO INFORMADO') set.add(pm);
+        });
+        ['PIX', 'DINHEIRO', 'BOLETO', 'CARTÃO', 'TRANSFERÊNCIA'].forEach(p => set.add(p));
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [context?.paymentMethods, reportData, getTxPaymentMethod]);
+
+    // Available roles/cargos/vínculos in system/data
+    const availableRoles = useMemo(() => {
+        const set = new Set<string>();
+        reportData.forEach((tx: any) => {
+            const r = getTxRole(tx);
+            if (r && r !== 'Não Especificado') set.add(r);
+        });
+        contributorFiles.forEach((file: any) => {
+            file.contributors?.forEach((c: any) => {
+                const r = c.cargo || c.vinculo || c.role || c.type || c.position;
+                if (r && String(r).trim()) set.add(String(r).trim());
+            });
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [reportData, contributorFiles, getTxRole]);
+
+    // Filter transactions by type, payment method, and role for category tab
+    const categoryFilteredTransactions = useMemo(() => {
+        return filteredReportData.filter((tx: any) => {
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
+
+            if (categoryTypeFilter === 'expense' && !isExpense) return false;
+            if (categoryTypeFilter === 'income' && isExpense) return false;
+
+            if (categoryPaymentMethodFilter !== 'all') {
+                const pm = getTxPaymentMethod(tx);
+                if (pm.toLowerCase() !== categoryPaymentMethodFilter.toLowerCase()) return false;
+            }
+
+            if (categoryRoleFilter !== 'all') {
+                const role = getTxRole(tx);
+                if (role.toLowerCase() !== categoryRoleFilter.toLowerCase()) return false;
+            }
+
+            return true;
+        });
+    }, [filteredReportData, categoryTypeFilter, categoryPaymentMethodFilter, categoryRoleFilter, getTxPaymentMethod, getTxRole]);
+
+    // Aggregate category summaries
+    const categorySummaries = useMemo(() => {
+        const map: { 
+            [key: string]: { 
+                category: string; 
+                amount: number; 
+                count: number; 
+                incomeAmount: number; 
+                expenseAmount: number; 
+                transactions: any[];
+                typeLabel: 'entrada' | 'saida' | 'misto';
+            } 
+        } = {};
+
+        categoryFilteredTransactions.forEach((tx: any) => {
+            const catName = getTxCategory(tx);
+            const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
+
+            if (!map[catName]) {
+                map[catName] = {
+                    category: catName,
+                    amount: 0,
+                    count: 0,
+                    incomeAmount: 0,
+                    expenseAmount: 0,
+                    transactions: [],
+                    typeLabel: isExpense ? 'saida' : 'entrada'
+                };
+            }
+
+            map[catName].amount += amt;
+            map[catName].count += 1;
+            if (isExpense) {
+                map[catName].expenseAmount += amt;
+            } else {
+                map[catName].incomeAmount += amt;
+            }
+            map[catName].transactions.push(tx);
+        });
+
+        Object.values(map).forEach(item => {
+            if (item.incomeAmount > 0 && item.expenseAmount > 0) {
+                item.typeLabel = 'misto';
+            } else if (item.expenseAmount > 0) {
+                item.typeLabel = 'saida';
+            } else {
+                item.typeLabel = 'entrada';
+            }
+        });
+
+        return Object.values(map).sort((a, b) => b.amount - a.amount);
+    }, [categoryFilteredTransactions, getTxCategory]);
+
+    // Filter displayed category cards by search and selected categories
+    const displayedCategoryCards = useMemo(() => {
+        return categorySummaries.filter(cat => {
             if (selectedExpenseCategories.length > 0 && !selectedExpenseCategories.includes(cat.category)) {
                 return false;
             }
@@ -365,22 +528,24 @@ export const RelatoriosView: React.FC = () => {
             }
             return true;
         });
-    }, [expenseCategories, selectedExpenseCategories, expenseCategorySearch]);
+    }, [categorySummaries, selectedExpenseCategories, expenseCategorySearch]);
 
-    // Totals for filtered expense categories
-    const selectedExpenseTotals = useMemo(() => {
-        const totalAmount = displayedExpenseCategories.reduce((sum, cat) => sum + cat.amount, 0);
-        const totalCount = displayedExpenseCategories.reduce((sum, cat) => sum + cat.count, 0);
-        const percentOfTotal = financialTotals.expenses > 0 ? Math.round((totalAmount / financialTotals.expenses) * 100) : 0;
+    // Total metrics for displayed category cards
+    const categoryTotals = useMemo(() => {
+        const totalAmount = displayedCategoryCards.reduce((sum, cat) => sum + cat.amount, 0);
+        const totalIncome = displayedCategoryCards.reduce((sum, cat) => sum + cat.incomeAmount, 0);
+        const totalExpenses = displayedCategoryCards.reduce((sum, cat) => sum + cat.expenseAmount, 0);
+        const totalCount = displayedCategoryCards.reduce((sum, cat) => sum + cat.count, 0);
         return {
             totalAmount,
+            totalIncome,
+            totalExpenses,
             totalCount,
-            percentOfTotal,
-            categoriesCount: displayedExpenseCategories.length
+            categoriesCount: displayedCategoryCards.length
         };
-    }, [displayedExpenseCategories, financialTotals.expenses]);
+    }, [displayedCategoryCards]);
 
-    // Toggle single expense category filter
+    // Toggle category selection in filter
     const toggleExpenseCategory = (catName: string) => {
         setSelectedExpenseCategories(prev => 
             prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]
@@ -390,16 +555,6 @@ export const RelatoriosView: React.FC = () => {
     // Expand/collapse category drilldown
     const toggleExpandCategory = (catName: string) => {
         setExpandedCategory(prev => prev === catName ? null : catName);
-    };
-
-    // Get individual expense items for a category
-    const getExpenseCategoryTransactions = (categoryName: string) => {
-        return filteredReportData.filter((tx: any) => {
-            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
-            if (!isExpense) return false;
-            const catName = tx.category || tx.categoria || 'Despesas Gerais / Manutenção';
-            return catName === categoryName;
-        });
     };
 
     // Export Handler for Livro Caixa
@@ -572,8 +727,8 @@ export const RelatoriosView: React.FC = () => {
                                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                             }`}
                         >
-                            <TrendingDown className="w-3.5 h-3.5" />
-                            <span>Saídas por Categoria</span>
+                            <Tag className="w-3.5 h-3.5 text-orange-500" />
+                            <span>Relatório por Categoria</span>
                         </button>
                     </div>
                 </div>
@@ -1438,38 +1593,131 @@ export const RelatoriosView: React.FC = () => {
                     </div>
                 )}
 
-                {/* TAB 5: Saídas por Categoria / Fornecedor */}
+                {/* TAB 5: Relatório por Categoria (Entradas, Saídas e Filtros Avançados) */}
                 {activeTab === 'expenses' && (
                     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm h-full flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
                         {/* Header & Overall Totals */}
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
                             <div>
                                 <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                    <TrendingDown className="w-4 h-4 text-rose-500" />
-                                    Relatório de Saídas e Despesas por Categoria
+                                    <Tag className="w-4 h-4 text-orange-500" />
+                                    Relatório Consolidado por Categoria
                                 </h3>
-                                <p className="text-xs text-slate-400">Visão analítica de custos operacionais com seleção e filtros dinâmicos de categoria.</p>
+                                <p className="text-xs text-slate-400">Análise financeira completa por categorias, com suporte a entradas e saídas, formas de pagamento e cargos/vínculos.</p>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-400">
-                                    Total Geral de Saídas: {formatBRL(financialTotals.expenses)}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                                    Entradas: {formatBRL(categoryTotals.totalIncome)}
+                                </span>
+                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-300">
+                                    Saídas: {formatBRL(categoryTotals.totalExpenses)}
+                                </span>
+                                <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-xl border ${
+                                    (categoryTotals.totalIncome - categoryTotals.totalExpenses) >= 0
+                                        ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/40 text-blue-700 dark:text-blue-300'
+                                        : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-300'
+                                }`}>
+                                    Saldo Filtrado: {formatBRL(categoryTotals.totalIncome - categoryTotals.totalExpenses)}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Dynamic Category Filter Bar */}
+                        {/* Dynamic Controls & Filter Bar */}
                         <div className="p-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                            {/* Primary Filters Row */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {/* Movement Type Toggle */}
+                                <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1">
+                                    <button
+                                        onClick={() => setCategoryTypeFilter('all')}
+                                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                                            categoryTypeFilter === 'all'
+                                                ? 'bg-orange-500 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        Todos
+                                    </button>
+                                    <button
+                                        onClick={() => setCategoryTypeFilter('income')}
+                                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                                            categoryTypeFilter === 'income'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-emerald-600'
+                                        }`}
+                                    >
+                                        Entradas
+                                    </button>
+                                    <button
+                                        onClick={() => setCategoryTypeFilter('expense')}
+                                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all text-center ${
+                                            categoryTypeFilter === 'expense'
+                                                ? 'bg-rose-600 text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-rose-600'
+                                        }`}
+                                    >
+                                        Saídas
+                                    </button>
+                                </div>
+
+                                {/* Payment Method Dropdown */}
+                                <div className="relative">
+                                    <select
+                                        value={categoryPaymentMethodFilter}
+                                        onChange={e => setCategoryPaymentMethodFilter(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:border-orange-500"
+                                    >
+                                        <option value="all">Forma de Pagto: Todas</option>
+                                        {availablePaymentMethods.map((pm, idx) => (
+                                            <option key={idx} value={pm}>{pm}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Cargo / Vínculo Dropdown */}
+                                <div className="relative">
+                                    <select
+                                        value={categoryRoleFilter}
+                                        onChange={e => setCategoryRoleFilter(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:border-orange-500"
+                                    >
+                                        <option value="all">Vínculo / Cargo: Todos</option>
+                                        {availableRoles.map((role, idx) => (
+                                            <option key={idx} value={role}>{role}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Reset All Filters Button */}
+                                {(selectedExpenseCategories.length > 0 || expenseCategorySearch || categoryTypeFilter !== 'all' || categoryPaymentMethodFilter !== 'all' || categoryRoleFilter !== 'all') && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectedExpenseCategories([]);
+                                            setExpenseCategorySearch('');
+                                            setCategoryTypeFilter('all');
+                                            setCategoryPaymentMethodFilter('all');
+                                            setCategoryRoleFilter('all');
+                                        }}
+                                        className="px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        <span>Resetar Todos os Filtros</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Secondary Row: Search & Multi-Category Selection */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
                                 {/* Search Input */}
                                 <div className="relative flex-1">
                                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                     <input
                                         type="text"
-                                        placeholder="Filtrar categorias por nome..."
+                                        placeholder="Buscar categoria por nome..."
                                         value={expenseCategorySearch}
                                         onChange={e => setExpenseCategorySearch(e.target.value)}
-                                        className="pl-9 pr-8 py-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-rose-500"
+                                        className="pl-9 pr-8 py-1.5 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
                                     {expenseCategorySearch && (
                                         <button 
@@ -1487,12 +1735,12 @@ export const RelatoriosView: React.FC = () => {
                                         onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
                                         className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer w-full sm:w-auto justify-between ${
                                             selectedExpenseCategories.length > 0
-                                                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                                                ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300'
                                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
                                         }`}
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            <Filter className="w-3.5 h-3.5 text-rose-500" />
+                                            <Filter className="w-3.5 h-3.5 text-orange-500" />
                                             <span>
                                                 {selectedExpenseCategories.length === 0
                                                     ? 'Todas as Categorias'
@@ -1506,22 +1754,22 @@ export const RelatoriosView: React.FC = () => {
                                     {isCategoryDropdownOpen && (
                                         <div className="absolute right-0 mt-1.5 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-30 p-3 space-y-2 animate-in fade-in duration-150">
                                             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                                                <span className="text-[11px] font-black uppercase text-slate-500">Categorias de Despesas</span>
+                                                <span className="text-[11px] font-black uppercase text-slate-500">Categorias Cadastradas</span>
                                                 <button
                                                     onClick={() => setSelectedExpenseCategories([])}
-                                                    className="text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                                                    className="text-[10px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
                                                 >
                                                     Limpar Seleção
                                                 </button>
                                             </div>
 
                                             <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1">
-                                                {allExpenseCategoryNames.length === 0 ? (
-                                                    <p className="text-xs text-slate-400 italic py-2 text-center">Nenhuma categoria disponível.</p>
+                                                {allSystemCategoryNames.length === 0 ? (
+                                                    <p className="text-xs text-slate-400 italic py-2 text-center">Nenhuma categoria encontrada.</p>
                                                 ) : (
-                                                    allExpenseCategoryNames.map((catName, idx) => {
+                                                    allSystemCategoryNames.map((catName, idx) => {
                                                         const isSelected = selectedExpenseCategories.includes(catName);
-                                                        const catObj = expenseCategories.find(c => c.category === catName);
+                                                        const catObj = categorySummaries.find(c => c.category === catName);
                                                         return (
                                                             <label
                                                                 key={idx}
@@ -1532,12 +1780,12 @@ export const RelatoriosView: React.FC = () => {
                                                                         type="checkbox"
                                                                         checked={isSelected}
                                                                         onChange={() => toggleExpenseCategory(catName)}
-                                                                        className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                                                                        className="rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
                                                                     />
                                                                     <span className="font-semibold text-slate-800 dark:text-slate-200">{catName}</span>
                                                                 </div>
                                                                 {catObj && (
-                                                                    <span className="font-mono text-[10px] font-bold text-rose-600">
+                                                                    <span className="font-mono text-[10px] font-bold text-orange-600">
                                                                         {formatBRL(catObj.amount)}
                                                                     </span>
                                                                 )}
@@ -1548,7 +1796,7 @@ export const RelatoriosView: React.FC = () => {
                                             </div>
 
                                             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px] font-bold text-slate-400">
-                                                <span>{selectedExpenseCategories.length} de {allExpenseCategoryNames.length} marcadas</span>
+                                                <span>{selectedExpenseCategories.length} de {allSystemCategoryNames.length} marcadas</span>
                                                 <button
                                                     onClick={() => setIsCategoryDropdownOpen(false)}
                                                     className="px-2.5 py-1 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg text-xs font-bold cursor-pointer"
@@ -1559,54 +1807,40 @@ export const RelatoriosView: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
-
-                                {/* Reset Filter Button */}
-                                {(selectedExpenseCategories.length > 0 || expenseCategorySearch) && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectedExpenseCategories([]);
-                                            setExpenseCategorySearch('');
-                                        }}
-                                        className="px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1 cursor-pointer"
-                                    >
-                                        <RotateCcw className="w-3 h-3" />
-                                        <span>Resetar Filtros</span>
-                                    </button>
-                                )}
                             </div>
 
                             {/* Quick Category Pills / Chips */}
-                            {allExpenseCategoryNames.length > 0 && (
+                            {allSystemCategoryNames.length > 0 && (
                                 <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pt-1 pb-0.5 text-xs">
                                     <button
                                         onClick={() => setSelectedExpenseCategories([])}
                                         className={`px-3 py-1 rounded-full font-bold transition-all whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1 ${
                                             selectedExpenseCategories.length === 0
-                                                ? 'bg-rose-600 text-white shadow-xs'
-                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-rose-400'
+                                                ? 'bg-orange-600 text-white shadow-xs'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-orange-400'
                                         }`}
                                     >
-                                        <span>Todas ({allExpenseCategoryNames.length})</span>
+                                        <span>Todas ({allSystemCategoryNames.length})</span>
                                     </button>
 
-                                    {allExpenseCategoryNames.map((catName, idx) => {
+                                    {allSystemCategoryNames.map((catName, idx) => {
                                         const isSelected = selectedExpenseCategories.includes(catName);
-                                        const catObj = expenseCategories.find(c => c.category === catName);
+                                        const catObj = categorySummaries.find(c => c.category === catName);
                                         return (
                                             <button
                                                 key={idx}
                                                 onClick={() => toggleExpenseCategory(catName)}
                                                 className={`px-3 py-1 rounded-full font-bold transition-all whitespace-nowrap cursor-pointer text-[11px] flex items-center gap-1.5 border ${
                                                     isSelected
-                                                        ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 shadow-xs'
-                                                        : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                                                        ? 'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-800 shadow-xs'
+                                                        : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-orange-300'
                                                 }`}
                                             >
-                                                {isSelected && <Check className="w-3 h-3 text-rose-600 dark:text-rose-400" />}
+                                                {isSelected && <Check className="w-3 h-3 text-orange-600 dark:text-orange-400" />}
                                                 <span>{catName}</span>
                                                 {catObj && (
                                                     <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md ${
-                                                        isSelected ? 'bg-rose-200 dark:bg-rose-900/60 text-rose-900 dark:text-rose-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                        isSelected ? 'bg-orange-200 dark:bg-orange-900/60 text-orange-900 dark:text-orange-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                                                     }`}>
                                                         {formatBRL(catObj.amount)}
                                                     </span>
@@ -1620,40 +1854,42 @@ export const RelatoriosView: React.FC = () => {
 
                         {/* Summary Metrics for Filtered Selection */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="p-3 rounded-xl border border-rose-200/80 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20">
-                                <span className="text-[10px] uppercase font-black text-rose-700 dark:text-rose-400 block tracking-wider">Total Selecionado</span>
+                            <div className="p-3 rounded-xl border border-orange-200/80 dark:border-orange-950 bg-orange-50/40 dark:bg-orange-950/20">
+                                <span className="text-[10px] uppercase font-black text-orange-700 dark:text-orange-400 block tracking-wider">Volume Movimentado</span>
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-lg font-mono font-black text-rose-700 dark:text-rose-300">{formatBRL(selectedExpenseTotals.totalAmount)}</span>
-                                    <span className="text-[10px] font-bold text-rose-600">({selectedExpenseTotals.percentOfTotal}% das saídas)</span>
+                                    <span className="text-lg font-mono font-black text-orange-700 dark:text-orange-300">{formatBRL(categoryTotals.totalAmount)}</span>
                                 </div>
                             </div>
 
                             <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20">
                                 <span className="text-[10px] uppercase font-black text-slate-500 block tracking-wider">Categorias Exibidas</span>
                                 <span className="text-lg font-mono font-black text-slate-800 dark:text-white">
-                                    {selectedExpenseTotals.categoriesCount} <span className="text-xs font-normal text-slate-400">de {allExpenseCategoryNames.length}</span>
+                                    {categoryTotals.categoriesCount} <span className="text-xs font-normal text-slate-400">de {allSystemCategoryNames.length}</span>
                                 </span>
                             </div>
 
                             <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20">
                                 <span className="text-[10px] uppercase font-black text-slate-500 block tracking-wider">Lançamentos Filtrados</span>
                                 <span className="text-lg font-mono font-black text-slate-800 dark:text-white">
-                                    {selectedExpenseTotals.totalCount} <span className="text-xs font-normal text-slate-400">movimentações</span>
+                                    {categoryTotals.totalCount} <span className="text-xs font-normal text-slate-400">movimentações</span>
                                 </span>
                             </div>
                         </div>
 
                         {/* Category Cards & Drilldown */}
-                        {displayedExpenseCategories.length === 0 ? (
+                        {displayedCategoryCards.length === 0 ? (
                             <div className="text-center py-12 text-slate-400 text-xs italic bg-slate-50/50 dark:bg-black/10 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
-                                <p>Nenhuma categoria de saída encontrada para os filtros selecionados.</p>
-                                {(selectedExpenseCategories.length > 0 || expenseCategorySearch) && (
+                                <p>Nenhuma categoria encontrada para os filtros selecionados.</p>
+                                {(selectedExpenseCategories.length > 0 || expenseCategorySearch || categoryTypeFilter !== 'all' || categoryPaymentMethodFilter !== 'all' || categoryRoleFilter !== 'all') && (
                                     <button
                                         onClick={() => {
                                             setSelectedExpenseCategories([]);
                                             setExpenseCategorySearch('');
+                                            setCategoryTypeFilter('all');
+                                            setCategoryPaymentMethodFilter('all');
+                                            setCategoryRoleFilter('all');
                                         }}
-                                        className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-rose-700 transition-colors"
+                                        className="px-3 py-1.5 bg-orange-600 text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-orange-700 transition-colors"
                                     >
                                         Limpar Filtros de Categoria
                                     </button>
@@ -1661,31 +1897,54 @@ export const RelatoriosView: React.FC = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {displayedExpenseCategories.map((cat, idx) => {
-                                    const percent = financialTotals.expenses > 0 ? Math.round((cat.amount / financialTotals.expenses) * 100) : 0;
+                                {displayedCategoryCards.map((cat, idx) => {
+                                    const totalOverall = categoryTotals.totalAmount || 1;
+                                    const percent = Math.round((cat.amount / totalOverall) * 100);
                                     const isExpanded = expandedCategory === cat.category;
-                                    const catTransactions = isExpanded ? getExpenseCategoryTransactions(cat.category) : [];
+                                    const catTransactions = isExpanded ? cat.transactions : [];
 
                                     return (
                                         <div 
                                             key={idx}
                                             className={`p-4 rounded-xl border transition-all flex flex-col space-y-3 ${
                                                 isExpanded
-                                                    ? 'border-rose-400 dark:border-rose-800 bg-white dark:bg-slate-900 shadow-md md:col-span-2'
+                                                    ? 'border-orange-400 dark:border-orange-800 bg-white dark:bg-slate-900 shadow-md md:col-span-2'
                                                     : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-black/20 hover:border-slate-300 dark:hover:border-slate-700'
                                             }`}
                                         >
                                             <div className="flex justify-between items-start gap-2">
                                                 <div>
-                                                    <h4 className="font-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                                                        <Tag className="w-3.5 h-3.5 text-rose-500" />
-                                                        {cat.category}
-                                                    </h4>
-                                                    <span className="text-[10px] text-slate-400 font-semibold">{cat.count} lançamentos • {percent}% do total de saídas</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                                                            <Tag className="w-3.5 h-3.5 text-orange-500" />
+                                                            {cat.category}
+                                                        </h4>
+                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                            cat.typeLabel === 'misto'
+                                                                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800'
+                                                                : cat.typeLabel === 'saida'
+                                                                ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
+                                                                : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
+                                                        }`}>
+                                                            {cat.typeLabel === 'misto' ? 'Misto' : cat.typeLabel === 'saida' ? 'Saída' : 'Entrada'}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400 font-semibold">{cat.count} lançamentos • {percent}% do volume exibido</span>
+                                                    
+                                                    {/* Subtotals if mixed or present */}
+                                                    {(cat.incomeAmount > 0 && cat.expenseAmount > 0) && (
+                                                        <div className="flex items-center gap-2 mt-1 text-[10px] font-mono">
+                                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Entradas: {formatBRL(cat.incomeAmount)}</span>
+                                                            <span className="text-slate-300">•</span>
+                                                            <span className="text-rose-600 dark:text-rose-400 font-bold">Saídas: {formatBRL(cat.expenseAmount)}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="text-right">
-                                                    <span className="text-xs font-mono font-black text-rose-600 dark:text-rose-400 block">{formatBRL(cat.amount)}</span>
+                                                    <span className={`text-xs font-mono font-black block ${
+                                                        cat.typeLabel === 'saida' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                                                    }`}>{formatBRL(cat.amount)}</span>
                                                     <button
                                                         onClick={() => toggleExpandCategory(cat.category)}
                                                         className="mt-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 ml-auto"
@@ -1698,7 +1957,9 @@ export const RelatoriosView: React.FC = () => {
 
                                             <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                                                 <div 
-                                                    className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                        cat.typeLabel === 'saida' ? 'bg-rose-500' : cat.typeLabel === 'misto' ? 'bg-amber-500' : 'bg-emerald-500'
+                                                    }`}
                                                     style={{ width: `${percent}%` }}
                                                 />
                                             </div>
@@ -1707,8 +1968,8 @@ export const RelatoriosView: React.FC = () => {
                                             {isExpanded && (
                                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 animate-in fade-in duration-200">
                                                     <div className="flex justify-between items-center text-[11px] font-bold text-slate-500">
-                                                        <span>Listagem de Lançamentos da Categoria ({catTransactions.length})</span>
-                                                        <span className="font-mono text-rose-600">Subtotal: {formatBRL(cat.amount)}</span>
+                                                        <span>Lançamentos da Categoria ({catTransactions.length})</span>
+                                                        <span className="font-mono text-slate-700 dark:text-slate-300">Subtotal: {formatBRL(cat.amount)}</span>
                                                     </div>
 
                                                     <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
@@ -1717,8 +1978,11 @@ export const RelatoriosView: React.FC = () => {
                                                                 <thead>
                                                                     <tr className="bg-slate-100 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider">
                                                                         <th className="py-2 px-3">Data</th>
+                                                                        <th className="py-2 px-3">Tipo</th>
                                                                         <th className="py-2 px-3">Histórico / Descrição</th>
-                                                                        <th className="py-2 px-3">Favorecido / Fornecedor</th>
+                                                                        <th className="py-2 px-3">Contribuinte / Favorecido</th>
+                                                                        <th className="py-2 px-3">Forma Pagto</th>
+                                                                        <th className="py-2 px-3">Vínculo / Cargo</th>
                                                                         <th className="py-2 px-3">Igreja</th>
                                                                         <th className="py-2 px-3 text-right">Valor (R$)</th>
                                                                     </tr>
@@ -1726,20 +1990,35 @@ export const RelatoriosView: React.FC = () => {
                                                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                                                                     {catTransactions.length === 0 ? (
                                                                         <tr>
-                                                                            <td colSpan={5} className="py-4 text-center text-slate-400 italic">
+                                                                            <td colSpan={8} className="py-4 text-center text-slate-400 italic">
                                                                                 Nenhum lançamento detalhado encontrado.
                                                                             </td>
                                                                         </tr>
                                                                     ) : (
                                                                         catTransactions.map((tx: any, tIdx: number) => {
+                                                                            const isExp = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && String(tx.category).toLowerCase().includes('saida'));
                                                                             const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                                                                            const pm = getTxPaymentMethod(tx);
+                                                                            const role = getTxRole(tx);
+
                                                                             return (
                                                                                 <tr key={tIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                                                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">{tx.date || '---'}</td>
-                                                                                    <td className="py-1.5 px-3 font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px]">{tx.desc || tx.description || tx.historico || 'Saída'}</td>
-                                                                                    <td className="py-1.5 px-3 text-slate-600 dark:text-slate-400 text-[11px]">{tx.payer || tx.contribuinte || tx.favorecido || '---'}</td>
+                                                                                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px] whitespace-nowrap">{formatDateBRL(tx.date) || '---'}</td>
+                                                                                    <td className="py-1.5 px-3 whitespace-nowrap">
+                                                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                                                            isExp ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                                                                        }`}>
+                                                                                            {isExp ? 'Saída' : 'Entrada'}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="py-1.5 px-3 font-bold text-slate-800 dark:text-slate-200 uppercase text-[11px]">{tx.desc || tx.description || tx.historico || 'Lançamento'}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-600 dark:text-slate-400 text-[11px]">{tx.payer || tx.contribuinte || tx.favorecido || tx.nome || '---'}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-500 text-[10px] font-mono">{pm}</td>
+                                                                                    <td className="py-1.5 px-3 text-slate-500 text-[10px]">{role}</td>
                                                                                     <td className="py-1.5 px-3 text-slate-400 text-[10px]">{getChurchName(tx.churchId || tx.church)}</td>
-                                                                                    <td className="py-1.5 px-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">{formatBRL(amt)}</td>
+                                                                                    <td className={`py-1.5 px-3 text-right font-mono font-bold ${
+                                                                                        isExp ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                                                                                    }`}>{formatBRL(amt)}</td>
                                                                                 </tr>
                                                                             );
                                                                         })
