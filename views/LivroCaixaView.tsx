@@ -22,7 +22,8 @@ import {
     Sparkles,
     RotateCcw,
     CheckCircle2,
-    ArrowRight
+    ArrowRight,
+    Check
 } from 'lucide-react';
 
 export const LivroCaixaView: React.FC = memo(() => {
@@ -32,7 +33,7 @@ export const LivroCaixaView: React.FC = memo(() => {
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('all');
+    const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('month');
     const [customStartDate, setCustomStartDate] = useState<string>('');
     const [customEndDate, setCustomEndDate] = useState<string>('');
     
@@ -42,9 +43,6 @@ export const LivroCaixaView: React.FC = memo(() => {
 
     // Initial filter screen state (opens before generating Livro Caixa)
     const [hasGenerated, setHasGenerated] = useState<boolean>(false);
-    const [periodMode, setPeriodMode] = useState<'month_year' | 'preset' | 'custom'>('month_year');
-    const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth() + 1);
-    const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
 
     // Export dropdown state
     const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
@@ -247,31 +245,7 @@ export const LivroCaixaView: React.FC = memo(() => {
     };
 
     if (!hasGenerated) {
-        const monthsList = [
-            { val: 1, name: 'Janeiro' },
-            { val: 2, name: 'Fevereiro' },
-            { val: 3, name: 'Março' },
-            { val: 4, name: 'Abril' },
-            { val: 5, name: 'Maio' },
-            { val: 6, name: 'Junho' },
-            { val: 7, name: 'Julho' },
-            { val: 8, name: 'Agosto' },
-            { val: 9, name: 'Setembro' },
-            { val: 10, name: 'Outubro' },
-            { val: 11, name: 'Novembro' },
-            { val: 12, name: 'Dezembro' }
-        ];
-        const yearsList = [2027, 2026, 2025, 2024];
-
         const handleLoadLivroCaixa = () => {
-            if (periodMode === 'month_year') {
-                const firstDay = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
-                const lastDayNum = new Date(filterYear, filterMonth, 0).getDate();
-                const lastDay = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`;
-                setCustomStartDate(firstDay);
-                setCustomEndDate(lastDay);
-                setDateRange('custom');
-            }
             setHasGenerated(true);
         };
 
@@ -313,36 +287,95 @@ export const LivroCaixaView: React.FC = memo(() => {
                         </h3>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="relative max-w-md" ref={churchDropdownRef}>
                         <button
                             type="button"
-                            onClick={() => setSelectedChurchIds([])}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                selectedChurchIds.length === 0
-                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                            onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
+                            className={`w-full p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
+                                selectedChurchIds.length > 0
+                                    ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                             }`}
                         >
-                            Todas as Igrejas
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <Building2 className="w-4 h-4 text-orange-500 shrink-0" />
+                                <span className="font-bold text-xs truncate">
+                                    {selectedChurchIds.length === 0
+                                        ? 'Todas as Igrejas'
+                                        : selectedChurchIds.length === 1
+                                        ? (churches.find((c: any) => c.id === selectedChurchIds[0])?.name || '1 Igreja')
+                                        : `${selectedChurchIds.length} igrejas selecionadas`}
+                                </span>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isChurchDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
 
-                        {churches.map((c: any) => {
-                            const isSelected = selectedChurchIds.includes(c.id);
-                            return (
-                                <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => toggleChurchSelection(c.id)}
-                                    className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                        isSelected
-                                            ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    {c.name}
-                                </button>
-                            );
-                        })}
+                        {isChurchDropdownOpen && (
+                            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-3 z-50 space-y-2 animate-scale-in">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    <span>Selecionar Igrejas</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedChurchIds(churches.map((c: any) => c.id))}
+                                            className="text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                                        >
+                                            Todas
+                                        </button>
+                                        <span className="text-slate-300 dark:text-slate-600">•</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedChurchIds([])}
+                                            className="text-slate-400 hover:underline cursor-pointer"
+                                        >
+                                            Limpar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-56 overflow-y-auto space-y-1 py-1 custom-scrollbar">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedChurchIds([])}
+                                        className={`w-full p-2 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                            selectedChurchIds.length === 0
+                                                ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedChurchIds.length === 0 ? 'bg-white text-orange-500 border-white' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                {selectedChurchIds.length === 0 && <Check className="w-3 h-3 stroke-[3]" />}
+                                            </div>
+                                            <span>Todas as Igrejas</span>
+                                        </div>
+                                    </button>
+
+                                    {churches.map((c: any) => {
+                                        const isSelected = selectedChurchIds.includes(c.id);
+                                        return (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => toggleChurchSelection(c.id)}
+                                                className={`w-full p-2 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                                    isSelected
+                                                        ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
+                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent text-slate-700 dark:text-slate-200'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-orange-500 text-white border-orange-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                    </div>
+                                                    <span className="truncate">{c.name}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -351,126 +384,55 @@ export const LivroCaixaView: React.FC = memo(() => {
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-white/5">
                         <Calendar className="w-5 h-5 text-orange-500" />
                         <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            2. Período e Mês do Livro Caixa
+                            2. Período do Relatório
                         </h3>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full max-w-md">
-                            <button
-                                type="button"
-                                onClick={() => setPeriodMode('month_year')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                    periodMode === 'month_year'
-                                        ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                                }`}
-                            >
-                                Mês e Ano
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPeriodMode('preset')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                    periodMode === 'preset'
-                                        ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                                }`}
-                            >
-                                Período Rápido
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPeriodMode('custom')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                    periodMode === 'custom'
-                                        ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                                }`}
-                            >
-                                Intervalo de Datas
-                            </button>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setDateRange('month')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
+                                dateRange === 'month'
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <Calendar className="w-4 h-4" />
+                            <span>Mês Atual</span>
+                        </button>
 
-                        {periodMode === 'month_year' && (
-                            <div className="grid grid-cols-2 gap-4 max-w-lg">
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Mês</label>
-                                    <select
-                                        value={filterMonth}
-                                        onChange={e => setFilterMonth(Number(e.target.value))}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                                    >
-                                        {monthsList.map(m => (
-                                            <option key={m.val} value={m.val}>{m.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Ano</label>
-                                    <select
-                                        value={filterYear}
-                                        onChange={e => setFilterYear(Number(e.target.value))}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                                    >
-                                        {yearsList.map(y => (
-                                            <option key={y} value={y}>{y}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setDateRange('custom')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
+                                dateRange === 'custom'
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <span>Selecionar Período Desejado...</span>
+                        </button>
 
-                        {periodMode === 'preset' && (
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { id: 'month', label: 'Este Mês' },
-                                    { id: 'last-month', label: 'Mês Anterior' },
-                                    { id: 'quarter', label: 'Este Trimestre' },
-                                    { id: 'year', label: 'Este Ano' },
-                                    { id: 'all', label: 'Todo o Período' }
-                                ].map(p => (
-                                    <button
-                                        key={p.id}
-                                        type="button"
-                                        onClick={() => setDateRange(p.id as any)}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                            dateRange === p.id && periodMode === 'preset'
-                                                ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        {p.label}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {periodMode === 'custom' && (
-                            <div className="flex items-center gap-3 max-w-lg">
-                                <div className="flex-1 flex flex-col gap-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Data Inicial</label>
+                        {dateRange === 'custom' && (
+                            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs animate-fade-in">
+                                <div className="flex flex-col gap-0.5">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">Data Inicial</label>
                                     <input
                                         type="date"
                                         value={customStartDate}
-                                        onChange={e => {
-                                            setCustomStartDate(e.target.value);
-                                            setDateRange('custom');
-                                        }}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
+                                        onChange={e => setCustomStartDate(e.target.value)}
+                                        className="bg-transparent text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
                                     />
                                 </div>
-                                <span className="text-slate-400 font-bold text-xs pt-4">até</span>
-                                <div className="flex-1 flex flex-col gap-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Data Final</label>
+                                <span className="text-slate-400 font-bold text-xs pt-3">até</span>
+                                <div className="flex flex-col gap-0.5">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">Data Final</label>
                                     <input
                                         type="date"
                                         value={customEndDate}
-                                        onChange={e => {
-                                            setCustomEndDate(e.target.value);
-                                            setDateRange('custom');
-                                        }}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
+                                        onChange={e => setCustomEndDate(e.target.value)}
+                                        className="bg-transparent text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
                                     />
                                 </div>
                             </div>

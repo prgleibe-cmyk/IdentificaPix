@@ -109,6 +109,9 @@ export const Sidebar: React.FC = memo(() => {
             items.push({ view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> });
         }
 
+        // Conciliação & Destinação
+        items.push({ view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> });
+
         // Cadastro apenas para o proprietário (Owner)
         if (subscription.role === 'owner') {
             items.push({ view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-5 h-5"/> });

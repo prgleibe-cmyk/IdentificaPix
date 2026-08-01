@@ -73,6 +73,7 @@ export const Navigation: React.FC = memo(() => {
     const navItems: { view: ViewType, labelKey: any, icon: React.ReactNode, special?: boolean }[] = [
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-4 h-4"/> },
         { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-4 h-4"/> },
+        { view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-4 h-4"/> },
         { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> },
         { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> },
         { view: 'livro_caixa', labelKey: 'nav.livro_caixa', icon: <BookOpen className="w-4 h-4"/> },

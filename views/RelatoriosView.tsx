@@ -17,6 +17,8 @@ import {
     Download, 
     Printer, 
     ArrowRight, 
+    ArrowLeft,
+    SlidersHorizontal,
     PieChart, 
     AlertCircle, 
     CheckCircle2, 
@@ -46,16 +48,13 @@ export const RelatoriosView: React.FC = memo(() => {
 
     // Filter configuration screen state (opens initial filter screen before generating report)
     const [hasGenerated, setHasGenerated] = useState<boolean>(false);
-    const [periodMode, setPeriodMode] = useState<'month_year' | 'preset' | 'custom'>('month_year');
-    const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth() + 1);
-    const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
 
     // Balancete Sub-type state (Sintético, Analítico, Contábil)
     const [balanceteType, setBalanceteType] = useState<'sintetico' | 'analitico' | 'contabil'>('sintetico');
 
     // Global filters for financial reports
     const [searchTerm, setSearchTerm] = useState('');
-    const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('all');
+    const [dateRange, setDateRange] = useState<'all' | 'month' | 'last-month' | 'quarter' | 'year' | 'custom'>('month');
     const [customStartDate, setCustomStartDate] = useState<string>('');
     const [customEndDate, setCustomEndDate] = useState<string>('');
     
@@ -76,6 +75,10 @@ export const RelatoriosView: React.FC = memo(() => {
     const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
     const [showExportBalancete, setShowExportBalancete] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+    // Header Report Dropdowns state
+    const [isBalanceteMenuOpen, setIsBalanceteMenuOpen] = useState<boolean>(false);
+    const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState<boolean>(false);
 
     const isHydratingFromCloud = context?.isHydratingFromCloud || context?.isHydrating || false;
 
@@ -110,6 +113,8 @@ export const RelatoriosView: React.FC = memo(() => {
     const categoryDropdownRef = useRef<HTMLDivElement>(null);
     const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
     const exportBalanceteRef = useRef<HTMLDivElement>(null);
+    const balanceteMenuRef = useRef<HTMLDivElement>(null);
+    const categoryMenuRef = useRef<HTMLDivElement>(null);
 
     const { user, subscription } = useAuth();
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
@@ -149,6 +154,12 @@ export const RelatoriosView: React.FC = memo(() => {
             }
             if (exportBalanceteRef.current && !exportBalanceteRef.current.contains(event.target as Node)) {
                 setShowExportBalancete(false);
+            }
+            if (balanceteMenuRef.current && !balanceteMenuRef.current.contains(event.target as Node)) {
+                setIsBalanceteMenuOpen(false);
+            }
+            if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target as Node)) {
+                setIsCategoryMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -666,40 +677,13 @@ export const RelatoriosView: React.FC = memo(() => {
         }
     };
 
+    // If report has not been generated yet, show the full Configuration Panel
     if (!hasGenerated) {
-        const monthsList = [
-            { val: 1, name: 'Janeiro' },
-            { val: 2, name: 'Fevereiro' },
-            { val: 3, name: 'Março' },
-            { val: 4, name: 'Abril' },
-            { val: 5, name: 'Maio' },
-            { val: 6, name: 'Junho' },
-            { val: 7, name: 'Julho' },
-            { val: 8, name: 'Agosto' },
-            { val: 9, name: 'Setembro' },
-            { val: 10, name: 'Outubro' },
-            { val: 11, name: 'Novembro' },
-            { val: 12, name: 'Dezembro' }
-        ];
-        const yearsList = [2027, 2026, 2025, 2024];
-
-        const handleGenerateReport = () => {
-            if (periodMode === 'month_year') {
-                const firstDay = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
-                const lastDayNum = new Date(filterYear, filterMonth, 0).getDate();
-                const lastDay = `${filterYear}-${String(filterMonth).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`;
-                setCustomStartDate(firstDay);
-                setCustomEndDate(lastDay);
-                setDateRange('custom');
-            }
-            setHasGenerated(true);
-        };
-
         return (
-            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full animate-fade-in pb-8">
-                {/* Header Banner */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-6 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-8 overflow-y-auto custom-scrollbar">
+                {/* Title Card */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
                         <div className="p-3 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl text-white shadow-lg shadow-orange-500/20">
                             <FileText className="w-7 h-7" />
                         </div>
@@ -708,575 +692,544 @@ export const RelatoriosView: React.FC = memo(() => {
                                 Central de Relatórios IgGestor
                             </h1>
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                                Selecione os parâmetros desejados para configurar e gerar somente o relatório necessário.
+                                Configure os filtros e selecione o relatório desejado antes de gerar a visualização completa.
                             </p>
                         </div>
                     </div>
-
-                    <button
-                        onClick={handleRefresh}
-                        disabled={isRefreshing || isHydratingFromCloud}
-                        className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                        title="Recarregar banco de dados"
-                    >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : ''}`} />
-                        <span>Recarregar Dados</span>
-                    </button>
                 </div>
 
-                {/* Section 1: Tipo de Relatório */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-3xl shadow-sm space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-white/5">
+                {/* Step 1: Tipo de Relatório */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
                         <Sparkles className="w-4 h-4 text-orange-500" />
                         <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            1. Selecione o Tipo de Relatório Desejado
+                            1. Tipo de Relatório Desejado
                         </h3>
                     </div>
 
-                    {/* Compact selector grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                        {/* Option 1: Dizimistas & Contribuintes */}
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('contributors')}
-                            className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
-                                activeTab === 'contributors'
-                                    ? 'bg-orange-50/80 dark:bg-orange-950/30 border-orange-500 text-orange-900 dark:text-orange-200 ring-2 ring-orange-500/20 shadow-xs'
-                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-800 hover:border-orange-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'contributors' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'}`}>
-                                    <Users className="w-4 h-4" />
-                                </div>
-                                <div className="truncate">
-                                    <h4 className="font-bold text-xs truncate">Dizimistas & Contribuintes</h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Dízimos e membros</p>
-                                </div>
-                            </div>
-                            {activeTab === 'contributors' ? (
-                                <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" />
-                            ) : (
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                        </button>
-
-                        {/* Option 2: Balancete Financeiro */}
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('balancete')}
-                            className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
-                                activeTab === 'balancete'
-                                    ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
-                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'balancete' ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
-                                    <PieChart className="w-4 h-4" />
-                                </div>
-                                <div className="truncate">
-                                    <h4 className="font-bold text-xs truncate">Balancete Financeiro</h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Sintético, Analítico e Contábil</p>
-                                </div>
-                            </div>
-                            {activeTab === 'balancete' ? (
-                                <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />
-                            ) : (
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                        </button>
-
-                        {/* Option 3: Resumo por Igreja */}
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('churches')}
-                            className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
-                                activeTab === 'churches'
-                                    ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs'
-                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'churches' ? 'bg-emerald-600 text-white' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
-                                    <Building2 className="w-4 h-4" />
-                                </div>
-                                <div className="truncate">
-                                    <h4 className="font-bold text-xs truncate">Resumo por Igreja</h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Comparativo de congregações</p>
-                                </div>
-                            </div>
-                            {activeTab === 'churches' ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                            ) : (
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                        </button>
-
-                        {/* Option 4: Relatório por Categoria */}
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('expenses')}
-                            className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
-                                activeTab === 'expenses'
-                                    ? 'bg-purple-50/80 dark:bg-purple-950/30 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
-                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-800 hover:border-purple-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
-                            }`}
-                        >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'expenses' ? 'bg-purple-600 text-white' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
-                                    <Tag className="w-4 h-4" />
-                                </div>
-                                <div className="truncate">
-                                    <h4 className="font-bold text-xs truncate">Relatório por Categoria</h4>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Receitas e despesas</p>
-                                </div>
-                            </div>
-                            {activeTab === 'expenses' ? (
-                                <CheckCircle2 className="w-4 h-4 text-purple-500 shrink-0" />
-                            ) : (
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Sub-options panel depending on activeTab */}
-                    {activeTab === 'balancete' && (
-                        <div className="p-3.5 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-2xl space-y-2 animate-fade-in">
-                            <label className="text-[11px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                                <PieChart className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Selecione a Visão do Balancete:</span>
-                            </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setBalanceteType('sintetico')}
-                                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                                        balanceteType === 'sintetico'
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <span>Sintético (Resumo)</span>
-                                    {balanceteType === 'sintetico' && <Check className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setBalanceteType('analitico')}
-                                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                                        balanceteType === 'analitico'
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <span>Analítico (Extrato)</span>
-                                    {balanceteType === 'analitico' && <Check className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setBalanceteType('contabil')}
-                                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                                        balanceteType === 'contabil'
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <span>Contábil (Razão)</span>
-                                    {balanceteType === 'contabil' && <Check className="w-3.5 h-3.5" />}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'expenses' && (
-                        <div className="p-3.5 bg-purple-50/60 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 rounded-2xl space-y-2.5 animate-fade-in">
-                            <label className="text-[11px] font-black uppercase tracking-wider text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
-                                <Tag className="w-3.5 h-3.5 text-purple-600" />
-                                <span>Filtrar por Tipo de Transação:</span>
-                            </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setCategoryTypeFilter('all')}
-                                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                                        categoryTypeFilter === 'all'
-                                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <span>Todas as Categorias</span>
-                                    {categoryTypeFilter === 'all' && <Check className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setCategoryTypeFilter('income')}
-                                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                                        categoryTypeFilter === 'income'
-                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <span>Apenas Receitas</span>
-                                    {categoryTypeFilter === 'income' && <Check className="w-3.5 h-3.5" />}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setCategoryTypeFilter('expense')}
-                                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                                        categoryTypeFilter === 'expense'
-                                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <span>Apenas Despesas</span>
-                                    {categoryTypeFilter === 'expense' && <Check className="w-3.5 h-3.5" />}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'contributors' && (
-                        <div className="p-3.5 bg-orange-50/60 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/40 rounded-2xl space-y-2.5 animate-fade-in">
-                            <label className="text-[11px] font-black uppercase tracking-wider text-orange-800 dark:text-orange-300 flex items-center gap-1.5">
-                                <Users className="w-3.5 h-3.5 text-orange-600" />
-                                <span>Escopo do Relatório de Contribuições:</span>
-                            </label>
-                            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                                Exibirá o detalhamento analítico de dízimos, ofertas e contribuições por membro e cargo.
-                            </p>
-                        </div>
-                    )}
-
-                    {activeTab === 'churches' && (
-                        <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl space-y-2.5 animate-fade-in">
-                            <label className="text-[11px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                                <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Escopo do Resumo por Igreja:</span>
-                            </label>
-                            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                                Comparativo consolidado de arrecadações, saídas e saldos de cada congregação cadastrada.
-                            </p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Section 2: Período e Mês */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-6 rounded-3xl shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-white/5">
-                        <Calendar className="w-5 h-5 text-orange-500" />
-                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            2. Período e Mês do Relatório
-                        </h3>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full max-w-md">
-                            <button
-                                type="button"
-                                onClick={() => setPeriodMode('month_year')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                    periodMode === 'month_year'
-                                        ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                                }`}
-                            >
-                                Mês e Ano
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPeriodMode('preset')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                    periodMode === 'preset'
-                                        ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                                }`}
-                            >
-                                Período Rápido
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPeriodMode('custom')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                    periodMode === 'custom'
-                                        ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-xs'
-                                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-                                }`}
-                            >
-                                Intervalo de Datas
-                            </button>
-                        </div>
-
-                        {periodMode === 'month_year' && (
-                            <div className="grid grid-cols-2 gap-4 max-w-lg">
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Mês</label>
-                                    <select
-                                        value={filterMonth}
-                                        onChange={e => setFilterMonth(Number(e.target.value))}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                                    >
-                                        {monthsList.map(m => (
-                                            <option key={m.val} value={m.val}>{m.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Ano</label>
-                                    <select
-                                        value={filterYear}
-                                        onChange={e => setFilterYear(Number(e.target.value))}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                                    >
-                                        {yearsList.map(y => (
-                                            <option key={y} value={y}>{y}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-
-                        {periodMode === 'preset' && (
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { id: 'month', label: 'Este Mês' },
-                                    { id: 'last-month', label: 'Mês Anterior' },
-                                    { id: 'quarter', label: 'Este Trimestre' },
-                                    { id: 'year', label: 'Este Ano' },
-                                    { id: 'all', label: 'Todo o Período' }
-                                ].map(p => (
-                                    <button
-                                        key={p.id}
-                                        type="button"
-                                        onClick={() => setDateRange(p.id as any)}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                            dateRange === p.id && periodMode === 'preset'
-                                                ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                                : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        {p.label}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {periodMode === 'custom' && (
-                            <div className="flex items-center gap-3 max-w-lg">
-                                <div className="flex-1 flex flex-col gap-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Data Inicial</label>
-                                    <input
-                                        type="date"
-                                        value={customStartDate}
-                                        onChange={e => {
-                                            setCustomStartDate(e.target.value);
-                                            setDateRange('custom');
-                                        }}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                                    />
-                                </div>
-                                <span className="text-slate-400 font-bold text-xs pt-4">até</span>
-                                <div className="flex-1 flex flex-col gap-1">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Data Final</label>
-                                    <input
-                                        type="date"
-                                        value={customEndDate}
-                                        onChange={e => {
-                                            setCustomEndDate(e.target.value);
-                                            setDateRange('custom');
-                                        }}
-                                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Section 3: Igrejas */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 rounded-3xl shadow-sm space-y-3" ref={churchDropdownRef}>
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-white/5">
-                        <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-orange-500" />
-                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                                3. Filtro de Igrejas / Congregações (Múltipla Seleção)
-                            </h3>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
-                            className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                            <span>{isChurchDropdownOpen ? 'Recolher Opções' : 'Expandir Seleção'}</span>
-                            {isChurchDropdownOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                        </button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 items-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* Button 1: Dizimistas & Contribuintes */}
                         <button
                             type="button"
                             onClick={() => {
-                                setSelectedChurchIds([]);
-                                setIsChurchDropdownOpen(false);
+                                setActiveTab('contributors');
+                                setIsBalanceteMenuOpen(false);
+                                setIsCategoryMenuOpen(false);
                             }}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                                selectedChurchIds.length === 0
-                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                            className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                activeTab === 'contributors'
+                                    ? 'bg-orange-50/90 dark:bg-orange-950/40 border-orange-500 text-orange-900 dark:text-orange-200 ring-2 ring-orange-500/20 shadow-xs font-bold'
+                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-orange-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
                             }`}
                         >
-                            <span>Todas as Igrejas</span>
-                            {selectedChurchIds.length === 0 && <Check className="w-3.5 h-3.5" />}
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'contributors' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-600 dark:text-orange-400'}`}>
+                                    <Users className="w-5 h-5" />
+                                </div>
+                                <div className="truncate">
+                                    <h4 className="font-extrabold text-xs truncate">Dizimistas & Contribuintes</h4>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Dízimos e membros</p>
+                                </div>
+                            </div>
+                            {activeTab === 'contributors' && <CheckCircle2 className="w-5 h-5 text-orange-500 shrink-0" />}
+                        </button>
+
+                        {/* Button 2: Balancete Financeiro */}
+                        <div className="relative" ref={balanceteMenuRef}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (activeTab !== 'balancete') {
+                                        setActiveTab('balancete');
+                                    }
+                                    setIsBalanceteMenuOpen(!isBalanceteMenuOpen);
+                                    setIsCategoryMenuOpen(false);
+                                }}
+                                className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                    activeTab === 'balancete'
+                                        ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs font-bold'
+                                        : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'balancete' ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
+                                        <PieChart className="w-5 h-5" />
+                                    </div>
+                                    <div className="truncate">
+                                        <h4 className="font-extrabold text-xs truncate">
+                                            {activeTab === 'balancete'
+                                                ? `Balancete (${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'})`
+                                                : 'Balancete Financeiro'}
+                                        </h4>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Visões financeiras</p>
+                                    </div>
+                                </div>
+                                <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isBalanceteMenuOpen ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
+                            </button>
+
+                            {/* Dropdown Options for Balancete */}
+                            {isBalanceteMenuOpen && (
+                                <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50 text-xs animate-scale-in">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('balancete');
+                                            setBalanceteType('sintetico');
+                                            setIsBalanceteMenuOpen(false);
+                                        }}
+                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                            activeTab === 'balancete' && balanceteType === 'sintetico'
+                                                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div>Sintético (Resumo)</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Visão acumulada por grupo</div>
+                                        </div>
+                                        {activeTab === 'balancete' && balanceteType === 'sintetico' && <Check className="w-4 h-4 text-blue-600" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('balancete');
+                                            setBalanceteType('analitico');
+                                            setIsBalanceteMenuOpen(false);
+                                        }}
+                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                            activeTab === 'balancete' && balanceteType === 'analitico'
+                                                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div>Analítico (Extrato)</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Extrato completo de lançamentos</div>
+                                        </div>
+                                        {activeTab === 'balancete' && balanceteType === 'analitico' && <Check className="w-4 h-4 text-blue-600" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('balancete');
+                                            setBalanceteType('contabil');
+                                            setIsBalanceteMenuOpen(false);
+                                        }}
+                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                            activeTab === 'balancete' && balanceteType === 'contabil'
+                                                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div>Contábil (Razão)</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Formato contábil estruturado</div>
+                                        </div>
+                                        {activeTab === 'balancete' && balanceteType === 'contabil' && <Check className="w-4 h-4 text-blue-600" />}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Button 3: Resumo por Igreja */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActiveTab('churches');
+                                setIsBalanceteMenuOpen(false);
+                                setIsCategoryMenuOpen(false);
+                            }}
+                            className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                activeTab === 'churches'
+                                    ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs font-bold'
+                                    : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'churches' ? 'bg-emerald-600 text-white' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}`}>
+                                    <Building2 className="w-5 h-5" />
+                                </div>
+                                <div className="truncate">
+                                    <h4 className="font-extrabold text-xs truncate">Resumo por Igreja</h4>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Comparativo de congregações</p>
+                                </div>
+                            </div>
+                            {activeTab === 'churches' && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
+                        </button>
+
+                        {/* Button 4: Relatório por Categoria */}
+                        <div className="relative" ref={categoryMenuRef}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (activeTab !== 'expenses') {
+                                        setActiveTab('expenses');
+                                    }
+                                    setIsCategoryMenuOpen(!isCategoryMenuOpen);
+                                    setIsBalanceteMenuOpen(false);
+                                }}
+                                className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                                    activeTab === 'expenses'
+                                        ? 'bg-purple-50/90 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs font-bold'
+                                        : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 hover:border-purple-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className={`p-2.5 rounded-xl shrink-0 ${activeTab === 'expenses' ? 'bg-purple-600 text-white' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
+                                        <Tag className="w-5 h-5" />
+                                    </div>
+                                    <div className="truncate">
+                                        <h4 className="font-extrabold text-xs truncate">
+                                            {activeTab === 'expenses'
+                                                ? `Categoria (${categoryTypeFilter === 'all' ? 'Todas' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'})`
+                                                : 'Relatório por Categoria'}
+                                        </h4>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Receitas e despesas</p>
+                                    </div>
+                                </div>
+                                <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isCategoryMenuOpen ? 'rotate-180 text-purple-600' : 'text-slate-400'}`} />
+                            </button>
+
+                            {/* Dropdown Options for Categories */}
+                            {isCategoryMenuOpen && (
+                                <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-1.5 z-50 text-xs animate-scale-in">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('expenses');
+                                            setCategoryTypeFilter('all');
+                                            setIsCategoryMenuOpen(false);
+                                        }}
+                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                            activeTab === 'expenses' && categoryTypeFilter === 'all'
+                                                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div>Todas as Categorias</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Receitas e despesas combinadas</div>
+                                        </div>
+                                        {activeTab === 'expenses' && categoryTypeFilter === 'all' && <Check className="w-4 h-4 text-purple-600" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('expenses');
+                                            setCategoryTypeFilter('income');
+                                            setIsCategoryMenuOpen(false);
+                                        }}
+                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                            activeTab === 'expenses' && categoryTypeFilter === 'income'
+                                                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div>Apenas Receitas</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Entradas, dízimos e ofertas</div>
+                                        </div>
+                                        {activeTab === 'expenses' && categoryTypeFilter === 'income' && <Check className="w-4 h-4 text-purple-600" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTab('expenses');
+                                            setCategoryTypeFilter('expense');
+                                            setIsCategoryMenuOpen(false);
+                                        }}
+                                        className={`w-full p-2.5 rounded-xl text-left font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                                            activeTab === 'expenses' && categoryTypeFilter === 'expense'
+                                                ? 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div>Apenas Despesas</div>
+                                            <div className="text-[10px] text-slate-400 font-normal">Saídas e contas pagas</div>
+                                        </div>
+                                        {activeTab === 'expenses' && categoryTypeFilter === 'expense' && <Check className="w-4 h-4 text-purple-600" />}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Step 2: Período do Relatório */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
+                        <Calendar className="w-4 h-4 text-orange-500" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                            2. Período do Relatório
+                        </h3>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setDateRange('month')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
+                                dateRange === 'month'
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <Calendar className="w-4 h-4" />
+                            <span>Mês Atual</span>
                         </button>
 
                         <button
                             type="button"
-                            onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
-                                selectedChurchIds.length > 0
-                                    ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                            onClick={() => setDateRange('custom')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer ${
+                                dateRange === 'custom'
+                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
                             }`}
                         >
-                            <span>
-                                {selectedChurchIds.length === 0
-                                    ? 'Selecionar Igrejas Especificas...'
-                                    : `${selectedChurchIds.length} igreja(s) selecionada(s)`}
-                            </span>
-                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isChurchDropdownOpen ? 'rotate-180' : ''}`} />
+                            <span>Selecionar Período Desejado...</span>
                         </button>
+
+                        {dateRange === 'custom' && (
+                            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs animate-fade-in">
+                                <div className="flex flex-col gap-0.5">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">Data Inicial</label>
+                                    <input
+                                        type="date"
+                                        value={customStartDate}
+                                        onChange={e => setCustomStartDate(e.target.value)}
+                                        className="bg-transparent text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
+                                    />
+                                </div>
+                                <span className="text-slate-400 font-bold text-xs pt-3">até</span>
+                                <div className="flex flex-col gap-0.5">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">Data Final</label>
+                                    <input
+                                        type="date"
+                                        value={customEndDate}
+                                        onChange={e => setCustomEndDate(e.target.value)}
+                                        className="bg-transparent text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Step 3: Selecionar Igreja / Congregação */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-orange-500" />
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                                3. Filtro de Igreja / Congregação
+                            </h3>
+                        </div>
                     </div>
 
-                    {/* Expandable Church Selection Grid */}
-                    {isChurchDropdownOpen && (
-                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3 animate-fade-in mt-2">
-                            <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                                <span>Clique nas igrejas desejadas para alternar a seleção:</span>
-                                <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedChurchIds(churches.map((c: any) => c.id))}
-                                        className="text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
-                                    >
-                                        Selecionar Todas
-                                    </button>
-                                    <span>•</span>
+                    <div className="relative max-w-md" ref={churchDropdownRef}>
+                        <button
+                            type="button"
+                            onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
+                            className={`w-full p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
+                                selectedChurchIds.length > 0
+                                    ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <Building2 className="w-4 h-4 text-orange-500 shrink-0" />
+                                <span className="font-bold text-xs truncate">
+                                    {selectedChurchIds.length === 0
+                                        ? 'Todas as Igrejas'
+                                        : selectedChurchIds.length === 1
+                                        ? (churches.find((c: any) => c.id === selectedChurchIds[0])?.name || '1 Igreja')
+                                        : `${selectedChurchIds.length} igrejas selecionadas`}
+                                </span>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isChurchDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isChurchDropdownOpen && (
+                            <div className="absolute left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-3 z-50 space-y-2 animate-scale-in">
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    <span>Selecionar Igrejas</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedChurchIds(churches.map((c: any) => c.id))}
+                                            className="text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                                        >
+                                            Todas
+                                        </button>
+                                        <span className="text-slate-300 dark:text-slate-600">•</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedChurchIds([])}
+                                            className="text-slate-400 hover:underline cursor-pointer"
+                                        >
+                                            Limpar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-56 overflow-y-auto space-y-1 py-1">
                                     <button
                                         type="button"
                                         onClick={() => setSelectedChurchIds([])}
-                                        className="text-slate-500 hover:underline cursor-pointer"
+                                        className={`w-full p-2 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                            selectedChurchIds.length === 0
+                                                ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent text-slate-700 dark:text-slate-200'
+                                        }`}
                                     >
-                                        Limpar
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedChurchIds.length === 0 ? 'bg-white text-orange-500 border-white' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                {selectedChurchIds.length === 0 && <Check className="w-3 h-3 stroke-[3]" />}
+                                            </div>
+                                            <span>Todas as Igrejas</span>
+                                        </div>
                                     </button>
+
+                                    {churches.map((c: any) => {
+                                        const isSelected = selectedChurchIds.includes(c.id);
+                                        return (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => toggleChurchSelection(c.id)}
+                                                className={`w-full p-2 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
+                                                    isSelected
+                                                        ? 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-800'
+                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-transparent text-slate-700 dark:text-slate-200'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${isSelected ? 'bg-orange-500 text-white border-orange-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                    </div>
+                                                    <span className="truncate">{c.name}</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                                {churches.map((c: any) => {
-                                    const isSelected = selectedChurchIds.includes(c.id);
-                                    return (
-                                        <button
-                                            key={c.id}
-                                            type="button"
-                                            onClick={() => toggleChurchSelection(c.id)}
-                                            className={`p-2.5 rounded-xl text-xs font-bold border text-left transition-all cursor-pointer flex items-center justify-between ${
-                                                isSelected
-                                                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-orange-300'
-                                            }`}
-                                        >
-                                            <span className="truncate">{c.name}</span>
-                                            {isSelected && <Check className="w-4 h-4 shrink-0" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
-                {/* Section 4: Busca Opcional */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-6 rounded-3xl shadow-sm space-y-3">
-                    <div className="flex items-center gap-2 pb-1">
+                {/* Step 4: Busca por Palavra-Chave (Opcional) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm space-y-4">
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-white/5">
                         <Search className="w-4 h-4 text-orange-500" />
                         <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
-                            4. Filtro Adicional por Busca / Nome / Categoria (Opcional)
+                            4. Busca por Palavra-Chave (Opcional)
                         </h3>
                     </div>
-                    <input
-                        type="text"
-                        placeholder="Buscar por nome de contribuinte, histórico, valor ou categoria..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500"
-                    />
+
+                    <div className="relative max-w-md">
+                        <Search className="w-4 h-4 text-slate-400 absolute top-1/2 left-3.5 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome de contribuinte, histórico ou categoria..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 font-medium"
+                        />
+                    </div>
                 </div>
 
-                {/* Big Action Button */}
-                <div className="flex justify-center pt-2">
+                {/* Big Action CTA Button */}
+                <div className="flex items-center justify-end pt-2">
                     <button
                         type="button"
-                        onClick={handleGenerateReport}
-                        className="w-full max-w-md py-4 px-8 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white rounded-2xl font-black text-sm uppercase tracking-wider shadow-xl shadow-orange-500/20 hover:-translate-y-0.5 active:scale-98 transition-all flex items-center justify-center gap-3 cursor-pointer"
+                        onClick={() => setHasGenerated(true)}
+                        className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-500/25 transition-all transform active:scale-98 flex items-center justify-center gap-3 cursor-pointer"
                     >
-                        <Sparkles className="w-5 h-5" />
-                        <span>Gerar Relatório Desejado</span>
-                        <ArrowRight className="w-5 h-5 ml-1" />
+                        <FileText className="w-5 h-5" />
+                        <span>GERAR RELATÓRIO</span>
+                        <ArrowRight className="w-4 h-4" />
                     </button>
                 </div>
             </div>
         );
     }
 
+    // Generated Report View
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-4">
-            {/* Header Card */}
-            <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setHasGenerated(false)}
-                            className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-orange-500 hover:text-white text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shadow-xs border border-slate-200/60 dark:border-slate-700 group shrink-0"
-                            title="Voltar e configurar novo relatório ou filtros"
-                        >
-                            <RotateCcw className="w-4 h-4 text-orange-500 group-hover:text-white transition-colors" />
-                            <span>← Alterar Filtros</span>
-                        </button>
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl text-white shadow-md shadow-orange-500/20">
-                                <FileText className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
-                                    Central de Relatórios IgGestor
-                                </h1>
-                                <p className="text-xs text-slate-400">
-                                    Relatório gerado sob medida. Clique em "Alterar Filtros" para alternar modelos ou períodos.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+            {/* Top Bar on Generated Report Screen */}
+            <div className="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
+                {/* Left: Active Report Title & Parameter Summary Badges */}
+                <div className="flex items-center gap-3 min-w-0">
+                    <button
+                        onClick={() => setHasGenerated(false)}
+                        className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-orange-500 hover:text-white dark:hover:bg-orange-500 text-slate-700 dark:text-slate-200 rounded-2xl transition-all flex items-center justify-center cursor-pointer shrink-0"
+                        title="Voltar e alterar parâmetros do relatório"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
 
-                    {/* Active Report Indicator Badges */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <div className="px-3.5 py-2 bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/30 rounded-xl text-orange-700 dark:text-orange-300 text-xs font-black flex items-center gap-2 shadow-2xs">
-                            <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                            <span>
-                                {activeTab === 'contributors' && 'Dizimistas & Contribuintes'}
-                                {activeTab === 'balancete' && `Balancete (${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'})`}
-                                {activeTab === 'churches' && 'Resumo por Igreja'}
-                                {activeTab === 'expenses' && `Relatório por Categoria (${categoryTypeFilter === 'all' ? 'Geral' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'})`}
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h1 className="text-lg font-black text-slate-800 dark:text-white tracking-tight truncate">
+                                {activeTab === 'contributors' && 'Relatório de Dizimistas & Contribuintes'}
+                                {activeTab === 'balancete' && `Balancete Financeiro (${balanceteType === 'sintetico' ? 'Sintético' : balanceteType === 'analitico' ? 'Analítico' : 'Contábil'})`}
+                                {activeTab === 'churches' && 'Resumo Comparativo por Igreja'}
+                                {activeTab === 'expenses' && `Relatório por Categoria (${categoryTypeFilter === 'all' ? 'Todas' : categoryTypeFilter === 'income' ? 'Receitas' : 'Despesas'})`}
+                            </h1>
+
+                            <span className="px-2.5 py-0.5 bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 rounded-full text-[10px] font-extrabold uppercase">
+                                Relatório Gerado
                             </span>
                         </div>
 
-                        {selectedChurchIds.length > 0 && (
-                            <div className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5">
-                                <Building2 className="w-3.5 h-3.5 text-orange-500" />
-                                <span>{selectedChurchIds.length} igreja(s) selecionada(s)</span>
-                            </div>
-                        )}
+                        <p className="text-xs text-slate-400 font-medium flex items-center gap-2 flex-wrap mt-0.5">
+                            <span>Período: {dateRange === 'month' ? 'Mês Atual' : customStartDate && customEndDate ? `${customStartDate} até ${customEndDate}` : 'Período Personalizado'}</span>
+                            <span>•</span>
+                            <span>
+                                Igreja: {selectedChurchIds.length === 0 ? 'Todas as Igrejas' : selectedChurchIds.length === 1 ? (churches.find((c: any) => c.id === selectedChurchIds[0])?.name || '1 Selecionada') : `${selectedChurchIds.length} Selecionadas`}
+                            </span>
+                        </p>
                     </div>
+                </div>
+
+                {/* Right: Actions (Change Parameters, Search, Refresh) */}
+                <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
+                    {/* Search Bar */}
+                    <div className="relative max-w-xs min-w-[150px]">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            placeholder="Buscar no relatório..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-white focus:outline-none focus:border-orange-500 font-medium"
+                        />
+                    </div>
+
+                    <button
+                        onClick={() => setHasGenerated(false)}
+                        className="px-3.5 py-2 bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 hover:bg-orange-100 border border-orange-200 dark:border-orange-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Alterar Parâmetros</span>
+                    </button>
+
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing || isHydratingFromCloud}
+                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200/60 dark:border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        title="Recarregar banco de dados"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : ''}`} />
+                    </button>
                 </div>
             </div>
 

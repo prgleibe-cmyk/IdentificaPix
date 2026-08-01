@@ -5,6 +5,7 @@ import { ChurchFormData } from '../../types';
 import { XMarkIcon } from '../Icons';
 import { QrCode, Building2, User, Landmark, MapPin, Image as ImageIcon, CreditCard, Phone, Mail, FileText, MessageSquare } from 'lucide-react';
 import { ChurchPortalShareModal } from '../admin/ChurchPortalShareModal';
+import { InlineRoleSelector } from '../register/InlineRoleSelector';
 
 export const EditChurchModal: React.FC = () => {
     const { editingChurch, updateChurch, closeEditChurch } = useContext(AppContext);
@@ -29,35 +30,17 @@ export const EditChurchModal: React.FC = () => {
     // Vínculo / Cargo States for Pastors & Treasurers
     const DEFAULT_PASTOR_ROLES = [
         'Pastor Presidente',
-        'Pastor Auxiliar',
-        'Pastor Vice-Presidente',
-        'Pastor de Jovens',
-        'Pastor de Casais',
-        'Pastor de Missões',
-        'Pastor de Ensino',
-        'Pastor Jubilado',
-        'Evangelista / Dirigente',
-        'Dirigente de Congregação',
-        'Bispo / Apóstolo',
-        'Outro Cargo'
+        'Pastor Auxiliar'
     ];
 
     const DEFAULT_TREASURER_ROLES = [
         '1º Tesoureiro',
-        '2º Tesoureiro',
-        '3º Tesoureiro',
-        'Tesoureiro Geral',
-        'Tesoureiro Auxiliar',
-        'Diretor Financeiro',
-        'Gerente Financeiro',
-        'Contador / Fiscal',
-        'Conselho Fiscal',
-        'Outro Cargo'
+        '2º Tesoureiro'
     ];
 
     const [pastorRoles, setPastorRoles] = useState<string[]>(() => {
         try {
-            const saved = localStorage.getItem('iggestor_pastor_roles_v1');
+            const saved = localStorage.getItem('iggestor_pastor_roles_v2');
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -68,7 +51,7 @@ export const EditChurchModal: React.FC = () => {
 
     const [treasurerRoles, setTreasurerRoles] = useState<string[]>(() => {
         try {
-            const saved = localStorage.getItem('iggestor_treasurer_roles_v1');
+            const saved = localStorage.getItem('iggestor_treasurer_roles_v2');
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -83,16 +66,85 @@ export const EditChurchModal: React.FC = () => {
     const [creatingTreasurerRoleIndex, setCreatingTreasurerRoleIndex] = useState<number | null>(null);
     const [newTreasurerRoleInput, setNewTreasurerRoleInput] = useState('');
 
+    const [managingPastorRoles, setManagingPastorRoles] = useState(false);
+    const [managingTreasurerRoles, setManagingTreasurerRoles] = useState(false);
+
+    const savePastorRoles = (updated: string[]) => {
+        setPastorRoles(updated);
+        try {
+            localStorage.setItem('iggestor_pastor_roles_v2', JSON.stringify(updated));
+        } catch (e) {}
+    };
+
+    const saveTreasurerRoles = (updated: string[]) => {
+        setTreasurerRoles(updated);
+        try {
+            localStorage.setItem('iggestor_treasurer_roles_v2', JSON.stringify(updated));
+        } catch (e) {}
+    };
+
+    const handleAddPastorRole = (role: string) => {
+        const trimmed = role.trim();
+        if (!trimmed) return;
+        if (!pastorRoles.includes(trimmed)) {
+            savePastorRoles([...pastorRoles, trimmed]);
+        }
+    };
+
+    const handleRenamePastorRole = (oldRole: string, newRole: string) => {
+        const trimmed = newRole.trim();
+        if (!trimmed || trimmed === oldRole) return;
+        const updated = pastorRoles.map(r => r === oldRole ? trimmed : r);
+        savePastorRoles(updated);
+        setFormData(prev => ({
+            ...prev,
+            pastors: (prev.pastors || []).map(p => p.title === oldRole ? { ...p, title: trimmed } : p)
+        }));
+    };
+
+    const handleDeletePastorRole = (roleToDelete: string) => {
+        const updated = pastorRoles.filter(r => r !== roleToDelete);
+        savePastorRoles(updated);
+        const fallback = updated[0] || '';
+        setFormData(prev => ({
+            ...prev,
+            pastors: (prev.pastors || []).map(p => p.title === roleToDelete ? { ...p, title: fallback } : p)
+        }));
+    };
+
+    const handleAddTreasurerRole = (role: string) => {
+        const trimmed = role.trim();
+        if (!trimmed) return;
+        if (!treasurerRoles.includes(trimmed)) {
+            saveTreasurerRoles([...treasurerRoles, trimmed]);
+        }
+    };
+
+    const handleRenameTreasurerRole = (oldRole: string, newRole: string) => {
+        const trimmed = newRole.trim();
+        if (!trimmed || trimmed === oldRole) return;
+        const updated = treasurerRoles.map(r => r === oldRole ? trimmed : r);
+        saveTreasurerRoles(updated);
+        setFormData(prev => ({
+            ...prev,
+            treasurers: (prev.treasurers || []).map(t => t.title === oldRole ? { ...t, title: trimmed } : t)
+        }));
+    };
+
+    const handleDeleteTreasurerRole = (roleToDelete: string) => {
+        const updated = treasurerRoles.filter(r => r !== roleToDelete);
+        saveTreasurerRoles(updated);
+        const fallback = updated[0] || '';
+        setFormData(prev => ({
+            ...prev,
+            treasurers: (prev.treasurers || []).map(t => t.title === roleToDelete ? { ...t, title: fallback } : t)
+        }));
+    };
+
     const handleAddCustomPastorRole = (index: number) => {
         const trimmed = newPastorRoleInput.trim();
         if (!trimmed) return;
-        if (!pastorRoles.includes(trimmed)) {
-            const updated = [...pastorRoles, trimmed];
-            setPastorRoles(updated);
-            try {
-                localStorage.setItem('iggestor_pastor_roles_v1', JSON.stringify(updated));
-            } catch (e) {}
-        }
+        handleAddPastorRole(trimmed);
         handlePastorChange(index, 'title', trimmed);
         setNewPastorRoleInput('');
         setCreatingPastorRoleIndex(null);
@@ -101,13 +153,7 @@ export const EditChurchModal: React.FC = () => {
     const handleAddCustomTreasurerRole = (index: number) => {
         const trimmed = newTreasurerRoleInput.trim();
         if (!trimmed) return;
-        if (!treasurerRoles.includes(trimmed)) {
-            const updated = [...treasurerRoles, trimmed];
-            setTreasurerRoles(updated);
-            try {
-                localStorage.setItem('iggestor_treasurer_roles_v1', JSON.stringify(updated));
-            } catch (e) {}
-        }
+        handleAddTreasurerRole(trimmed);
         handleTreasurerChange(index, 'title', trimmed);
         setNewTreasurerRoleInput('');
         setCreatingTreasurerRoleIndex(null);
@@ -465,84 +511,24 @@ export const EditChurchModal: React.FC = () => {
 
                                 <div className="space-y-3">
                                     {(formData.pastors || []).map((pastorItem, index) => (
-                                        <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 space-y-2">
-                                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                                <div className="sm:col-span-4 space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">
-                                                            Cargo / Vínculo
-                                                        </label>
-                                                        {creatingPastorRoleIndex !== index && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setCreatingPastorRoleIndex(index);
-                                                                    setNewPastorRoleInput('');
-                                                                }}
-                                                                className="text-[9px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer"
-                                                            >
-                                                                + Criar
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                    {creatingPastorRoleIndex === index ? (
-                                                        <div className="p-1.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 flex items-center gap-1.5">
-                                                            <input 
-                                                                type="text"
-                                                                value={newPastorRoleInput}
-                                                                onChange={(e) => setNewPastorRoleInput(e.target.value)}
-                                                                placeholder="Ex: Pastor de Jovens"
-                                                                className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs p-1.5 rounded-lg border border-amber-300 dark:border-amber-700 outline-none font-bold"
-                                                                autoFocus
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        e.preventDefault();
-                                                                        handleAddCustomPastorRole(index);
-                                                                    }
-                                                                }}
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleAddCustomPastorRole(index)}
-                                                                className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
-                                                            >
-                                                                OK
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setCreatingPastorRoleIndex(null); setNewPastorRoleInput(''); }}
-                                                                className="px-1.5 py-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold cursor-pointer"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <select
-                                                            value={pastorItem.title || ''}
-                                                            onChange={(e) => {
-                                                                if (e.target.value === '__NEW__') {
-                                                                    setCreatingPastorRoleIndex(index);
-                                                                    setNewPastorRoleInput('');
-                                                                } else {
-                                                                    handlePastorChange(index, 'title', e.target.value);
-                                                                }
-                                                            }}
-                                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
-                                                        >
-                                                            <option value="">Selecione o cargo...</option>
-                                                            {pastorItem.title && !pastorRoles.includes(pastorItem.title) && (
-                                                                <option value={pastorItem.title}>{pastorItem.title}</option>
-                                                            )}
-                                                            {pastorRoles.map((role) => (
-                                                                <option key={role} value={role}>{role}</option>
-                                                            ))}
-                                                            <option value="__NEW__">+ Criar Novo Cargo...</option>
-                                                        </select>
-                                                    )}
+                                        <div key={index} className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 space-y-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                                                <div className="sm:col-span-5 space-y-1">
+                                                    <label className="text-[9px] font-bold text-slate-400 uppercase">
+                                                        Cargo / Vínculo
+                                                    </label>
+                                                    <InlineRoleSelector
+                                                        value={pastorItem.title || ''}
+                                                        onChange={(newVal) => handlePastorChange(index, 'title', newVal)}
+                                                        roles={pastorRoles}
+                                                        onAddRole={handleAddPastorRole}
+                                                        onRenameRole={handleRenamePastorRole}
+                                                        onDeleteRole={handleDeletePastorRole}
+                                                        themeColor="amber"
+                                                    />
                                                 </div>
 
-                                                <div className="sm:col-span-7 space-y-1">
+                                                <div className="sm:col-span-6 space-y-1">
                                                     <label className="text-[9px] font-bold text-slate-400 uppercase">
                                                         Nome do Pastor
                                                     </label>
@@ -556,7 +542,7 @@ export const EditChurchModal: React.FC = () => {
                                                     />
                                                 </div>
 
-                                                <div className="sm:col-span-1 flex items-end justify-center pt-2 sm:pt-0">
+                                                <div className="sm:col-span-1 flex items-center justify-center pt-5">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemovePastor(index)}
@@ -566,21 +552,6 @@ export const EditChurchModal: React.FC = () => {
                                                         <XMarkIcon className="w-4 h-4" />
                                                     </button>
                                                 </div>
-                                            </div>
-
-                                            {/* Quick suggestion tags */}
-                                            <div className="flex flex-wrap items-center gap-1 pt-1">
-                                                <span className="text-[9px] text-slate-400 font-bold mr-1">Exemplos:</span>
-                                                {['Pastor Presidente', 'Pastor Auxiliar', 'Pastor de Jovens', 'Dirigente de Congregação'].map((suggestion) => (
-                                                    <button
-                                                        key={suggestion}
-                                                        type="button"
-                                                        onClick={() => handlePastorChange(index, 'title', suggestion)}
-                                                        className="text-[9px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 border border-amber-200/60 dark:border-amber-800/60 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                                                    >
-                                                        {suggestion}
-                                                    </button>
-                                                ))}
                                             </div>
                                         </div>
                                     ))}
@@ -607,84 +578,24 @@ export const EditChurchModal: React.FC = () => {
 
                                 <div className="space-y-3">
                                     {(formData.treasurers || []).map((treasurerItem, index) => (
-                                        <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 space-y-2">
-                                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                                <div className="sm:col-span-4 space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <label className="text-[9px] font-bold text-slate-400 uppercase">
-                                                            Cargo / Vínculo
-                                                        </label>
-                                                        {creatingTreasurerRoleIndex !== index && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setCreatingTreasurerRoleIndex(index);
-                                                                    setNewTreasurerRoleInput('');
-                                                                }}
-                                                                className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
-                                                            >
-                                                                + Criar
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                    {creatingTreasurerRoleIndex === index ? (
-                                                        <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
-                                                            <input 
-                                                                type="text"
-                                                                value={newTreasurerRoleInput}
-                                                                onChange={(e) => setNewTreasurerRoleInput(e.target.value)}
-                                                                placeholder="Ex: 1º Tesoureiro"
-                                                                className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs p-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 outline-none font-bold"
-                                                                autoFocus
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        e.preventDefault();
-                                                                        handleAddCustomTreasurerRole(index);
-                                                                    }
-                                                                }}
-                                                            />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleAddCustomTreasurerRole(index)}
-                                                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
-                                                            >
-                                                                OK
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { setCreatingTreasurerRoleIndex(null); setNewTreasurerRoleInput(''); }}
-                                                                className="px-1.5 py-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold cursor-pointer"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <select
-                                                            value={treasurerItem.title || ''}
-                                                            onChange={(e) => {
-                                                                if (e.target.value === '__NEW__') {
-                                                                    setCreatingTreasurerRoleIndex(index);
-                                                                    setNewTreasurerRoleInput('');
-                                                                } else {
-                                                                    handleTreasurerChange(index, 'title', e.target.value);
-                                                                }
-                                                            }}
-                                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-2 px-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                                        >
-                                                            <option value="">Selecione o cargo...</option>
-                                                            {treasurerItem.title && !treasurerRoles.includes(treasurerItem.title) && (
-                                                                <option value={treasurerItem.title}>{treasurerItem.title}</option>
-                                                            )}
-                                                            {treasurerRoles.map((role) => (
-                                                                <option key={role} value={role}>{role}</option>
-                                                            ))}
-                                                            <option value="__NEW__">+ Criar Novo Cargo...</option>
-                                                        </select>
-                                                    )}
+                                        <div key={index} className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 space-y-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                                                <div className="sm:col-span-5 space-y-1">
+                                                    <label className="text-[9px] font-bold text-slate-400 uppercase">
+                                                        Cargo / Vínculo
+                                                    </label>
+                                                    <InlineRoleSelector
+                                                        value={treasurerItem.title || ''}
+                                                        onChange={(newVal) => handleTreasurerChange(index, 'title', newVal)}
+                                                        roles={treasurerRoles}
+                                                        onAddRole={handleAddTreasurerRole}
+                                                        onRenameRole={handleRenameTreasurerRole}
+                                                        onDeleteRole={handleDeleteTreasurerRole}
+                                                        themeColor="emerald"
+                                                    />
                                                 </div>
 
-                                                <div className="sm:col-span-7 space-y-1">
+                                                <div className="sm:col-span-6 space-y-1">
                                                     <label className="text-[9px] font-bold text-slate-400 uppercase">
                                                         Nome do Tesoureiro
                                                     </label>
@@ -698,7 +609,7 @@ export const EditChurchModal: React.FC = () => {
                                                     />
                                                 </div>
 
-                                                <div className="sm:col-span-1 flex items-end justify-center pt-2 sm:pt-0">
+                                                <div className="sm:col-span-1 flex items-center justify-center pt-5">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveTreasurer(index)}
@@ -708,21 +619,6 @@ export const EditChurchModal: React.FC = () => {
                                                         <XMarkIcon className="w-4 h-4" />
                                                     </button>
                                                 </div>
-                                            </div>
-
-                                            {/* Quick suggestion tags */}
-                                            <div className="flex flex-wrap items-center gap-1 pt-1">
-                                                <span className="text-[9px] text-slate-400 font-bold mr-1">Exemplos:</span>
-                                                {['1º Tesoureiro', '2º Tesoureiro', 'Tesoureiro Geral', 'Tesoureiro Auxiliar'].map((suggestion) => (
-                                                    <button
-                                                        key={suggestion}
-                                                        type="button"
-                                                        onClick={() => handleTreasurerChange(index, 'title', suggestion)}
-                                                        className="text-[9px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200/60 dark:border-emerald-800/60 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                                                    >
-                                                        {suggestion}
-                                                    </button>
-                                                ))}
                                             </div>
                                         </div>
                                     ))}

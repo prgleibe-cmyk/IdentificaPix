@@ -8,6 +8,7 @@ import { AppContext } from '../contexts/AppContext';
 const DashboardView = React.lazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
 const UploadView = React.lazy(() => import('./UploadView').then(m => ({ default: m.UploadView })));
 const RegisterView = React.lazy(() => import('./RegisterView').then(m => ({ default: m.RegisterView })));
+const ReportsView = React.lazy(() => import('./ReportsView').then(m => ({ default: m.ReportsView })));
 const RelatoriosView = React.lazy(() => import('./RelatoriosView').then(m => ({ default: m.RelatoriosView })));
 const LivroCaixaView = React.lazy(() => import('./LivroCaixaView').then(m => ({ default: m.LivroCaixaView })));
 const SettingsView = React.lazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
@@ -61,7 +62,7 @@ export const AppRouter: React.FC = memo(() => {
             case 'dashboard': return <DashboardView />;
             case 'upload': return <UploadView />;
             case 'cadastro': return isOwner ? <RegisterView /> : <DashboardView />;
-            case 'reports': return <RelatoriosView />;
+            case 'reports': return <ReportsView />;
             case 'relatorios': return <RelatoriosView />;
             case 'livro_caixa': return <LivroCaixaView />;
             case 'search': return <SearchView />;

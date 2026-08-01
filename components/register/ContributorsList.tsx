@@ -6,6 +6,7 @@ import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
 import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import * as XLSX from 'xlsx';
+import { InlineRoleSelector } from './InlineRoleSelector';
 
 const formatCpfCnpj = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -60,6 +61,17 @@ export const ContributorsList: React.FC = () => {
         'Concessionária / Utilidades',
         'Outro'
     ];
+
+    const DEFAULT_SUPPLIER_CATEGORIES = [
+        'Construção e Reformas',
+        'Equipamentos de Som / Iluminação',
+        'Prestação de Serviços Técnicos',
+        'Água, Energia, Internet e Concessionárias',
+        'Alimentação, Eventos e Buffet',
+        'Gráfica, Comunicação Visual e Papelaria',
+        'Outros Fornecedores'
+    ];
+
     const [rolePosition, setRolePosition] = useState<string>('Membro');
     const [customRoles, setCustomRoles] = useState<string[]>(() => {
         try {
@@ -73,9 +85,96 @@ export const ContributorsList: React.FC = () => {
         }
         return DEFAULT_ROLES_LIST;
     });
-    const [isCreatingRole, setIsCreatingRole] = useState(false);
-    const [newRoleInput, setNewRoleInput] = useState('');
-    const [roleFilter, setRoleFilter] = useState('ALL');
+
+    const [supplierCategories, setSupplierCategories] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('iggestor_supplier_categories_v1');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {
+            console.error('Error loading supplier categories', e);
+        }
+        return DEFAULT_SUPPLIER_CATEGORIES;
+    });
+
+    const saveCustomRoles = (updated: string[]) => {
+        setCustomRoles(updated);
+        try {
+            localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(updated));
+        } catch (e) {
+            console.error('Error saving custom roles', e);
+        }
+    };
+
+    const handleAddRole = (newRole: string) => {
+        const trimmed = newRole.trim();
+        if (!trimmed) return;
+        if (!customRoles.includes(trimmed)) {
+            const updated = [...customRoles, trimmed];
+            saveCustomRoles(updated);
+        }
+        setRolePosition(trimmed);
+        setCategory(trimmed);
+    };
+
+    const handleRenameRole = (oldRole: string, newRole: string) => {
+        const trimmed = newRole.trim();
+        if (!trimmed) return;
+        const updated = customRoles.map(r => r === oldRole ? trimmed : r);
+        saveCustomRoles(updated);
+        if (rolePosition === oldRole) {
+            setRolePosition(trimmed);
+            setCategory(trimmed);
+        }
+    };
+
+    const handleDeleteRole = (roleToDelete: string) => {
+        const updated = customRoles.filter(r => r !== roleToDelete);
+        saveCustomRoles(updated);
+        if (rolePosition === roleToDelete) {
+            setRolePosition('');
+            setCategory('');
+        }
+    };
+
+    const saveSupplierCategories = (updated: string[]) => {
+        setSupplierCategories(updated);
+        try {
+            localStorage.setItem('iggestor_supplier_categories_v1', JSON.stringify(updated));
+        } catch (e) {
+            console.error('Error saving supplier categories', e);
+        }
+    };
+
+    const handleAddSupplierCategory = (newCat: string) => {
+        const trimmed = newCat.trim();
+        if (!trimmed) return;
+        if (!supplierCategories.includes(trimmed)) {
+            const updated = [...supplierCategories, trimmed];
+            saveSupplierCategories(updated);
+        }
+        setCategory(trimmed);
+    };
+
+    const handleRenameSupplierCategory = (oldCat: string, newCat: string) => {
+        const trimmed = newCat.trim();
+        if (!trimmed) return;
+        const updated = supplierCategories.map(c => c === oldCat ? trimmed : c);
+        saveSupplierCategories(updated);
+        if (category === oldCat) {
+            setCategory(trimmed);
+        }
+    };
+
+    const handleDeleteSupplierCategory = (catToDelete: string) => {
+        const updated = supplierCategories.filter(c => c !== catToDelete);
+        saveSupplierCategories(updated);
+        if (category === catToDelete) {
+            setCategory('');
+        }
+    };
 
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
@@ -404,25 +503,6 @@ export const ContributorsList: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleAddCustomRole = () => {
-        const trimmed = newRoleInput.trim();
-        if (!trimmed) return;
-        
-        if (!customRoles.includes(trimmed)) {
-            const updated = [...customRoles, trimmed];
-            setCustomRoles(updated);
-            try {
-                localStorage.setItem('iggestor_custom_roles_v1', JSON.stringify(updated));
-            } catch (e) {
-                console.error('Error saving custom roles', e);
-            }
-        }
-        setRolePosition(trimmed);
-        setNewRoleInput('');
-        setIsCreatingRole(false);
-        showToast(`Vínculo/Cargo "${trimmed}" adicionado e selecionado!`, "success");
-    };
-
     const handleEditClick = (contributor: any) => {
         setEditingContributor(contributor);
         setPersonType(contributor.person_type === 'PJ' || (contributor.cpf && contributor.cpf.replace(/\D/g, '').length === 14) ? 'PJ' : 'PF');
@@ -434,7 +514,16 @@ export const ContributorsList: React.FC = () => {
         setRgIe(contributor.rg_ie || '');
         setBirthDate(contributor.birth_date || '');
         setContactPerson(contributor.contact_person || '');
-        setCategory(contributor.category || '');
+
+        const savedCat = contributor.category || '';
+        setCategory(savedCat);
+        if (savedCat && !supplierCategories.includes(savedCat)) {
+            const nextCats = [...supplierCategories, savedCat];
+            setSupplierCategories(nextCats);
+            try {
+                localStorage.setItem('iggestor_supplier_categories_v1', JSON.stringify(nextCats));
+            } catch(e) {}
+        }
 
         const savedRole = contributor.role_position || contributor.category || 'Membro';
         setRolePosition(savedRole);
@@ -539,8 +628,6 @@ export const ContributorsList: React.FC = () => {
         setContactPerson('');
         setCategory('');
         setRolePosition('Membro');
-        setIsCreatingRole(false);
-        setNewRoleInput('');
         setPhone('');
         setEmail('');
         setPixKey('');
@@ -663,13 +750,10 @@ export const ContributorsList: React.FC = () => {
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
 
     const filteredContributors = contributors.filter(c => {
-        const roleVal = c.role_position || c.category;
-        const roleMatch = roleFilter === 'ALL' || roleVal === roleFilter;
-        if (!roleMatch) return false;
-
         const query = search.toLowerCase().trim();
         if (!query) return true;
 
+        const roleVal = c.role_position || c.category;
         const nameMatch = c.canonical_name?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(query.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
         const cleanQueryCpf = query.replace(/\D/g, '');
         const cpfMatch = cleanQueryCpf ? c.cpf?.replace(/\D/g, '').includes(cleanQueryCpf) : false;
@@ -718,7 +802,7 @@ export const ContributorsList: React.FC = () => {
                 </div>
             </div>
 
-            {/* Visual Search input & Role Filter below the header */}
+            {/* Visual Search input below the header */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 flex-shrink-0">
                 <div className="relative flex-1">
                     <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
@@ -730,21 +814,6 @@ export const ContributorsList: React.FC = () => {
                         className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
                         id="contributors-search"
                     />
-                </div>
-
-                <div className="flex-shrink-0 flex items-center gap-2">
-                    <Tag className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
-                    <select 
-                        value={roleFilter} 
-                        onChange={e => setRoleFilter(e.target.value)}
-                        className="p-2.5 rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 text-xs font-bold outline-none cursor-pointer hover:border-amber-400 transition-all"
-                        id="contributors-role-filter"
-                    >
-                        <option value="ALL">Todos os Vínculos / Cargos</option>
-                        {customRoles.map(role => (
-                            <option key={role} value={role}>{role}</option>
-                        ))}
-                    </select>
                 </div>
             </div>
 
@@ -1118,71 +1187,23 @@ export const ContributorsList: React.FC = () => {
                                             </div>
                                         ) : (
                                             <div className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <label htmlFor="contributor-role-position" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
-                                                        Vínculo / Cargo
-                                                    </label>
-                                                    {!isCreatingRole && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setIsCreatingRole(true)}
-                                                            className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-                                                        >
-                                                            <PlusCircleIcon className="w-3 h-3" />
-                                                            + Criar Novo
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                {isCreatingRole ? (
-                                                    <div className="p-2.5 bg-amber-50/90 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800 flex items-center gap-2 animate-scale-in">
-                                                        <input 
-                                                            type="text" 
-                                                            value={newRoleInput}
-                                                            onChange={(e) => setNewRoleInput(e.target.value)}
-                                                            placeholder="Ex: Tesoureiro, Sonoplasta, Líder..."
-                                                            className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs p-2 rounded-xl border border-amber-300 dark:border-amber-700 outline-none font-bold"
-                                                            autoFocus
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') {
-                                                                    e.preventDefault();
-                                                                    handleAddCustomRole();
-                                                                }
-                                                            }}
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleAddCustomRole}
-                                                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
-                                                        >
-                                                            Salvar
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setIsCreatingRole(false); setNewRoleInput(''); }}
-                                                            className="px-2 py-1.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 text-xs font-bold cursor-pointer"
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <select 
-                                                        id="contributor-role-position" 
-                                                        value={rolePosition} 
-                                                        onChange={(e) => {
-                                                            setRolePosition(e.target.value);
-                                                            setCategory(e.target.value);
-                                                        }} 
-                                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
-                                                    >
-                                                        <option value="">Selecione o vínculo ou cargo...</option>
-                                                        {customRoles.map((role) => (
-                                                            <option key={role} value={role}>
-                                                                {role}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
+                                                <label htmlFor="contributor-role-position" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
+                                                    Vínculo / Cargo
+                                                </label>
+                                                <InlineRoleSelector
+                                                    value={rolePosition}
+                                                    onChange={(val) => {
+                                                        setRolePosition(val);
+                                                        setCategory(val);
+                                                    }}
+                                                    roles={customRoles}
+                                                    onAddRole={handleAddRole}
+                                                    onRenameRole={handleRenameRole}
+                                                    onDeleteRole={handleDeleteRole}
+                                                    themeColor="amber"
+                                                    itemLabel="Vínculo/Cargo"
+                                                    placeholder="Selecione o vínculo ou cargo..."
+                                                />
                                             </div>
                                         )}
                                     </div>
@@ -1256,21 +1277,17 @@ export const ContributorsList: React.FC = () => {
                                                 <label htmlFor="contributor-pj-category" className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">
                                                     Ramo de Atuação / Categoria do Fornecedor
                                                 </label>
-                                                <select 
-                                                    id="contributor-pj-category" 
-                                                    value={category} 
-                                                    onChange={(e) => setCategory(e.target.value)} 
-                                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
-                                                >
-                                                    <option value="">Selecione o ramo de atuação...</option>
-                                                    <option value="Construção e Reformas">Construção e Reformas</option>
-                                                    <option value="Equipamentos e Som">Equipamentos de Som / Iluminação</option>
-                                                    <option value="Prestação de Serviços">Prestação de Serviços Técnicos</option>
-                                                    <option value="Utilitários e Consumo">Água, Energia, Internet e Concessionárias</option>
-                                                    <option value="Alimentação e Eventos">Alimentação, Eventos e Buffet</option>
-                                                    <option value="Gráfica e Material">Gráfica, Comunicação Visual e Papelaria</option>
-                                                    <option value="Outros Fornecedores">Outros Fornecedores</option>
-                                                </select>
+                                                <InlineRoleSelector
+                                                    value={category}
+                                                    onChange={(val) => setCategory(val)}
+                                                    roles={supplierCategories}
+                                                    onAddRole={handleAddSupplierCategory}
+                                                    onRenameRole={handleRenameSupplierCategory}
+                                                    onDeleteRole={handleDeleteSupplierCategory}
+                                                    themeColor="emerald"
+                                                    itemLabel="Categoria"
+                                                    placeholder="Selecione o ramo de atuação..."
+                                                />
                                             </div>
 
                                             <div className="space-y-2">
