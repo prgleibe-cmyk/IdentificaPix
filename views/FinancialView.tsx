@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
@@ -71,7 +71,7 @@ const months = [
     { value: '12', label: 'Dezembro' }
 ];
 
-export const FinancialView: React.FC = () => {
+export const FinancialView: React.FC = memo(() => {
     const { user, subscription } = useAuth();
     const { churches, matchResults } = useContext(AppContext);
     const { showToast, setActiveView } = useUI();
@@ -1621,4 +1621,4 @@ export const FinancialView: React.FC = () => {
             )}
         </div>
     );
-};
+});

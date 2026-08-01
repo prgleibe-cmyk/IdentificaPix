@@ -162,6 +162,7 @@ export interface Transaction {
   contribution_request_id?: string;
   source?: string;
   pix_key?: string;
+  row_hash?: string;
 }
 
 export interface Contributor {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
@@ -255,7 +255,7 @@ const INITIAL_PATRIMONY_DATA: PatrimonyItem[] = [
     }
 ];
 
-export const PatrimonyView: React.FC = () => {
+export const PatrimonyView: React.FC = memo(() => {
     const context = useContext(AppContext);
     const churches = context?.churches || [];
     const setActiveView = context?.setActiveView;
@@ -708,7 +708,7 @@ export const PatrimonyView: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 pb-12 relative min-h-[600px]">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full pb-12 relative min-h-[600px]">
             
             {/* Header section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
@@ -1928,4 +1928,4 @@ export const PatrimonyView: React.FC = () => {
 
         </div>
     );
-};
+});

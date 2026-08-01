@@ -566,7 +566,7 @@ export const ChurchModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) =>
 
                 {/* Body */}
                 <div className="p-6 md:p-8 flex-1 overflow-y-auto w-full">
-                    <div className="space-y-6 w-full max-w-5xl mx-auto">
+                    <div className="space-y-6 w-full max-w-full">
 
                         {/* Bloco 1: Dados Gerais e Financeiros */}
                         <div className="p-6 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-4">

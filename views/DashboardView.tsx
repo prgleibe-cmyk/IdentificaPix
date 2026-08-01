@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useDashboardController } from '../hooks/useDashboardController';
 import { EmptyState } from '../components/EmptyState';
 import { SummaryCard } from '../components/SummaryCard';
@@ -17,7 +17,7 @@ import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
 import { EfficiencyHeroCard } from '../components/dashboard/EfficiencyHeroCard';
 import { ChurchLeaderboard } from '../components/dashboard/ChurchLeaderboard';
 
-export const DashboardView: React.FC = () => {
+export const DashboardView: React.FC = memo(() => {
     const { 
         summary, user, setActiveView, t, language, identificationRate, 
         pieChartData, maxValuePerChurch, hasData, getGreeting, hasActiveSession,
@@ -141,4 +141,4 @@ export const DashboardView: React.FC = () => {
         )}
     </div>
 );
-};
+});

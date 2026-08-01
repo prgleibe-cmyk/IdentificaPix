@@ -1,11 +1,11 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ViewType } from '../../types';
 import { HomeIcon, SearchIcon, UploadIcon, PlusCircleIcon, ChartBarIcon, Cog6ToothIcon, ShieldCheckIcon, DocumentDuplicateIcon, CreditCardIcon, TableCellsIcon } from '../Icons';
-import { FileText } from 'lucide-react';
+import { FileText, BookOpen } from 'lucide-react';
 
 // Sub-component for individual navigation items
 interface NavItemProps {
@@ -16,7 +16,7 @@ interface NavItemProps {
     isSpecial?: boolean; // For Admin or special actions
 }
 
-const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, isSpecial = false }) => {
+const NavItem: React.FC<NavItemProps> = memo(({ icon, label, isActive, onClick, isSpecial = false }) => {
     
     // Admin button styling - Sóbrio e diferenciado
     if (isSpecial) {
@@ -59,10 +59,10 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, isSpe
             </span>
         </button>
     );
-};
+});
 
 // Main Navigation component
-export const Navigation: React.FC = () => {
+export const Navigation: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
     const { user } = useAuth();
     const { t } = useTranslation();
@@ -74,8 +74,8 @@ export const Navigation: React.FC = () => {
         { view: 'dashboard', labelKey: 'nav.dashboard', icon: <HomeIcon className="w-4 h-4"/> },
         { view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-4 h-4"/> },
         { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> },
-        { view: 'reports', labelKey: 'nav.reports', icon: <TableCellsIcon className="w-4 h-4"/> },
         { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> },
+        { view: 'livro_caixa', labelKey: 'nav.livro_caixa', icon: <BookOpen className="w-4 h-4"/> },
         { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> },
         { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> },
         { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> },
@@ -105,4 +105,4 @@ export const Navigation: React.FC = () => {
             ))}
         </nav>
     );
-};
+});

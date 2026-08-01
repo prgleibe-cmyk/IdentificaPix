@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useContext, useEffect } from 'react';
+import React, { useState, useMemo, useContext, useEffect, memo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
 const logoImg = '/logo.png?v=15';
-import { BookmarkPlus, Building2, FileText } from 'lucide-react';
+import { BookmarkPlus, Building2, FileText, BookOpen } from 'lucide-react';
 import { 
     HomeIcon, 
     UploadIcon, 
@@ -26,7 +26,7 @@ import {
     CreditCardIcon
 } from '../Icons';
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: React.FC = memo(() => {
     const { activeView, setActiveView } = useUI();
     const { t } = useTranslation();
     const { signOut, user, subscription, systemSettings } = useAuth();
@@ -120,8 +120,8 @@ export const Sidebar: React.FC = () => {
         const canManagePatrimony = !isSecondaryUser || (perms.patrimonio !== false && perms.managePatrimony !== false);
 
         items.push(
-            { view: 'reports', labelKey: 'nav.reports', icon: <TableCellsIcon className="w-5 h-5"/> },
             { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> },
+            { view: 'livro_caixa', labelKey: 'nav.livro_caixa', icon: <BookOpen className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> }
         );
@@ -359,4 +359,4 @@ export const Sidebar: React.FC = () => {
             </aside>
         </>
     );
-};
+});

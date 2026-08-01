@@ -204,10 +204,19 @@ export const resolveTransactionSource = (
 ): { label: string; isSms: boolean } => {
     if (!transaction) return { label: 'Arquivo', isSms: false };
 
-    const src = (transaction.source || '').toString().toLowerCase();
+    const src = (transaction.source || transaction.origin || transaction.__source || '').toString().toLowerCase();
     const pixKey = (transaction.pix_key || transaction.pixKey || '').toString().toUpperCase();
+    const desc = (transaction.description || transaction.rawDescription || transaction.cleanedDescription || '').toString().toLowerCase();
+    const rowHash = (transaction.row_hash || transaction.rowHash || '').toString().toLowerCase();
 
-    if (src === 'sms' || src === 'inbox' || src === 'auto_sms' || pixKey === 'AUTO_SMS') {
+    const isSmsSource = 
+        src === 'sms' || src === 'inbox' || src === 'auto_sms' || src === 'notification' || src === 'push' || src === 'extensão' || src === 'extension' || src === 'android' ||
+        pixKey === 'AUTO_SMS' || pixKey === 'SMS' || pixKey.includes('AUTO_SMS') || pixKey.includes('SMS') ||
+        Boolean(transaction.isSms || transaction.is_sms) ||
+        rowHash.startsWith('sms_') || rowHash.includes('sms') ||
+        desc.includes('notificacao sms') || desc.includes('notificação sms') || desc.includes('sms_') || desc.includes('auto_sms');
+
+    if (isSmsSource) {
         return { label: 'SMS / Notif', isSms: true };
     }
     return { label: 'Arquivo', isSms: false };

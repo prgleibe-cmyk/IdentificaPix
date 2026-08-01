@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -230,7 +230,7 @@ const MOCK_PLEDGES_ADMIN: ContributorPledgeAdmin[] = [
     }
 ];
 
-export const PledgesView: React.FC = () => {
+export const PledgesView: React.FC = memo(() => {
     const { churches } = useContext(AppContext) || {};
     const { showToast } = useUI();
     const { user } = useAuth();
@@ -630,7 +630,7 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
     };
 
     return (
-        <div className="space-y-6 pb-12 relative min-h-[600px]">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full pb-12 relative min-h-[600px]">
             {/* Header Section */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                 <div>
@@ -1576,4 +1576,4 @@ Sua contribuição fortalece os projetos da igreja! Deus abençoe rica e abundan
             )}
         </div>
     );
-};
+});

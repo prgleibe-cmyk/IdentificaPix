@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,7 +27,7 @@ type RegisterTab = 'banks' | 'churches' | 'contribution' | 'payment' | 'contribu
  * REGISTER VIEW (REFACTORED V3)
  * Orchestrates entity management: Banks, Churches, and Meta-data.
  */
-export const RegisterView: React.FC = () => {
+export const RegisterView: React.FC = memo(() => {
     const { t } = useTranslation();
     const { subscription, refreshSubscription } = useAuth(); 
     const { banks, churches } = useContext(AppContext);
@@ -44,7 +44,7 @@ export const RegisterView: React.FC = () => {
     const churchLimitReached = churches.length >= (subscription.maxChurches || 1);
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full flex flex-col h-full animate-fade-in pb-8">
             {/* Header Section */}
             <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div>
@@ -124,4 +124,4 @@ export const RegisterView: React.FC = () => {
             {showNewChurchForm && <ChurchModal onCancel={() => setShowNewChurchForm(false)} />}
         </div>
     );
-};
+});

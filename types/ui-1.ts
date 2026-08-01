@@ -1,7 +1,7 @@
 
 import { MatchResult, Transaction } from './domain';
 
-export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis' | 'launched' | 'connectors' | 'users' | 'financial';
+export type ViewType = 'dashboard' | 'upload' | 'cadastro' | 'reports' | 'relatorios' | 'livro_caixa' | 'search' | 'savedReports' | 'settings' | 'admin' | 'smart_analysis' | 'launched' | 'connectors' | 'users' | 'financial';
 export type Theme = 'light' | 'dark';
 export type Language = 'pt';
 

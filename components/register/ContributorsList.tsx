@@ -979,8 +979,8 @@ export const ContributorsList: React.FC = () => {
                         </div>
 
                         {/* Modal Body with inputs */}
-                        <div className="p-8 flex-1 overflow-y-auto w-full">
-                            <div className="space-y-6 w-full max-w-5xl mx-auto">
+                        <div className="p-6 md:p-8 flex-1 overflow-y-auto w-full">
+                            <div className="space-y-6 w-full max-w-full">
                                 
                                 {/* TOGGLE PF / PJ */}
                                 <div className="flex items-center justify-center p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl max-w-lg mx-auto mb-4 shadow-inner" id="toggle-person-type">

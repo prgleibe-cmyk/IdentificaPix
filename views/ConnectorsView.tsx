@@ -1,5 +1,5 @@
 
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
 import { AppContext } from '../contexts/AppContext';
@@ -17,7 +17,7 @@ import {
     LightBulbIcon
 } from '../components/Icons';
 
-export const ConnectorsView: React.FC = () => {
+export const ConnectorsView: React.FC = memo(() => {
     const { session, user } = useAuth();
     const { showToast, setActiveView } = useUI();
     const { banks } = useContext(AppContext);
@@ -973,4 +973,4 @@ export const ConnectorsView: React.FC = () => {
             </div>
         </div>
     );
-};
+});

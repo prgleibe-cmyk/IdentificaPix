@@ -59,175 +59,71 @@ export const ReportsView: React.FC = () => {
 
     const startSelected = ctrl.searchFilters?.dateRange?.start;
     const endSelected = ctrl.searchFilters?.dateRange?.end;
-    const hasActiveReport = !!ctrl.activeReportId;
-    const hasPreviewData = !!ctrl.reportPreviewData;
 
-    // Se o período não estiver selecionado e não estamos visualizando um relatório salvo/snapshot carregado
-    if ((!startSelected || !endSelected) && !hasActiveReport && !hasPreviewData) {
-        const handleConfirmPeriod = () => {
-            if (ctrl.setIsLoading) ctrl.setIsLoading(true);
-            if (selectionMode === 'month') {
-                const { start, end } = getDatesFromMonthYear(selectedMonth, selectedYear);
+    const monthsList = [
+        { val: 1, name: 'Janeiro' },
+        { val: 2, name: 'Fevereiro' },
+        { val: 3, name: 'Março' },
+        { val: 4, name: 'Abril' },
+        { val: 5, name: 'Maio' },
+        { val: 6, name: 'Junho' },
+        { val: 7, name: 'Julho' },
+        { val: 8, name: 'Agosto' },
+        { val: 9, name: 'Setembro' },
+        { val: 10, name: 'Outubro' },
+        { val: 11, name: 'Novembro' },
+        { val: 12, name: 'Dezembro' }
+    ];
+
+    const yearsList = [2027, 2026, 2025, 2024];
+
+    // Auto-inicializar com o mês atual se nenhum período estiver definido
+    React.useEffect(() => {
+        if (!startSelected || !endSelected) {
+            const now = new Date();
+            const m = now.getMonth() + 1;
+            const y = now.getFullYear();
+            setSelectedMonth(m);
+            setSelectedYear(y);
+            const { start, end } = getDatesFromMonthYear(m, y);
+            if (ctrl.setSearchFilters) {
                 ctrl.setSearchFilters((prev: any) => ({
                     ...prev,
                     dateRange: { start, end }
                 }));
-            } else {
-                if (!customStart || !customEnd) {
-                    alert('Por favor, selecione ambas as datas de início e fim.');
-                    if (ctrl.setIsLoading) ctrl.setIsLoading(false);
-                    return;
-                }
-                ctrl.setSearchFilters((prev: any) => ({
-                    ...prev,
-                    dateRange: { start: customStart, end: customEnd }
-                }));
             }
-        };
+        } else {
+            setCustomStart(startSelected);
+            setCustomEnd(endSelected);
+        }
+    }, [startSelected, endSelected]);
 
-        const monthsList = [
-            { val: 1, name: 'Janeiro' },
-            { val: 2, name: 'Fevereiro' },
-            { val: 3, name: 'Março' },
-            { val: 4, name: 'Abril' },
-            { val: 5, name: 'Maio' },
-            { val: 6, name: 'Junho' },
-            { val: 7, name: 'Julho' },
-            { val: 8, name: 'Agosto' },
-            { val: 9, name: 'Setembro' },
-            { val: 10, name: 'Outubro' },
-            { val: 11, name: 'Novembro' },
-            { val: 12, name: 'Dezembro' }
-        ];
+    const handleMonthYearSelect = (month: number, year: number) => {
+        setSelectedMonth(month);
+        setSelectedYear(year);
+        const { start, end } = getDatesFromMonthYear(month, year);
+        if (ctrl.setIsLoading) ctrl.setIsLoading(true);
+        if (ctrl.setSearchFilters) {
+            ctrl.setSearchFilters((prev: any) => ({
+                ...prev,
+                dateRange: { start, end }
+            }));
+        }
+    };
 
-        const yearsList = [2027, 2026, 2025, 2024];
-
-        return (
-            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in">
-                {/* Header Card */}
-                <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
-                            <Calendar className="w-5 h-5 text-orange-500" />
-                            Conciliação & Destinação
-                        </h1>
-                        <p className="text-xs text-slate-400">
-                            Selecione o período desejado para realizar identificação, rastreamento e destinação dos lançamentos por igreja.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Content Panel */}
-                <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-6 md:p-8 rounded-2xl shadow-sm min-h-[400px] w-full">
-                    <div className="w-full flex flex-col gap-6">
-                        <div className="flex flex-col items-center text-center gap-2 pb-2 border-b border-slate-100 dark:border-white/5">
-                            <div className="p-4 bg-orange-50 dark:bg-orange-950/30 rounded-full text-orange-600 dark:text-orange-400">
-                                <Calendar className="w-8 h-8" />
-                            </div>
-                            <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Selecione o Período</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-2xl leading-relaxed">
-                                Para garantir máxima velocidade e precisão nos relatórios, selecione o período desejado abaixo para carregar os dados.
-                            </p>
-                        </div>
-
-                        {/* Form elements container */}
-                        <div className="w-full space-y-6">
-                            {/* Botões de Seleção de Modo */}
-                            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('month')}
-                                    className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                        selectionMode === 'month'
-                                            ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                >
-                                    Mês e Ano
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectionMode('dates')}
-                                    className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                                        selectionMode === 'dates'
-                                            ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                >
-                                    Intervalo de Datas
-                                </button>
-                            </div>
-
-                            {/* Inputs baseados no modo */}
-                            {selectionMode === 'month' ? (
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Mês</label>
-                                        <select
-                                            value={selectedMonth}
-                                            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                        >
-                                            {monthsList.map(m => (
-                                                <option key={m.val} value={m.val}>{m.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Ano</label>
-                                        <select
-                                            value={selectedYear}
-                                            onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                        >
-                                            {yearsList.map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-3">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Início</label>
-                                            <input
-                                                type="date"
-                                                value={customStart}
-                                                onChange={(e) => setCustomStart(e.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Fim</label>
-                                            <input
-                                                type="date"
-                                                value={customEnd}
-                                                onChange={(e) => setCustomEnd(e.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Botão de confirmação */}
-                            <div className="flex justify-center pt-2">
-                                <button
-                                    type="button"
-                                    onClick={handleConfirmPeriod}
-                                    className="w-full max-w-xs h-12 flex items-center justify-center gap-2 text-xs font-black text-white rounded-2xl shadow-lg shadow-orange-500/20 hover:-translate-y-0.5 active:scale-95 transition-all bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 uppercase tracking-widest cursor-pointer"
-                                >
-                                    <Check className="w-4 h-4" />
-                                    Carregar Período
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    const handleApplyCustomDates = () => {
+        if (!customStart || !customEnd) {
+            alert('Por favor, escolha as datas de início e fim.');
+            return;
+        }
+        if (ctrl.setIsLoading) ctrl.setIsLoading(true);
+        if (ctrl.setSearchFilters) {
+            ctrl.setSearchFilters((prev: any) => ({
+                ...prev,
+                dateRange: { start: customStart, end: customEnd }
+            }));
+        }
+    };
 
     if (ctrl.isHydrating || ctrl.isLoading || ctrl.isSyncing || !ctrl.reportPreviewData) {
         return (
@@ -294,27 +190,80 @@ export const ReportsView: React.FC = () => {
                 </div>
             ) : (
                 <>
-                    {/* Barra de Período Selecionado com opção de alteração e botão de fechamento */}
+                    {/* Barra de Seleção de Mês e Período */}
                     <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
-                        {startSelected && endSelected && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/80 rounded-xl text-xs text-slate-600 dark:text-slate-300 w-fit">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                <span>
-                                    Período: <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(startSelected)}</strong> até <strong className="text-slate-800 dark:text-white font-black">{formatDateBRL(endSelected)}</strong>
-                                </span>
-                                <button 
-                                    onClick={() => {
-                                        ctrl.setSearchFilters((prev: any) => ({
-                                            ...prev,
-                                            dateRange: { start: '', end: '' }
-                                        }));
-                                    }}
-                                    className="ml-2 text-[10px] font-black uppercase text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+                        <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl font-bold shadow-xs border border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectionMode('month')}
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                        selectionMode === 'month'
+                                            ? 'bg-orange-500 text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
                                 >
-                                    Alterar
+                                    Mês
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectionMode('dates')}
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                        selectionMode === 'dates'
+                                            ? 'bg-orange-500 text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Período
                                 </button>
                             </div>
-                        )}
+
+                            {selectionMode === 'month' ? (
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value={selectedMonth}
+                                        onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-3 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                    >
+                                        {monthsList.map(m => (
+                                            <option key={m.val} value={m.val}>{m.name}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={selectedYear}
+                                        onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-3 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                    >
+                                        {yearsList.map(y => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="date"
+                                        value={customStart}
+                                        onChange={(e) => setCustomStart(e.target.value)}
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                                    />
+                                    <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
+                                    <input
+                                        type="date"
+                                        value={customEnd}
+                                        onChange={(e) => setCustomEnd(e.target.value)}
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleApplyCustomDates}
+                                        className="px-3 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black uppercase text-[10px] tracking-wider rounded-xl shadow-xs transition-all cursor-pointer"
+                                    >
+                                        Aplicar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
 
                         {ctrl.activeCategory === 'churches' && !isSecondaryUser && (
                             <button

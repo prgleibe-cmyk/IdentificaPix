@@ -72,7 +72,10 @@ export const useLiveListSync = ({
                     cleanedDescription: t.description,
                     bank_id: t.bank_id,
                     // Fix: isConfirmed is now a valid property of Transaction
-                    isConfirmed: !!t.is_confirmed
+                    isConfirmed: !!t.is_confirmed,
+                    source: t.source,
+                    pix_key: t.pix_key,
+                    row_hash: t.row_hash
                 };
                 
                 if (!groupedByBank[finalBankId]) groupedByBank[finalBankId] = [];

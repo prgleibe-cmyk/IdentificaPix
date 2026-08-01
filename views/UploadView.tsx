@@ -1,5 +1,5 @@
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, memo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon, DevicePhoneMobileIcon } from '../components/Icons';
@@ -11,7 +11,7 @@ import { usePersistentState } from '../hooks/usePersistentState';
 /**
  * UPLOAD VIEW (V9 - DESIGN REFINADO COM ESCOLHA DE MODO DE ENTRADA)
  */
-export const UploadView: React.FC = () => {
+export const UploadView: React.FC = memo(() => {
     const { 
         banks
     } = useContext(AppContext);
@@ -214,5 +214,5 @@ export const UploadView: React.FC = () => {
             </div>
         </div>
     );
-};
+});
 

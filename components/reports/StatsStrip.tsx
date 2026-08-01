@@ -1,9 +1,7 @@
-import React, { useContext } from 'react';
-import { ExclamationTriangleIcon, BanknotesIcon, BuildingOfficeIcon, MagnifyingGlassIcon, AdjustmentsHorizontalIcon } from '../Icons';
+import React from 'react';
+import { ExclamationTriangleIcon, BanknotesIcon, BuildingOfficeIcon, MagnifyingGlassIcon } from '../Icons';
 import { formatCurrency } from '../../utils/formatters';
 import { Language } from '../../types';
-import { AppContext } from '../../contexts/AppContext';
-import { useUI } from '../../contexts/UIContext';
 
 interface StatsStripProps {
     category: string;
@@ -23,8 +21,6 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
     onSearchChange, 
     language 
 }) => {
-    const { openSearchFilters } = useContext(AppContext);
-    
     // Fallbacks seguros para o sumário
     const stats = {
         count: summary.count || 0,
@@ -35,11 +31,6 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
         manualValue: summary.manualValue || 0,
         pending: summary.pending || 0,
         pendingValue: summary.pendingValue || 0
-    };
-
-    const handleOpenFilters = (e: React.MouseEvent) => {
-        e.preventDefault();
-        openSearchFilters();
     };
 
     return (
@@ -75,13 +66,6 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
                             className="pl-7 pr-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-[10px] font-medium focus:ring-1 focus:ring-brand-blue outline-none w-24 focus:w-40 transition-all" 
                         />
                     </div>
-                    <button 
-                        onClick={handleOpenFilters}
-                        className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-400 hover:text-brand-blue hover:border-brand-blue/50 transition-all shadow-sm flex items-center justify-center group"
-                        title="Filtros avançados"
-                    >
-                        <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
-                    </button>
                 </div>
             </div>
         </div>

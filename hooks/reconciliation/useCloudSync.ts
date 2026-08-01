@@ -401,7 +401,10 @@ export const useCloudSync = ({
                         amount: t.amount,
                         bank_id: t.bank_id,
                         isConfirmed: t.is_confirmed,
-                        type: t.type
+                        type: t.type,
+                        source: t.source,
+                        pix_key: t.pix_key,
+                        row_hash: t.row_hash
                     };
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
@@ -624,7 +627,10 @@ export const useCloudSync = ({
                                     amount: t.amount,
                                     bank_id: t.bank_id,
                                     isConfirmed: !!t.is_confirmed,
-                                    type: t.type
+                                    type: t.type,
+                                    source: t.source,
+                                    pix_key: t.pix_key,
+                                    row_hash: t.row_hash
                                 };
 
                                 const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;

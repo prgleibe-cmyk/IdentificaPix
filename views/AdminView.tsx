@@ -136,7 +136,7 @@ export const AdminView: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full flex flex-col h-full animate-fade-in pb-8">
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 flex-shrink-0 px-1">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><ShieldCheckIcon className="w-5 h-5 text-slate-700 dark:text-slate-200" /></div>
