@@ -1,6 +1,6 @@
 import React, { memo, useContext, useState, useCallback, useEffect } from 'react';
 import { MatchResult } from '../types';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency, formatDate, resolvePaymentMethod, resolveTransactionSource } from '../utils/formatters';
 import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
@@ -107,10 +107,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                 <input type="checkbox" className="w-4 h-4 rounded-full border-slate-300 text-brand-blue" onChange={toggleAll} checked={selectedIds.length > 0 && selectedIds.length === results.length} />
                             </th>
                             <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.date')}</th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[30%]">Nome / Descrição</th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[15%]">Igreja</th>
-                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[12%]">Forma</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[13%]">{t('table.amount')}</th>
+                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[25%]">Nome / Descrição</th>
+                            <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">Origem</th>
+                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[13%]">Igreja</th>
+                            <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">Forma</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[12%]">{t('table.amount')}</th>
                             <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.status')}</th>
                             <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.actions')}</th>
                         </tr>
@@ -133,6 +134,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             
                             const bankDescription = transaction.description;
                             const identifiedName = contributor?.name || contributor?.cleanedName;
+                            const sourceInfo = resolveTransactionSource(transaction);
 
                             return (
                                 <tr
@@ -157,11 +159,18 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                             {identifiedName && <span className="text-[9px] text-slate-400 font-medium uppercase tracking-tight truncate max-w-[200px] mt-0.5">{bankDescription}</span>}
                                         </div>
                                     </td>
+                                    <td className="px-4 py-2.5 text-center">
+                                        <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${sourceInfo.isSms ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                                            {sourceInfo.label}
+                                        </span>
+                                    </td>
                                     <td className="px-4 py-2.5">
                                         <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">{church?.name || '---'}</span>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase italic">{paymentMethod || transaction.paymentMethod || '---'}</span>
+                                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase italic">
+                                            {resolvePaymentMethod(paymentMethod || transaction.paymentMethod, transaction.description)}
+                                        </span>
                                     </td>
                                     <td className={`px-4 py-2.5 text-right font-mono text-xs font-bold ${isExpense ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                                         {formatCurrency(displayAmount, language)}

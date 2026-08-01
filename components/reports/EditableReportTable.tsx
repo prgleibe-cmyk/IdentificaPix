@@ -2,7 +2,7 @@ import React, { useState, useContext, memo, useCallback, useMemo, useEffect } fr
 import { MatchResult, ReconciliationStatus, MatchMethod } from '../../types';
 import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
-import { formatCurrency, formatDate, isPeriodClosed } from '../../utils/formatters';
+import { formatCurrency, formatDate, isPeriodClosed, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import { GitFork, Printer, X } from 'lucide-react';
 import { 
@@ -82,6 +82,7 @@ const MobileCard = memo(({
     onGenerateReceipt,
     isClosedPeriod
 }: any) => {
+    const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords } = useContext(AppContext);
     const row = result as MatchResult;
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
@@ -94,7 +95,17 @@ const MobileCard = memo(({
                       row.contributionType?.toLowerCase() === 'saida';
     const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
     const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
-    const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
+    const displayForm = resolvePaymentMethod(
+        row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,
+        row.transaction?.description || row.transaction?.cleanedDescription,
+        sysPaymentMethods
+    );
+    const displayType = resolveContributionType(
+        row,
+        contributionTypes,
+        contributionKeywords
+    );
+    const sourceInfo = resolveTransactionSource(row.transaction);
 
     return (
         <div className={`p-4 border-b border-slate-200 dark:border-slate-700 transition-colors ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : 'bg-white dark:bg-slate-800'}`}>
@@ -107,7 +118,12 @@ const MobileCard = memo(({
                         className="w-5 h-5 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
                     />
                     <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{displayDate}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{displayDate}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold uppercase ${sourceInfo.isSms ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}`}>
+                                {sourceInfo.label}
+                            </span>
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                             {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
                             <span className={`text-sm font-black uppercase tracking-tight ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>
@@ -155,7 +171,7 @@ const MobileCard = memo(({
                     {row.splits && row.splits.length > 0 ? (
                         <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30 font-bold uppercase text-[9px]">Rateado</span>
                     ) : (
-                        <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span>
+                        <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{displayType}</span>
                     )}
                     <span>{displayForm}</span>
                 </div>
@@ -213,6 +229,7 @@ const IncomeRow = memo(({
     canUndoIdentification = true,
     canPrintReceipt = true
 }: any) => {
+    const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords } = useContext(AppContext);
     const row = result as MatchResult;
     // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
@@ -229,7 +246,17 @@ const IncomeRow = memo(({
     // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo/IA
     const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
 
-    const displayForm = row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod || '---';
+    const displayForm = resolvePaymentMethod(
+        row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,
+        row.transaction?.description || row.transaction?.cleanedDescription,
+        sysPaymentMethods
+    );
+    const displayType = resolveContributionType(
+        row,
+        contributionTypes,
+        contributionKeywords
+    );
+    const sourceInfo = resolveTransactionSource(row.transaction);
 
     return (
         <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 ${confirmed ? 'bg-indigo-50/10' : isGhost ? 'bg-amber-50/50' : 'odd:bg-white even:bg-slate-50'} ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>
@@ -262,6 +289,11 @@ const IncomeRow = memo(({
                     )}
                 </div>
             </td>
+            <td className="px-4 py-2.5 text-center">
+                <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border ${sourceInfo.isSms ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-200 dark:border-sky-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                    {sourceInfo.label}
+                </span>
+            </td>
             <td className="px-4 py-2.5">
                 <div className="flex items-center gap-2">
                     <BuildingOfficeIcon className={`w-3.5 h-3.5 shrink-0 ${isIdentified ? 'text-indigo-400' : 'text-slate-300'}`} />
@@ -285,7 +317,7 @@ const IncomeRow = memo(({
                 {row.splits && row.splits.length > 0 ? (
                     <span className="text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-900/30">Rateado</span>
                 ) : (
-                    <span className="text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{row.contributor?.contributionType || row.contributionType || '---'}</span>
+                    <span className="text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">{displayType}</span>
                 )}
             </td>
             <td className="px-4 py-2.5"><span className="text-[10px] font-bold text-slate-500 uppercase">{displayForm}</span></td>
@@ -400,7 +432,7 @@ function valorPorExtenso(valor: number): string {
 
 export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ data, reportType, sortConfig, onSort, onEdit, onSplit }) => {
     const { t, language } = useTranslation();
-    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches, matchResults } = useContext(AppContext);
+    const { openDeleteConfirmation, undoIdentification, toggleConfirmation, churches, matchResults, contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords } = useContext(AppContext);
     const { subscription, user } = useAuth();
 
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
@@ -438,11 +470,15 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     const receiptFormattedAmount = selectedReceipt ? formatCurrency(receiptAmount, language) : '';
     const receiptAmountExtenso = selectedReceipt ? valorPorExtenso(receiptAmount) : '';
     const receiptDisplayName = selectedReceipt ? (selectedReceipt.contributor?.name || selectedReceipt.contributor?.cleanedName || selectedReceipt.transaction.cleanedDescription || selectedReceipt.transaction.description) : '';
-    const receiptDisplayDescription = selectedReceipt ? (selectedReceipt.contributionType || selectedReceipt.transaction.description || 'Despesa Geral') : '';
-    const receiptDisplayCategory = selectedReceipt ? (selectedReceipt.contributionType || 'Contribuição / Dízimo') : '';
+    const receiptDisplayDescription = selectedReceipt ? resolveContributionType(selectedReceipt, contributionTypes, contributionKeywords) : 'Despesa Geral';
+    const receiptDisplayCategory = selectedReceipt ? resolveContributionType(selectedReceipt, contributionTypes, contributionKeywords) : 'Contribuição / Dízimo';
     const receiptFullChurch = selectedReceipt ? (churches?.find((c: any) => c.id === selectedReceipt.church?.id) || churches?.[0] || selectedReceipt.church) : null;
     const receiptDisplayChurch = receiptFullChurch?.name || selectedReceipt?.church?.name || '---';
-    const receiptDisplayForm = selectedReceipt ? (selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod || '---') : '---';
+    const receiptDisplayForm = selectedReceipt ? resolvePaymentMethod(
+        selectedReceipt.contributor?.paymentMethod || selectedReceipt.paymentMethod || selectedReceipt.transaction.paymentMethod,
+        selectedReceipt.transaction?.description || selectedReceipt.transaction?.cleanedDescription,
+        sysPaymentMethods
+    ) : '---';
     const receiptDisplayDate = selectedReceipt ? formatDate(selectedReceipt.contributor?.date || selectedReceipt.transaction.date) : '';
     const receiptIsExpense = selectedReceipt ? (selectedReceipt.contributorAmount || selectedReceipt.contributor?.amount || selectedReceipt.transaction.amount) < 0 : false;
     const receiptRecordId = selectedReceipt ? selectedReceipt.transaction.id : '';
@@ -481,21 +517,22 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                     className="w-4 h-4 rounded-full border-slate-300 text-brand-blue cursor-pointer accent-blue-600"
                                 />
                             </th>
-                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="left" />
+                            <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[8%]" align="left" />
                             <SortableHeader 
                                 sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} 
                                 title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} 
                                 sortConfig={sortConfig} 
                                 onSort={onSort} 
-                                className="w-[25%]" 
+                                className="w-[20%]" 
                                 align="left"
                             />
-                            <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[15%]" align="left" />
-                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="center" />
-                            <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="left" />
-                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="left" />
-                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[13%]" align="right" />
-                            <SortableHeader sortKey="status" title="Ações" sortConfig={sortConfig} onSort={onSort} className="w-[8%]" align="center" />
+                            <SortableHeader sortKey="transaction.source" title="Origem" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="center" />
+                            <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[13%]" align="left" />
+                            <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="w-[9%]" align="center" />
+                            <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[11%]" align="left" />
+                            <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="left" />
+                            <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="right" />
+                            <SortableHeader sortKey="status" title="Ações" sortConfig={sortConfig} onSort={onSort} className="w-[7%]" align="center" />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">

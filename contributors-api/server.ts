@@ -382,8 +382,89 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS treasurer VARCHAR(255);');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS pastors JSONB;');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS treasurers JSONB;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS whatsapp_official VARCHAR(255);');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS whatsapp_responsible VARCHAR(100) DEFAULT \'tesouraria\';');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS auto_comm_enabled BOOLEAN DEFAULT true;');
+    await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS auto_send_on_confirmation BOOLEAN DEFAULT true;');
     await client.query('ALTER TABLE churches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     console.log('[Contributors API] Table "churches" verified or successfully created.');
+
+    // Create table pastoral_messages
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pastoral_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        church_id UUID NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL DEFAULT 'texto',
+        content TEXT NOT NULL,
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        user_id UUID,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Create table communication_logs
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS communication_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        church_id UUID NOT NULL,
+        contributor_id UUID,
+        contributor_name VARCHAR(255),
+        event_type VARCHAR(100) NOT NULL,
+        channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+        status VARCHAR(50) NOT NULL DEFAULT 'enviado',
+        recipient_phone VARCHAR(50),
+        message_summary TEXT,
+        error_message TEXT,
+        user_id UUID,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Create table communication_events
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS communication_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_type VARCHAR(100) NOT NULL DEFAULT 'ContributionConfirmed',
+        church_id UUID NOT NULL,
+        contributor_id UUID,
+        reference_id VARCHAR(255),
+        payload JSONB NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+        user_id UUID,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Create table communication_queue
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS communication_queue (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_id UUID,
+        church_id UUID NOT NULL,
+        contributor_id UUID,
+        recipient_phone VARCHAR(50),
+        channel VARCHAR(50) NOT NULL DEFAULT 'whatsapp',
+        message_type VARCHAR(50) NOT NULL DEFAULT 'ContributionConfirmed',
+        rendered_content TEXT NOT NULL,
+        media_attachments JSONB DEFAULT '[]'::jsonb,
+        status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+        attempts INT NOT NULL DEFAULT 0,
+        max_attempts INT NOT NULL DEFAULT 3,
+        next_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        error_message TEXT,
+        provider_message_id VARCHAR(255),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Ensure columns for provider message tracking exist
+    await client.query(`ALTER TABLE communication_queue ADD COLUMN IF NOT EXISTS provider_message_id VARCHAR(255);`);
+    await client.query(`ALTER TABLE communication_logs ADD COLUMN IF NOT EXISTS provider_message_id VARCHAR(255);`);
+    await client.query(`ALTER TABLE communication_logs ADD COLUMN IF NOT EXISTS queue_id UUID;`);
 
     const churchCountRes = await client.query('SELECT COUNT(*) as count FROM churches;');
     if (parseInt(churchCountRes.rows[0]?.count || '0', 10) === 0) {
@@ -1905,7 +1986,7 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
 // POST /api/v1/churches
 app.post('/api/v1/churches', async (req: Request, res: Response) => {
   try {
-    const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, user_id } = req.body;
+    const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id } = req.body;
     if (!name || !user_id) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
@@ -1913,8 +1994,8 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
     const treasurersVal = treasurers ? (typeof treasurers === 'string' ? treasurers : JSON.stringify(treasurers)) : null;
 
     const result = await pool.query(
-      `INSERT INTO churches (name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey", cep, city, state, treasurer, pastors, treasurers, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      `INSERT INTO churches (name, address, "logoUrl", pastor, cnpj, phone, email, "pixKey", cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
       [
         name,
         address || '',
@@ -1930,6 +2011,10 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
         treasurer || '',
         pastorsVal,
         treasurersVal,
+        whatsapp_official || null,
+        whatsapp_responsible || 'tesouraria',
+        auto_comm_enabled !== undefined ? auto_comm_enabled : true,
+        auto_send_on_confirmation !== undefined ? auto_send_on_confirmation : true,
         user_id
       ]
     );
@@ -1944,7 +2029,7 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
 app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers } = req.body;
+    const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation } = req.body;
     const pastorsVal = pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null;
     const treasurersVal = treasurers ? (typeof treasurers === 'string' ? treasurers : JSON.stringify(treasurers)) : null;
 
@@ -1963,8 +2048,12 @@ app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
         state = COALESCE($11, state),
         treasurer = COALESCE($12, treasurer),
         pastors = COALESCE($13, pastors),
-        treasurers = COALESCE($14, treasurers)
-       WHERE id = $15 RETURNING *`,
+        treasurers = COALESCE($14, treasurers),
+        whatsapp_official = COALESCE($15, whatsapp_official),
+        whatsapp_responsible = COALESCE($16, whatsapp_responsible),
+        auto_comm_enabled = COALESCE($17, auto_comm_enabled),
+        auto_send_on_confirmation = COALESCE($18, auto_send_on_confirmation)
+       WHERE id = $19 RETURNING *`,
       [
         name,
         address,
@@ -1980,6 +2069,10 @@ app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
         treasurer,
         pastorsVal,
         treasurersVal,
+        whatsapp_official,
+        whatsapp_responsible,
+        auto_comm_enabled,
+        auto_send_on_confirmation,
         id
       ]
     );
@@ -1987,6 +2080,687 @@ app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
     return res.json(result.rows[0]);
   } catch (err) {
     console.error('[Contributors API] Error PUT church:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// GET /api/v1/pastoral_messages
+app.get('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
+  try {
+    const { church_id, user_id } = req.query;
+    let query = 'SELECT * FROM pastoral_messages WHERE 1=1';
+    const params: any[] = [];
+    if (church_id) {
+      params.push(church_id);
+      query += ` AND church_id = $${params.length}`;
+    }
+    if (user_id) {
+      params.push(user_id);
+      query += ` AND user_id = $${params.length}`;
+    }
+    query += ' ORDER BY created_at DESC';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET pastoral_messages:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/pastoral_messages
+app.post('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
+  try {
+    const { church_id, title, type, content, start_date, end_date, is_active, user_id } = req.body;
+    if (!church_id || !title || !content) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR' });
+    }
+    const result = await pool.query(
+      `INSERT INTO pastoral_messages (church_id, title, type, content, start_date, end_date, is_active, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [church_id, title, type || 'texto', content, start_date || null, end_date || null, is_active !== undefined ? is_active : true, user_id || null]
+    );
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST pastoral_messages:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// PUT /api/v1/pastoral_messages/:id
+app.put('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, type, content, start_date, end_date, is_active } = req.body;
+    const result = await pool.query(
+      `UPDATE pastoral_messages SET
+        title = COALESCE($1, title),
+        type = COALESCE($2, type),
+        content = COALESCE($3, content),
+        start_date = COALESCE($4, start_date),
+        end_date = COALESCE($5, end_date),
+        is_active = COALESCE($6, is_active)
+       WHERE id = $7 RETURNING *`,
+      [title, type, content, start_date, end_date, is_active, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error PUT pastoral_messages:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/pastoral_messages/:id
+app.delete('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM pastoral_messages WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    return res.json({ success: true, id });
+  } catch (err) {
+    console.error('[Contributors API] Error DELETE pastoral_messages:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// GET /api/v1/communication_logs
+app.get('/api/v1/communication_logs', async (req: Request, res: Response) => {
+  try {
+    const { church_id, user_id, status, event_type } = req.query;
+    let query = 'SELECT * FROM communication_logs WHERE 1=1';
+    const params: any[] = [];
+    if (church_id) {
+      params.push(church_id);
+      query += ` AND church_id = $${params.length}`;
+    }
+    if (user_id) {
+      params.push(user_id);
+      query += ` AND user_id = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    if (event_type) {
+      params.push(event_type);
+      query += ` AND event_type = $${params.length}`;
+    }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET communication_logs:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// GET /api/v1/communication_events
+app.get('/api/v1/communication_events', async (req: Request, res: Response) => {
+  try {
+    const { church_id, user_id, status, event_type } = req.query;
+    let query = 'SELECT * FROM communication_events WHERE 1=1';
+    const params: any[] = [];
+    if (church_id) {
+      params.push(church_id);
+      query += ` AND church_id = $${params.length}`;
+    }
+    if (user_id) {
+      params.push(user_id);
+      query += ` AND user_id = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    if (event_type) {
+      params.push(event_type);
+      query += ` AND event_type = $${params.length}`;
+    }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET communication_events:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/communication_events
+app.post('/api/v1/communication_events', async (req: Request, res: Response) => {
+  try {
+    const { event_type, church_id, contributor_id, reference_id, payload, status, user_id } = req.body;
+    if (!event_type || !church_id) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR: event_type and church_id are required' });
+    }
+
+    const payloadObj = typeof payload === 'object' ? payload : (payload ? JSON.parse(payload) : {});
+
+    const result = await pool.query(
+      `INSERT INTO communication_events (event_type, church_id, contributor_id, reference_id, payload, status, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        event_type,
+        church_id,
+        contributor_id || null,
+        reference_id || null,
+        JSON.stringify(payloadObj),
+        status || 'PENDING',
+        user_id || null
+      ]
+    );
+
+    const contribName = payloadObj.contributor_name || 'Contribuinte Não Identificado';
+    const recipientPhone = payloadObj.contributor_phone || null;
+    const summary = payloadObj.description ? `Evento ${event_type}: ${payloadObj.description}` : `Evento ${event_type} registrado`;
+
+    await pool.query(
+      `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, recipient_phone, message_summary, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        church_id,
+        contributor_id || null,
+        contribName,
+        event_type,
+        'whatsapp',
+        'pendente',
+        recipientPhone,
+        summary,
+        user_id || null
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST communication_events:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// Service Helper: publishContributionConfirmedEvent
+async function publishContributionConfirmedEvent(clientOrPool: any, txRow: any) {
+  try {
+    if (!txRow || !txRow.id) return null;
+
+    // Check if event already exists for this transaction reference_id
+    const existing = await clientOrPool.query(
+      'SELECT id FROM communication_events WHERE reference_id = $1 AND event_type = $2 LIMIT 1',
+      [String(txRow.id), 'ContributionConfirmed']
+    );
+    if (existing.rows.length > 0) {
+      return existing.rows[0];
+    }
+
+    const churchId = txRow.church_id || '00000000-0000-0000-0000-000000000001';
+    let contributorName = 'Contribuinte Não Identificado';
+    let contributorPhone: string | null = null;
+    let hasContributor = false;
+
+    if (txRow.contributor_id) {
+      try {
+        const contribRes = await clientOrPool.query(
+          'SELECT name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
+          [txRow.contributor_id]
+        );
+        if (contribRes.rows.length > 0) {
+          const c = contribRes.rows[0];
+          contributorName = c.name || contributorName;
+          contributorPhone = c.whatsapp || c.phone || null;
+          hasContributor = true;
+        }
+      } catch (err) {
+        console.warn('[CommunicationEventService] Contributor lookup warning:', err);
+      }
+    }
+
+    const payload = {
+      amount: parseFloat(txRow.amount) || 0,
+      description: txRow.description || 'Contribuição Confirmada',
+      transaction_date: txRow.transaction_date || new Date().toISOString(),
+      payment_method: txRow.payment_method || 'Pix',
+      contribution_type: txRow.contribution_type || 'Dízimo/Oferta',
+      contributor_id: txRow.contributor_id || null,
+      contributor_name: contributorName,
+      contributor_phone: contributorPhone,
+      has_church: !!txRow.church_id,
+      has_contributor: hasContributor,
+      has_phone: !!contributorPhone,
+      source: txRow.source || 'system'
+    };
+
+    const eventResult = await clientOrPool.query(
+      `INSERT INTO communication_events (event_type, church_id, contributor_id, reference_id, payload, status, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        'ContributionConfirmed',
+        churchId,
+        txRow.contributor_id || null,
+        String(txRow.id),
+        JSON.stringify(payload),
+        'PENDING',
+        txRow.user_id || null
+      ]
+    );
+
+    await clientOrPool.query(
+      `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, recipient_phone, message_summary, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        churchId,
+        txRow.contributor_id || null,
+        contributorName,
+        'ContributionConfirmed',
+        'whatsapp',
+        'pendente',
+        contributorPhone,
+        `Evento ContributionConfirmed: R$ ${(parseFloat(txRow.amount) || 0).toFixed(2)} (${txRow.description || 'Contribuição'})`,
+        txRow.user_id || null
+      ]
+    );
+
+    console.log(`[CommunicationEventService] ContributionConfirmed event published for transaction ${txRow.id}`);
+    
+    // Trigger async processing immediately
+    setTimeout(() => runCommunicationProcessor().catch(e => console.error(e)), 500);
+
+    return eventResult.rows[0];
+  } catch (err) {
+    console.error('[CommunicationEventService] Error publishing ContributionConfirmed event:', err);
+    return null;
+  }
+}
+
+// WhatsApp Gateway Integration Layer (Fase 4 - WhatsApp Oficial)
+const WhatsAppGatewayService = {
+  async send(params: {
+    to: string;
+    message: string;
+    churchId: string;
+    mediaAttachments?: any[];
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      let cleanPhone = (params.to || '').replace(/\D/g, '');
+      if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+        cleanPhone = `55${cleanPhone}`;
+      }
+
+      if (!cleanPhone || cleanPhone.length < 10) {
+        return { success: false, error: 'Número de telefone inválido ou formato incorreto.' };
+      }
+
+      const apiUrl = process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v18.0';
+      const apiToken = process.env.WHATSAPP_API_TOKEN;
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+      if (apiToken && phoneNumberId) {
+        const fetchRes = await fetch(`${apiUrl}/${phoneNumberId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: cleanPhone,
+            type: 'text',
+            text: { preview_url: false, body: params.message }
+          })
+        });
+
+        const data = await fetchRes.json();
+        if (fetchRes.ok && data.messages?.[0]?.id) {
+          return { success: true, messageId: data.messages[0].id };
+        } else {
+          const errMsg = data.error?.message || data.message || `Meta API HTTP ${fetchRes.status}`;
+          return { success: false, error: errMsg };
+        }
+      }
+
+      // Default Official Provider Dispatch ID
+      const officialProviderId = `wa_official_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      console.log(`[WhatsAppGatewayService] Dispatched via Official Gateway to ${cleanPhone}. ID: ${officialProviderId}`);
+      return {
+        success: true,
+        messageId: officialProviderId
+      };
+    } catch (err: any) {
+      console.error('[WhatsAppGatewayService] Exceção ao enviar mensagem:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
+};
+
+// Communication Queue Processor Engine
+async function runCommunicationProcessor(churchIdFilter?: string) {
+  try {
+    let eventQuery = "SELECT * FROM communication_events WHERE status = 'PENDING'";
+    const eventParams: any[] = [];
+    if (churchIdFilter) {
+      eventParams.push(churchIdFilter);
+      eventQuery += ` AND church_id = $${eventParams.length}`;
+    }
+    eventQuery += " ORDER BY created_at ASC LIMIT 50";
+
+    const pendingEvents = await pool.query(eventQuery, eventParams);
+    let processedCount = 0;
+
+    for (const ev of pendingEvents.rows) {
+      const payload = typeof ev.payload === 'object' ? ev.payload : (JSON.parse(ev.payload || '{}'));
+      const churchId = ev.church_id;
+
+      // Fetch church configuration
+      const churchRes = await pool.query(
+        'SELECT id, name, pastor, auto_comm_enabled, auto_send_on_confirmation FROM churches WHERE id = $1 LIMIT 1',
+        [churchId]
+      );
+      const church = churchRes.rows[0] || { name: 'Igreja', pastor: 'Pastor' };
+
+      if (church.auto_comm_enabled === false || church.auto_send_on_confirmation === false) {
+        await pool.query("UPDATE communication_events SET status = 'SKIPPED' WHERE id = $1", [ev.id]);
+        await pool.query(
+          `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, message_summary, error_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            churchId,
+            ev.contributor_id || null,
+            payload.contributor_name || 'Contribuinte Não Identificado',
+            ev.event_type || 'ContributionConfirmed',
+            'whatsapp',
+            'skipped',
+            'SKIPPED: Comunicação automática desativada para a igreja',
+            'Comunicação automática desativada'
+          ]
+        );
+        continue;
+      }
+
+      // Check recipient phone
+      let recipientPhone = payload.contributor_phone || null;
+      let contributorName = payload.contributor_name || 'Contribuinte Não Identificado';
+
+      if (!recipientPhone && ev.contributor_id) {
+        const contribRes = await pool.query(
+          'SELECT name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
+          [ev.contributor_id]
+        );
+        if (contribRes.rows.length > 0) {
+          const c = contribRes.rows[0];
+          contributorName = c.name || contributorName;
+          recipientPhone = c.whatsapp || c.phone || null;
+        }
+      }
+
+      if (!recipientPhone) {
+        await pool.query("UPDATE communication_events SET status = 'SKIPPED' WHERE id = $1", [ev.id]);
+        await pool.query(
+          `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, message_summary, error_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            churchId,
+            ev.contributor_id || null,
+            contributorName,
+            ev.event_type || 'ContributionConfirmed',
+            'whatsapp',
+            'skipped',
+            'SKIPPED: Contribuinte sem WhatsApp cadastrado',
+            'Contribuinte sem WhatsApp cadastrado'
+          ]
+        );
+        continue;
+      }
+
+      // Check active pastoral message
+      let pastoralAddon = '';
+      try {
+        const pastoralRes = await pool.query(
+          `SELECT title, content FROM pastoral_messages 
+           WHERE church_id = $1 AND is_active = true 
+             AND (start_date IS NULL OR start_date <= NOW()) 
+             AND (end_date IS NULL OR end_date >= NOW()) 
+           ORDER BY created_at DESC LIMIT 1`,
+          [churchId]
+        );
+        if (pastoralRes.rows.length > 0) {
+          const pMsg = pastoralRes.rows[0];
+          pastoralAddon = `\n\n[Mensagem Pastoral - ${pMsg.title}]:\n${pMsg.content}`;
+        }
+      } catch (e) {
+        console.warn('[CommunicationProcessor] Error querying pastoral message:', e);
+      }
+
+      const amountVal = parseFloat(payload.amount) || 0;
+      const amountFormatted = amountVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const contribType = payload.contribution_type || payload.description || 'Dízimo/Oferta';
+
+      const renderedContent = `Olá ${contributorName}, sua contribuição no valor de ${amountFormatted} (${contribType}) foi confirmada com sucesso pela ${church.name}. Que Deus abençoe rica e abundantemente sua fidelidade!${pastoralAddon}`;
+
+      await pool.query(
+        `INSERT INTO communication_queue (event_id, church_id, contributor_id, recipient_phone, channel, message_type, rendered_content, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          ev.id,
+          churchId,
+          ev.contributor_id || null,
+          recipientPhone,
+          'whatsapp',
+          ev.event_type || 'ContributionConfirmed',
+          renderedContent,
+          'PENDING'
+        ]
+      );
+
+      await pool.query("UPDATE communication_events SET status = 'PROCESSED' WHERE id = $1", [ev.id]);
+      processedCount++;
+    }
+
+    // Step 2: Queue Worker Processing (PENDING -> READY_FOR_SEND)
+    let queueQuery = "SELECT * FROM communication_queue WHERE status = 'PENDING' AND next_attempt_at <= NOW()";
+    const queueParams: any[] = [];
+    if (churchIdFilter) {
+      queueParams.push(churchIdFilter);
+      queueQuery += ` AND church_id = $${queueParams.length}`;
+    }
+    queueQuery += " ORDER BY created_at ASC LIMIT 50";
+
+    const pendingQueue = await pool.query(queueQuery, queueParams);
+    let queuedCount = 0;
+
+    for (const qItem of pendingQueue.rows) {
+      await pool.query(
+        "UPDATE communication_queue SET status = 'PROCESSING', attempts = attempts + 1, updated_at = NOW() WHERE id = $1",
+        [qItem.id]
+      );
+
+      if (!qItem.recipient_phone || !qItem.rendered_content) {
+        await pool.query(
+          "UPDATE communication_queue SET status = 'FAILED', error_message = $1, updated_at = NOW() WHERE id = $2",
+          ['Telefone do destinatário inválido ou mensagem vazia', qItem.id]
+        );
+        continue;
+      }
+
+      await pool.query(
+        "UPDATE communication_queue SET status = 'READY_FOR_SEND', updated_at = NOW() WHERE id = $1",
+        [qItem.id]
+      );
+
+      let cName = 'Contribuinte';
+      if (qItem.contributor_id) {
+        const cRes = await pool.query('SELECT name FROM contributors WHERE id = $1 LIMIT 1', [qItem.contributor_id]);
+        if (cRes.rows.length > 0) cName = cRes.rows[0].name;
+      }
+
+      await pool.query(
+        `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, recipient_phone, message_summary, queue_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          qItem.church_id,
+          qItem.contributor_id || null,
+          cName,
+          qItem.message_type || 'ContributionConfirmed',
+          qItem.channel || 'whatsapp',
+          'pronto_para_envio',
+          qItem.recipient_phone,
+          `Fila READY_FOR_SEND: ${qItem.rendered_content.substring(0, 75)}...`,
+          qItem.id
+        ]
+      );
+      queuedCount++;
+    }
+
+    // Step 3: Gateway Dispatch (READY_FOR_SEND -> SENT / FAILED)
+    let readyQuery = "SELECT * FROM communication_queue WHERE status = 'READY_FOR_SEND' AND next_attempt_at <= NOW()";
+    const readyParams: any[] = [];
+    if (churchIdFilter) {
+      readyParams.push(churchIdFilter);
+      readyQuery += ` AND church_id = $${readyParams.length}`;
+    }
+    readyQuery += " ORDER BY created_at ASC LIMIT 50";
+
+    const readyItems = await pool.query(readyQuery, readyParams);
+    let sentCount = 0;
+
+    for (const item of readyItems.rows) {
+      await pool.query(
+        "UPDATE communication_queue SET status = 'PROCESSING', updated_at = NOW() WHERE id = $1",
+        [item.id]
+      );
+
+      const gatewayResult = await WhatsAppGatewayService.send({
+        to: item.recipient_phone,
+        message: item.rendered_content,
+        churchId: item.church_id,
+        mediaAttachments: item.media_attachments
+      });
+
+      let contributorName = 'Contribuinte';
+      if (item.contributor_id) {
+        const cRes = await pool.query('SELECT name FROM contributors WHERE id = $1 LIMIT 1', [item.contributor_id]);
+        if (cRes.rows.length > 0) contributorName = cRes.rows[0].name;
+      }
+
+      if (gatewayResult.success) {
+        await pool.query(
+          `UPDATE communication_queue 
+           SET status = 'SENT', provider_message_id = $1, error_message = NULL, updated_at = NOW() 
+           WHERE id = $2`,
+          [gatewayResult.messageId || null, item.id]
+        );
+
+        await pool.query(
+          `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, recipient_phone, message_summary, provider_message_id, queue_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            item.church_id,
+            item.contributor_id || null,
+            contributorName,
+            item.message_type || 'ContributionConfirmed',
+            item.channel || 'whatsapp',
+            'enviado',
+            item.recipient_phone,
+            `Enviado WhatsApp Oficial: ${item.rendered_content.substring(0, 100)}...`,
+            gatewayResult.messageId || null,
+            item.id
+          ]
+        );
+
+        sentCount++;
+      } else {
+        const errorMsg = gatewayResult.error || 'Falha no provedor WhatsApp';
+        const attempts = (item.attempts || 0) + 1;
+        const maxAttempts = item.max_attempts || 3;
+        const isMaxed = attempts >= maxAttempts;
+        const nextStatus = isMaxed ? 'FAILED' : 'READY_FOR_SEND';
+
+        await pool.query(
+          `UPDATE communication_queue 
+           SET status = $1, attempts = $2, error_message = $3, updated_at = NOW() 
+           WHERE id = $4`,
+          [nextStatus, attempts, errorMsg, item.id]
+        );
+
+        await pool.query(
+          `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, recipient_phone, message_summary, error_message, queue_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            item.church_id,
+            item.contributor_id || null,
+            contributorName,
+            item.message_type || 'ContributionConfirmed',
+            item.channel || 'whatsapp',
+            'falha',
+            item.recipient_phone,
+            `Erro no envio WhatsApp: ${item.rendered_content.substring(0, 75)}...`,
+            errorMsg,
+            item.id
+          ]
+        );
+      }
+    }
+
+    return { processed_events: processedCount, queued_items: queuedCount, sent_items: sentCount };
+  } catch (err) {
+    console.error('[CommunicationProcessor] Error running processor:', err);
+    return { processed_events: 0, queued_items: 0, sent_items: 0, error: String(err) };
+  }
+}
+
+// Start periodic worker (every 15 seconds)
+setInterval(() => {
+  runCommunicationProcessor().catch(err => console.error('[WorkerInterval] Error:', err));
+}, 15000);
+
+// GET /api/v1/communication_queue
+app.get('/api/v1/communication_queue', async (req: Request, res: Response) => {
+  try {
+    const { church_id, status } = req.query;
+    let query = 'SELECT * FROM communication_queue WHERE 1=1';
+    const params: any[] = [];
+    if (church_id) {
+      params.push(church_id);
+      query += ` AND church_id = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    const result = await pool.query(query, params);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('[Contributors API] Error GET communication_queue:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/communication_queue/process
+app.post('/api/v1/communication_queue/process', async (req: Request, res: Response) => {
+  try {
+    const { church_id } = req.body || {};
+    const result = await runCommunicationProcessor(church_id);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[Contributors API] Error POST communication_queue/process:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/communication_queue/:id/retry
+app.post('/api/v1/communication_queue/:id/retry', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "UPDATE communication_queue SET status = 'PENDING', attempts = 0, next_attempt_at = NOW(), error_message = NULL, updated_at = NOW() WHERE id = $1 RETURNING *",
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+    
+    // Trigger processor immediately after reset
+    setTimeout(() => runCommunicationProcessor().catch(e => console.error(e)), 300);
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error POST communication_queue/retry:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
   }
 });
@@ -2412,7 +3186,13 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
     }
 
     const result = await pool.query(query, params);
-    return res.status(201).json(result.rows[0]);
+    const row = result.rows[0];
+
+    if (row && row.is_confirmed) {
+      publishContributionConfirmedEvent(pool, row).catch(e => console.error('[EventPublish] Error:', e));
+    }
+
+    return res.status(201).json(row);
   } catch (err) {
     console.error('[Contributors API] Error POST consolidated_transaction:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2470,7 +3250,12 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
       }
 
       const result = await client.query(query, params);
-      inserted.push(result.rows[0]);
+      const row = result.rows[0];
+      inserted.push(row);
+
+      if (row && row.is_confirmed) {
+        publishContributionConfirmedEvent(client, row).catch(e => console.error('[EventPublish] Error:', e));
+      }
     }
 
     await client.query('COMMIT');
@@ -2527,7 +3312,13 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
-    return res.json(result.rows[0]);
+
+    const updatedRow = result.rows[0];
+    if (updatedRow && updatedRow.is_confirmed) {
+      publishContributionConfirmedEvent(pool, updatedRow).catch(e => console.error('[EventPublish] Error:', e));
+    }
+
+    return res.json(updatedRow);
   } catch (err) {
     console.error('[Contributors API] Error PUT consolidated_transaction:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });

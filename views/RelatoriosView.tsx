@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useContext, useMemo, useRef, useEffect, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';

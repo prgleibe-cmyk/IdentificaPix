@@ -3,7 +3,7 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { ChurchFormData } from '../../types';
 import { XMarkIcon } from '../Icons';
-import { QrCode, Building2, User, Landmark, MapPin, Image as ImageIcon, CreditCard, Phone, Mail, FileText } from 'lucide-react';
+import { QrCode, Building2, User, Landmark, MapPin, Image as ImageIcon, CreditCard, Phone, Mail, FileText, MessageSquare } from 'lucide-react';
 import { ChurchPortalShareModal } from '../admin/ChurchPortalShareModal';
 
 export const EditChurchModal: React.FC = () => {
@@ -164,6 +164,10 @@ export const EditChurchModal: React.FC = () => {
                 cep: editingChurch.cep || '',
                 city: editingChurch.city || '',
                 state: editingChurch.state || '',
+                whatsapp_official: editingChurch.whatsapp_official || editingChurch.phone || '',
+                whatsapp_responsible: editingChurch.whatsapp_responsible || 'tesouraria',
+                auto_comm_enabled: editingChurch.auto_comm_enabled !== undefined ? editingChurch.auto_comm_enabled : true,
+                auto_send_on_confirmation: editingChurch.auto_send_on_confirmation !== undefined ? editingChurch.auto_send_on_confirmation : true,
                 pastors: pastorsList,
                 treasurers: treasurersList
             });
@@ -819,6 +823,76 @@ export const EditChurchModal: React.FC = () => {
                                     <p className="text-[10px] text-slate-400">
                                         A imagem será exibida nos relatórios financeiros e no Portal do Contribuinte.
                                     </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bloco 5: Central de Comunicação (WhatsApp Oficial & Preferências) */}
+                        <div className="p-6 bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-4">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2 border-b border-slate-200/60 dark:border-slate-800 pb-3">
+                                <MessageSquare className="w-4 h-4 text-emerald-500" />
+                                5. Central de Comunicação (WhatsApp Oficial)
+                            </h4>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                                        WhatsApp Oficial da Igreja
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="whatsapp_official"
+                                        value={formData.whatsapp_official || ''}
+                                        onChange={handleChange}
+                                        placeholder="(11) 99999-9999"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-3 px-4 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                    <p className="text-[10px] text-slate-400">Número oficial para emissão automática de notificações no WhatsApp.</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                                        Responsável pelo WhatsApp
+                                    </label>
+                                    <select
+                                        name="whatsapp_responsible"
+                                        value={formData.whatsapp_responsible || 'tesouraria'}
+                                        onChange={(e) => setFormData(p => ({ ...p, whatsapp_responsible: e.target.value }))}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white py-3 px-4 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                                    >
+                                        <option value="tesouraria">Tesouraria Principal</option>
+                                        <option value="pastor">Pastor Responsável</option>
+                                        <option value="secretaria">Secretaria Geral</option>
+                                        <option value="outro">Outro Responsável</option>
+                                    </select>
+                                </div>
+
+                                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                    <label className="flex items-center space-x-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.auto_comm_enabled !== false}
+                                            onChange={(e) => setFormData(p => ({ ...p, auto_comm_enabled: e.target.checked }))}
+                                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                                        />
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Comunicação Automática Ativa</span>
+                                            <span className="text-[10px] text-slate-400">Habilita disparos de mensagens automáticas no sistema</span>
+                                        </div>
+                                    </label>
+
+                                    <label className="flex items-center space-x-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.auto_send_on_confirmation !== false}
+                                            onChange={(e) => setFormData(p => ({ ...p, auto_send_on_confirmation: e.target.checked }))}
+                                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                                        />
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Envio em ContributionConfirmed</span>
+                                            <span className="text-[10px] text-slate-400">Disparar recibo no momento de confirmação da contribuição</span>
+                                        </div>
+                                    </label>
                                 </div>
                             </div>
                         </div>

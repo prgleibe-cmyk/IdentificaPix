@@ -6,6 +6,7 @@ import { batchState } from './reconciliation/useCloudSync';
 import { supabase } from '../services/supabaseClient';
 import { LaunchService } from '../services/LaunchService';
 import { extractNameAndCpf } from '../utils/contributorHelper';
+import { CommunicationEventService } from '../services/CommunicationEventService';
 
 interface UseReconciliationActionsProps {
   reconciliation: any;
@@ -504,7 +505,24 @@ export const useReconciliationActions = ({
     if (reconciliation.triggerSync) {
       txIds.forEach(id => {
         const final = currentResults.find(r => r.transaction.id === id);
-        if (final) reconciliation.triggerSync(final);
+        if (final) {
+          reconciliation.triggerSync(final);
+
+          // Efeito colateral desacoplado: Central de Comunicação (ContributionConfirmed)
+          if (confirmed) {
+            CommunicationEventService.publish('ContributionConfirmed', {
+              church_id: final.church?.id || final._churchId,
+              contributor_id: final.contributor?.id,
+              contributor_name: final.contributor?.name,
+              contributor_phone: final.contributor?.whatsapp || final.contributor?.phone,
+              reference_id: final.transaction.id,
+              amount: final.transaction.amount,
+              description: final.transaction.description,
+              payment_method: final.paymentMethod || final.transaction.payment_method,
+              contribution_type: final.contributionType || final.transaction.contribution_type
+            }).catch(e => console.error('[EventPublish] Error:', e));
+          }
+        }
       });
     }
 

@@ -56,6 +56,72 @@ export interface Church {
   treasurer?: string;
   pastors?: ChurchLeader[];
   treasurers?: ChurchLeader[];
+  whatsapp_official?: string;
+  whatsapp_responsible?: 'tesouraria' | 'pastor' | 'outro' | string;
+  auto_comm_enabled?: boolean;
+  auto_send_on_confirmation?: boolean;
+}
+
+export interface PastoralMessage {
+  id?: string;
+  church_id: string;
+  title: string;
+  type: 'texto' | 'audio' | 'video' | 'imagem' | 'link';
+  content: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_active: boolean;
+  user_id?: string;
+  created_at?: string;
+}
+
+export interface CommunicationLog {
+  id?: string;
+  queue_id?: string;
+  church_id: string;
+  contributor_id?: string;
+  contributor_name?: string;
+  event_type: 'ContributionConfirmed' | 'Receipt' | 'Pastoral' | 'Birthday' | 'Devotional' | 'Campaign' | 'Notice' | string;
+  channel: 'whatsapp' | 'email' | 'sms' | string;
+  status: 'enviado' | 'pendente' | 'falha' | 'pronto_para_envio' | 'skipped' | string;
+  recipient_phone?: string;
+  message_summary?: string;
+  provider_message_id?: string;
+  error_message?: string;
+  user_id?: string;
+  created_at?: string;
+}
+
+export interface CommunicationEvent {
+  id?: string;
+  event_type: 'ContributionConfirmed' | string;
+  church_id: string;
+  contributor_id?: string;
+  reference_id?: string;
+  payload: Record<string, any>;
+  status: 'PENDING' | 'PROCESSED' | 'FAILED' | 'SKIPPED' | string;
+  user_id?: string;
+  created_at?: string;
+}
+
+export interface CommunicationQueueItem {
+  id: string;
+  event_id?: string;
+  church_id: string;
+  contributor_id?: string;
+  recipient_phone?: string;
+  channel: string;
+  message_type: string;
+  rendered_content: string;
+  media_attachments?: any[];
+  status: 'PENDING' | 'PROCESSING' | 'READY_FOR_SEND' | 'SENT' | 'FAILED' | 'SKIPPED' | string;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at?: string;
+  provider_message_id?: string;
+  error_message?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ChurchFormData {
@@ -73,6 +139,10 @@ export interface ChurchFormData {
   treasurer?: string;
   pastors?: ChurchLeader[];
   treasurers?: ChurchLeader[];
+  whatsapp_official?: string;
+  whatsapp_responsible?: string;
+  auto_comm_enabled?: boolean;
+  auto_send_on_confirmation?: boolean;
 }
 
 export interface Transaction {
@@ -90,6 +160,8 @@ export interface Transaction {
   isConfirmed?: boolean;
   type?: string;
   contribution_request_id?: string;
+  source?: string;
+  pix_key?: string;
 }
 
 export interface Contributor {

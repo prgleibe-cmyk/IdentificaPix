@@ -20,8 +20,10 @@ import {
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminAuditTab } from '../components/admin/AdminAuditTab';
+import { AdminCommunicationTab } from '../components/admin/AdminCommunicationTab';
+import { MessageSquare } from 'lucide-react';
 
-type AdminTab = 'settings' | 'users' | 'audit';
+type AdminTab = 'settings' | 'users' | 'communication' | 'audit';
 
 const FIX_SQL = `
 -- ============================================================
@@ -147,6 +149,7 @@ export const AdminView: React.FC = () => {
                     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
                         <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
                         <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="amber" />
+                        <AdminTabButton id="communication" label="Central de Comunicação" icon={MessageSquare} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                     </div>
                     <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
@@ -159,6 +162,7 @@ export const AdminView: React.FC = () => {
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
                 {activeTab === 'settings' && <AdminSettingsTab />}
                 {activeTab === 'users' && <AdminUsersTab />}
+                {activeTab === 'communication' && <AdminCommunicationTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
             </div>
             {showDiagModal && (
