@@ -1,7 +1,7 @@
 
 import { useCallback } from 'react';
 import { ReconciliationStatus, MatchMethod, MatchResult } from '../types';
-import { strictNormalize, groupResultsByChurch } from '../services/processingService';
+import { strictNormalize, groupResultsByChurch, isInvalidOrNumericName } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
 import { batchState } from './reconciliation/useCloudSync';
 
@@ -61,7 +61,7 @@ export const useAiAutoIdentify = ({
                 
                 const learned = learnedAssociations.find((la: any) => {
                     const learnedDna = la.normalizedDescription;
-                    return learnedDna === currentTxDna || getConfidenceScore(learnedDna, currentTxDna) >= 95;
+                    return learnedDna && learnedDna === currentTxDna;
                 });
 
                 if (learned) {
@@ -81,17 +81,21 @@ export const useAiAutoIdentify = ({
                             );
                         }
 
+                        const validContribName = (learned.contributorNormalizedName && !isInvalidOrNumericName(learned.contributorNormalizedName, res.transaction.description)) 
+                            ? learned.contributorNormalizedName 
+                            : null;
+
                         nextResults.push({
                             ...res,
                             status: ReconciliationStatus.IDENTIFIED,
                             church: church,
                             matchMethod: MatchMethod.LEARNED,
                             similarity: 100,
-                            contributor: { 
-                                name: learned.contributorNormalizedName, 
+                            contributor: validContribName ? { 
+                                name: validContribName, 
                                 amount: res.transaction.amount,
-                                cleanedName: learned.contributorNormalizedName 
-                            },
+                                cleanedName: validContribName 
+                            } : null,
                             contributorAmount: res.transaction.amount,
                             suggestion: undefined,
                             updatedAt: new Date().toISOString()

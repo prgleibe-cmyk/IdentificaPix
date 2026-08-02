@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult } from '../types';
 import { usePersistentState } from './usePersistentState';
-import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS } from '../services/utils/parsingUtils';
+import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
 
@@ -270,7 +270,15 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
         if (!user || !matchResult.church) return;
 
         const contributorObj = matchResult.contributor;
-        const contributorName = contributorObj?.cleanedName || contributorObj?.name || matchResult.transaction.cleanedDescription || matchResult.transaction.description;
+        const rawContribName = contributorObj?.cleanedName || contributorObj?.name;
+        const contributorName = (rawContribName && !isInvalidOrNumericName(rawContribName, matchResult.transaction.description))
+            ? rawContribName
+            : '';
+
+        if (!contributorName) {
+            console.log('[IA-LEARN] Aprendizado cancelado: nome do contribuinte inválido ou numérico');
+            return;
+        }
         
         const normalizedDesc = strictNormalize(matchResult.transaction.description);
         

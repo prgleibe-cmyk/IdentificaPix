@@ -1,6 +1,6 @@
 
 import { Contributor, MatchResult, Church, Transaction, ReconciliationStatus, MatchMethod } from '../../types';
-import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString } from '../utils/parsingUtils';
+import { strictNormalize, extractIdentifyingCode, PLACEHOLDER_CHURCH, normalizeString, isInvalidOrNumericName } from '../utils/parsingUtils';
 import { extractNameAndCpf, isCpfCompatible } from '../../utils/contributorHelper';
 
 // --- CACHE INCREMENTAL DO MATCH ---
@@ -95,11 +95,15 @@ export const calculateNameSimilarity = (description: string, contributor: Contri
     const txTokens = txNorm.split(/\s+/).filter(t => t.length > 2);
     const contribTokens = contribNorm.split(/\s+/).filter(t => t.length > 2);
     
-    if (txTokens.length === 0 || contribTokens.length === 0) {
-        return txNorm === contribNorm ? 100 : 0;
+    // Ignore common bank operation stop words in transaction descriptions to prevent false matches
+    const BANK_STOP_WORDS = new Set(['RECEBIMENTO', 'PAGAMENTO', 'TRANSFERENCIA', 'DEPOSITO', 'DEBITO', 'CREDITO', 'PIX', 'TED', 'DOC', 'BOLETO', 'CONVENIOS', 'LIQUIDACAO', 'SICOOB', 'SICREDI']);
+    const filteredTxTokens = txTokens.filter(w => !BANK_STOP_WORDS.has(w));
+
+    if (filteredTxTokens.length === 0 || contribTokens.length === 0) {
+        return 0;
     }
     
-    const txSet = new Set(txTokens);
+    const txSet = new Set(filteredTxTokens);
     const contribSet = new Set(contribTokens);
     const intersection = [...txSet].filter(w => contribSet.has(w)).length;
     
@@ -199,6 +203,9 @@ export const matchTransactions = (
         if (learned && learned.churchId) {
             const church = churches.find(c => c.id === learned.churchId);
             if (church) {
+                const validName = (learned.contributorNormalizedName && !isInvalidOrNumericName(learned.contributorNormalizedName, tx.description))
+                    ? learned.contributorNormalizedName
+                    : null;
                 matchResult = {
                     ...matchResult,
                     status: ReconciliationStatus.IDENTIFIED,
@@ -206,11 +213,11 @@ export const matchTransactions = (
                     _churchId: church.id,
                     matchMethod: MatchMethod.LEARNED,
                     similarity: 100,
-                    contributor: { 
-                        name: learned.contributorNormalizedName, 
+                    contributor: validName ? { 
+                        name: validName, 
                         amount: tx.amount,
-                        cleanedName: learned.contributorNormalizedName
-                    },
+                        cleanedName: validName
+                    } : null,
                     contributorAmount: tx.amount
                 };
                 transactionMatchCache.set(tx.id, {
@@ -278,35 +285,8 @@ export const matchTransactions = (
         finalResults.push(matchResult);
     });
 
-    // Processamento de Fantasmas
-    if (allContributorsFlat.length > 0) {
-        allContributorsFlat.forEach((contrib: any) => {
-            if (!usedContributors.has(contrib._internalId)) {
-                const ghostAmount = contrib.amount || 0;
-                finalResults.push({
-                    transaction: {
-                        id: `ghost-${contrib._internalId}`,
-                        date: contrib.date || new Date().toISOString().split('T')[0],
-                        description: contrib.name,
-                        rawDescription: contrib.name,
-                        amount: ghostAmount,
-                        cleanedDescription: contrib.name,
-                        contributionType: contrib.contributionType,
-                        paymentMethod: contrib.paymentMethod,
-                        originalAmount: String(ghostAmount)
-                    },
-                    contributor: { ...contrib, cleanedName: contrib.name },
-                    status: ReconciliationStatus.PENDING,
-                    church: contrib.church,
-                    _churchId: contrib.church.id,
-                    matchMethod: MatchMethod.MANUAL,
-                    similarity: 0,
-                    contributorAmount: ghostAmount
-                });
-            }
-        });
-    }
-
+    // A Lista Viva deve conter única e exclusivamente as transações reais recebidas no extrato.
+    // Não sintetizamos transações "fantasmas" a partir de cadastros não pareados.
     return finalResults;
 };
 

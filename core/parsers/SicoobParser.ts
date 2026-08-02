@@ -145,11 +145,14 @@ export class SicoobParser {
         }
       }
 
-      // Se não achamos CPF, tentamos extrair o nome pelas linhas que não contêm identificadores padrão
+      // Se não achamos CPF, tentamos extrair o nome pelas linhas que não contêm identificadores padrão nem números/valores
       if (!contributorName) {
+        const numericOrCurrencyRegex = /^[\sR$\-+]?[\d.,]+[CDcd]?$/;
         const candidateLines = details.filter(line => {
-          const lower = line.toLowerCase();
-          return !lower.includes('recebimento') && !lower.includes('doc.:') && !lower.includes('tarifa') && line.length > 2;
+          const trimmed = line.trim();
+          const lower = trimmed.toLowerCase();
+          const isNumeric = numericOrCurrencyRegex.test(trimmed);
+          return !isNumeric && !lower.includes('recebimento') && !lower.includes('doc.:') && !lower.includes('tarifa') && trimmed.length > 2;
         });
         if (candidateLines.length > 0) {
           contributorName = candidateLines[0].trim();
@@ -158,7 +161,7 @@ export class SicoobParser {
 
       // Fallback para a descrição básica se o nome não for detectado
       if (!contributorName) {
-        contributorName = details.length > 0 ? details[0] : block.descPart;
+        contributorName = block.descPart;
       }
 
       let finalDescription = contributorName;

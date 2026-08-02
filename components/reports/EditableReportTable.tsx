@@ -23,6 +23,7 @@ import {
 } from '../Icons';
 import { BulkActionToolbar } from '../BulkActionToolbar';
 import { NameResolver } from '../../core/processors/NameResolver';
+import { getResolvedDisplayName } from '../../services/utils/parsingUtils';
 
 type SortDirection = 'asc' | 'desc';
 interface SortConfig {
@@ -87,14 +88,21 @@ const MobileCard = memo(({
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
-    const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
+    const isPureNumeric = (val?: string) => {
+        if (!val) return true;
+        const cleaned = val.trim().replace(/^R\$\s*/i, '').replace(/\./g, '').replace(',', '.');
+        return !isNaN(parseFloat(cleaned)) && /^[\d.,R$\s\-()]+$/.test(val.trim());
+    };
+
+    const displayAmount = row.transaction.amount;
     const isExpense = displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
                       row.contributionType?.toLowerCase() === 'saida';
-    const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
-    const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
+    const displayDate = formatDate(row.transaction.date);
+
+    const displayName = getResolvedDisplayName(row) || '---';
     const displayForm = resolvePaymentMethod(
         row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,
         row.transaction?.description || row.transaction?.cleanedDescription,
@@ -235,16 +243,15 @@ const IncomeRow = memo(({
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
-    const displayAmount = isGhost ? (row.contributorAmount || row.contributor?.amount || 0) : row.transaction.amount;
+    const displayAmount = row.transaction.amount;
     const isExpense = displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
                       row.transaction?.type?.toLowerCase() === 'saida' || 
                       row.contributionType?.toLowerCase() === 'saída' || 
                       row.contributionType?.toLowerCase() === 'saida';
-    const displayDate = formatDate(isGhost ? (row.contributor?.date || row.transaction.date) : row.transaction.date);
+    const displayDate = formatDate(row.transaction.date);
     
-    // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo/IA
-    const displayName = row.contributor?.name || row.contributor?.cleanedName || row.transaction.cleanedDescription || row.transaction.description;
+    const displayName = getResolvedDisplayName(row) || '---';
 
     const displayForm = resolvePaymentMethod(
         row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,

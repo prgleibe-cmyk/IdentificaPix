@@ -273,7 +273,7 @@ export const useReportsController = () => {
             const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
             
             filteredData = filteredData.filter(r => {
-                const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                const dateStr = r.transaction?.date;
                 if (!dateStr) return true;
                 const itemDate = new Date(dateStr.split('T')[0]).getTime();
                 if (start && itemDate < start) return false;

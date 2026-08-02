@@ -184,11 +184,20 @@ export const parseContributors = (content: string, typeKeywords: string[] = []):
     const delimiter = Fingerprinter.detectDelimiter(lines[0]);
     const rows = lines.map(l => l.split(delimiter));
     
-    const contributors = rows.slice(1).map(row => ({
-        name: row[0] || 'Desconhecido',
-        amount: parseFloat(String(row[1] || '0').replace(/[R$\s]/g, '').replace(',', '.')) || 0,
-        date: row[2] || ''
-    })).filter(c => c.name !== 'Desconhecido');
+    const isPureNumeric = (val: string) => {
+        if (!val) return true;
+        const cleaned = val.trim().replace(/^R\$\s*/i, '').replace(/\./g, '').replace(',', '.');
+        return !isNaN(parseFloat(cleaned)) && /^[\d.,R$\s\-()]+$/.test(val.trim());
+    };
+
+    const contributors = rows.slice(1).map(row => {
+        const rawName = (row[0] || '').trim();
+        return {
+            name: isPureNumeric(rawName) ? 'Desconhecido' : rawName,
+            amount: parseFloat(String(row[1] || '0').replace(/[R$\s]/g, '').replace(',', '.')) || 0,
+            date: row[2] || ''
+        };
+    }).filter(c => c.name && c.name !== 'Desconhecido');
 
     return contributors;
 };

@@ -5,6 +5,7 @@ import { useTranslation } from '../contexts/I18nContext';
 import { AppContext } from '../contexts/AppContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
+import { isInvalidOrNumericName } from '../services/utils/parsingUtils';
 
 interface ResultsTableProps {
   results: MatchResult[];
@@ -124,16 +125,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             // Fix: transaction.isConfirmed is now valid after updating Transaction interface
                             const confirmed = transaction.isConfirmed ?? isConfirmed ?? false;
 
-                            const displayAmount = status === 'PENDENTE' ? (contributorAmount || contributor?.amount || 0) : transaction.amount;
+                            const displayAmount = transaction.amount;
                             const isExpense = displayAmount < 0 || 
                                               transaction.type?.toLowerCase() === 'expense' || 
                                               transaction.type?.toLowerCase() === 'saida' || 
                                               contributionType?.toLowerCase() === 'saída' || 
                                               contributionType?.toLowerCase() === 'saida';
-                            const displayDate = formatDate(status === 'PENDENTE' ? (contributor?.date || transaction.date) : transaction.date);
+                            const displayDate = formatDate(transaction.date);
                             
                             const bankDescription = transaction.description;
-                            const identifiedName = contributor?.name || contributor?.cleanedName;
+                            const statusStr = String(status);
+                            const isIdentifiedStatus = statusStr === 'IDENTIFIED' || statusStr === 'RESOLVED' || statusStr === 'IDENTIFICADO' || statusStr === 'RESOLVIDO';
+                            const rawIdentifiedName = isIdentifiedStatus ? (contributor?.name || contributor?.cleanedName) : null;
+                            const identifiedName = (rawIdentifiedName && !isInvalidOrNumericName(rawIdentifiedName, bankDescription)) ? rawIdentifiedName : null;
                             const sourceInfo = resolveTransactionSource(transaction, { transaction, contributor, status });
 
                             return (

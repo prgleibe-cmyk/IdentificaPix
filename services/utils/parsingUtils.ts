@@ -65,3 +65,49 @@ export const parseDate = (dateString: string): Date | null => {
 export const cleanTransactionDescriptionForDisplay = (description: string): string => {
     return description || '';
 };
+
+/**
+ * Verifica se uma string de nome é inválida, vazia, puramente numérica ou um valor/moeda formatado (ex: "16000,00", "16.000,00", "R$ 16.000,00", "16000").
+ */
+export const isInvalidOrNumericName = (name: string | undefined | null, txDescription?: string): boolean => {
+    if (!name) return true;
+    const trimmed = String(name).trim();
+    if (!trimmed) return true;
+
+    // Se for puramente numérico ou valor/moeda formatado
+    // Ex: "16000,00", "16.000,00", "16000.00", "16000", "R$ 16.000,00", "-150,00", "50,00C", "50,00D"
+    const numericOrCurrencyRegex = /^[\sR$\-+]?[\d.,]+[CDcd]?$/;
+    if (numericOrCurrencyRegex.test(trimmed)) return true;
+
+    // Se for apenas números e pontuação
+    const numbersOnly = trimmed.replace(/[^\d]/g, '');
+    const lettersOnly = trimmed.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+    if (lettersOnly.length === 0 && numbersOnly.length > 0) return true;
+
+    // Se for igual à descrição do banco quando a descrição é genérica/numérica
+    if (txDescription && trimmed.toUpperCase() === txDescription.trim().toUpperCase()) {
+        if (numericOrCurrencyRegex.test(txDescription.trim())) return true;
+    }
+
+    // Se for palavra de sistema/cabeçalho conhecido
+    const systemKeywords = ['SALDO', 'RESUMO', 'EXTRATO', 'DEMONSTRATIVO', 'PERÍODO', 'PERIODO', 'TOTAL', 'SICOOB', 'SICREDI', 'RECEBIMENTO', 'LANCAMENTO', 'LANÇAMENTO'];
+    if (systemKeywords.includes(trimmed.toUpperCase())) return true;
+
+    return false;
+};
+
+/**
+ * Retorna o nome de exibição resolvido com fidelidade absoluta à Verdade:
+ * Se houver nome de contribuinte válido (não numérico/não valor), usa o nome do contribuinte.
+ * Caso contrário, utiliza a descrição autêntica da transação bancária.
+ */
+export const getResolvedDisplayName = (row: { contributor?: any; transaction?: any } | null | undefined): string => {
+    if (!row) return '';
+    const contribName = row.contributor?.cleanedName || row.contributor?.name;
+    if (contribName && !isInvalidOrNumericName(contribName, row.transaction?.description)) {
+        return String(contribName).trim().toUpperCase();
+    }
+    const txDesc = row.transaction?.cleanedDescription || row.transaction?.description || '';
+    return String(txDesc).trim().toUpperCase();
+};
+

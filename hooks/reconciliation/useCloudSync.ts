@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { MatchResult, ReconciliationStatus, MatchMethod, Transaction, Contributor } from '../../types';
-import { PLACEHOLDER_CHURCH, strictNormalize } from '../../services/processingService';
+import { PLACEHOLDER_CHURCH, strictNormalize, isInvalidOrNumericName } from '../../services/processingService';
 import { consolidationService } from '../../services/ConsolidationService';
 
 interface UseCloudSyncProps {
@@ -311,7 +311,7 @@ export const useCloudSync = ({
                 }
 
                 if (!activeReportId && (!txs || txs.length === 0)) {
-                    setMatchResults([]);
+                    setMatchResults([] as any);
                     setHasActiveSession(false);
                     const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
                     if (liveReport && overwriteSavedReport) {
@@ -437,18 +437,15 @@ export const useCloudSync = ({
                     };
 
                     const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
+                    const rawNameCandidate = regName || assoc?.contributorNormalizedName;
+                    const validContribName = (rawNameCandidate && !isInvalidOrNumericName(rawNameCandidate, t.description)) ? rawNameCandidate : null;
 
-                    const contributor: Contributor | null = assoc ? {
+                    const contributor: Contributor | null = validContribName ? {
                         id: t.contributor_id || undefined,
-                        name: regName || assoc.contributorNormalizedName || t.description,
+                        name: validContribName,
                         amount: t.amount,
-                        cleanedName: regName || assoc.contributorNormalizedName || t.description
-                    } : (t.contributor_id ? {
-                        id: t.contributor_id,
-                        name: regName || t.description,
-                        amount: t.amount,
-                        cleanedName: regName || t.description
-                    } : null);
+                        cleanedName: validContribName
+                    } : null;
 
                     let status = ReconciliationStatus.UNIDENTIFIED;
                     if (t.status === 'resolved') status = ReconciliationStatus.RESOLVED;
@@ -702,18 +699,15 @@ export const useCloudSync = ({
                                 };
 
                                 const regName = t.contributor_id ? getRegisteredContributorName(t.contributor_id) : null;
+                                const rawNameCandidate = regName || assoc?.contributorNormalizedName;
+                                const validContribName = (rawNameCandidate && !isInvalidOrNumericName(rawNameCandidate, t.description)) ? rawNameCandidate : null;
 
-                                const contributor: Contributor | null = assoc ? {
+                                const contributor: Contributor | null = validContribName ? {
                                     id: t.contributor_id || undefined,
-                                    name: regName || assoc.contributorNormalizedName || t.description,
+                                    name: validContribName,
                                     amount: t.amount,
-                                    cleanedName: regName || assoc.contributorNormalizedName || t.description
-                                } : (t.contributor_id ? {
-                                    id: t.contributor_id,
-                                    name: regName || t.description,
-                                    amount: t.amount,
-                                    cleanedName: regName || t.description
-                                } : null);
+                                    cleanedName: validContribName
+                                } : null;
 
                                 let matchStatus = ReconciliationStatus.UNIDENTIFIED;
                                 if (t.status === 'resolved') matchStatus = ReconciliationStatus.RESOLVED;
@@ -794,17 +788,15 @@ export const useCloudSync = ({
                             
                             const regName = contributor_id ? getRegisteredContributorName(contributor_id) : null;
 
-                            const newContributor: Contributor | null = assoc ? {
+                            const rawNameCandidate = regName || assoc?.contributorNormalizedName;
+                            const validContribName = (rawNameCandidate && !isInvalidOrNumericName(rawNameCandidate, current.transaction.description)) ? rawNameCandidate : null;
+
+                            const newContributor: Contributor | null = validContribName ? {
                                 id: contributor_id || undefined,
-                                name: regName || assoc.contributorNormalizedName || current.transaction.description,
+                                name: validContribName,
                                 amount: current.transaction.amount,
-                                cleanedName: regName || assoc.contributorNormalizedName || current.transaction.description
-                            } : (contributor_id ? {
-                                id: contributor_id,
-                                name: regName || current.transaction.description,
-                                amount: current.transaction.amount,
-                                cleanedName: regName || current.transaction.description
-                            } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : current.contributor));
+                                cleanedName: validContribName
+                            } : (newStatus === ReconciliationStatus.UNIDENTIFIED ? null : (current.contributor && !isInvalidOrNumericName(current.contributor.name, current.transaction.description) ? current.contributor : null));
 
                             console.log(`[Realtime:ATOM] Atualizando transação ${id}: confirmed=${is_confirmed}, status=${status}`);
                             
@@ -860,11 +852,11 @@ export const useCloudSync = ({
                                             return {
                                                 ...r,
                                                 church: fullChurch || r.church,
-                                                contributor: {
-                                                    name: contributor_normalized_name || r.transaction.description,
+                                                contributor: (contributor_normalized_name && !isInvalidOrNumericName(contributor_normalized_name, r.transaction.description)) ? {
+                                                    name: contributor_normalized_name,
                                                     amount: r.transaction.amount,
-                                                    cleanedName: contributor_normalized_name || r.transaction.description
-                                                },
+                                                    cleanedName: contributor_normalized_name
+                                                } : null,
                                                 status: r.status === ReconciliationStatus.UNIDENTIFIED ? ReconciliationStatus.IDENTIFIED : r.status,
                                                 updatedAt: new Date().toISOString() // Força prioridade no próximo merge
                                             };

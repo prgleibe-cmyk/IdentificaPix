@@ -2,6 +2,7 @@
 import { MatchResult, Language } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { NameResolver } from '../core/processors/NameResolver';
+import { getResolvedDisplayName } from './utils/parsingUtils';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -186,12 +187,10 @@ export const ExportService = {
         const csvContent = [
             headers.join(";"),
             ...data.flatMap(r => {
-                const isGhost = r.status === 'PENDENTE';
-                const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
+                const date = formatDate(r.transaction.date);
                 
-                // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
-                const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-                const desc = String(rawName).replace(/;/g, ' ').toUpperCase();
+                // FIDELIDADE TOTAL: Usa o nome resolvido sem ruído numérico/valor
+                const desc = getResolvedDisplayName(r).replace(/;/g, ' ').toUpperCase();
                 
                 const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
                 const church = (r.church?.name || '---').replace(/;/g, ' ');
@@ -206,7 +205,7 @@ export const ExportService = {
                     });
                 } else {
                     const type = (r.contributor?.contributionType || r.transaction.contributionType || "").replace(/;/g, ' ');
-                    const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                    const rawAmount = r.transaction.amount;
                     const amount = Number(rawAmount).toFixed(2).replace('.', ',');
                     return [`"${date}"`, `"${desc}"`, `"${type}"`, `"${status}"`, `"${amount}"`, `"${church}"`].join(";");
                 }
@@ -233,12 +232,10 @@ export const ExportService = {
         const church = resolveChurch(churches, selectedChurchId);
 
         const tableRows = data.flatMap(r => {
-            const isGhost = r.status === 'PENDENTE';
-            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
+            const date = formatDate(r.transaction.date);
             
-            // FIDELIDADE TOTAL: Usa o valor original entregue pelo modelo
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-            const name = String(rawName).toUpperCase();
+            // FIDELIDADE TOTAL: Usa o nome resolvido sem ruído numérico/valor
+            const name = getResolvedDisplayName(r).toUpperCase();
             const churchName = r.church?.name || church?.name || '-';
 
             // Cores baseadas no Status
@@ -271,7 +268,7 @@ export const ExportService = {
                     `;
                 });
             } else {
-                const amountVal = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const amountVal = r.transaction.amount;
                 const isNegative = amountVal < 0;
                 const amount = formatCurrency(amountVal, language);
                 const type = r.contributor?.contributionType || r.transaction.contributionType || '---';
@@ -431,11 +428,9 @@ export const ExportService = {
      */
     downloadExcel: (data: MatchResult[], filename: string = 'relatorio_conciliacao.xlsx') => {
         const rows = data.flatMap(r => {
-            const isGhost = r.status === 'PENDENTE';
-            const date = formatDate(isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date);
+            const date = formatDate(r.transaction.date);
             
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-            const desc = String(rawName).toUpperCase();
+            const desc = getResolvedDisplayName(r).toUpperCase();
             
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
             const church = r.church?.name || '---';
@@ -456,7 +451,7 @@ export const ExportService = {
                 });
             } else {
                 const type = r.contributor?.contributionType || r.transaction.contributionType || "---";
-                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const rawAmount = r.transaction.amount;
                 const amount = Number(rawAmount);
                 return {
                     "Data": date,
@@ -486,8 +481,7 @@ export const ExportService = {
         let dtEnd = '00000000';
 
         const transactionsOfx = data.flatMap((r, index) => {
-            const isGhost = r.status === 'PENDENTE';
-            const rawDateStr = isGhost ? (r.contributor?.date || r.transaction.date) : r.transaction.date;
+            const rawDateStr = r.transaction.date;
             
             let formattedDate = timestamp.slice(0, 8);
             if (rawDateStr) {
@@ -500,8 +494,7 @@ export const ExportService = {
             if (formattedDate < dtStart) dtStart = formattedDate;
             if (formattedDate > dtEnd) dtEnd = formattedDate;
 
-            const rawName = r.contributor?.cleanedName || r.contributor?.name || r.transaction.cleanedDescription || r.transaction.description;
-            const desc = String(rawName || 'LANCAMENTO').replace(/[<>&]/g, '').toUpperCase();
+            const desc = String(getResolvedDisplayName(r) || 'LANCAMENTO').replace(/[<>&]/g, '').toUpperCase();
             const church = String(r.church?.name || '').replace(/[<>&]/g, '').toUpperCase();
             const fitId = r.transaction?.id || `TRN-${formattedDate}-${index + 1}`;
             const status = r.status === 'IDENTIFICADO' ? (r.matchMethod || 'AUTO') : r.status;
@@ -522,7 +515,7 @@ export const ExportService = {
 </STMTTRN>`;
                 });
             } else {
-                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : r.transaction.amount;
+                const rawAmount = r.transaction.amount;
                 const amount = Number(rawAmount);
                 const trnType = amount < 0 ? 'DEBIT' : 'CREDIT';
                 const type = r.contributor?.contributionType || r.transaction.contributionType || '';
