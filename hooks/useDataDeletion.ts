@@ -90,6 +90,10 @@ export const useDataDeletion = ({
                     if (activeReportId) {
                         await reportManager.overwriteSavedReport(activeReportId, nextResults);
                     } else {
+                        const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                        if (liveReport && reportManager?.overwriteSavedReport) {
+                            await reportManager.overwriteSavedReport(liveReport.id, nextResults);
+                        }
                         await reconciliation.syncToCloud?.(nextResults);
                     }
                     
@@ -119,6 +123,10 @@ export const useDataDeletion = ({
                         if (activeReportId) {
                             await reportManager.overwriteSavedReport(activeReportId, nextResults);
                         } else {
+                            const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                            if (liveReport && reportManager?.overwriteSavedReport) {
+                                await reportManager.overwriteSavedReport(liveReport.id, nextResults);
+                            }
                             await reconciliation.syncToCloud?.(nextResults);
                         }
                         
@@ -133,14 +141,36 @@ export const useDataDeletion = ({
                 }
                 case 'all-data': {
                     reconciliation.resetReconciliation?.();
-                    await supabase.rpc('delete_pending_transactions'); 
+                    if (effectiveUserId) {
+                        await consolidationService.deletePendingTransactions(effectiveUserId);
+                    }
+                    try { await supabase.rpc('delete_pending_transactions'); } catch (e) { /* ignore RPC errors */ }
+                    const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                    if (liveReport && reportManager?.overwriteSavedReport) {
+                        await reportManager.overwriteSavedReport(liveReport.id, []);
+                    }
+                    if (reconciliation.hydrate) {
+                        await reconciliation.hydrate();
+                    }
                     showToast("Todos os dados temporários foram limpos.", "success");
                     break;
                 }
                 case 'uploaded-files': {
-                    await supabase.rpc('delete_pending_transactions');
+                    if (effectiveUserId) {
+                        await consolidationService.deletePendingTransactions(effectiveUserId);
+                    }
+                    try { await supabase.rpc('delete_pending_transactions'); } catch (e) { /* ignore RPC errors */ }
                     reconciliation.setBankStatementFile?.([]);
                     reconciliation.setSelectedBankIds?.([]);
+                    reconciliation.setMatchResults?.([]);
+                    reconciliation.setHasActiveSession?.(false);
+                    const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                    if (liveReport && reportManager?.overwriteSavedReport) {
+                        await reportManager.overwriteSavedReport(liveReport.id, []);
+                    }
+                    if (reconciliation.hydrate) {
+                        await reconciliation.hydrate();
+                    }
                     showToast("Arquivos e transações limpos.", "success");
                     break;
                 }

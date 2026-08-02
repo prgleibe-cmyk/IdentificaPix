@@ -33,6 +33,19 @@ export const batchState = { isBatchUpdating: false, isAtomicUpdate: false };
 export const lastRealtimeUpdate = { txId: null as string | null, timestamp: 0 };
 const ENABLE_HEAVY_LOGS = false;
 
+const toIsoDate = (str: string): string => {
+    if (!str) return '';
+    const clean = str.split('T')[0].trim();
+    if (clean.includes('/')) {
+        const parts = clean.split('/');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+    }
+    return clean;
+};
+
 export const useCloudSync = ({
     user,
     effectiveUserId,
@@ -282,19 +295,35 @@ export const useCloudSync = ({
                 }
                 contributorFilesRef.current = contributorFilesData;
 
-                // 🆕 BUSCAR RELATÓRIOS SALVOS COMO BASE COMPLETA
+                // 🆕 BUSCAR RELATÓRIOS SALVOS COMO BASE COMPLETA (Isolado por relatório ativo para evitar contaminação cruzada de dados antigos)
                 const reportsMap = new Map<string, MatchResult>();
 
-                (savedReports || []).forEach((report: any) => {
-                    const results = report?.data?.results || [];
-                    results.forEach((r: MatchResult) => {
+                const targetReport = activeReportId 
+                    ? (savedReports || []).find((r: any) => r.id === activeReportId)
+                    : (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+
+                if (targetReport && targetReport.data && Array.isArray(targetReport.data.results)) {
+                    targetReport.data.results.forEach((r: MatchResult) => {
                         if (r?.transaction?.id) {
                             reportsMap.set(r.transaction.id, r);
                         }
                     });
-                });
+                }
 
-                if ((!txs || txs.length === 0) && reportsMap.size === 0) {
+                if (!activeReportId && (!txs || txs.length === 0)) {
+                    setMatchResults([]);
+                    setHasActiveSession(false);
+                    const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                    if (liveReport && overwriteSavedReport) {
+                        overwriteSavedReport(liveReport.id, []);
+                    }
+                    isHydratingFromCloud.current = false;
+                    setIsHydrating(false);
+                    if (setIsLoading) setIsLoading(false);
+                    return;
+                }
+
+                if (activeReportId && (!txs || txs.length === 0) && reportsMap.size === 0) {
                     isHydratingFromCloud.current = false;
                     setIsHydrating(false);
                     if (setIsLoading) setIsLoading(false);
@@ -465,7 +494,9 @@ export const useCloudSync = ({
                             ...saved,
                             transaction: {
                                 ...saved.transaction,
-                                ...r.transaction, // Campos autênticos do banco sobressaem sempre
+                                ...r.transaction, // Campos autênticos do banco sobrensaem sempre
+                                date: r.transaction.date, // Garantia imutável da data do banco
+                                source: r.transaction.source || saved.transaction?.source // Garantia da origem do banco
                             },
                             updatedAt: r.updatedAt || saved.updatedAt
                         });
@@ -474,16 +505,34 @@ export const useCloudSync = ({
                     }
                 });
 
-                // 2. Complementa com itens salvos no relatório que eventualmente não estejam na consulta atual
-                reportsMap.forEach((value, key) => {
-                    if (!reconstructedMap.has(key)) {
-                        reconstructedMap.set(key, value);
-                    }
-                });
+                // 2. Complementa com itens salvos no relatório que eventualmente não estejam na consulta do banco, RESPEITANDO O FILTRO DE PERÍODO
+                // NOTA: Executado exclusivamente para relatórios históricos salvos (activeReportId != null).
+                // Na Lista Viva (!activeReportId), o banco de dados (txs) é a única fonte da verdade: itens deletados do banco não devem ser ressuscitados.
+                if (activeReportId) {
+                    const startStr = searchFilters?.dateRange?.start ? toIsoDate(searchFilters.dateRange.start) : null;
+                    const endStr = searchFilters?.dateRange?.end ? toIsoDate(searchFilters.dateRange.end) : null;
+
+                    reportsMap.forEach((value, key) => {
+                        if (!reconstructedMap.has(key)) {
+                            const txDate = value.transaction?.date || (value as any).date;
+                            if (txDate && (startStr || endStr)) {
+                                const itemIso = toIsoDate(txDate);
+                                if (startStr && itemIso < startStr) return;
+                                if (endStr && itemIso > endStr) return;
+                            }
+                            reconstructedMap.set(key, value);
+                        }
+                    });
+                }
 
                 const reconstructed = Array.from(reconstructedMap.values());
 
                 setMatchResults(prev => {
+                    // Na Lista Viva (!activeReportId), 'reconstructed' contém a lista autêntica e atualizada de registros do banco de dados.
+                    if (!activeReportId) {
+                        return reconstructed;
+                    }
+
                     const map = new Map(prev.map(p => [p.transaction.id, p]));
                     let hasChanges = false;
 
@@ -514,6 +563,11 @@ export const useCloudSync = ({
                 if (activeReportId && reconstructed.length > 0) {
                     console.log('[AutoSave:RECONSTRUCT] Atualizando relatório automaticamente após hidratação');
                     overwriteSavedReport(activeReportId, reconstructed);
+                } else if (!activeReportId) {
+                    const liveReport = (savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
+                    if (liveReport && overwriteSavedReport) {
+                        overwriteSavedReport(liveReport.id, reconstructed);
+                    }
                 }
 
                 setHasActiveSession(true);

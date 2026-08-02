@@ -313,7 +313,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
         const existingReport = savedReports.find(r => r.id === reportId);
         const currentData = existingReport?.data || { results: [], sourceFiles: [], bankStatementFile: null };
 
-        if ((!results || (results || []).length === 0) && !spreadsheetData && !currentData.results && !currentData.spreadsheet) return;
+        if (results === undefined && spreadsheetData === undefined) return;
 
         const currentPayload = JSON.stringify({ 
             r: (results || []).length, 
@@ -329,8 +329,8 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
 
         const mergedData = {
             ...currentData,
-            results: (results && results.length > 0) ? results : currentData.results,
-            spreadsheet: spreadsheetData || currentData.spreadsheet
+            results: Array.isArray(results) ? results : (currentData.results || []),
+            spreadsheet: spreadsheetData !== undefined ? spreadsheetData : currentData.spreadsheet
         };
 
         const recordCount = spreadsheetData?.rows ? spreadsheetData.rows.length : (mergedData.results?.length || 0);

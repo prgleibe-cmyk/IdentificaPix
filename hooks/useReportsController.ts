@@ -9,6 +9,19 @@ import { consolidationService } from '../services/ConsolidationService';
 import { filterByUniversalQuery, applyAdvancedFilters } from '../services/processingService';
 import { batchState, lastRealtimeUpdate } from './reconciliation/useCloudSync';
 
+const toIsoDate = (str: string): string => {
+    if (!str) return '';
+    const clean = str.split('T')[0].trim();
+    if (clean.includes('/')) {
+        const parts = clean.split('/');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+    }
+    return clean;
+};
+
 export type ReportCategory = 'general' | 'churches' | 'unidentified' | 'expenses' | 'contributors';
 
 export const useReportsController = () => {
@@ -407,13 +420,13 @@ export const useReportsController = () => {
                 }
 
                 if (searchFilters.dateRange && (searchFilters.dateRange.start || searchFilters.dateRange.end)) {
-                    const start = searchFilters.dateRange.start ? new Date(searchFilters.dateRange.start).getTime() : null;
-                    const end = searchFilters.dateRange.end ? new Date(searchFilters.dateRange.end).getTime() + 86400000 : null;
-                    const dateStr = item.status === 'PENDENTE' ? (item.contributor?.date || item.transaction?.date) : item.transaction?.date;
+                    const startStr = searchFilters.dateRange.start ? toIsoDate(searchFilters.dateRange.start) : null;
+                    const endStr = searchFilters.dateRange.end ? toIsoDate(searchFilters.dateRange.end) : null;
+                    const dateStr = item.transaction?.date || item.contributor?.date || (item as any).date;
                     if (dateStr) {
-                        const itemDate = new Date(dateStr.split('T')[0]).getTime();
-                        if (start && itemDate < start) return false;
-                        if (end && itemDate >= end) return false;
+                        const itemIso = toIsoDate(dateStr);
+                        if (startStr && itemIso < startStr) return false;
+                        if (endStr && itemIso > endStr) return false;
                     }
                 }
 

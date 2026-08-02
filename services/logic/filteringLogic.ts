@@ -2,6 +2,19 @@ import { Transaction, MatchResult, SearchFilters } from '../../types';
 import { NameResolver } from '../../core/processors/NameResolver';
 import { parseDate } from '../utils/parsingUtils';
 
+const toIsoDate = (str: string): string => {
+    if (!str) return '';
+    const clean = str.split('T')[0].trim();
+    if (clean.includes('/')) {
+        const parts = clean.split('/');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+    }
+    return clean;
+};
+
 /**
  * Lógica de filtragem UNIVERSAL e ROBUSTA para transações puras.
  */
@@ -157,23 +170,19 @@ export const applyAdvancedFilters = (results: MatchResult[], filters: SearchFilt
 
         // 4. Período
         if (filters.dateRange && (filters.dateRange.start || filters.dateRange.end)) {
-            const startStr = filters.dateRange.start?.trim();
-            const endStr = filters.dateRange.end?.trim();
+            const startStr = filters.dateRange.start ? toIsoDate(filters.dateRange.start) : null;
+            const endStr = filters.dateRange.end ? toIsoDate(filters.dateRange.end) : null;
             
-            const startDate = startStr ? new Date(startStr).getTime() : null;
-            const endDate = endStr ? new Date(endStr).getTime() + 86400000 : null;
-            
-            if (startDate || endDate) {
+            if (startStr || endStr) {
                 data = data.filter(r => {
-                    const dateStr = r.status === 'PENDENTE' ? (r.contributor?.date || r.transaction?.date) : r.transaction?.date;
+                    const dateStr = r.transaction?.date || r.contributor?.date || (r as any).date;
                     if (!dateStr) return true;
 
-                    const parsed = parseDate(dateStr);
-                    if (!parsed) return true;
+                    const itemIso = toIsoDate(dateStr);
+                    if (!itemIso) return true;
 
-                    const itemDate = parsed.getTime();
-                    if (startDate && itemDate < startDate) return false;
-                    if (endDate && itemDate >= endDate) return false;
+                    if (startStr && itemIso < startStr) return false;
+                    if (endStr && itemIso > endStr) return false;
                     return true;
                 });
             }
