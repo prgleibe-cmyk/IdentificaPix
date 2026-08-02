@@ -91,7 +91,12 @@ export const isInvalidOrNumericName = (name: string | undefined | null, txDescri
 
     // Se for palavra de sistema/cabeçalho conhecido
     const systemKeywords = ['SALDO', 'RESUMO', 'EXTRATO', 'DEMONSTRATIVO', 'PERÍODO', 'PERIODO', 'TOTAL', 'SICOOB', 'SICREDI', 'RECEBIMENTO', 'LANCAMENTO', 'LANÇAMENTO'];
-    if (systemKeywords.includes(trimmed.toUpperCase())) return true;
+    const upper = trimmed.toUpperCase();
+    if (systemKeywords.some(k => upper.includes(k))) {
+        if (upper.includes('SALDO') || upper.includes('RESUMO') || upper.includes('EXTRATO') || upper.includes('DEMONSTRATIVO') || upper.includes('PERIODO') || upper.includes('PERÍODO') || upper === 'TOTAL') {
+            return true;
+        }
+    }
 
     return false;
 };

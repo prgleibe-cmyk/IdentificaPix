@@ -95,8 +95,11 @@ export const calculateNameSimilarity = (description: string, contributor: Contri
     const txTokens = txNorm.split(/\s+/).filter(t => t.length > 2);
     const contribTokens = contribNorm.split(/\s+/).filter(t => t.length > 2);
     
-    // Ignore common bank operation stop words in transaction descriptions to prevent false matches
-    const BANK_STOP_WORDS = new Set(['RECEBIMENTO', 'PAGAMENTO', 'TRANSFERENCIA', 'DEPOSITO', 'DEBITO', 'CREDITO', 'PIX', 'TED', 'DOC', 'BOLETO', 'CONVENIOS', 'LIQUIDACAO', 'SICOOB', 'SICREDI']);
+    // Ignore common bank operation stop words AND generic organization/church words in transaction descriptions to prevent false matches
+    const BANK_STOP_WORDS = new Set([
+        'RECEBIMENTO', 'PAGAMENTO', 'TRANSFERENCIA', 'DEPOSITO', 'DEBITO', 'CREDITO', 'PIX', 'TED', 'DOC', 'BOLETO', 'CONVENIOS', 'LIQUIDACAO', 'SICOOB', 'SICREDI',
+        'IGREJA', 'EVANGELICA', 'EVANGÉLICA', 'ASSEMBLEIA', 'MINISTERIO', 'MINISTÉRIO', 'COMUNIDADE', 'ASSOCIACAO', 'ASSOCIAÇÃO', 'INSTITUTO', 'ORGANIZACAO', 'ORGANIZAÇÃO', 'CENTRO', 'SOCIEDADE', 'PAROQUIA', 'PARÓQUIA', 'DIOCESE', 'ARQUIDIOCESE', 'CATEDRAL', 'TEMPLO', 'CAPELA', 'MISSAO', 'MISSÃO', 'CONGREGACAO', 'CONGREGAÇÃO'
+    ]);
     const filteredTxTokens = txTokens.filter(w => !BANK_STOP_WORDS.has(w));
 
     if (filteredTxTokens.length === 0 || contribTokens.length === 0) {

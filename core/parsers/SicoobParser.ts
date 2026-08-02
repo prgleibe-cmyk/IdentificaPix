@@ -60,13 +60,24 @@ export class SicoobParser {
         // Ignorar linhas puramente administrativas/sistema (como saldos ou avisos de rodapé) de forma precisa,
         // garantindo que transações com palavras comuns como "Sicoob", "Conta", "Tarifa" ou "Encargos" NÃO sejam descartadas.
         const descUpper = descPart.toUpperCase();
+        const numericOrCurrencyRegex = /^[\sR$\-+]?[\d.,]+[CDcd]?$/;
         const isSystemLine = 
-          descUpper.startsWith("SALDO") ||
+          numericOrCurrencyRegex.test(descPart) ||
+          descUpper.includes("SALDO") ||
+          descUpper.includes("RESUMO") ||
+          descUpper.includes("BALANCO") ||
+          descUpper.includes("BALANÇO") ||
+          descUpper.includes("DISPONIVEL") ||
+          descUpper.includes("DISPONÍVEL") ||
+          descUpper.includes("APLICAÇÃO") ||
+          descUpper.includes("APLICACAO") ||
+          descUpper.includes("INVESTIMENTO") ||
+          descUpper.includes("BLOQUEADO") ||
+          descUpper.includes("TOTAL") ||
           descUpper.startsWith("SD.") ||
           descUpper.startsWith("SD ") ||
           descUpper === "SICOOB" ||
           descUpper === "EXTRATO" ||
-          descUpper === "RESUMO" ||
           descUpper.includes("SAC SICOOB") ||
           descUpper.includes("OUVIDORIA SICOOB") ||
           descUpper.includes("TELEFONE SICOOB") ||
@@ -75,8 +86,9 @@ export class SicoobParser {
           descUpper.includes("FALE CONOSCO") ||
           descUpper.includes("SAC:") ||
           descUpper.includes("OUVIDORIA:") ||
-          descUpper.startsWith("PERÍODO:") ||
-          descUpper.startsWith("DEMONSTRATIVO");
+          descUpper.includes("PERÍODO:") ||
+          descUpper.includes("PERIODO:") ||
+          descUpper.includes("DEMONSTRATIVO");
 
         if (!isSystemLine) {
           currentBlock = {

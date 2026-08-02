@@ -19,7 +19,20 @@ function deterministicBlockExtraction(rawText: string): any[] {
 
     for (const line of lines) {
         const upperLine = line.toUpperCase();
-        if (upperLine.includes('SALDO ANTERIOR') || upperLine.includes('SALDO ATUAL') || upperLine.includes('EXTRATO DE CONTA')) {
+        const numericOrCurrencyRegex = /^[\sR$\-+]?[\d.,]+[CDcd]?$/;
+        if (
+            upperLine.includes('SALDO') || 
+            upperLine.includes('RESUMO') || 
+            upperLine.includes('BALANCO') || 
+            upperLine.includes('BALANÇO') || 
+            upperLine.includes('DISPONIVEL') || 
+            upperLine.includes('DISPONÍVEL') || 
+            upperLine.includes('EXTRATO') ||
+            upperLine.includes('DEMONSTRATIVO') ||
+            upperLine.includes('PERIODO') ||
+            upperLine.includes('PERÍODO') ||
+            upperLine.includes('TOTAL')
+        ) {
             continue;
         }
 
