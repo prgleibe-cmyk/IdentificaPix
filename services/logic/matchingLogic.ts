@@ -78,11 +78,14 @@ const getChurchesSignature = (churches: Church[]): string => {
  */
 export const calculateNameSimilarity = (description: string, contributor: Contributor): number => {
     const txCode = extractIdentifyingCode(description);
-    const contribCode = extractIdentifyingCode(contributor.name) || (contributor.id && extractIdentifyingCode(contributor.id));
+    // CRÍTICO: NÃO utilizar contributor.id para extrair código numérico! contributor.id é um ID interno do sistema e causava falsos positivos de 100% com CNPJs/datas da transação.
+    const contribCode = (contributor as any).code || (contributor as any).cpf || (contributor as any).document
+        ? extractIdentifyingCode((contributor as any).code || (contributor as any).cpf || (contributor as any).document || '')
+        : extractIdentifyingCode(contributor.name);
 
-    // REGRA DE OURO: Se o código numérico (DNA) bater, o match é 100%
-    if (txCode && contribCode && txCode.length >= 4 && contribCode.length >= 4) {
-        if (txCode.includes(contribCode) || contribCode.includes(txCode)) {
+    // Se o código numérico (DNA) de ambos for válido e relevante (CPF/CNPJ com no mínimo 6 dígitos numéricos)
+    if (txCode && contribCode && txCode.length >= 6 && contribCode.length >= 6) {
+        if (txCode === contribCode || txCode.includes(contribCode) || contribCode.includes(txCode)) {
             return 100; // Prioridade absoluta ao código
         }
     }

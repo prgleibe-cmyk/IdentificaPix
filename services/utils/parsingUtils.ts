@@ -89,11 +89,16 @@ export const isInvalidOrNumericName = (name: string | undefined | null, txDescri
         if (numericOrCurrencyRegex.test(txDescription.trim())) return true;
     }
 
-    // Se for palavra de sistema/cabeçalho conhecido
-    const systemKeywords = ['SALDO', 'RESUMO', 'EXTRATO', 'DEMONSTRATIVO', 'PERÍODO', 'PERIODO', 'TOTAL', 'SICOOB', 'SICREDI', 'RECEBIMENTO', 'LANCAMENTO', 'LANÇAMENTO'];
+    // Se for palavra de sistema/cabeçalho conhecido ou operação financeira automática
+    const systemKeywords = ['SALDO', 'RESUMO', 'EXTRATO', 'DEMONSTRATIVO', 'PERÍODO', 'PERIODO', 'TOTAL', 'SICOOB', 'SICREDI', 'RECEBIMENTO', 'LANCAMENTO', 'LANÇAMENTO', 'RDC', 'AUTOMATICO', 'AUTOMÁTICO', 'RESGATE', 'APLIC'];
     const upper = trimmed.toUpperCase();
     if (systemKeywords.some(k => upper.includes(k))) {
-        if (upper.includes('SALDO') || upper.includes('RESUMO') || upper.includes('EXTRATO') || upper.includes('DEMONSTRATIVO') || upper.includes('PERIODO') || upper.includes('PERÍODO') || upper === 'TOTAL') {
+        if (
+            upper.includes('SALDO') || upper.includes('RESUMO') || upper.includes('EXTRATO') || 
+            upper.includes('DEMONSTRATIVO') || upper.includes('PERIODO') || upper.includes('PERÍODO') || 
+            upper === 'TOTAL' || upper.includes('RDC') || upper.includes('AUTOMATICO') || upper.includes('AUTOMÁTICO') ||
+            upper.includes('RESGATE')
+        ) {
             return true;
         }
     }

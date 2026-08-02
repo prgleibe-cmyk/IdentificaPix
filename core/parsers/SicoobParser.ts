@@ -71,9 +71,13 @@ export class SicoobParser {
           descUpper.includes("DISPONÍVEL") ||
           descUpper.includes("APLICAÇÃO") ||
           descUpper.includes("APLICACAO") ||
+          descUpper.includes("APLIC") ||
           descUpper.includes("INVESTIMENTO") ||
           descUpper.includes("BLOQUEADO") ||
           descUpper.includes("TOTAL") ||
+          descUpper.includes("RDC") ||
+          descUpper.includes("RESGATE") ||
+          descUpper.includes("RENDIMENTO") ||
           descUpper.startsWith("SD.") ||
           descUpper.startsWith("SD ") ||
           descUpper === "SICOOB" ||

@@ -31,7 +31,11 @@ function deterministicBlockExtraction(rawText: string): any[] {
             upperLine.includes('DEMONSTRATIVO') ||
             upperLine.includes('PERIODO') ||
             upperLine.includes('PERÍODO') ||
-            upperLine.includes('TOTAL')
+            upperLine.includes('TOTAL') ||
+            upperLine.includes('RDC') ||
+            upperLine.includes('RESGATE') ||
+            upperLine.includes('RENDIMENTO') ||
+            upperLine.includes('APLIC')
         ) {
             continue;
         }
