@@ -105,7 +105,7 @@ const MobileCard = memo(({
         contributionTypes,
         contributionKeywords
     );
-    const sourceInfo = resolveTransactionSource(row.transaction);
+    const sourceInfo = resolveTransactionSource(row.transaction, row);
 
     return (
         <div className={`p-4 border-b border-slate-200 dark:border-slate-700 transition-colors ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : 'bg-white dark:bg-slate-800'}`}>
@@ -256,7 +256,7 @@ const IncomeRow = memo(({
         contributionTypes,
         contributionKeywords
     );
-    const sourceInfo = resolveTransactionSource(row.transaction);
+    const sourceInfo = resolveTransactionSource(row.transaction, row);
 
     return (
         <tr className={`group transition-colors border-b border-slate-200 dark:border-slate-700 hover:bg-blue-50/60 dark:hover:bg-blue-900/20 ${confirmed ? 'bg-indigo-50/10' : isGhost ? 'bg-amber-50/50' : 'odd:bg-white even:bg-slate-50'} ${isSelected ? 'bg-blue-50/80 dark:bg-blue-900/30' : ''}`}>

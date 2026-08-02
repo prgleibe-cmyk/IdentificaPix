@@ -452,18 +452,32 @@ export const useCloudSync = ({
                     return result;
                 });
 
-                // 🆕 COMBINAR COM RELATÓRIOS
+                // 🆕 COMBINAR COM RELATÓRIOS (Com prioridade absoluta para dados de transações do banco)
                 const reconstructedMap = new Map<string, MatchResult>();
 
-                // prioridade para relatórios
-                reportsMap.forEach((value, key) => {
-                    reconstructedMap.set(key, value);
+                // 1. Damos prioridade para transações do banco de dados (txResults)
+                txResults.forEach(r => {
+                    const saved = reportsMap.get(r.transaction.id);
+                    if (saved) {
+                        // Preserva metadados de identificação salvos no relatório (contribuinte, igreja, status, splits, isConfirmed),
+                        // mas MANTÉM OS DADOS DA TRANSAÇÃO AUTÊNTICA DO BANCO (data, valor, descrição, origem, pix_key, row_hash)
+                        reconstructedMap.set(r.transaction.id, {
+                            ...saved,
+                            transaction: {
+                                ...saved.transaction,
+                                ...r.transaction, // Campos autênticos do banco sobressaem sempre
+                            },
+                            updatedAt: r.updatedAt || saved.updatedAt
+                        });
+                    } else {
+                        reconstructedMap.set(r.transaction.id, r);
+                    }
                 });
 
-                // depois complementar com transações
-                txResults.forEach(r => {
-                    if (!reconstructedMap.has(r.transaction.id)) {
-                        reconstructedMap.set(r.transaction.id, r);
+                // 2. Complementa com itens salvos no relatório que eventualmente não estejam na consulta atual
+                reportsMap.forEach((value, key) => {
+                    if (!reconstructedMap.has(key)) {
+                        reconstructedMap.set(key, value);
                     }
                 });
 

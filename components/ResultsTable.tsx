@@ -134,7 +134,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                             
                             const bankDescription = transaction.description;
                             const identifiedName = contributor?.name || contributor?.cleanedName;
-                            const sourceInfo = resolveTransactionSource(transaction);
+                            const sourceInfo = resolveTransactionSource(transaction, { transaction, contributor, status });
 
                             return (
                                 <tr

@@ -200,19 +200,23 @@ export const resolveContributionType = (
  * Resolves the source of a transaction (e.g. 'SMS / Notif' vs 'Arquivo').
  */
 export const resolveTransactionSource = (
-    transaction?: any
+    transaction?: any,
+    parentRow?: any
 ): { label: string; isSms: boolean } => {
-    if (!transaction) return { label: 'Arquivo', isSms: false };
+    if (!transaction && !parentRow) return { label: 'Arquivo', isSms: false };
 
-    const src = (transaction.source || transaction.origin || transaction.__source || '').toString().toLowerCase();
-    const pixKey = (transaction.pix_key || transaction.pixKey || '').toString().toUpperCase();
-    const desc = (transaction.description || transaction.rawDescription || transaction.cleanedDescription || '').toString().toLowerCase();
-    const rowHash = (transaction.row_hash || transaction.rowHash || '').toString().toLowerCase();
+    const tx = transaction || parentRow?.transaction || parentRow || {};
+    const row = parentRow || {};
+
+    const src = (tx.source || tx.origin || tx.__source || row.source || row.origin || '').toString().toLowerCase();
+    const pixKey = (tx.pix_key || tx.pixKey || row.pix_key || row.pixKey || '').toString().toUpperCase();
+    const desc = (tx.description || tx.rawDescription || tx.cleanedDescription || row.description || '').toString().toLowerCase();
+    const rowHash = (tx.row_hash || tx.rowHash || row.row_hash || row.rowHash || '').toString().toLowerCase();
 
     const isSmsSource = 
         src === 'sms' || src === 'inbox' || src === 'auto_sms' || src === 'notification' || src === 'push' || src === 'extensão' || src === 'extension' || src === 'android' ||
         pixKey === 'AUTO_SMS' || pixKey === 'SMS' || pixKey.includes('AUTO_SMS') || pixKey.includes('SMS') ||
-        Boolean(transaction.isSms || transaction.is_sms) ||
+        Boolean(tx.isSms || tx.is_sms || row.isSms || row.is_sms) ||
         rowHash.startsWith('sms_') || rowHash.includes('sms') ||
         desc.includes('notificacao sms') || desc.includes('notificação sms') || desc.includes('sms_') || desc.includes('auto_sms');
 
