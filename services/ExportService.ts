@@ -8,17 +8,62 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 // Helpers para cabeçalho com Logo/Igreja e rodapé com assinaturas do Pastor e Tesoureiro
-const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string): any => {
+const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string, data?: any[]): any => {
     if (!churchesOrChurch) return null;
+    let churchesList: any[] = [];
     if (Array.isArray(churchesOrChurch)) {
-        if (selectedChurchId && selectedChurchId !== 'general' && selectedChurchId !== 'general_all' && selectedChurchId !== 'GERAL') {
-            const found = churchesOrChurch.find((c: any) => c.id === selectedChurchId);
-            if (found) return found;
+        churchesList = churchesOrChurch;
+    } else if (typeof churchesOrChurch === 'object') {
+        return churchesOrChurch;
+    }
+
+    // 1. Se selectedChurchId for um ID de igreja específico (não-geral)
+    if (selectedChurchId && selectedChurchId !== 'general' && selectedChurchId !== 'general_all' && selectedChurchId !== 'GERAL') {
+        const found = churchesList.find((c: any) => c.id === selectedChurchId || c.name === selectedChurchId);
+        if (found) return found;
+    }
+
+    // 2. Se temos transações/dados (data): verificar se pertencem a uma única igreja específica
+    if (Array.isArray(data) && data.length > 0) {
+        const detectedChurches: any[] = [];
+        for (const item of data) {
+            if (!item) continue;
+            const ch = item.church || item.contributor?.church;
+            const chId = item.churchId || item.church_id || (typeof ch === 'object' ? ch?.id : null) || item.contributor?.churchId || item.contributor?.church_id;
+            const chName = typeof ch === 'string' ? ch : ch?.name || item.contributor?.churchName;
+
+            if (chId) {
+                const foundInList = churchesList.find((c: any) => c.id === chId);
+                if (foundInList) {
+                    detectedChurches.push(foundInList);
+                    continue;
+                }
+            }
+            if (chName && chName !== '---' && chName !== 'Igreja Geral' && chName !== 'GERAL') {
+                const foundInList = churchesList.find((c: any) => (c.name || '').trim().toLowerCase() === chName.trim().toLowerCase());
+                if (foundInList) {
+                    detectedChurches.push(foundInList);
+                    continue;
+                }
+                if (typeof ch === 'object' && ch?.name) {
+                    detectedChurches.push(ch);
+                    continue;
+                }
+            }
         }
 
-        // Se for relatório geral (ou selectedChurchId não especificado / 'general' / 'general_all' / 'GERAL'):
-        // Prioridade 1: Buscar explicitamente a igreja SEDE / MATRIZ
-        const sede = churchesOrChurch.find((c: any) => {
+        if (detectedChurches.length > 0) {
+            const firstId = detectedChurches[0].id || detectedChurches[0].name;
+            const allSame = detectedChurches.every((c: any) => (c.id || c.name) === firstId);
+            if (allSame) {
+                return detectedChurches[0];
+            }
+        }
+    }
+
+    // 3. Se for relatório geral com dados de múltiplas igrejas (ou sem dados): buscar Sede / Matriz
+    if (churchesList.length > 0) {
+        const sede = churchesList.find((c: any) => {
             if (!c) return false;
             const name = (c.name || '').toLowerCase();
             return (
@@ -29,6 +74,8 @@ const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string): any =
                 c.type === 'sede' || 
                 c.type === 'matriz' || 
                 c.role === 'sede' ||
+                name === 'sede' ||
+                name.startsWith('sede ') ||
                 name.includes('sede') || 
                 name.includes('matriz') || 
                 name.includes('principal') ||
@@ -37,9 +84,10 @@ const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string): any =
         });
         if (sede) return sede;
 
-        return churchesOrChurch[0] || null;
+        return churchesList[0] || null;
     }
-    return churchesOrChurch;
+
+    return null;
 };
 
 const drawChurchHeader = (doc: jsPDF, church: any, title: string, subtitle?: string) => {
@@ -251,7 +299,7 @@ export const ExportService = {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const church = resolveChurch(churches, selectedChurchId);
+        const church = resolveChurch(churches, selectedChurchId, data);
 
         const tableRows = data.flatMap(r => {
             const date = formatDate(r.transaction.date);
@@ -616,7 +664,7 @@ ${transactionsOfx}
      */
     downloadPdf: (data: MatchResult[], title: string, filename: string = 'relatorio_conciliacao.pdf', churches?: any[], selectedChurchId?: string) => {
         const doc = new jsPDF();
-        const targetChurch = resolveChurch(churches, selectedChurchId);
+        const targetChurch = resolveChurch(churches, selectedChurchId, data);
         const subtitle = `Total de Lançamentos Conciliados: ${data.length}`;
         
         const headers = [["Data", "Descrição do Lançamento", "Igreja / Unidade", "Tipo", "Status", "Valor"]];
@@ -730,7 +778,7 @@ ${transactionsOfx}
      */
     downloadContributorsPdf: (contributors: any[], churches: any[], title: string = 'Relatório de Cadastros e Contribuintes', filename: string = 'relatorio_cadastros.pdf', selectedChurchId?: string) => {
         const doc = new jsPDF();
-        const targetChurch = resolveChurch(churches, selectedChurchId);
+        const targetChurch = resolveChurch(churches, selectedChurchId, contributors);
         const getChurchName = (cId: string) => churches.find(c => c.id === cId)?.name || targetChurch?.name || 'Igreja Geral';
         const subtitle = `Total de Registros Encontrados: ${contributors.length}`;
         
@@ -773,7 +821,7 @@ ${transactionsOfx}
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const targetChurch = resolveChurch(churches, selectedChurchId);
+        const targetChurch = resolveChurch(churches, selectedChurchId, contributors);
         const getChurchName = (cId: string) => churches.find(c => c.id === cId)?.name || targetChurch?.name || 'Igreja Geral';
 
         const pfCount = contributors.filter(c => c.personType !== 'PJ').length;
@@ -1051,7 +1099,7 @@ ${itemsOfx}
      */
     downloadLivroCaixaPdf: (transactions: any[], churches: any[], title: string = 'Livro Caixa - Extrato Analítico', filename: string = 'livro_caixa.pdf', selectedChurchId?: string) => {
         const doc = new jsPDF();
-        const targetChurch = resolveChurch(churches, selectedChurchId);
+        const targetChurch = resolveChurch(churches, selectedChurchId, transactions);
         const getChurchName = (item: any) => item.church || churches.find(c => c.id === item.churchId)?.name || targetChurch?.name || 'Igreja Sede';
 
         let totalIncome = 0;

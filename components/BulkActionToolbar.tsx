@@ -18,15 +18,25 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     const safeResults = Array.isArray(results) ? results : [];
 
     const selectedData = useMemo(() => {
-        return safeResults.filter((r: any) => selectedIds.includes(r.transaction?.id));
+        const idSet = new Set((selectedIds || []).map(id => String(id)));
+        return safeResults.filter((r: any) => {
+            if (!r) return false;
+            const txId = String(r.transaction?.id ?? r.transaction_id ?? r.transactionId ?? r.id ?? '');
+            const rId = String(r.id ?? '');
+            return idSet.has(txId) || idSet.has(rId);
+        });
     }, [selectedIds, safeResults]);
 
     const totalAmount = useMemo(() => {
         return selectedData.reduce((acc: number, curr: any) => {
-            const val = curr.status === 'PENDENTE' 
-                ? (curr.contributorAmount || curr.contributor?.amount || 0)
-                : (curr.transaction?.amount || 0);
-            return acc + val;
+            const rawVal = 
+                curr.transaction?.amount ?? 
+                curr.amount ?? 
+                curr.contributorAmount ?? 
+                curr.contributor?.amount ?? 
+                0;
+            const parsedVal = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(',', '.')) || 0;
+            return acc + Math.abs(parsedVal);
         }, 0);
     }, [selectedData]);
 
