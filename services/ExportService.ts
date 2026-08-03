@@ -167,7 +167,9 @@ const drawChurchHeader = (doc: jsPDF, church: any, title: string, subtitle?: str
     doc.text(dateStr, pageWidth - 14, 20, { align: 'right' });
 
     if (subtitle) {
-        doc.setFontSize(6.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(15, 23, 42);
         doc.text(subtitle, pageWidth - 14, 24.5, { align: 'right' });
     }
 };
@@ -665,8 +667,49 @@ ${transactionsOfx}
     downloadPdf: (data: MatchResult[], title: string, filename: string = 'relatorio_conciliacao.pdf', churches?: any[], selectedChurchId?: string) => {
         const doc = new jsPDF();
         const targetChurch = resolveChurch(churches, selectedChurchId, data);
-        const subtitle = `Total de Lançamentos Conciliados: ${data.length}`;
         
+        let totalAmount = 0;
+        data.forEach((r: MatchResult) => {
+            const isGhost = r.status === 'PENDENTE';
+            if (r.splits && r.splits.length > 0) {
+                r.splits.forEach(s => {
+                    totalAmount += Number(s.amount || 0);
+                });
+            } else {
+                const rawAmount = isGhost ? (r.contributorAmount || r.contributor?.amount || 0) : (r.transaction?.amount || 0);
+                totalAmount += Number(rawAmount || 0);
+            }
+        });
+
+        const totalFormatted = Number(totalAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const subtitle = `Total de Lançamentos: ${data.length} | Montante Total: ${totalFormatted}`;
+        
+        // Desenha o box de resumo no topo da primeira página
+        const pageWidth = doc.internal.pageSize.getWidth();
+        doc.setFillColor(248, 250, 252); // Slate 50
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.roundedRect(10, 36, pageWidth - 20, 11, 2, 2, 'FD');
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.text("REGISTROS", 14, 40.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.text(`${data.length}`, 14, 44.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("MONTANTE TOTAL", 65, 40.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(totalAmount < 0 ? 220 : 5, totalAmount < 0 ? 38 : 150, totalAmount < 0 ? 38 : 105);
+        doc.text(totalFormatted, 65, 44.5);
+
         const headers = [["Data", "Descrição do Lançamento", "Igreja / Unidade", "Tipo", "Status", "Valor"]];
         
         const rows: any[] = data.flatMap((r: MatchResult) => {
@@ -697,7 +740,7 @@ ${transactionsOfx}
         autoTable(doc, {
             head: headers,
             body: rows,
-            startY: 38,
+            startY: 50,
             margin: { top: 38, bottom: 18, left: 10, right: 10 },
             theme: 'striped',
             headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' }, // Slate 900
@@ -1115,6 +1158,48 @@ ${itemsOfx}
         const netBalance = totalIncome - totalExpense;
         const subtitle = `Entradas: R$ ${totalIncome.toFixed(2)} | Saídas: R$ ${totalExpense.toFixed(2)} | Saldo Operacional: R$ ${netBalance.toFixed(2)} | Reg: ${transactions.length}`;
 
+        // Desenha o box de resumo no topo da primeira página
+        const pageWidth = doc.internal.pageSize.getWidth();
+        doc.setFillColor(248, 250, 252); // Slate 50
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.roundedRect(10, 36, pageWidth - 20, 11, 2, 2, 'FD');
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.text("ENTRADAS", 14, 40.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(5, 150, 105); // Green
+        doc.text(`R$ ${totalIncome.toFixed(2)}`, 14, 44.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text("SAÍDAS", 60, 40.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(220, 38, 38); // Red
+        doc.text(`R$ ${totalExpense.toFixed(2)}`, 60, 44.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text("SALDO OPERACIONAL", 105, 40.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(netBalance < 0 ? 220 : 5, netBalance < 0 ? 38 : 150, netBalance < 0 ? 38 : 105);
+        doc.text(`R$ ${netBalance.toFixed(2)}`, 105, 44.5);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text("REGISTROS", 160, 40.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${transactions.length}`, 160, 44.5);
+
         const headers = [["Data", "Descrição / Histórico", "Contribuinte / Favorecido", "Categoria", "Igreja", "Tipo", "Valor (R$)"]];
         
         const rows = transactions.map(tx => {
@@ -1134,7 +1219,7 @@ ${itemsOfx}
         autoTable(doc, {
             head: headers,
             body: rows,
-            startY: 38,
+            startY: 50,
             margin: { top: 38, bottom: 18, left: 10, right: 10 },
             theme: 'striped',
             headStyles: { fillColor: [249, 115, 22], fontSize: 8, fontStyle: 'bold' },
