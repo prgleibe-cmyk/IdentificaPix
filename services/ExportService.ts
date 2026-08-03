@@ -11,10 +11,32 @@ import autoTable from 'jspdf-autotable';
 const resolveChurch = (churchesOrChurch?: any, selectedChurchId?: string): any => {
     if (!churchesOrChurch) return null;
     if (Array.isArray(churchesOrChurch)) {
-        if (selectedChurchId) {
+        if (selectedChurchId && selectedChurchId !== 'general' && selectedChurchId !== 'general_all' && selectedChurchId !== 'GERAL') {
             const found = churchesOrChurch.find((c: any) => c.id === selectedChurchId);
             if (found) return found;
         }
+
+        // Se for relatório geral (ou selectedChurchId não especificado / 'general' / 'general_all' / 'GERAL'):
+        // Prioridade 1: Buscar explicitamente a igreja SEDE / MATRIZ
+        const sede = churchesOrChurch.find((c: any) => {
+            if (!c) return false;
+            const name = (c.name || '').toLowerCase();
+            return (
+                c.is_sede || 
+                c.isSede || 
+                c.is_matriz || 
+                c.isMatriz || 
+                c.type === 'sede' || 
+                c.type === 'matriz' || 
+                c.role === 'sede' ||
+                name.includes('sede') || 
+                name.includes('matriz') || 
+                name.includes('principal') ||
+                name.includes('central')
+            );
+        });
+        if (sede) return sede;
+
         return churchesOrChurch[0] || null;
     }
     return churchesOrChurch;
