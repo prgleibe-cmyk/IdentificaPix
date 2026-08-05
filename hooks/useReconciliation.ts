@@ -184,13 +184,20 @@ export const useReconciliation = (props: any) => {
         overwriteSavedReport
     });
 
-    const { persistTransactions, clearRemoteList, hydrate } = useLiveListSync({
+    const { persistTransactions, clearRemoteList, hydrate: liveListHydrate } = useLiveListSync({
         user,
         subscription,
         setBankStatementFile,
         setSelectedBankIds,
         realtimeRefreshKey: props.realtimeRefreshKey
     });
+
+    const hydrate = useCallback(async (forceClearUI: boolean = false) => {
+        if (typeof triggerSync === 'function') {
+            triggerSync();
+        }
+        await liveListHydrate(forceClearUI);
+    }, [liveListHydrate, triggerSync]);
 
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
 
@@ -240,7 +247,7 @@ export const useReconciliation = (props: any) => {
     const closeManualIdentify = useCallback(() => {
         matcher.closeManualIdentify();
         if (setActiveView) {
-            setActiveView('dashboard');
+            setActiveView('reports');
         }
     }, [matcher, setActiveView]);
 

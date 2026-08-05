@@ -4,7 +4,8 @@ import { AppContext } from '../../contexts/AppContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, formatDate, isPeriodClosed, resolvePaymentMethod, resolveContributionType, resolveTransactionSource } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
-import { GitFork, Printer, X } from 'lucide-react';
+import { GitFork, Printer, X, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { isWhatsAppSent, getWhatsAppSentMap, sendWhatsAppDirect } from '../modals/WhatsAppReceiptModal';
 import { 
     PencilIcon, 
     ChevronUpIcon, 
@@ -83,11 +84,22 @@ const MobileCard = memo(({
     onGenerateReceipt,
     isClosedPeriod
 }: any) => {
-    const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords } = useContext(AppContext);
+    const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
+
+    const [waSent, setWaSent] = useState<boolean>(() => isWhatsAppSent(row.transaction?.id));
+
+    useEffect(() => {
+        const handleUpdate = () => {
+            setWaSent(isWhatsAppSent(row.transaction?.id));
+        };
+        window.addEventListener('whatsapp_sent_updated', handleUpdate);
+        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
+    }, [row.transaction?.id]);
+
     const isPureNumeric = (val?: string) => {
         if (!val) return true;
         const cleaned = val.trim().replace(/^R\$\s*/i, '').replace(/\./g, '').replace(',', '.');
@@ -156,7 +168,13 @@ const MobileCard = memo(({
                     <span className={`text-sm font-black tabular-nums ${isExpense ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(displayAmount, language)}
                     </span>
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center justify-end gap-1">
+                        {waSent && (
+                            <span className="text-[8px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200 uppercase flex items-center gap-0.5" title="WhatsApp Enviado">
+                                <MessageCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                <CheckCircle2 className="w-2 h-2 text-emerald-600" />
+                            </span>
+                        )}
                         {confirmed ? (
                             <span className="text-[8px] font-black px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 uppercase inline-flex items-center gap-1">
                                 <LockClosedIcon className="w-2 h-2" /> Fechado
@@ -185,7 +203,33 @@ const MobileCard = memo(({
                 </div>
             </div>
 
-                    <div className="flex items-center justify-end gap-2 w-full">
+                    <div className="flex items-center justify-end gap-2 w-full flex-wrap">
+                        <button 
+                            onClick={() => {
+                                if (openWhatsAppReceiptModal) {
+                                    openWhatsAppReceiptModal({
+                                        contributorName: displayName,
+                                        phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                        amount: displayAmount,
+                                        contributionType: displayType,
+                                        churchName: row.church?.name,
+                                        date: row.transaction.date,
+                                        transactionId: row.transaction.id
+                                    });
+                                }
+                            }}
+                            className={`px-3.5 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors border ${
+                                waSent
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 border-transparent shadow-sm'
+                            }`}
+                            title={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
+                        >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>{waSent ? 'WhatsApp Enviado' : 'WhatsApp'}</span>
+                            {waSent && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+                        </button>
+
                         <button 
                             onClick={() => onGenerateReceipt(row)} 
                             className="px-3.5 py-2 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors" 
@@ -237,12 +281,23 @@ const IncomeRow = memo(({
     canUndoIdentification = true,
     canPrintReceipt = true
 }: any) => {
-    const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords } = useContext(AppContext);
+    const { contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const row = result as MatchResult;
     // Fix: row.transaction.isConfirmed is now valid after updating Transaction interface
     const confirmed = row.isConfirmed || row.transaction.isConfirmed;
     const isGhost = row.status === 'PENDENTE';
     const isIdentified = row.status === 'IDENTIFICADO';
+
+    const [waSent, setWaSent] = useState<boolean>(() => isWhatsAppSent(row.transaction?.id));
+
+    useEffect(() => {
+        const handleUpdate = () => {
+            setWaSent(isWhatsAppSent(row.transaction?.id));
+        };
+        window.addEventListener('whatsapp_sent_updated', handleUpdate);
+        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
+    }, [row.transaction?.id]);
+
     const displayAmount = row.transaction.amount;
     const isExpense = displayAmount < 0 || 
                       row.transaction?.type?.toLowerCase() === 'expense' || 
@@ -276,10 +331,55 @@ const IncomeRow = memo(({
                 />
             </td>
             <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{displayDate}</td>
+            <td className="px-1.5 py-2.5 text-center shrink-0">
+                {waSent ? (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            sendWhatsAppDirect({
+                                contributorName: displayName,
+                                phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                amount: displayAmount,
+                                contributionType: displayType,
+                                churchName: row.church?.name,
+                                date: row.transaction.date,
+                                transactionId: row.transaction.id
+                            }, { contributors, churches, showToast });
+                        }}
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                        title="WhatsApp ENVIADO (Clique para reenviar direto)"
+                    >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    </button>
+                ) : (isIdentified || confirmed) ? (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            sendWhatsAppDirect({
+                                contributorName: displayName,
+                                phone: row.contributor?.phone || row.contributor?.mobile || row.contributor?.whatsapp || '',
+                                amount: displayAmount,
+                                contributionType: displayType,
+                                churchName: row.church?.name,
+                                date: row.transaction.date,
+                                transactionId: row.transaction.id
+                            }, { contributors, churches, showToast });
+                        }}
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-400 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                        title="WhatsApp PENDENTE (Clique para disparar direto)"
+                    >
+                        <MessageCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                    </button>
+                ) : (
+                    <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
+                )}
+            </td>
             <td className="px-4 py-2.5">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
-                        {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400" />}
+                        {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                         <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
                     {row.splits && row.splits.length > 0 && (
@@ -335,7 +435,7 @@ const IncomeRow = memo(({
             </td>
             <td className="px-4 py-2.5 text-center">
                 <div className="flex gap-1.5 items-center justify-center">
-                    {/* Todas as ações visíveis no hover */}
+                    {/* Ações adicionais no hover */}
                     <div className="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         {canPrintReceipt && (
                             <button 
@@ -525,6 +625,11 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                                 />
                             </th>
                             <SortableHeader sortKey="transaction.date" title={t('table.date')} sortConfig={sortConfig} onSort={onSort} className="w-[8%]" align="left" />
+                            <th className="px-1.5 py-3 w-[36px] text-center" title="Status de envio do WhatsApp">
+                                <div className="flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                </div>
+                            </th>
                             <SortableHeader 
                                 sortKey={reportType === 'income' ? 'contributor.name' : 'transaction.description'} 
                                 title={reportType === 'income' ? 'Nome / Contribuinte' : 'Descrição'} 

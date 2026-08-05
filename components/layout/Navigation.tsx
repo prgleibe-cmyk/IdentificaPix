@@ -76,7 +76,6 @@ export const Navigation: React.FC = memo(() => {
         { view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-4 h-4"/> },
         { view: 'cadastro', labelKey: 'nav.register', icon: <PlusCircleIcon className="w-4 h-4"/> },
         { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-4 h-4"/> },
-        { view: 'livro_caixa', labelKey: 'nav.livro_caixa', icon: <BookOpen className="w-4 h-4"/> },
         { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-4 h-4"/> },
         { view: 'financial', labelKey: 'nav.financial', icon: <CreditCardIcon className="w-4 h-4"/> },
         { view: 'settings', labelKey: 'nav.settings', icon: <Cog6ToothIcon className="w-4 h-4"/> },

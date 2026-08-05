@@ -12,7 +12,7 @@ export const ptUi = {
     'nav.search': 'Pesquisar',
     'nav.upload': 'Lançar Dados',
     'nav.register': 'Cadastro',
-    'nav.reports': 'Conciliação & Destinação',
+    'nav.reports': 'Financeiro',
     'nav.relatorios': 'Relatórios',
     'nav.livro_caixa': 'Livro Caixa',
     'nav.savedReports': 'Planilhas Salvas',

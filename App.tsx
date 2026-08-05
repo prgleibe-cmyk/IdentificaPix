@@ -54,7 +54,6 @@ const MainLayout: React.FC = () => {
                             <AppRouter />
                         </div>
 
-                        <ModalsRenderer />
                         <ExpiredBlockOverlay />
 
                         {isLoading && (
@@ -66,6 +65,7 @@ const MainLayout: React.FC = () => {
                         )}
                     </div>
                 </div>
+                <ModalsRenderer />
             </main>
 
             {toast && <Toast message={toast.message} type={toast.type} />}

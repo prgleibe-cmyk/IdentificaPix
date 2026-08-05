@@ -97,6 +97,9 @@ export const RelatoriosView: React.FC = memo(() => {
     const handleRefresh = async () => {
         setIsRefreshing(true);
         try {
+            if (typeof context?.triggerSync === 'function') {
+                context.triggerSync();
+            }
             if (typeof context?.hydrate === 'function') {
                 await context.hydrate();
             }

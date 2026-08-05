@@ -3100,13 +3100,13 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       counter++;
     }
 
-    if (start_date) {
+    if (start_date && start_date !== 'undefined' && start_date !== 'null' && String(start_date).trim() !== '') {
       query += ` AND transaction_date >= $${counter}`;
       params.push(start_date);
       counter++;
     }
 
-    if (end_date) {
+    if (end_date && end_date !== 'undefined' && end_date !== 'null' && String(end_date).trim() !== '') {
       query += ` AND transaction_date <= $${counter}`;
       params.push(end_date);
       counter++;

@@ -175,6 +175,9 @@ export interface Contributor {
   originalAmount?: string;
   contributionType?: string;
   paymentMethod?: string;
+  phone?: string;
+  mobile?: string;
+  whatsapp?: string;
   _churchName?: string;
   _churchId?: string;
   _internalId?: string;

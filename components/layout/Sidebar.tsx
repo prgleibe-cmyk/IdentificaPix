@@ -109,7 +109,7 @@ export const Sidebar: React.FC = memo(() => {
             items.push({ view: 'upload', labelKey: 'nav.upload', icon: <UploadIcon className="w-5 h-5"/> });
         }
 
-        // Conciliação & Destinação
+        // Financeiro
         items.push({ view: 'reports', labelKey: 'nav.reports', icon: <DocumentDuplicateIcon className="w-5 h-5"/> });
 
         // Cadastro apenas para o proprietário (Owner)
@@ -124,7 +124,6 @@ export const Sidebar: React.FC = memo(() => {
 
         items.push(
             { view: 'relatorios', labelKey: 'nav.relatorios', icon: <FileText className="w-5 h-5"/> },
-            { view: 'livro_caixa', labelKey: 'nav.livro_caixa', icon: <BookOpen className="w-5 h-5"/> },
             { view: 'savedReports', labelKey: 'nav.savedReports', icon: <ChartBarIcon className="w-5 h-5"/> },
             { view: 'smart_analysis', labelKey: 'nav.smart_analysis', icon: <PresentationChartLineIcon className="w-5 h-5"/> }
         );
@@ -249,24 +248,6 @@ export const Sidebar: React.FC = memo(() => {
                             )}
                         </button>
 
-                        {/* Botão Novo Lançamento (harmonizado, sem cor azul) */}
-                        <button
-                            type="button"
-                            onClick={() => handleManualLaunch('entrada')}
-                            className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
-                                activeView === 'novo_lancamento' 
-                                    ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
-                                    : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'
-                            }`}
-                            title="Novo Lançamento"
-                            id="btn-novo-lancamento"
-                        >
-                            <PlusCircleIcon className={`w-5 h-5 transition-transform ${activeView === 'novo_lancamento' ? 'scale-110 text-orange-600 dark:text-orange-400' : 'group-hover:scale-110'}`} />
-                            {!isCollapsed && <span className="text-xs font-bold tracking-wide truncate">Novo Lançamento</span>}
-                            {activeView === 'novo_lancamento' && !isCollapsed && (
-                                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
-                            )}
-                        </button>
 
                         {navItems.map((item) => (
                             <button

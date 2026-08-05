@@ -9,19 +9,23 @@ import {
     RotateCcw,
     Sparkles,
     User,
-    BookOpen
+    BookOpen,
+    Plus,
+    Trash2,
+    ListFilter
 } from 'lucide-react';
 import { 
     getStoredWhatsAppSettings, 
     saveWhatsAppSettings, 
     WhatsAppTemplateSettings,
     DEFAULT_TREASURY_TEMPLATE,
-    DEFAULT_PASTORAL_TEMPLATE
+    DEFAULT_PASTORAL_TEMPLATE,
+    DEFAULT_DYNAMIC_MESSAGES
 } from './modals/WhatsAppReceiptModal';
 
 export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 'success' | 'error') => void }> = ({ showToast }) => {
     const [settings, setSettings] = useState<WhatsAppTemplateSettings>(getStoredWhatsAppSettings);
-    const [activeTab, setActiveTab] = useState<'treasury' | 'pastor' | 'closing'>('treasury');
+    const [activeTab, setActiveTab] = useState<'treasury' | 'pastor' | 'closing' | 'dynamic_list'>('dynamic_list');
     const [savedSuccess, setSavedSuccess] = useState(false);
 
     useEffect(() => {
@@ -40,6 +44,7 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
             const defaults: WhatsAppTemplateSettings = {
                 treasuryTemplate: DEFAULT_TREASURY_TEMPLATE,
                 pastoralTemplate: DEFAULT_PASTORAL_TEMPLATE,
+                customTemplatesList: DEFAULT_DYNAMIC_MESSAGES,
                 autoOpenOnReconcile: true,
                 defaultSender: 'treasury',
                 pastorName: settings.pastorName || 'Pastor Responsável'
@@ -48,6 +53,29 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
             saveWhatsAppSettings(defaults);
             if (showToast) showToast('Modelos restaurados com sucesso!', 'success');
         }
+    };
+
+    const handleAddDynamicTemplate = () => {
+        const currentList = settings.customTemplatesList || [];
+        const newTpl = `Paz do Senhor, *{NOME}*! 🕊️\n\nConfirmamos a sua contribuição de *{VALOR}* ({TIPO}) em *{DATA}* para a *{IGREJA}*.\n\nQue Deus abençoe rica e abundantemente a sua vida!\n\nAtenciosamente,\n*{IGREJA}*`;
+        const updated = [...currentList, newTpl];
+        setSettings({ ...settings, customTemplatesList: updated });
+    };
+
+    const handleUpdateDynamicTemplate = (index: number, text: string) => {
+        const currentList = [...(settings.customTemplatesList || [])];
+        currentList[index] = text;
+        setSettings({ ...settings, customTemplatesList: currentList });
+    };
+
+    const handleDeleteDynamicTemplate = (index: number) => {
+        const currentList = settings.customTemplatesList || [];
+        if (currentList.length <= 1) {
+            if (showToast) showToast('É necessário manter pelo menos uma mensagem na lista!', 'error');
+            return;
+        }
+        const updated = currentList.filter((_, i) => i !== index);
+        setSettings({ ...settings, customTemplatesList: updated });
     };
 
     return (
@@ -64,7 +92,7 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
                             Modelos de Mensagens WhatsApp
                         </h3>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                            Configure os textos automáticos de comprovante financeiro e bênção pastoral
+                            Gerencie sua lista de mensagens dinâmicas para evitar envio repetitivo do mesmo texto
                         </p>
                     </div>
                 </div>
@@ -152,6 +180,19 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
                 <button
                     type="button"
+                    onClick={() => setActiveTab('dynamic_list')}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                        activeTab === 'dynamic_list'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                    }`}
+                >
+                    <ListFilter className="w-4 h-4" />
+                    <span>Lista Dinâmica de Mensagens ({settings.customTemplatesList?.length || 0})</span>
+                </button>
+
+                <button
+                    type="button"
                     onClick={() => setActiveTab('treasury')}
                     className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                         activeTab === 'treasury'
@@ -160,7 +201,7 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
                     }`}
                 >
                     <Landmark className="w-4 h-4" />
-                    <span>1. Tesouraria</span>
+                    <span>Tesouraria</span>
                 </button>
 
                 <button
@@ -173,7 +214,7 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
                     }`}
                 >
                     <HeartHandshake className="w-4 h-4" />
-                    <span>2. Pastor / Bênção</span>
+                    <span>Pastor / Bênção</span>
                 </button>
 
                 <button
@@ -186,36 +227,98 @@ export const WhatsAppTemplateConfig: React.FC<{ showToast?: (msg: string, type: 
                     }`}
                 >
                     <Sparkles className="w-4 h-4" />
-                    <span>3. Fechamento Mensal / Portal</span>
+                    <span>Fechamento / Portal</span>
                 </button>
             </div>
 
-            {/* Template Editor */}
-            <div className="space-y-3">
-                <textarea
-                    value={activeTab === 'treasury' ? settings.treasuryTemplate : activeTab === 'pastor' ? settings.pastoralTemplate : (settings.closingTemplate || '')}
-                    onChange={(e) => {
-                        if (activeTab === 'treasury') {
-                            setSettings({ ...settings, treasuryTemplate: e.target.value });
-                        } else if (activeTab === 'pastor') {
-                            setSettings({ ...settings, pastoralTemplate: e.target.value });
-                        } else {
-                            setSettings({ ...settings, closingTemplate: e.target.value });
-                        }
-                    }}
-                    rows={8}
-                    className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono leading-relaxed outline-none focus:ring-2 focus:ring-emerald-500/20"
-                />
+            {/* Dynamic List Section */}
+            {activeTab === 'dynamic_list' ? (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between bg-emerald-50/60 dark:bg-emerald-950/20 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                        <div>
+                            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">
+                                Rotação Automática de Mensagens
+                            </span>
+                            <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block">
+                                O sistema alterna entre estas mensagens para cada contribuinte para evitar repetições idênticas.
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleAddDynamicTemplate}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-sm cursor-pointer transition-all shrink-0"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Adicionar Nova Mensagem</span>
+                        </button>
+                    </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 space-y-1 border border-slate-200/60 dark:border-slate-700/60">
-                    <span className="font-bold text-slate-700 dark:text-slate-200 block uppercase tracking-wider text-[10px]">
-                        Variáveis Automáticas Substituídas no Momento do Envio:
-                    </span>
-                    <p>
-                        <code className="text-emerald-600 font-bold">&#123;NOME&#125;</code> - Nome | <code className="text-emerald-600 font-bold">&#123;VALOR&#125;</code> - Valor | <code className="text-emerald-600 font-bold">&#123;DATA&#125;</code> - Data | <code className="text-emerald-600 font-bold">&#123;TIPO&#125;</code> - Tipo | <code className="text-emerald-600 font-bold">&#123;IGREJA&#125;</code> - Igreja | <code className="text-emerald-600 font-bold">&#123;PASTOR&#125;</code> - Pastor | <code className="text-emerald-600 font-bold">&#123;LINK_PORTAL&#125;</code> - Link do Portal do Contribuinte
-                    </p>
+                    <div className="space-y-3">
+                        {(settings.customTemplatesList || []).map((tplText, idx) => (
+                            <div key={idx} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                        <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-[10px] flex items-center justify-center font-bold">
+                                            #{idx + 1}
+                                        </span>
+                                        Modelo de Mensagem {idx + 1}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteDynamicTemplate(idx)}
+                                        className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                        title="Excluir esta mensagem"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <textarea
+                                    value={tplText}
+                                    onChange={(e) => handleUpdateDynamicTemplate(idx, e.target.value)}
+                                    rows={4}
+                                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono leading-relaxed outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 space-y-1 border border-slate-200/60 dark:border-slate-700/60">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 block uppercase tracking-wider text-[10px]">
+                            Variáveis Automáticas Substituídas no Momento do Envio:
+                        </span>
+                        <p>
+                            <code className="text-emerald-600 font-bold">&#123;NOME&#125;</code> - Nome | <code className="text-emerald-600 font-bold">&#123;VALOR&#125;</code> - Valor | <code className="text-emerald-600 font-bold">&#123;DATA&#125;</code> - Data | <code className="text-emerald-600 font-bold">&#123;TIPO&#125;</code> - Tipo | <code className="text-emerald-600 font-bold">&#123;IGREJA&#125;</code> - Igreja | <code className="text-emerald-600 font-bold">&#123;PASTOR&#125;</code> - Pastor
+                        </p>
+                    </div>
                 </div>
-            </div>
+            ) : (
+                /* Template Editor for standard tabs */
+                <div className="space-y-3">
+                    <textarea
+                        value={activeTab === 'treasury' ? settings.treasuryTemplate : activeTab === 'pastor' ? settings.pastoralTemplate : (settings.closingTemplate || '')}
+                        onChange={(e) => {
+                            if (activeTab === 'treasury') {
+                                setSettings({ ...settings, treasuryTemplate: e.target.value });
+                            } else if (activeTab === 'pastor') {
+                                setSettings({ ...settings, pastoralTemplate: e.target.value });
+                            } else {
+                                setSettings({ ...settings, closingTemplate: e.target.value });
+                            }
+                        }}
+                        rows={8}
+                        className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono leading-relaxed outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 space-y-1 border border-slate-200/60 dark:border-slate-700/60">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 block uppercase tracking-wider text-[10px]">
+                            Variáveis Automáticas Substituídas no Momento do Envio:
+                        </span>
+                        <p>
+                            <code className="text-emerald-600 font-bold">&#123;NOME&#125;</code> - Nome | <code className="text-emerald-600 font-bold">&#123;VALOR&#125;</code> - Valor | <code className="text-emerald-600 font-bold">&#123;DATA&#125;</code> - Data | <code className="text-emerald-600 font-bold">&#123;TIPO&#125;</code> - Tipo | <code className="text-emerald-600 font-bold">&#123;IGREJA&#125;</code> - Igreja | <code className="text-emerald-600 font-bold">&#123;PASTOR&#125;</code> - Pastor | <code className="text-emerald-600 font-bold">&#123;LINK_PORTAL&#125;</code> - Link do Portal do Contribuinte
+                        </p>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

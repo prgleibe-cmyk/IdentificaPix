@@ -6,6 +6,8 @@ import { AppContext } from '../contexts/AppContext';
 import { SparklesIcon, UserPlusIcon, BrainIcon, BanknotesIcon, UserIcon, LockClosedIcon, LockOpenIcon, PencilIcon } from './Icons';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { isInvalidOrNumericName } from '../services/utils/parsingUtils';
+import { MessageCircle, CheckCircle2 } from 'lucide-react';
+import { isWhatsAppSent, sendWhatsAppDirect } from './modals/WhatsAppReceiptModal';
 
 interface ResultsTableProps {
   results: MatchResult[];
@@ -39,12 +41,21 @@ const MatchMethodIcon: React.FC<{ method: MatchResult['matchMethod'] }> = ({ met
 
 export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadingAiId, currentPage, totalPages, onPageChange }) => {
     const { t, language } = useTranslation();
-    const { toggleConfirmation, setBulkIdentificationTxs } = useContext(AppContext);
+    const { toggleConfirmation, setBulkIdentificationTxs, openWhatsAppReceiptModal, contributionTypes, paymentMethods: sysPaymentMethods, contributionKeywords, contributors, churches, showToast } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [, setWaSentTick] = useState<number>(0);
 
     useEffect(() => { 
         setSelectedIds([]); 
     }, [results.length]);
+
+    useEffect(() => {
+        const handleUpdate = () => {
+            setWaSentTick(prev => prev + 1);
+        };
+        window.addEventListener('whatsapp_sent_updated', handleUpdate);
+        return () => window.removeEventListener('whatsapp_sent_updated', handleUpdate);
+    }, []);
 
     const toggleSelection = useCallback((id: string) => {
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -108,6 +119,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                 <input type="checkbox" className="w-4 h-4 rounded-full border-slate-300 text-brand-blue" onChange={toggleAll} checked={selectedIds.length > 0 && selectedIds.length === results.length} />
                             </th>
                             <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">{t('table.date')}</th>
+                            <th className="px-1.5 py-2.5 text-center w-[36px]" title="Status do WhatsApp">
+                                <div className="flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                </div>
+                            </th>
                             <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[25%]">Nome / Descrição</th>
                             <th className="px-4 py-2.5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[10%]">Origem</th>
                             <th className="px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-[13%]">Igreja</th>
@@ -152,6 +168,51 @@ export const ResultsTable: React.FC<ResultsTableProps> = memo(({ results, loadin
                                         <input type="checkbox" className="w-4 h-4 rounded-full" checked={isSelected} onChange={() => toggleSelection(transaction.id)} />
                                     </td>
                                     <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">{displayDate}</td>
+                                    <td className="px-1.5 py-2.5 text-center shrink-0">
+                                        {isWhatsAppSent(transaction.id) ? (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    sendWhatsAppDirect({
+                                                        contributorName: identifiedName || bankDescription,
+                                                        phone: contributor?.phone || contributor?.mobile || contributor?.whatsapp || '',
+                                                        amount: displayAmount,
+                                                        contributionType: contributionType || 'Contribuição',
+                                                        churchName: church?.name,
+                                                        date: transaction.date,
+                                                        transactionId: transaction.id
+                                                    }, { contributors, churches, showToast });
+                                                }}
+                                                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                                                title="WhatsApp ENVIADO (Clique para reenviar direto)"
+                                            >
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            </button>
+                                        ) : (isIdentifiedStatus || confirmed) ? (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    sendWhatsAppDirect({
+                                                        contributorName: identifiedName || bankDescription,
+                                                        phone: contributor?.phone || contributor?.mobile || contributor?.whatsapp || '',
+                                                        amount: displayAmount,
+                                                        contributionType: contributionType || 'Contribuição',
+                                                        churchName: church?.name,
+                                                        date: transaction.date,
+                                                        transactionId: transaction.id
+                                                    }, { contributors, churches, showToast });
+                                                }}
+                                                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-300 dark:border-amber-800/80 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-400 hover:scale-115 transition-all cursor-pointer shadow-2xs mx-auto"
+                                                title="WhatsApp PENDENTE (Clique para disparar direto)"
+                                            >
+                                                <MessageCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                                            </button>
+                                        ) : (
+                                            <span className="text-slate-300 dark:text-slate-700 text-[10px] font-bold block text-center">-</span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-2.5">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">

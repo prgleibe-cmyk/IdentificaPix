@@ -2,6 +2,7 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { Calendar, FileText, DollarSign } from 'lucide-react';
 import { AppContext } from '../../contexts/AppContext';
+import { useUI } from '../../contexts/UIContext';
 import { useTranslation } from '../../contexts/I18nContext';
 import { formatCurrency, isPeriodClosed } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,6 +37,7 @@ export const ManualIdModal: React.FC = () => {
         openWhatsAppReceiptModal
     } = useContext(AppContext);
     const { t, language } = useTranslation();
+    const { setActiveView } = useUI();
     const { subscription, user } = useAuth();
 
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
@@ -350,15 +352,8 @@ export const ManualIdModal: React.FC = () => {
                     isManualLaunch ? manualType : undefined
                 );
 
-                const waSettings = getStoredWhatsAppSettings();
-                if (waSettings.autoOpenOnReconcile && openWhatsAppReceiptModal) {
-                    openWhatsAppReceiptModal({
-                        contributorName,
-                        amount: calculatedTotalAmount,
-                        contributionType: selectedType,
-                        churchName: churchObj?.name || 'Igreja',
-                        date: selectedDate
-                    });
+                if (setActiveView) {
+                    setActiveView('reports');
                 }
             }
         } catch (error) {

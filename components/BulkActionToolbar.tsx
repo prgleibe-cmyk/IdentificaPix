@@ -2,7 +2,9 @@ import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon, TrashIcon } from './Icons';
+import { MessageCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
+import { sendWhatsAppDirect } from './modals/WhatsAppReceiptModal';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
@@ -11,7 +13,7 @@ interface BulkActionToolbarProps {
 }
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
-    const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation } = useContext(AppContext);
+    const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
     const { language } = useTranslation();
 
     // ✅ PROTEÇÃO TOTAL contra undefined
@@ -58,6 +60,38 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
         onClear();
     };
 
+    const handleBulkWhatsApp = () => {
+        const items = selectedData.map((r: any) => {
+            const tx = r.transaction || r;
+            const contributor = r.contributor;
+            const displayName = r.identifiedName || contributor?.name || r.contributorName || tx.description || 'Irmão(ã)';
+            const displayAmount = Math.abs(
+                typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount || 0).replace(',', '.')) || 0
+            );
+            const displayType = r.contributionType || tx.category || 'Dízimo / Oferta';
+            const churchName = r.church?.name;
+            const date = tx.date;
+            const transactionId = tx.id;
+            const phone = contributor?.phone || contributor?.mobile || contributor?.whatsapp || '';
+
+            return {
+                contributorName: displayName,
+                phone,
+                amount: displayAmount,
+                contributionType: displayType,
+                churchName,
+                date,
+                transactionId
+            };
+        });
+
+        if (items.length === 1) {
+            sendWhatsAppDirect(items[0], { contributors, churches, showToast });
+        } else if (openWhatsAppReceiptModal) {
+            openWhatsAppReceiptModal({ items });
+        }
+    };
+
     const handleBulkDelete = () => {
         openDeleteConfirmation({
             type: 'report-row-bulk',
@@ -71,7 +105,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
 
     return (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
-            <div className="bg-brand-deep/95 text-white px-4 py-2 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.6)] border border-white/10 flex items-center gap-3 backdrop-blur-xl ring-1 ring-white/10 max-w-[600px]">
+            <div className="bg-brand-deep/95 text-white px-4 py-2.5 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.6)] border border-white/10 flex items-center gap-3 backdrop-blur-xl ring-1 ring-white/10 max-w-[720px]">
                 
                 <div className="flex items-center gap-3 border-r border-white/10 pr-3">
                     <div className="flex flex-col">
@@ -86,10 +120,10 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                         onClick={handleBulkIdentify}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-white/10"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-white/10 cursor-pointer"
                     >
                         <UserPlusIcon className="w-2.5 h-2.5" />
                         Identificar
@@ -98,7 +132,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                     {canConfirm && (
                         <button
                             onClick={handleBulkConfirm}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-emerald-500/20"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-indigo-500/20 cursor-pointer"
                         >
                             <LockClosedIcon className="w-2.5 h-2.5" />
                             Confirmar Final
@@ -106,8 +140,17 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                     )}
 
                     <button
+                        onClick={handleBulkWhatsApp}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20 border border-emerald-400/30 cursor-pointer"
+                        title="Disparar comprovantes via WhatsApp para selecionados"
+                    >
+                        <MessageCircle className="w-3 h-3 fill-white/20" />
+                        WhatsApp ({selectedIds.length})
+                    </button>
+
+                    <button
                         onClick={handleBulkDelete}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-rose-500/20"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border border-rose-500/20 cursor-pointer"
                     >
                         <TrashIcon className="w-2.5 h-2.5" />
                         Excluir
@@ -115,7 +158,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
 
                     <button
                         onClick={onClear}
-                        className="p-1.5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors ml-1"
+                        className="p-1.5 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors ml-1 cursor-pointer"
                     >
                         <XMarkIcon className="w-3 h-3" />
                     </button>

@@ -1,15 +1,15 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { useAuth } from '../contexts/AuthContext';
 import { EmptyState } from '../components/EmptyState';
 import { EditableReportTable } from '../components/reports/EditableReportTable';
-import { ChartBarIcon } from '../components/Icons';
+import { ChartBarIcon, PlusCircleIcon } from '../components/Icons';
 import { useReportsController } from '../hooks/useReportsController';
-import { Calendar, Check, Building2 } from 'lucide-react';
-import { MatchResult } from '../types';
+import { Calendar, Check, Building2, BookOpen } from 'lucide-react';
+import { MatchResult, Transaction, ReconciliationStatus } from '../types';
 import { SplitTransactionModal } from '../components/modals/SplitTransactionModal';
-import { ChurchClosingModal } from '../components/modals/ChurchClosingModal';
 
 // Sub-componentes modulares
 import { CategoryPills } from '../components/reports/CategoryPills';
@@ -39,9 +39,46 @@ const getDatesFromMonthYear = (month: number, year: number) => {
  */
 export const ReportsView: React.FC = () => {
     const ctrl = useReportsController();
+    const { setActiveView } = useUI();
     const { t, language } = useTranslation();
-    const { loadingAiId } = useContext(AppContext);
+    const { loadingAiId, setMatchResults, setBulkIdentificationTxs, bulkIdentificationTxs, churches } = useContext(AppContext);
     const { subscription, user } = useAuth();
+
+    const handleManualLaunch = (type: 'entrada' | 'saida' = 'entrada') => {
+        const existingGhost = bulkIdentificationTxs?.find((tx: any) => tx.id.startsWith('ghost-manual-'));
+        if (existingGhost) {
+            setActiveView('novo_lancamento');
+            return;
+        }
+
+        const amountFloat = 0;
+        const description = type === 'entrada' ? 'Lançamento Manual Entrada' : 'Lançamento Manual Saída';
+
+        const manualTxId = `ghost-manual-${Date.now()}`;
+        const newTx: Transaction = {
+            id: manualTxId,
+            date: new Date().toISOString().split('T')[0],
+            description: description,
+            rawDescription: description,
+            amount: amountFloat,
+            isConfirmed: false
+        };
+
+        const defaultChurch = churches[0] || { id: '', name: 'Sem Igreja', address: '', logoUrl: '' };
+
+        const newMatchResult: MatchResult = {
+            transaction: newTx,
+            contributor: null,
+            status: ReconciliationStatus.PENDING,
+            church: defaultChurch,
+            isConfirmed: false,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (setMatchResults) setMatchResults((prev: any) => [...prev, newMatchResult]);
+        if (setBulkIdentificationTxs) setBulkIdentificationTxs([newTx]);
+        setActiveView('novo_lancamento');
+    };
 
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
         subscription?.role !== 'owner' &&
@@ -55,7 +92,6 @@ export const ReportsView: React.FC = () => {
     const [customStart, setCustomStart] = useState<string>('');
     const [customEnd, setCustomEnd] = useState<string>('');
     const [splitRow, setSplitRow] = useState<MatchResult | null>(null);
-    const [isClosingModalOpen, setIsClosingModalOpen] = useState<boolean>(false);
 
     const startSelected = ctrl.searchFilters?.dateRange?.start;
     const endSelected = ctrl.searchFilters?.dateRange?.end;
@@ -132,7 +168,7 @@ export const ReportsView: React.FC = () => {
                     <div>
                         <h1 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 tracking-tight">
                             <Calendar className="w-5 h-5 text-orange-500" />
-                            Conciliação & Destinação
+                            Financeiro
                         </h1>
                         <p className="text-xs text-slate-400">
                             Sincronizando e carregando lançamentos do período selecionado...
@@ -190,14 +226,15 @@ export const ReportsView: React.FC = () => {
                 </div>
             ) : (
                 <>
-                    {/* Barra de Seleção de Mês e Período */}
+                    {/* Barra de Ações Rápidas & Seleção de Mês e Período */}
                     <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
-                        <div className="flex flex-wrap items-center gap-2 bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
-                            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl font-bold shadow-xs border border-slate-100 dark:border-slate-800">
+                        {/* Filtro de Mês e Período (Lado Esquerdo) */}
+                        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
+                            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 p-0.5 rounded-lg font-bold shadow-xs border border-slate-100 dark:border-slate-800">
                                 <button
                                     type="button"
                                     onClick={() => setSelectionMode('month')}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         selectionMode === 'month'
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -208,7 +245,7 @@ export const ReportsView: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={() => setSelectionMode('dates')}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         selectionMode === 'dates'
                                             ? 'bg-orange-500 text-white shadow-xs'
                                             : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -219,11 +256,11 @@ export const ReportsView: React.FC = () => {
                             </div>
 
                             {selectionMode === 'month' ? (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1">
                                     <select
                                         value={selectedMonth}
                                         onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-3 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
                                     >
                                         {monthsList.map(m => (
                                             <option key={m.val} value={m.val}>{m.name}</option>
@@ -232,7 +269,7 @@ export const ReportsView: React.FC = () => {
                                     <select
                                         value={selectedYear}
                                         onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-3 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
                                     >
                                         {yearsList.map(y => (
                                             <option key={y} value={y}>{y}</option>
@@ -240,24 +277,24 @@ export const ReportsView: React.FC = () => {
                                     </select>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1">
                                     <input
                                         type="date"
                                         value={customStart}
                                         onChange={(e) => setCustomStart(e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
                                     />
                                     <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
                                     <input
                                         type="date"
                                         value={customEnd}
                                         onChange={(e) => setCustomEnd(e.target.value)}
-                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
                                     />
                                     <button
                                         type="button"
                                         onClick={handleApplyCustomDates}
-                                        className="px-3 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black uppercase text-[10px] tracking-wider rounded-xl shadow-xs transition-all cursor-pointer"
+                                        className="px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black uppercase text-[10px] tracking-wider rounded-lg shadow-xs transition-all cursor-pointer"
                                     >
                                         Aplicar
                                     </button>
@@ -265,15 +302,28 @@ export const ReportsView: React.FC = () => {
                             )}
                         </div>
 
-                        {ctrl.activeCategory === 'churches' && !isSecondaryUser && (
+                        {/* Botões Lançar e Livro Caixa (Posicionados no final à direita, debaixo dos ícones de baixar/imprimir) */}
+                        <div className="flex items-center gap-1.5 ml-auto">
                             <button
-                                onClick={() => setIsClosingModalOpen(true)}
-                                className="flex items-center gap-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-full shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
+                                type="button"
+                                onClick={() => handleManualLaunch('entrada')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-xs transition-all cursor-pointer active:scale-95 border border-orange-400/30"
+                                title="Criar Novo Lançamento Manual"
                             >
-                                <Building2 className="w-3.5 h-3.5" />
-                                <span>Realizar Fechamento & Transferir Saldo</span>
+                                <PlusCircleIcon className="w-3.5 h-3.5" />
+                                <span>Lançar</span>
                             </button>
-                        )}
+
+                            <button
+                                type="button"
+                                onClick={() => setActiveView('livro_caixa')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 shadow-xs transition-all cursor-pointer active:scale-95"
+                                title="Abrir Visão do Livro Caixa"
+                            >
+                                <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>Livro Caixa</span>
+                            </button>
+                        </div>
                     </div>
 
                     {ctrl.activeCategory === 'churches' && (
@@ -335,12 +385,6 @@ export const ReportsView: React.FC = () => {
                     }}
                 />
             )}
-
-            <ChurchClosingModal 
-                isOpen={isClosingModalOpen}
-                onClose={() => setIsClosingModalOpen(false)}
-                currentChurchId={ctrl.selectedReportId}
-            />
         </div>
     );
 };

@@ -127,6 +127,7 @@ export const useCloudSync = ({
     useEffect(() => {
         if (realtimeRefreshKey && realtimeRefreshKey > 0) {
             lastDataReadyKeyRef.current = '';
+            lastSignatureRef.current = null;
         }
     }, [realtimeRefreshKey]);
 
@@ -149,7 +150,8 @@ export const useCloudSync = ({
     useEffect(() => {
         const currentSignature = JSON.stringify({
             activeReportId,
-            dataReadyKey
+            dataReadyKey,
+            realtimeRefreshKey
         });
 
         if (lastSignatureRef.current === currentSignature) {
@@ -191,8 +193,8 @@ export const useCloudSync = ({
                 const pendingPromotions: { id: string; churchId: string; bankId: string }[] = [];
 
                 // 1. Busca as transações que estão dentro do período selecionado em paralelo com os contribuintes
-                const startDate = searchFilters.dateRange.start;
-                const endDate = searchFilters.dateRange.end;
+                const startDate = searchFilters?.dateRange?.start;
+                const endDate = searchFilters?.dateRange?.end;
 
                 console.log('[RECONSTRUCT:FILTER]', {
                     effectiveUserId,
@@ -205,8 +207,16 @@ export const useCloudSync = ({
                     let from = 0;
                     const pageSize = 1000;
 
+                    let queryParams = `user_id=${effectiveUserId}&limit=${pageSize}`;
+                    if (startDate && startDate !== 'undefined' && startDate !== 'null' && String(startDate).trim() !== '') {
+                        queryParams += `&start_date=${encodeURIComponent(startDate)}`;
+                    }
+                    if (endDate && endDate !== 'undefined' && endDate !== 'null' && String(endDate).trim() !== '') {
+                        queryParams += `&end_date=${encodeURIComponent(endDate)}`;
+                    }
+
                     while (true) {
-                        const res = await fetch(`/api/v1/consolidated_transactions?user_id=${effectiveUserId}&start_date=${startDate}&end_date=${endDate}&limit=${pageSize}&offset=${from}`);
+                        const res = await fetch(`/api/v1/consolidated_transactions?${queryParams}&offset=${from}`);
                         if (!res.ok) {
                             throw new Error(`Erro ao buscar transações consolidadas do VPS: ${res.statusText}`);
                         }
@@ -587,6 +597,8 @@ export const useCloudSync = ({
                 }
             } catch (e) {
                 console.error("[CloudSync:ATOM_RECONSTRUCT_FAIL]", e);
+                lastSignatureRef.current = null;
+                lastDataReadyKeyRef.current = '';
             } finally {
                 isHydratingFromCloud.current = false;
                 setIsHydrating(false);
