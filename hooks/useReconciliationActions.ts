@@ -48,8 +48,8 @@ export const useReconciliationActions = ({
       const canonical_name = name.trim().replace(/\s+/g, ' ').toUpperCase();
       if (!canonical_name) return null;
 
-      // 1. Evitar duplicar registros buscando na lista atual
-      const listResp = await fetch('/api/v1/contributors');
+      // 1. Evitar duplicar registros buscando na lista atual da igreja
+      const listResp = await fetch(`/api/v1/contributors?church_id=${churchId}`);
       if (listResp.ok) {
         const list = await listResp.json();
         const existing = list.find((c: any) => {

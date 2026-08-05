@@ -170,16 +170,6 @@ export const useCloudSync = ({
 
         if (!isReady || activeReportId) return;
 
-        // ⚡ SE NENHUM PERÍODO FOR SELECIONADO, DEIXA CARREGAMENTO ZERADO (SUPER LEVE)
-        if (!searchFilters?.dateRange?.start || !searchFilters?.dateRange?.end) {
-            console.log("[CloudSync] Carregamento zerado: aguardando seleção de período pelo usuário.");
-            if (matchResults.length > 0) {
-                setMatchResults(() => []);
-            }
-            setHasActiveSession(false);
-            return;
-        }
-
         // 🛡️ Evita reconstrução com dados incompletos repetidos
         if (lastDataReadyKeyRef.current === dataReadyKey) return;
         lastDataReadyKeyRef.current = dataReadyKey;
