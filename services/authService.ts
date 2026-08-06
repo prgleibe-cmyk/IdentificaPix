@@ -33,12 +33,24 @@ export const authService = {
     }
   },
 
-  setAuthData(data: { user?: any; accessToken?: string; refreshToken?: string }) {
-    if (data.accessToken) {
-      localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken);
+  setAuthData(data: {
+    user?: any;
+    accessToken?: string;
+    refreshToken?: string;
+    tokens?: {
+      accessToken?: string;
+      refreshToken?: string;
+    };
+  }) {
+    if (!data) return;
+    const accessToken = data.accessToken || data.tokens?.accessToken;
+    const refreshToken = data.refreshToken || data.tokens?.refreshToken;
+
+    if (accessToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
     }
-    if (data.refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+    if (refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     }
     if (data.user) {
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));

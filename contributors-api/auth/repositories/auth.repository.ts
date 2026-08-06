@@ -158,7 +158,18 @@ export class AuthRepository {
         userData.is_verified !== undefined ? userData.is_verified : false
       ]
     );
-    return this.mapUserRow(res.rows[0]);
+    const createdUser = this.mapUserRow(res.rows[0]);
+    try {
+      await this.pool.query(
+        `INSERT INTO profiles (id, email, name, role, owner_id, subscription_status, created_at, updated_at)
+         VALUES ($1, $2, $3, 'owner', $1, 'trial', NOW(), NOW())
+         ON CONFLICT (id) DO NOTHING`,
+        [createdUser.id, createdUser.email, createdUser.name || null]
+      );
+    } catch {
+      // Ignore if profiles table does not exist yet
+    }
+    return createdUser;
   }
 
   async updateUserPassword(userId: string, newPasswordHash: string): Promise<void> {

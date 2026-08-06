@@ -121,13 +121,18 @@ export class LocalAuthProvider implements IAuthProvider {
   private isTokenExpired(token: string): boolean {
     try {
       const parts = token.split('.');
-      if (parts.length !== 3) return true;
-      const payload = JSON.parse(atob(parts[1]));
+      if (parts.length !== 3) return false;
+      let base64Url = parts[1];
+      let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const payload = JSON.parse(atob(base64));
       if (!payload.exp) return false;
       // Buffer of 30s
       return Date.now() >= (payload.exp * 1000 - 30000);
     } catch {
-      return true;
+      return false;
     }
   }
 
