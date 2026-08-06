@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { profileService } from '../../services/profileService';
 import { SubscriptionStatus } from '../../types';
 import { SystemSettings } from './AuthContracts';
 
@@ -30,17 +30,17 @@ export const useSubscriptionState = (settingsRef: React.MutableRefObject<SystemS
         const settings = settingsRef.current;
 
         try {
-            const fetchPromise = supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+            const fetchPromise = profileService.getProfile(userId);
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 15000));
 
-            const { data: profileData } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+            const profileData = await Promise.race([fetchPromise, timeoutPromise]) as any;
             const now = new Date();
             let p = (profileData as any) || {};
             
             // 🔗 HIERARCHY LOGIC: Secondary users inherit subscription from Principal
             // If the user has an owner_id different from their own ID, they are a secondary user.
             if (p.owner_id && p.owner_id !== userId) {
-                const { data: ownerData } = await supabase.from('profiles').select('*').eq('id', p.owner_id).maybeSingle() as any;
+                const ownerData = await profileService.getProfile(p.owner_id);
                 if (ownerData) {
                     // Inherit subscription fields from the Principal user
                     p.subscription_status = ownerData.subscription_status;

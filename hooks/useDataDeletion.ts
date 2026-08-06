@@ -1,6 +1,5 @@
 
 import { useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
 import { DeletingItem } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -144,7 +143,6 @@ export const useDataDeletion = ({
                     if (effectiveUserId) {
                         await consolidationService.deletePendingTransactions(effectiveUserId);
                     }
-                    try { await supabase.rpc('delete_pending_transactions'); } catch (e) { /* ignore RPC errors */ }
                     const liveReport = (reportManager?.savedReports || []).find((r: any) => r.name === '[SESSÃO_ATIVA]');
                     if (liveReport && reportManager?.overwriteSavedReport) {
                         await reportManager.overwriteSavedReport(liveReport.id, []);
@@ -159,7 +157,6 @@ export const useDataDeletion = ({
                     if (effectiveUserId) {
                         await consolidationService.deletePendingTransactions(effectiveUserId);
                     }
-                    try { await supabase.rpc('delete_pending_transactions'); } catch (e) { /* ignore RPC errors */ }
                     reconciliation.setBankStatementFile?.([]);
                     reconciliation.setSelectedBankIds?.([]);
                     reconciliation.setMatchResults?.([]);

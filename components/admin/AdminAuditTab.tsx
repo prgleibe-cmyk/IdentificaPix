@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { paymentService } from '../../services/paymentService';
+import { profileService } from '../../services/profileService';
 import { useUI } from '../../contexts/UIContext';
 import { formatCurrency } from '../../utils/formatters';
 import { MagnifyingGlassIcon } from '../Icons';
@@ -16,16 +17,10 @@ export const AdminAuditTab: React.FC = () => {
         const fetchPayments = async () => {
             setIsLoadingData(true);
             try {
-                const { data: payments, error } = await supabase
-                    .from('payments')
-                    .select('*')
-                    .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
-
-                if (error) throw error;
+                const payments = await paymentService.getPaymentsFromDb();
 
                 if (payments && payments.length > 0) {
-                    const userIds = [...new Set(payments.map((p: any) => p.user_id))];
-                    const { data: profiles } = await supabase.from('profiles').select('id, email, name').in('id', userIds) as { data: any[] | null };
+                    const profiles = await profileService.getAllProfiles();
                     
                     const enriched = payments.map((p: any) => ({
                         ...p,
@@ -37,7 +32,7 @@ export const AdminAuditTab: React.FC = () => {
                 }
             } catch (error: any) {
                 console.error("Erro ao buscar pagamentos:", error);
-                showToast("Erro ao carregar auditoria: " + error.message, "error");
+                showToast("Erro ao carregar auditoria: " + (error.message || 'Erro desconhecido'), "error");
             } finally {
                 setIsLoadingData(false);
             }

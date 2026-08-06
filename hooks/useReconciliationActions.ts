@@ -3,7 +3,7 @@ import { MatchResult, Church, ReconciliationStatus, MatchMethod, Contributor } f
 import { groupResultsByChurch } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
 import { batchState } from './reconciliation/useCloudSync';
-import { supabase } from '../services/supabaseClient';
+import { getAuthSession } from '../services/auth/authAdapter';
 import { LaunchService } from '../services/LaunchService';
 import { extractNameAndCpf } from '../utils/contributorHelper';
 import { CommunicationEventService } from '../services/CommunicationEventService';
@@ -115,7 +115,7 @@ export const useReconciliationActions = ({
     if (isManualLaunch) {
       batchState.isBatchUpdating = true;
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const session = await getAuthSession();
         const userId = session?.user?.id;
         if (!userId) {
           throw new Error("Usuário não autenticado no confirmBulkManualIdentification.");

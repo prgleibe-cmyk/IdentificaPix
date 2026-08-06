@@ -2,8 +2,8 @@ import { useState, useMemo, useContext, useCallback } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { SavedReport, Language } from '../types';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { getAuthToken } from '../services/auth/authAdapter';
 
 export type SortKey = 'name' | 'createdAt' | 'recordCount';
 export type SortDirection = 'asc' | 'desc';
@@ -118,8 +118,7 @@ export const useSavedReportsController = () => {
 
         if (!spreadsheet) {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                const token = await getAuthToken();
                 const ownerId = subscription?.ownerId || user?.id;
 
                 const response = await fetch(`/api/reference/report/${report.id}?ownerId=${ownerId}`, {

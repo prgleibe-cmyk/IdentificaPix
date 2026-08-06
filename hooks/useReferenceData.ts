@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { getAuthToken } from '../services/auth/authAdapter';
 import { Bank, Church, ChurchFormData, ContributionType, LearnedAssociation, MatchResult } from '../types';
 import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName } from '../services/utils/parsingUtils';
@@ -124,8 +124,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         const syncData = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                const token = await getAuthToken();
                 const ownerId = subscription.ownerId || user.id;
 
                 const response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
@@ -195,71 +194,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
     // ✅ REAL-TIME SYNC PARA METADADOS (Bancos, Igrejas, Associações)
     useEffect(() => {
-        const ownerId = subscription.ownerId || user?.owner_id || user?.id;
-        if (!ownerId) return;
-
-        const channel = supabase
-            .channel(`reference-realtime-${ownerId}`)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'banks', filter: `user_id=eq.${ownerId}` },
-                (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        setBanks(prev => {
-                            if (prev.some(b => b.id === payload.new.id)) return prev;
-                            return [...prev, payload.new as Bank];
-                        });
-                    } else if (payload.eventType === 'UPDATE') {
-                        setBanks(prev => prev.map(b => b.id === payload.new.id ? { ...b, ...payload.new } : b));
-                    } else if (payload.eventType === 'DELETE') {
-                        setBanks(prev => prev.filter(b => b.id !== payload.old.id));
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'churches', filter: `user_id=eq.${ownerId}` },
-                (payload) => {
-                    if (payload.eventType === 'INSERT') {
-                        setChurches(prev => {
-                            if (prev.some(c => c.id === payload.new.id)) return prev;
-                            return [...prev, payload.new as Church];
-                        });
-                    } else if (payload.eventType === 'UPDATE') {
-                        setChurches(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
-                    } else if (payload.eventType === 'DELETE') {
-                        setChurches(prev => prev.filter(c => c.id !== payload.old.id));
-                    }
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'learned_associations', filter: `user_id=eq.${ownerId}` },
-                (payload) => {
-                    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                        const d = payload.new;
-                        const newAssoc: LearnedAssociation = {
-                            id: d.id,
-                            normalizedDescription: d.normalized_description,
-                            contributorNormalizedName: d.contributor_normalized_name,
-                            churchId: d.church_id,
-                            bankId: 'global',
-                            user_id: d.user_id
-                        };
-                        setLearnedAssociations(prev => {
-                            const filtered = prev.filter(la => la.id !== d.id && la.normalizedDescription !== d.normalized_description);
-                            return [newAssoc, ...filtered];
-                        });
-                    } else if (payload.eventType === 'DELETE') {
-                        setLearnedAssociations(prev => prev.filter(la => la.id !== payload.old.id));
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        // Handled via REST API
     }, [user?.id, subscription.ownerId, setBanks, setChurches, setLearnedAssociations]);
 
     const learnAssociation = useCallback(async (matchResult: MatchResult) => {

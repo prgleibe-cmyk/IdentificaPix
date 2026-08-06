@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { getAuthToken } from '../services/auth/authAdapter';
 import { MatchResult } from '../types';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
 
@@ -46,8 +46,7 @@ export const useCloudSync = ({
         lastCloudSyncRef.current = payload;
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = await getAuthToken();
 
             // Sincroniza imediatamente
             await fetch('/api/reference/report/sync', {

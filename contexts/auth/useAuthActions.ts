@@ -1,37 +1,37 @@
-
 import React, { useCallback } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { profileService } from '../../services/profileService';
+import { paymentService } from '../../services/paymentService';
 import { SubscriptionStatus } from '../../types';
 
 export const useAuthActions = (
     user: any, 
-    // Fix: Added React to imports and typed setSubscription using React.Dispatch and React.SetStateAction
     setSubscription: React.Dispatch<React.SetStateAction<SubscriptionStatus>>,
     refreshSubscription: () => Promise<void>
 ) => {
     const addSubscriptionDays = useCallback(async (days: number) => {
         if (!user) return;
-        const { data: p } = await (supabase.from('profiles') as any).select('subscription_ends_at').eq('id', user.id).single();
+        const p = await profileService.getProfile(user.id);
         const now = new Date();
-        const currentEnd = (p as any)?.subscription_ends_at ? new Date((p as any).subscription_ends_at) : now;
+        const currentEnd = p?.subscription_ends_at ? new Date(p.subscription_ends_at) : now;
         const baseDate = currentEnd.getTime() < now.getTime() ? now : currentEnd;
         const next = new Date(baseDate.getTime() + days * 86400000);
-        await (supabase.from('profiles') as any).update({ subscription_status: 'active', subscription_ends_at: next.toISOString() }).eq('id', user.id);
+        await profileService.updateProfile(user.id, {
+            subscription_status: 'active',
+            subscription_ends_at: next.toISOString()
+        });
         await refreshSubscription();
     }, [user, refreshSubscription]);
 
     const updateLimits = useCallback(async (slots: number) => {
         if (!user) return;
         
-        // Ao realizar qualquer upgrade de slots, definimos o limite de IA para um valor 
-        // virtualmente infinito (999.999 tokens/usos) para não barrar o usuário.
         const UNLIMITED_AI = 999999;
         
-        await (supabase.from('profiles') as any).update({ 
+        await profileService.updateProfile(user.id, { 
             limit_ai: UNLIMITED_AI, 
             max_churches: slots, 
             max_banks: slots 
-        }).eq('id', user.id);
+        });
         
         refreshSubscription();
     }, [user, refreshSubscription]);
@@ -39,13 +39,14 @@ export const useAuthActions = (
     const incrementAiUsage = useCallback(async () => {
         if (!user) return;
         setSubscription(s => ({ ...s, aiUsage: (s.aiUsage || 0) + 1 }));
-        const { data: p } = await (supabase.from('profiles') as any).select('usage_ai').eq('id', user.id).single();
-        await (supabase.from('profiles') as any).update({ usage_ai: ((p as any)?.usage_ai || 0) + 1 }).eq('id', user.id);
+        const p = await profileService.getProfile(user.id);
+        const currentUsage = p?.usage_ai || 0;
+        await profileService.updateProfile(user.id, { usage_ai: currentUsage + 1 });
     }, [user, setSubscription]);
 
     const registerPayment = useCallback(async (amount: number, method: string, notes?: string) => {
         if (!user) return;
-        await (supabase.from('payments') as any).insert({ user_id: user.id, amount, status: 'approved', notes: notes || `Via ${method}` });
+        await paymentService.recordPaymentInDb(user.id, amount, 'approved', notes || `Via ${method}`, method);
         await addSubscriptionDays(30);
     }, [user, addSubscriptionDays]);
 

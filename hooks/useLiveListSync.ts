@@ -3,7 +3,6 @@ import { Transaction } from '../types';
 import { consolidationService } from '../services/ConsolidationService';
 import { LaunchService } from '../services/LaunchService';
 import { useUI } from '../contexts/UIContext';
-import { supabase } from '../services/supabaseClient';
 
 export const useLiveListSync = ({
     user,
@@ -131,28 +130,7 @@ export const useLiveListSync = ({
     }, [realtimeRefreshKey, hydrate]);
 
     useEffect(() => {
-        const ownerId = subscription?.ownerId || user?.owner_id || user?.id;
-        if (!ownerId) return;
-
-        const channel = supabase
-            .channel(`realtime-viva-${ownerId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'consolidated_transactions',
-                    filter: `user_id=eq.${ownerId}`
-                },
-                () => {
-                    hydrateRef.current(false);
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        // Realtime sync handled via local API & polling
     }, [user?.id, subscription?.ownerId, subscription?.role, realtimeRefreshKey]);
 
     useEffect(() => {

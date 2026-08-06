@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { authService } from '../../services/authService';
 
 interface ResetPasswordModalProps {
     onClose: () => void;
@@ -27,8 +27,10 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ onClose 
         setError(null);
 
         try {
-            const { error: resetError } = await (supabase.auth as any).updateUser({ password });
-            if (resetError) throw resetError;
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetToken = urlParams.get('resetToken') || urlParams.get('token') || '';
+            const res = await authService.resetPassword(resetToken, password);
+            if (!res.success) throw new Error(res.error || 'Erro ao redefinir senha');
             setSuccess(true);
             setTimeout(() => {
                 onClose();
@@ -40,6 +42,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ onClose 
             setLoading(false);
         }
     };
+
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

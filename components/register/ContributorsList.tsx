@@ -4,7 +4,6 @@ import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { UsersIcon, PlusCircleIcon, SearchIcon, XMarkIcon } from '../Icons';
 import { Camera, Trash2, Edit2, Loader2, Upload, Check, AlertTriangle, FileUp, Sparkles, User, Building2, Landmark, MapPin, Phone, Mail, FileText, Tag, Calendar, ShieldCheck, Globe } from 'lucide-react';
-import { supabase } from '../../services/supabaseClient';
 import * as XLSX from 'xlsx';
 import { InlineRoleSelector } from './InlineRoleSelector';
 

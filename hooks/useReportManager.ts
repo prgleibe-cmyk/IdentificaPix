@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../services/supabaseClient';
+import { getAuthToken } from '../services/auth/authAdapter';
 import { usePersistentState } from './usePersistentState';
 import { SavedReport, SearchFilters, SavingReportState, MatchResult, SpreadsheetData } from '../types';
 
@@ -123,8 +123,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
             
             try {
                 // Agora sempre buscamos via API para centralizar a lógica no ReportService.js do backend
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                const token = await getAuthToken();
 
                 if (ENABLE_HEAVY_LOGS) {
                     console.log("[AUDIT][FETCH_START]", {
@@ -200,66 +199,7 @@ export const useReportManager = (user: any | null, showToast: (msg: string, type
      * 🔴 TEMPO REAL (APENAS ASSINATURA)
      */
     useEffect(() => {
-        const ownerId = subscription.ownerId || user?.id;
-        if (!user || !ownerId) return;
-
-        const channel = supabase
-            .channel(`reports-realtime-${ownerId}`)
-            .on(
-                'postgres_changes',
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'saved_reports',
-                    filter: `user_id=eq.${ownerId}` 
-                },
-                (payload: any) => {
-                    const newRecord = payload.new;
-                    const oldRecord = payload.old;
-
-                    setSavedReports(prev => {
-                        // DELETE
-                        if (payload.eventType === 'DELETE') {
-                            return (prev || []).filter(r => r.id !== oldRecord.id);
-                        }
-
-                        // INSERT ou UPDATE
-                        let parsedData;
-                        try {
-                            parsedData = typeof newRecord.data === 'string' ? JSON.parse(newRecord.data) : newRecord.data;
-                        } catch (error) {
-                            console.error("JSON corrompido detectado:", error);
-                            parsedData = {
-                                results: [],
-                                spreadsheet: null
-                            };
-                        }
-
-                        const parsed: SavedReport = {
-                            id: newRecord.id,
-                            name: newRecord.name,
-                            createdAt: newRecord.created_at,
-                            recordCount: newRecord.record_count,
-                            user_id: newRecord.user_id,
-                            church_id: newRecord.church_id,
-                            data: parsedData
-                        };
-
-                        const exists = prev.find(r => r.id === parsed.id);
-
-                        if (exists) {
-                            return prev.map(r => r.id === parsed.id ? parsed : r);
-                        } else {
-                            return [parsed, ...prev];
-                        }
-                    });
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        // Realtime updates handled via local API & polling/broadcast
     }, [user, subscription.ownerId, realtimeRefreshKey]);
 
     const openSearchFilters = useCallback(() => setIsSearchFiltersOpen(true), []);

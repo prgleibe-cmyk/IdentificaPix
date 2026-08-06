@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { getAuthSession } from '../../services/auth/authAdapter';
+import { profileService } from '../../services/profileService';
 import { UserProfile, ADMIN_PERMISSIONS } from './types';
 
 interface UserContextType {
@@ -22,50 +23,16 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(true);
         
         try {
-            // 1. Tenta buscar pelo ID real do usuário (Cenário ideal)
-            let { data, error } = await (supabase as any)
-                .from('user_profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
+            const data = await profileService.getProfile(userId);
 
-            if (data && !error) {
-                console.log(`[UserContext] Perfil carregado via ID: ${data.role} | Congregação: ${data.congregation_id}`);
-                setProfile(data as UserProfile);
+            if (data) {
+                console.log(`[UserContext] Perfil carregado via ID: ${data.role}`);
+                setProfile(data as any);
                 setLoading(false);
                 return;
             }
 
-            // 2. Se não encontrou por ID, tenta o resgate pelo e-mail (Cenário: Novo Tesoureiro ou Admin sem ID)
-            if (userEmail) {
-                const cleanEmail = userEmail.toLowerCase().trim();
-                console.log(`[UserContext] ID não encontrado. Tentando resgate por e-mail: ${cleanEmail}`);
-                
-                const { data: emailData } = await (supabase as any)
-                    .from('user_profiles')
-                    .select('*')
-                    .eq('email', cleanEmail)
-                    .single();
-                
-                if (emailData) {
-                    console.log(`[UserContext] Perfil encontrado por e-mail. Vinculando ID ${userId}...`);
-                    const { data: claimed, error: claimError } = await (supabase as any)
-                        .from('user_profiles')
-                        .update({ id: userId } as any)
-                        .eq('email', cleanEmail)
-                        .select()
-                        .single();
-                    
-                    if (!claimError && claimed) {
-                        console.log(`[UserContext] Vínculo realizado com sucesso: ${claimed.role}`);
-                        setProfile(claimed as UserProfile);
-                        setLoading(false);
-                        return;
-                    }
-                }
-            }
-
-            // 3. Fallback Master (Última instância de segurança para o dono do sistema)
+            // Fallback Master Admin
             const isMasterAdmin = userEmail?.toLowerCase().trim() === 'identificapix@gmail.com';
             if (isMasterAdmin) {
                 console.warn("[UserContext] Aplicando Fallback Master Admin para identificapix@gmail.com");
@@ -91,19 +58,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (session?.user) {
-                const email = session.user.email || null;
-                setAuthEmail(email);
-                fetchProfile(session.user.id, email);
-            } else {
-                setProfile(null);
-                setAuthEmail(null);
-                setLoading(false);
-            }
-        });
-
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        getAuthSession().then((session) => {
             if (session?.user) {
                 const email = session.user.email || null;
                 setAuthEmail(email);
@@ -112,12 +67,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setLoading(false);
             }
         });
-
-        return () => subscription.unsubscribe();
     }, []);
 
     const refreshProfile = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+        const session = await getAuthSession();
         if (session?.user) {
             await fetchProfile(session.user.id, session.user.email || null);
         }

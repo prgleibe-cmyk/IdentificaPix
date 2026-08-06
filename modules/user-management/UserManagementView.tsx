@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useContext } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { profileService } from '../../services/profileService';
 import { usePermissions } from './usePermissions';
 import { UserProfile, DEFAULT_TREASURER_PERMISSIONS } from './types';
 import { AppContext } from '../../contexts/AppContext';
@@ -49,13 +49,15 @@ export const UserManagementView: React.FC = () => {
     const fetchUsers = async () => {
         if (!adminProfile) return;
         setLoading(true);
-        const { data, error } = await (supabase as any)
-            .from('user_profiles')
-            .select('*')
-            .eq('main_account_id', adminProfile.main_account_id);
-        
-        if (data) setUsers(data as UserProfile[]);
-        setLoading(false);
+        try {
+            const data = await profileService.getAllProfiles();
+            const filtered = data.filter((p: any) => p.owner_id === adminProfile.main_account_id || p.id === adminProfile.id);
+            setUsers(filtered as any);
+        } catch (e) {
+            console.error("Erro ao buscar usuários:", e);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -67,51 +69,30 @@ export const UserManagementView: React.FC = () => {
         if (!adminProfile) return;
 
         const payload = {
-            main_account_id: adminProfile.main_account_id,
+            owner_id: adminProfile.main_account_id,
             role,
-            congregation_id: role === 'admin' ? null : congregationId,
+            congregation: role === 'admin' ? null : congregationId,
             permissions,
-            is_active: true
+            is_blocked: false
         };
 
-        if (editingUser) {
-            const { error } = await (supabase as any)
-                .from('user_profiles')
-                .update(payload as any)
-                .eq('id', editingUser.id);
-            
-            if (!error) {
+        try {
+            if (editingUser) {
+                await profileService.updateProfile(editingUser.id, payload as any);
                 setEditingUser(null);
                 setShowAddModal(false);
                 fetchUsers();
             } else {
-                alert("Erro ao atualizar: " + error.message);
-            }
-        } else {
-            // Novo Usuário - Pré-cadastro por E-mail
-            const { error } = await (supabase as any)
-                .from('user_profiles')
-                .insert([{
-                    id: crypto.randomUUID(), // ID temporário que será substituído no primeiro login
+                await profileService.upsertProfile({
+                    id: crypto.randomUUID(),
                     email: email.toLowerCase().trim(),
-                    main_account_id: adminProfile.main_account_id,
-                    role,
-                    congregation_id: role === 'admin' ? null : congregationId,
-                    permissions,
-                    is_active: true
-                }] as any);
-            
-            if (!error) {
+                    ...payload
+                } as any);
                 setShowAddModal(false);
-                setEmail('');
                 fetchUsers();
-            } else {
-                if (error.code === 'PGRST205' || (error as any).status === 404) {
-                    alert("Erro de Sincronização: A tabela 'user_profiles' não foi detectada pela API. Por favor, execute 'NOTIFY pgrst, 'reload schema';' no SQL Editor do Supabase ou aguarde 1 minuto.");
-                } else {
-                    alert("Erro ao criar usuário: " + error.message);
-                }
             }
+        } catch (error: any) {
+            alert("Erro ao salvar usuário: " + (error.message || error));
         }
     };
 

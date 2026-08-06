@@ -5,7 +5,7 @@ import { useUI } from '../contexts/UIContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AppContext } from '../contexts/AppContext';
 import { UserIcon, PlusCircleIcon, UsersIcon, XMarkIcon, LockClosedIcon, EnvelopeIcon, TrashIcon, PencilIcon } from '../components/Icons';
-import { supabase } from '../services/supabaseClient';
+import { getAuthToken } from '../services/auth/authAdapter';
 
 export const UsersManagementPage: React.FC = () => {
     const { setActiveView } = useUI();
@@ -54,8 +54,7 @@ export const UsersManagementPage: React.FC = () => {
         setIsLoadingUsers(true);
         try {
             // Obter token da sessão
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = await getAuthToken();
 
             // Usando a API do backend para listar usuários, ignorando RLS do frontend
             const response = await fetch(`/api/users/list/${effectiveOwnerId}`, {
@@ -127,8 +126,7 @@ export const UsersManagementPage: React.FC = () => {
                 });
             }
 
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = await getAuthToken();
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -258,8 +256,7 @@ export const UsersManagementPage: React.FC = () => {
 
         try {
             const effectiveOwnerId = authUser?.owner_id || authUser?.id;
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = await getAuthToken();
 
             const response = await fetch(`/api/users/delete/${userId}?ownerId=${effectiveOwnerId}`, {
                 method: 'DELETE',

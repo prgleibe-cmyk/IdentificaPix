@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { authService } from '../services/authService';
 
 export const useAuthController = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -23,27 +23,16 @@ export const useAuthController = () => {
         setLoading(true);
         setError(null);
         try {
-            const { error } = await (supabase.auth as any).signInWithOAuth({
-                provider: 'google',
-                options: {
-                    queryParams: {
-                        access_type: 'offline',
-                        prompt: 'consent',
-                    },
-                    redirectTo: window.location.origin
-                },
-            });
-            if (error) throw error;
+            // Google OAuth integration via VPS backend or notification
+            setError('Autenticação Google temporariamente indisponível. Utilize e-mail e senha.');
+            setLoading(false);
         } catch (err: any) {
             console.error("Google login error:", err);
-            setError(err.message === 'Failed to fetch' 
-                ? 'O servidor está acordando. Aguarde alguns segundos e tente novamente.' 
-                : (err.message || 'Erro ao conectar com Google.'));
+            setError(err.message || 'Erro ao conectar com Google.');
             setLoading(false);
         }
     };
 
-    // Fix: Added React to imports and typed event as React.FormEvent
     const handleAuth = async (event: React.FormEvent) => {
         event.preventDefault();
         setLoading(true);
@@ -57,11 +46,11 @@ export const useAuthController = () => {
                 return;
             }
             try {
-                const { error: resetError } = await (supabase.auth as any).resetPasswordForEmail(email, {
-                    redirectTo: window.location.origin
-                });
-                if (resetError) throw resetError;
-                setMessage('Email de recuperação enviado! Verifique sua caixa de entrada.');
+                const res = await authService.requestPasswordReset(email);
+                if (!res.success) {
+                    throw new Error(res.error || 'Erro ao solicitar recuperação de senha.');
+                }
+                setMessage('Instruções de recuperação enviadas! Verifique sua caixa de entrada.');
             } catch (err: any) {
                 console.error("Reset password error:", err);
                 setError(err.message || 'Erro ao enviar email de recuperação.');
@@ -77,41 +66,27 @@ export const useAuthController = () => {
             return;
         }
 
-        let attempts = 0;
-        const maxAttempts = 3;
-        let success = false;
-
-        while (attempts < maxAttempts && !success) {
-            attempts++;
-            try {
-                if (isLogin) {
-                    const { error } = await (supabase.auth as any).signInWithPassword({ email, password });
-                    if (error) throw error;
-                } else {
-                    const { error } = await (supabase.auth as any).signUp({
-                        email,
-                        password,
-                        options: { data: { full_name: name } }
-                    });
-                    if (error) throw error;
-                    setMessage('Cadastro realizado! Verifique seu email para confirmação.');
+        try {
+            if (isLogin) {
+                const res = await authService.login(email, password);
+                if (!res.success) {
+                    throw new Error(res.error || 'Email ou senha incorretos.');
                 }
-                success = true;
-            } catch (err: any) {
-                if (attempts === maxAttempts) {
-                    if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
-                        setError('O servidor está demorando para responder (Cold Start). Aguarde 10 segundos e tente novamente.');
-                    } else if (err.message.includes('Invalid login credentials')) {
-                        setError('Email ou senha incorretos.');
-                    } else {
-                        setError(err.message || 'Ocorreu um erro inesperado.');
-                    }
-                } else {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                window.location.reload();
+            } else {
+                const res = await authService.signup(email, password, name);
+                if (!res.success) {
+                    throw new Error(res.error || 'Erro ao realizar cadastro.');
                 }
+                setMessage('Cadastro realizado com sucesso! Você já pode entrar.');
+                setIsLogin(true);
             }
+        } catch (err: any) {
+            console.error("Auth error:", err);
+            setError(err.message || 'Ocorreu um erro na autenticação.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return {

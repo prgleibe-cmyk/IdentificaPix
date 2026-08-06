@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { AutomationMacroService } from '../services/AutomationMacroService';
 
 interface UseAutomationSyncProps {
     user: any;
@@ -15,22 +15,17 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
 
     const fetchMacros = useCallback(async (silent = false) => {
         if (!effectiveUserId) return;
-        if (!silent) console.log("[AutomationSync] Buscando macros no banco para o usuário:", effectiveUserId);
+        if (!silent) console.log("[AutomationSync] Buscando macros no banco (VPS API) para o usuário:", effectiveUserId);
         
-        const { data, error } = await supabase
-            .from('automation_macros')
-            .select('*')
-            .eq('user_id', effectiveUserId)
-            .order('created_at', { ascending: false });
-        
-        if (error) {
-            console.error("[AutomationSync] Erro ao buscar macros:", error.message);
-            return;
+        try {
+            const data = await AutomationMacroService.getAll(effectiveUserId);
+            if (data) {
+                setAutomationMacros(data);
+            }
+        } catch (error: any) {
+            console.error("[AutomationSync] Erro ao buscar macros:", error?.message || error);
         }
-        if (data) {
-            setAutomationMacros(data);
-        }
-    }, [user]);
+    }, [user, effectiveUserId]);
 
     useEffect(() => {
         fetchMacros();
@@ -46,22 +41,18 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
             if (type === "SAVE_TRAINING" && effectiveUserId) {
                 setIsLoading(true);
                 try {
-                    console.log(`[WRITE:FIX] Salvando macro com effectiveUserId: ${effectiveUserId}`);
-                    const { data, error } = await (supabase.from('automation_macros') as any)
-                        .insert({
-                            user_id: effectiveUserId,
-                            name: `Macro ${payload.bankName || 'Treino'} - ${new Date().toLocaleTimeString()}`,
-                            steps: payload.steps,
-                            target_url: payload.targetUrl || null
-                        })
-                        .select();
-
-                    if (error) throw error;
+                    console.log(`[WRITE:FIX] Salvando macro com effectiveUserId na VPS: ${effectiveUserId}`);
+                    const newMacro = await AutomationMacroService.create({
+                        user_id: effectiveUserId,
+                        name: `Macro ${payload.bankName || 'Treino'} - ${new Date().toLocaleTimeString()}`,
+                        steps: payload.steps,
+                        target_url: payload.targetUrl || null
+                    });
                     
-                    setAutomationMacros(prev => [data[0], ...prev]);
+                    setAutomationMacros(prev => [newMacro, ...prev]);
                     showToast("IA: Novo percurso aprendido e habilitado!", "success");
                 } catch (e: any) {
-                    console.error("[AutomationSync] ERRO CRÍTICO AO SALVAR MACRO:", e.message);
+                    console.error("[AutomationSync] ERRO CRÍTICO AO SALVAR MACRO:", e?.message || e);
                     showToast("Erro ao salvar aprendizado no banco de dados.", "error");
                 } finally {
                     setIsLoading(false);
@@ -71,7 +62,7 @@ export const useAutomationSync = ({ user, setIsLoading, showToast }: UseAutomati
 
         window.addEventListener("message", handleExtensionMessage);
         return () => window.removeEventListener("message", handleExtensionMessage);
-    }, [user, setIsLoading, showToast]);
+    }, [user, effectiveUserId, setIsLoading, showToast]);
 
     return { automationMacros, fetchMacros };
 };

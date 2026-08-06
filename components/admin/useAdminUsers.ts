@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../../services/supabaseClient';
+import { profileService } from '../../services/profileService';
 import { useUI } from '../../contexts/UIContext';
 
 export const useAdminUsers = () => {
@@ -29,12 +29,7 @@ export const useAdminUsers = () => {
     const fetchUsers = useCallback(async () => {
         setIsLoadingData(true);
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .order('created_at', { ascending: false });
-            
-            if (error) throw error;
+            const data = await profileService.getAllProfiles();
             setUsersList(data || []);
         } catch (error: any) {
             console.error("Erro ao buscar usuários:", error);
@@ -66,7 +61,6 @@ export const useAdminUsers = () => {
         });
     }, []);
 
-    // Fix: Added React to imports and typed event as React.FormEvent
     const handleSaveUser = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUser) return;
@@ -89,12 +83,7 @@ export const useAdminUsers = () => {
             if (formData.trial_ends_at) updates.trial_ends_at = new Date(formData.trial_ends_at).toISOString();
             if (formData.subscription_ends_at) updates.subscription_ends_at = new Date(formData.subscription_ends_at).toISOString();
 
-            const { error } = await (supabase
-                .from('profiles') as any)
-                .update(updates)
-                .eq('id', editingUser.id);
-
-            if (error) throw error;
+            await profileService.updateProfile(editingUser.id, updates);
 
             showToast("Usuário atualizado com sucesso!", "success");
             setEditingUser(null);
@@ -116,12 +105,8 @@ export const useAdminUsers = () => {
         
         setIsDeleting(userToDelete.id);
         try {
-            const { error } = await (supabase
-                .from('profiles')
-                .delete()
-                .eq('id', userToDelete.id) as any);
-
-            if (error) throw error;
+            const success = await profileService.deleteProfile(userToDelete.id);
+            if (!success) throw new Error("Falha ao remover usuário do banco");
 
             showToast("Usuário excluído com sucesso!", "success");
             setUserToDelete(null);

@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { supabase } from '../services/supabaseClient';
 import { 
     MatchResult, 
     Transaction, 
@@ -137,21 +136,13 @@ export const useReconciliation = (props: any) => {
     }, []);
 
     // 📡 GATILHO DE SINCRONIZAÇÃO GLOBAL
-    const triggerSync = useCallback((updatedRow: MatchResult) => {
+    const triggerSync = useCallback((updatedRow?: MatchResult) => {
+        if (!updatedRow) return;
         const ownerId = subscription.ownerId || user?.id;
         if (!ownerId) return;
 
         const payload = buildCanonicalPayload(updatedRow);
-
         console.log("[Sync:Trigger] Payload CANÔNICO:", payload);
-        
-        supabase
-            .channel(`sync-granular-${ownerId}`)
-            .send({
-                type: 'broadcast',
-                event: 'transaction_updated',
-                payload
-            });
     }, [user?.id, subscription.ownerId, buildCanonicalPayload]);
 
     const params = {

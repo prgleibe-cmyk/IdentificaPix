@@ -10,7 +10,7 @@ import { useModalController } from '../hooks/useModalController';
 import { useDataDeletion } from '../hooks/useDataDeletion';
 import { useAiAutoIdentify } from '../hooks/useAiAutoIdentify';
 import { useSummaryData } from '../hooks/useSummaryData';
-import { supabase } from '../services/supabaseClient';
+import { getAuthToken, getAuthSession } from '../services/auth/authAdapter';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
 const ENABLE_HEAVY_LOGS = false;
 
@@ -47,15 +47,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             
             console.log("[AppContext:RealtimeRefresh] Dispositivos / Foco reativado. Sincronizando canais de tempo real e forçando hidratação.");
             setRealtimeRefreshKey(prev => prev + 1);
-            
-            if (supabase && (supabase as any).realtime) {
-                try {
-                    (supabase as any).realtime.disconnect();
-                    (supabase as any).realtime.connect();
-                } catch (e) {
-                    console.error("[AppContext:RealtimeRefresh] Erro ao reconectar cliente Supabase:", e);
-                }
-            }
         };
 
         const handleVisibilityChange = () => {
@@ -111,11 +102,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             let results;
             let spreadsheet;
 
-            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            const session = await getAuthSession();
+            const currentUser = session?.user;
             const ownerId = subscription.ownerId || currentUser?.id;
 
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = await getAuthToken();
 
             const response = await fetch(`/api/reference/report/${reportId}?ownerId=${ownerId}`, {
                 method: 'GET',
@@ -307,43 +298,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const ownerId = subscription.ownerId || user?.id;
         if (!ownerId) return;
-
-        // Canal de Broadcast para sincronização granular em tempo real
-        const channel = supabase
-            .channel(`sync-granular-${ownerId}`)
-            .on('broadcast', { event: 'transaction_updated' }, ({ payload }) => {
-                console.log("[Sync:Broadcast] Recebendo atualização granular:", payload);
-                
-                // Atualização direta do estado conforme solicitado
-                reconciliation.setMatchResults(prev =>
-    prev.map(item => {
-        if (item.transaction.id !== payload.transaction?.id) return item;
-
-        return {
-            ...item,
-
-            // 🔥 ATUALIZAÇÃO EXPLÍCITA (ESSENCIAL)
-            status: payload.status ?? item.status,
-            isConfirmed: payload.isConfirmed ?? item.isConfirmed,
-            contributionType: payload.contributionType ?? item.contributionType,
-            paymentMethod: payload.paymentMethod ?? item.paymentMethod,
-            contributor: payload.contributor ?? item.contributor,
-            church: payload.church ?? item.church,
-
-            // 🔒 transaction NÃO deve sobrescrever tudo
-            transaction: {
-                ...item.transaction,
-                ...(payload.transaction || {})
-            }
-        };
-    })
-);
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     }, [user?.id, subscription.ownerId]);
 
     // 🔄 SYNC DO RELATÓRIO SALVO (Via Tabelas)

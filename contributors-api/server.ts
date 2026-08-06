@@ -6,6 +6,12 @@ import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { createAuthRouter, AuthRepository } from './auth/routes/auth.routes.js';
+import { createAdminConfigRouter } from './admin-config/routes/admin_config.routes.js';
+import { createAutomationMacroRouter } from './automation-macros/routes/automation_macro.routes.js';
+import { createFileModelRouter } from './file-models/routes/file_model.routes.js';
+import { createProfileRouter } from './profiles/routes/profile.routes.js';
+import { createPaymentRouter } from './payments/routes/payment.routes.js';
 
 const requireFallback = createRequire(import.meta.url);
 
@@ -278,12 +284,38 @@ if (connectionString) {
   }) as any;
 }
 
+// Mount Local Auth Router
+app.use('/api/v1/auth', createAuthRouter(pool));
+
+// Mount Admin Config Router
+app.use('/api/v1/admin-config', createAdminConfigRouter(pool));
+
+// Mount Automation Macros Router
+app.use('/api/v1/automation-macros', createAutomationMacroRouter(pool));
+
+// Mount File Models Router
+app.use('/api/v1/file-models', createFileModelRouter(pool));
+
+// Mount Profiles Router
+app.use('/api/v1/profiles', createProfileRouter(pool));
+
+// Mount Payments Router
+app.use('/api/v1/payments', createPaymentRouter(pool));
+
 // Database tables initialization
 async function initializeDatabase() {
   let client;
   try {
     client = await pool.connect();
     console.log('[Contributors API] Connected to PostgreSQL environment successfully!');
+    
+    // Initialize Local Auth Database Tables
+    try {
+      const authRepo = new AuthRepository(pool);
+      await authRepo.initTables();
+    } catch (authDbErr: any) {
+      console.error('[Contributors API] Local Auth tables initialization error:', authDbErr?.message);
+    }
     
     // Enable extensions for UUID generation if possible
     try {

@@ -1,5 +1,4 @@
-
-import { supabase } from "./supabaseClient";
+import { getAuthToken } from "./auth/authAdapter";
 
 let isAIBusy = false;
 
@@ -16,11 +15,10 @@ export const extractTransactionsWithModel = async (
     isAIBusy = true;
 
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session || !session.access_token) {
+        const token = await getAuthToken();
+        if (!token) {
             throw new Error("Sessão de autenticação ainda não inicializada.");
         }
-        const token = session.access_token;
 
         const response = await fetch('/api/ai/extract-transactions', {
             method: 'POST',
@@ -48,8 +46,7 @@ export const getRawStructuralDump = async (base64Data: string): Promise<any[]> =
     if (isAIBusy) return [];
     isAIBusy = true;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await getAuthToken();
 
         const response = await fetch('/api/ai/structural-dump', {
             method: 'POST',
@@ -77,8 +74,7 @@ export const inferMappingFromSample = async (sampleText: string): Promise<any> =
     if (isAIBusy) return null;
     isAIBusy = true;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await getAuthToken();
 
         const response = await fetch('/api/ai/infer-mapping', {
             method: 'POST',
@@ -110,8 +106,7 @@ export const learnPattern = async (
     if (isAIBusy) return null;
     isAIBusy = true;
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await getAuthToken();
 
         const response = await fetch('/api/ai/learn-pattern', {
             method: 'POST',
@@ -128,7 +123,7 @@ export const learnPattern = async (
         
         return await response.json();
     } catch (error) {
-        console.error("[GeminiService] Erro no aprendizado via backend:", error);
+        console.error("[GeminiService] Erro ao aprender padrão via backend:", error);
         throw error;
     } finally {
         isAIBusy = false;

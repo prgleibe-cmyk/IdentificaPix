@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { authService } from '../services/authService';
 import { AuthContextType } from './auth/AuthContracts';
 import { useSystemSettings } from './auth/useSystemSettings';
 import { useSubscriptionState } from './auth/useSubscriptionState';
@@ -33,12 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (lastProcessedUserId) lastProcessedUserId.current = null;
         setSession(null);
         setUser(null);
-        await (supabase.auth as any).signOut();
-        Object.keys(localStorage).forEach(key => {
-            if (key.includes('supabase.auth.token') || key.includes('identificapix')) {
-                localStorage.removeItem(key);
-            }
-        });
+        await authService.logout();
     } catch (e) {
         console.error("Erro logout:", e);
     } finally {
@@ -49,36 +44,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let mounted = true;
-    const { data: { subscription: authListener } } = (supabase.auth as any).onAuthStateChange(async (event: any, newSession: any) => {
-        if (!mounted || isSigningOut.current) return;
-        if (event === 'PASSWORD_RECOVERY') {
-            setIsResettingPassword(true);
-        }
-        if (newSession) {
-            setSession(newSession);
-            setUser(newSession.user);
-            calculateSubscription(newSession.user.id);
-        } else {
-            setSession(null);
-            setUser(null);
-        }
-        setLoading(false);
-    });
 
-    (supabase.auth as any).getSession().then(({ data: { session: s } }: any) => {
-        if (mounted && !isSigningOut.current) {
-            if (s) {
-                setSession(s);
-                setUser(s.user);
-                calculateSubscription(s.user.id);
+    async function initAuth() {
+      try {
+        const u = authService.getUser();
+        const token = authService.getAccessToken();
+
+        if (token && u) {
+          const s = { access_token: token, user: u };
+          if (mounted && !isSigningOut.current) {
+            setSession(s);
+            setUser(u);
+            calculateSubscription(u.id);
+          }
+          // Validate with /me in background
+          authService.me().then(res => {
+            if (res.success && res.data?.user && mounted) {
+              const updatedUser = res.data.user;
+              setUser(updatedUser);
+              setSession({ access_token: authService.getAccessToken(), user: updatedUser });
             }
-            setLoading(false);
+          }).catch(() => {});
+        } else {
+          // Check if token in query string or URL (e.g. reset-password)
+          const urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.get('type') === 'recovery' || urlParams.get('resetToken')) {
+            setIsResettingPassword(true);
+          }
         }
-    });
+      } catch (err) {
+        console.error("Error initializing auth:", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    initAuth();
 
     return () => {
       mounted = false;
-      authListener?.unsubscribe();
     };
   }, [calculateSubscription]);
 
@@ -99,3 +103,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => useContext(AuthContext);
+

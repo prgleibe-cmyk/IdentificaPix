@@ -1,8 +1,8 @@
-import { supabase } from './supabaseClient';
 import { Logger } from './monitoringService';
+import { getAuthToken } from './auth/authAdapter';
 
 /**
- * SERVIÇO DE CONFIGURAÇÃO ADMINISTRATIVA (V4 - PERSISTÊNCIA GARANTIDA)
+ * SERVIÇO DE CONFIGURAÇÃO ADMINISTRATIVA (MIGRAÇÃO VPS - POSTGRESQL API)
  */
 export const AdminConfigService = {
     cache: new Map<string, any>(),
@@ -13,27 +13,37 @@ export const AdminConfigService = {
         }
 
         try {
-            const { data, error } = await (supabase as any)
-                .from('admin_config')
-                .select('value')
-                .eq('key', key)
-                .order('updated_at', { ascending: false })
-                .limit(1);
+            const token = await getAuthToken();
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
 
-            if (error) {
-                console.warn(`[AdminConfig] Erro na consulta de '${key}':`, error);
+            const response = await fetch(`/api/v1/admin-config/${encodeURIComponent(key)}`, {
+                method: 'GET',
+                headers
+            });
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return null;
+                }
+                console.warn(`[AdminConfig] HTTP ${response.status} na consulta de '${key}'`);
                 return null;
             }
 
-            if (!data || data.length === 0) {
+            const json = await response.json();
+            if (!json.success || json.value === undefined) {
                 return null;
             }
 
-            const value = data[0].value as T;
+            const value = json.value as T;
             this.cache.set(key, value);
             return value;
         } catch (e) {
-            console.warn(`[AdminConfig] Exceção ao ler chave '${key}'`, e);
+            console.warn(`[AdminConfig] Exceção ao ler chave '${key}' via API VPS`, e);
             return null;
         }
     },
@@ -42,47 +52,65 @@ export const AdminConfigService = {
         this.cache.set(key, value);
 
         try {
-            // O onConflict: 'key' agora funciona pois o SQL V12 adicionou a constraint UNIQUE
-            const { error } = await (supabase as any)
-                .from('admin_config')
-                .upsert(
-                    { 
-                        key, 
-                        value: value as any, 
-                        updated_at: new Date().toISOString() 
-                    }, 
-                    { onConflict: 'key' }
-                );
-
-            if (error) {
-                console.error("[AdminConfig] Erro no UPSERT:", error);
-                throw error;
+            const token = await getAuthToken();
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
             }
-            
-            Logger.info(`[AdminConfig] Configuração '${key}' persistida.`);
 
+            const response = await fetch('/api/v1/admin-config', {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ key, value })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => null);
+                console.error("[AdminConfig] Erro no PUT API VPS:", errData);
+                throw new Error(errData?.message || `HTTP ${response.status} ao salvar '${key}'`);
+            }
+
+            Logger.info(`[AdminConfig] Configuração '${key}' persistida na VPS PostgreSQL.`);
         } catch (e) {
-            Logger.error(`[AdminConfig] Falha de persistência para '${key}'`, e);
-            throw e; 
+            Logger.error(`[AdminConfig] Falha de persistência na VPS para '${key}'`, e);
+            throw e;
         }
     },
 
     async getAll(): Promise<Record<string, any>> {
         try {
-            const { data, error } = await (supabase as any)
-                .from('admin_config')
-                .select('key, value');
+            const token = await getAuthToken();
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
 
-            if (error) throw error;
+            const response = await fetch('/api/v1/admin-config', {
+                method: 'GET',
+                headers
+            });
 
-            const config: Record<string, any> = {};
-            data?.forEach(row => {
-                config[row.key] = row.value;
-                this.cache.set(row.key, row.value);
+            if (!response.ok) {
+                console.warn(`[AdminConfig] HTTP ${response.status} ao carregar lote.`);
+                return {};
+            }
+
+            const json = await response.json();
+            if (!json.success || !json.config) {
+                return {};
+            }
+
+            const config: Record<string, any> = json.config;
+            Object.entries(config).forEach(([k, v]) => {
+                this.cache.set(k, v);
             });
             return config;
         } catch (e) {
-            console.warn("[AdminConfig] Falha ao carregar lote.", e);
+            console.warn("[AdminConfig] Falha ao carregar lote via API VPS.", e);
             return {};
         }
     }

@@ -1,6 +1,7 @@
-import { supabase } from './supabaseClient';
+import { profileService } from './profileService';
 import { Database } from '../types/supabase';
 import { DateResolver } from '../core/processors/DateResolver';
+import { getAuthSession } from './auth/authAdapter';
 
 const ownerIdCache = new Map<string, string>();
 
@@ -9,11 +10,7 @@ const getEffectiveUserId = async (currentUserId: string | undefined): Promise<st
     if (ownerIdCache.has(currentUserId)) {
         return ownerIdCache.get(currentUserId);
     }
-    const { data: profile } = await (supabase as any)
-        .from('profiles')
-        .select('owner_id')
-        .eq('id', currentUserId)
-        .maybeSingle();
+    const profile = await profileService.getProfile(currentUserId);
     const ownerId = profile?.owner_id || currentUserId;
     ownerIdCache.set(currentUserId, ownerId);
     return ownerId;
@@ -53,8 +50,8 @@ export const consolidationService = {
         if (transactions.length === 0) return [];
         
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const currentUserId = session?.user.id;
+            const session = await getAuthSession();
+            const currentUserId = session?.user?.id;
             
             // Busca o owner_id para garantir que usamos o ID do proprietário da conta
             const effectiveUserId = await getEffectiveUserId(currentUserId);
@@ -153,8 +150,8 @@ export const consolidationService = {
 
     updateTransactionStatus: async (id: string, status: 'pending' | 'identified' | 'resolved', churchId?: string | null, bankId?: string, contributorId?: string | null, isConfirmed?: boolean, type?: string, pix_key?: string, contribution_type?: string, payment_method?: string) => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const currentUserId = session?.user.id;
+            const session = await getAuthSession();
+            const currentUserId = session?.user?.id;
 
             // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
             const effectiveUserId = await getEffectiveUserId(currentUserId);
@@ -307,8 +304,8 @@ export const consolidationService = {
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const currentUserId = session?.user.id;
+            const session = await getAuthSession();
+            const currentUserId = session?.user?.id;
 
             // Busca o owner_id para garantir que usamos o ID do proprietário da conta na escrita
             const effectiveUserId = await getEffectiveUserId(currentUserId);

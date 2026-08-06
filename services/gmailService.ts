@@ -1,20 +1,8 @@
 
-import { supabase } from './supabaseClient';
-
 export const gmailService = {
     connect: async () => {
-        const { error } = await (supabase as any).auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                scopes: 'https://www.googleapis.com/auth/gmail.readonly',
-                queryParams: {
-                    access_type: 'offline',
-                    prompt: 'consent',
-                },
-                redirectTo: window.location.origin
-            },
-        });
-        if (error) throw error;
+        // Redirect to local backend Google OAuth route if needed
+        window.location.href = '/api/v1/auth/google';
     },
     fetchBankEmails: async (accessToken: string, maxResults: number = 400) => {
         const query = 'subject:(pix OR transferência OR comprovante OR recebido OR enviado OR pagamento OR débito OR crédito OR extrato OR aviso OR notificação)';

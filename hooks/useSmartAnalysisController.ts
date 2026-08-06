@@ -3,7 +3,7 @@ import React, { useState, useContext, useCallback, useMemo, useEffect, useRef } 
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
-import { supabase } from '../services/supabaseClient';
+import { getAuthToken } from '../services/auth/authAdapter';
 import { MatchResult, SpreadsheetData, ManualRow, ColumnDef } from '../types';
 import { analysisProcessor, SortConfig } from '../services/analysisProcessor';
 import { rankingService } from '../services/rankingService';
@@ -125,8 +125,7 @@ export const useSmartAnalysisController = () => {
             let spreadsheet = report.data?.spreadsheet;
 
             if (!results && !spreadsheet) {
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
+                const token = await getAuthToken();
                 const ownerId = subscription.ownerId || user?.id;
 
                 const response = await fetch(`/api/reference/report/${report.id}?ownerId=${ownerId}`, {

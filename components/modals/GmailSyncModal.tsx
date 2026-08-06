@@ -5,7 +5,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { XMarkIcon, EnvelopeIcon, BoltIcon, CheckCircleIcon, ExclamationTriangleIcon, GoogleIcon, SparklesIcon } from '../Icons';
 import { gmailService } from '../../services/gmailService';
 import { parseEmailBatch } from '../../services/emailParser';
-import { supabase } from '../../services/supabaseClient';
+import { getAuthSession } from '../../services/auth/authAdapter';
 
 interface GmailSyncModalProps {
     onClose: () => void;
@@ -29,7 +29,7 @@ export const GmailSyncModal: React.FC<GmailSyncModalProps> = ({ onClose }) => {
         addLog("Verificando sessão...");
 
         try {
-            const { data: { session } } = await (supabase.auth as any).getSession();
+            const session = await getAuthSession();
             
             // Tenta obter o token do provedor. 
             // Nota: O Supabase só expõe o provider_token na sessão inicial ou se configurado explicitamente.
