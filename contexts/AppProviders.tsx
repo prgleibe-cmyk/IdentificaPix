@@ -12,15 +12,17 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  error?: any;
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
-    hasError: false
+    hasError: false,
+    error: null
   };
 
   static getDerivedStateFromError(error: any): ErrorBoundaryState {
-    return { hasError: true };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: any, errorInfo: any) {
@@ -36,7 +38,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                     <ExclamationTriangleIcon className="w-6 h-6 text-red-500" />
                 </div>
                 <h2 className="text-xl font-display font-bold text-brand-graphite mb-2">Algo deu errado</h2>
-                <p className="text-slate-500 mb-6">Ocorreu um erro inesperado. Tente recarregar a página.</p>
+                <p className="text-slate-500 mb-4">Ocorreu um erro inesperado. Tente recarregar a página.</p>
+                {this.state.error && (
+                  <p className="text-xs text-red-600 bg-red-50 p-3 rounded-lg mb-4 font-mono text-left overflow-auto max-h-40 break-all whitespace-pre-wrap">
+                    {String(this.state.error?.message || this.state.error)}
+                  </p>
+                )}
                 <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-brand-blue text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20">Recarregar</button>
             </div>
         </div>

@@ -208,7 +208,7 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
         
         let needsFullRebuild = false;
         
-        if (!prevMatchResults || !prevFilters || !areFiltersIdentical(prevFilters, currentFilters)) {
+        if (!prevMatchResults || !prevFilters || !cacheRef.current.output || !areFiltersIdentical(prevFilters, currentFilters)) {
             needsFullRebuild = true;
         }
         

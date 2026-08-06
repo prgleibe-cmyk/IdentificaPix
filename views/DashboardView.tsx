@@ -90,8 +90,8 @@ export const DashboardView: React.FC = memo(() => {
                     <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-3 gap-3 xl:gap-4">
                 <SummaryCard
                     title={t('dashboard.identifiedContributions')}
-                    count={summary.identifiedCount}
-                    value={summary.autoConfirmed.value + summary.manualConfirmed.value}
+                    count={summary?.identifiedCount || 0}
+                    value={(summary?.autoConfirmed?.value || 0) + (summary?.manualConfirmed?.value || 0)}
                     icon={<CheckCircleIcon />}
                     language={language}
                     accentColor="emerald"
@@ -105,8 +105,8 @@ export const DashboardView: React.FC = memo(() => {
 
                 <SummaryCard
                     title={t('dashboard.pending')}
-                    count={summary.unidentifiedCount}
-                    value={summary.pending.value}
+                    count={summary?.unidentifiedCount || 0}
+                    value={summary?.pending?.value || 0}
                     icon={<XCircleIcon />}
                     language={language}
                     accentColor="amber"
@@ -131,7 +131,7 @@ export const DashboardView: React.FC = memo(() => {
                 </div>
 
                 <ChurchLeaderboard 
-                    data={summary.valuePerChurch}
+                    data={summary?.valuePerChurch || []}
                     maxValue={maxValuePerChurch}
                     language={language}
                     title={t('dashboard.identifiedValuesByChurch')}
