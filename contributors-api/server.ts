@@ -1932,7 +1932,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
     let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
     const params: any[] = [];
     if (user_id) {
-      query += ' AND user_id = $1';
+      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
       params.push(user_id);
     }
     query += ' ORDER BY created_at DESC';
@@ -2003,7 +2003,7 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
     let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
     if (user_id) {
-      query += ' AND user_id = $1';
+      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
       params.push(user_id);
     }
     query += ' ORDER BY name ASC';
@@ -2821,7 +2821,7 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
     let query = 'SELECT id, user_id, normalized_description, contributor_normalized_name, church_id, created_at FROM learned_associations WHERE 1=1';
     const params: any[] = [];
     if (user_id) {
-      query += ' AND user_id = $1';
+      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
       params.push(user_id);
     }
     const result = await pool.query(query, params);
@@ -2907,7 +2907,7 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
     let query = `SELECT ${selectFields} FROM saved_reports WHERE 1=1`;
     const params: any[] = [];
     if (user_id) {
-      query += ' AND user_id = $1';
+      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
       params.push(user_id);
     }
     query += ' ORDER BY created_at DESC';
@@ -3097,7 +3097,7 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
     }
 
     if (user_id) {
-      query += ` AND user_id = $${counter}`;
+      query += ` AND (user_id = $${counter} OR user_id IS NULL OR user_id = '' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $${counter} LIMIT 1)))`;
       params.push(user_id);
       counter++;
     }

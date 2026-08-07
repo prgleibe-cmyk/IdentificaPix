@@ -159,19 +159,59 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     }
                     
                     if (!ignore) {
-                        setBanks(filteredBanks);
-                        setChurches(filteredChurches);
-                        setReports(fetchedReports);
-                        
-                        // ✅ Consumindo associações consolidadas
-                        setLearnedAssociations(fetchedAssociations.map((d: any) => ({
-                            id: d.id, 
-                            normalizedDescription: d.normalized_description,
-                            contributorNormalizedName: d.contributor_normalized_name,
-                            churchId: d.church_id, 
-                            bankId: 'global',
-                            user_id: d.user_id
-                        })));
+                        if (filteredBanks.length > 0) {
+                            setBanks(filteredBanks);
+                        } else if (banks && banks.length > 0) {
+                            console.log('[useReferenceData] Sincronizando bancos locais com o servidor...');
+                            banks.forEach(async (b) => {
+                                try {
+                                    await fetch('/api/v1/banks', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            name: b.name,
+                                            user_id: ownerId,
+                                            bank_key: b.bankKey || (b as any).bank_key,
+                                            account_name: b.accountName || (b as any).account_name || b.name,
+                                            accepted_contribution_types: b.acceptedContributionTypes || (b as any).accepted_contribution_types
+                                        })
+                                    });
+                                } catch {}
+                            });
+                        }
+
+                        if (filteredChurches.length > 0) {
+                            setChurches(filteredChurches);
+                        } else if (churches && churches.length > 0) {
+                            console.log('[useReferenceData] Sincronizando igrejas locais com o servidor...');
+                            churches.forEach(async (c) => {
+                                try {
+                                    await fetch('/api/v1/churches', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            ...c,
+                                            user_id: ownerId
+                                        })
+                                    });
+                                } catch {}
+                            });
+                        }
+
+                        if (fetchedReports.length > 0) {
+                            setReports(fetchedReports);
+                        }
+
+                        if (fetchedAssociations.length > 0) {
+                            setLearnedAssociations(fetchedAssociations.map((d: any) => ({
+                                id: d.id, 
+                                normalizedDescription: d.normalized_description,
+                                contributorNormalizedName: d.contributor_normalized_name,
+                                churchId: d.church_id, 
+                                bankId: 'global',
+                                user_id: d.user_id
+                            })));
+                        }
                     }
                 }
 

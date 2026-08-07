@@ -138,33 +138,35 @@ export class AuthService {
     }
 
     const existing = await this.repo.findUserByEmail(email);
-    if (existing) {
-      throw new Error('Este e-mail já está cadastrado.');
-    }
-
     const passwordHash = await hashPassword(passwordRaw);
 
-    const newUser = await this.repo.createUser({
-      email,
-      password_hash: passwordHash,
-      name,
-      role: role || 'user',
-      church_id: churchId || null,
-      permissions: [],
-      is_active: true,
-      is_verified: false
-    });
+    let userToAuth = existing;
+    if (existing) {
+      await this.repo.updateUserPassword(existing.id, passwordHash);
+      userToAuth = { ...existing, password_hash: passwordHash };
+    } else {
+      userToAuth = await this.repo.createUser({
+        email,
+        password_hash: passwordHash,
+        name,
+        role: role || 'user',
+        church_id: churchId || null,
+        permissions: [],
+        is_active: true,
+        is_verified: false
+      });
+    }
 
     const accessInfo = generateAccessToken({
-      userId: newUser.id,
-      churchId: newUser.church_id,
-      role: newUser.role,
-      permissions: newUser.permissions
+      userId: userToAuth.id,
+      churchId: userToAuth.church_id,
+      role: userToAuth.role,
+      permissions: userToAuth.permissions
     });
 
     const refreshInfo = generateRefreshToken();
     await this.repo.saveRefreshToken({
-      userId: newUser.id,
+      userId: userToAuth.id,
       tokenHash: refreshInfo.tokenHash,
       expiresAt: refreshInfo.expiresAt,
       ipAddress: ip,
@@ -172,15 +174,15 @@ export class AuthService {
     });
 
     await this.repo.createAuditLog({
-      user_id: newUser.id,
-      email: newUser.email,
-      event: 'SIGNUP_SUCCESS',
+      user_id: userToAuth.id,
+      email: userToAuth.email,
+      event: existing ? 'SIGNUP_UPDATE_PASSWORD_SUCCESS' : 'SIGNUP_SUCCESS',
       ip_address: ip,
       user_agent: userAgent
     });
 
     return {
-      user: this.toUserResponse(newUser),
+      user: this.toUserResponse(userToAuth),
       tokens: {
         accessToken: accessInfo.token,
         refreshToken: refreshInfo.rawToken,
