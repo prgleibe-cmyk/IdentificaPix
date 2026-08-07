@@ -4,24 +4,62 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
 import { AppContext } from '../contexts/AppContext';
 
+// --- Safe Lazy Wrapper for Code-Splitting & Chunk Auto-Recovery ---
+const safeLazy = (importFn: () => Promise<any>) => {
+    return React.lazy(async () => {
+        try {
+            return await importFn();
+        } catch (error: any) {
+            console.error('[AppRouter] Dynamic chunk load error:', error);
+            const errorMsg = String(error?.message || error || '');
+            const isChunkError = errorMsg.includes('Failed to fetch dynamically imported module') ||
+                                 errorMsg.includes('Loading chunk') ||
+                                 errorMsg.includes('import');
+            
+            if (isChunkError) {
+                const reloadKey = 'identificapix_chunk_load_retry';
+                if (!sessionStorage.getItem(reloadKey)) {
+                    sessionStorage.setItem(reloadKey, 'true');
+                    if ('caches' in window) {
+                        try {
+                            const keys = await caches.keys();
+                            await Promise.all(keys.map(k => caches.delete(k)));
+                        } catch (e) {}
+                    }
+                    if ('serviceWorker' in navigator) {
+                        try {
+                            const regs = await navigator.serviceWorker.getRegistrations();
+                            for (const r of regs) await r.update();
+                        } catch (e) {}
+                    }
+                    window.location.reload();
+                    return new Promise(() => {});
+                }
+                sessionStorage.removeItem(reloadKey);
+            }
+            throw error;
+        }
+    });
+};
+
 // --- Lazy-Loaded Views for Fast Navigation and Code-Splitting ---
-const DashboardView = React.lazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
-const UploadView = React.lazy(() => import('./UploadView').then(m => ({ default: m.UploadView })));
-const RegisterView = React.lazy(() => import('./RegisterView').then(m => ({ default: m.RegisterView })));
-const ReportsView = React.lazy(() => import('./ReportsView').then(m => ({ default: m.ReportsView })));
-const RelatoriosView = React.lazy(() => import('./RelatoriosView').then(m => ({ default: m.RelatoriosView })));
-const LivroCaixaView = React.lazy(() => import('./LivroCaixaView').then(m => ({ default: m.LivroCaixaView })));
-const SettingsView = React.lazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
-const SearchView = React.lazy(() => import('./SearchView').then(m => ({ default: m.SearchView })));
-const SavedReportsView = React.lazy(() => import('./SavedReportsView').then(m => ({ default: m.SavedReportsView })));
-const AdminView = React.lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
-const SmartAnalysisView = React.lazy(() => import('./SmartAnalysisView').then(m => ({ default: m.SmartAnalysisView })));
-const UsersManagementPage = React.lazy(() => import('./UsersManagementPage').then(m => ({ default: m.UsersManagementPage })));
-const LaunchedView = React.lazy(() => import('./LaunchedView').then(m => ({ default: m.LaunchedView })));
-const ConnectorsView = React.lazy(() => import('./ConnectorsView').then(m => ({ default: m.ConnectorsView })));
-const FinancialView = React.lazy(() => import('./FinancialView').then(m => ({ default: m.FinancialView })));
-const PledgesView = React.lazy(() => import('./PledgesView').then(m => ({ default: m.PledgesView })));
-const PatrimonyView = React.lazy(() => import('./PatrimonyView').then(m => ({ default: m.PatrimonyView })));
+const DashboardView = safeLazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
+const UploadView = safeLazy(() => import('./UploadView').then(m => ({ default: m.UploadView })));
+const RegisterView = safeLazy(() => import('./RegisterView').then(m => ({ default: m.RegisterView })));
+const ReportsView = safeLazy(() => import('./ReportsView').then(m => ({ default: m.ReportsView })));
+const RelatoriosView = safeLazy(() => import('./RelatoriosView').then(m => ({ default: m.RelatoriosView })));
+const LivroCaixaView = safeLazy(() => import('./LivroCaixaView').then(m => ({ default: m.LivroCaixaView })));
+const SettingsView = safeLazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
+const SearchView = safeLazy(() => import('./SearchView').then(m => ({ default: m.SearchView })));
+const SavedReportsView = safeLazy(() => import('./SavedReportsView').then(m => ({ default: m.SavedReportsView })));
+const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
+const SmartAnalysisView = safeLazy(() => import('./SmartAnalysisView').then(m => ({ default: m.SmartAnalysisView })));
+const UsersManagementPage = safeLazy(() => import('./UsersManagementPage').then(m => ({ default: m.UsersManagementPage })));
+const LaunchedView = safeLazy(() => import('./LaunchedView').then(m => ({ default: m.LaunchedView })));
+const ConnectorsView = safeLazy(() => import('./ConnectorsView').then(m => ({ default: m.ConnectorsView })));
+const FinancialView = safeLazy(() => import('./FinancialView').then(m => ({ default: m.FinancialView })));
+const PledgesView = safeLazy(() => import('./PledgesView').then(m => ({ default: m.PledgesView })));
+const PatrimonyView = safeLazy(() => import('./PatrimonyView').then(m => ({ default: m.PatrimonyView })));
 
 // --- Modals ---
 import { EditBankModal } from '../components/modals/EditBankModal';
@@ -61,7 +99,7 @@ export const AppRouter: React.FC = memo(() => {
         switch (activeView) {
             case 'dashboard': return <DashboardView />;
             case 'upload': return <UploadView />;
-            case 'cadastro': return isOwner ? <RegisterView /> : <DashboardView />;
+            case 'cadastro': return (!isSecondaryUser || isOwner) ? <RegisterView /> : <DashboardView />;
             case 'reports': return <ReportsView />;
             case 'relatorios': return <RelatoriosView />;
             case 'livro_caixa': return <LivroCaixaView />;

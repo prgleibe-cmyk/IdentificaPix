@@ -1,8 +1,6 @@
-// Service Worker IdentificaPix - Versão 15
-const CACHE_NAME = 'identificapix-v15';
+// Service Worker IdentificaPix - Versão 16
+const CACHE_NAME = 'identificapix-v16';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/logo.png',
   '/pwa/icon-192.png',
@@ -40,17 +38,36 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // API calls & non-GET
   if (event.request.url.includes('/api/') || event.request.method !== 'GET') {
     return event.respondWith(fetch(event.request));
   }
 
+  // HTML Page Navigations -> Network First, fallback to cache
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request) || caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Assets (JS, CSS, Images) -> Cache First, fallback to Network
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request).then((fetchResponse) => {
         return fetchResponse;
       });
     }).catch(() => {
-      // Fallback offline se necessário
+      // Offline fallback
     })
   );
 });
+
