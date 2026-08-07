@@ -20,29 +20,28 @@ export const useDashboardController = () => {
     const { t, language } = useTranslation();
 
     const identificationRate = useMemo(() => {
-        if (!summary) return 0;
         const total = (summary.identifiedCount || 0) + (summary.unidentifiedCount || 0);
-        return total > 0 ? ((summary.identifiedCount || 0) / total) * 100 : 0;
+        return total > 0 ? (summary.identifiedCount / total) * 100 : 0;
     }, [summary]);
     
     const pieChartData = useMemo(() => {
-        const breakdown = summary?.methodBreakdown || { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 };
+        const breakdown = summary.methodBreakdown || { 'AUTOMATIC': 0, 'MANUAL': 0, 'LEARNED': 0, 'AI': 0 };
         return [
-            { name: t('dashboard.matchMethod.automatic'), value: breakdown.AUTOMATIC || 0, color: '#EA580C' },
-            { name: t('dashboard.matchMethod.manual'), value: breakdown.MANUAL || 0, color: '#475569' },
-            { name: t('dashboard.matchMethod.learned'), value: breakdown.LEARNED || 0, color: '#F59E0B' },
-            { name: t('dashboard.matchMethod.ai'), value: breakdown.AI || 0, color: '#94A3B8' },
+            { name: t('dashboard.matchMethod.automatic'), value: breakdown.AUTOMATIC, color: '#EA580C' },
+            { name: t('dashboard.matchMethod.manual'), value: breakdown.MANUAL, color: '#475569' },
+            { name: t('dashboard.matchMethod.learned'), value: breakdown.LEARNED, color: '#F59E0B' },
+            { name: t('dashboard.matchMethod.ai'), value: breakdown.AI, color: '#94A3B8' },
         ].filter(d => d.value > 0);
-    }, [summary?.methodBreakdown, t]);
+    }, [summary.methodBreakdown, t]);
 
     const maxValuePerChurch = useMemo(() => {
-        if (!summary?.valuePerChurch || summary.valuePerChurch.length === 0) return 0;
+        if (!summary.valuePerChurch || summary.valuePerChurch.length === 0) return 0;
         return Math.max(...summary.valuePerChurch.map(([, value]: [string, number]) => value));
-    }, [summary?.valuePerChurch]);
+    }, [summary.valuePerChurch]);
 
     const hasData = useMemo(() => {
-        return (matchResults && matchResults.length > 0) || 
-               (savedReports && savedReports.length > 0) || 
+        return (matchResults?.length || 0) > 0 || 
+               (savedReports?.length || 0) > 0 || 
                (summary?.totalValue || 0) > 0 || 
                (summary?.identifiedCount || 0) > 0;
     }, [matchResults, savedReports, summary]);

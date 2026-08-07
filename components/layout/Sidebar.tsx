@@ -147,16 +147,16 @@ export const Sidebar: React.FC = memo(() => {
 
         if (isAdmin) items.push({ view: 'admin', labelKey: 'Admin', icon: <UserIcon className="w-5 h-5"/>, special: true });
         return items;
-    }, [isAdmin, subscription.role, isSecondaryUser, subscription.permissions]);
+    }, [isAdmin, subscription?.role, isSecondaryUser, subscription?.permissions]);
 
     const getStatusStyle = () => {
-        if (subscription.isExpired) return 'border-red-200 text-red-700 bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:bg-red-500/10 hover:bg-red-500/20';
-        if (subscription.plan === 'lifetime') return 'border-purple-200 text-purple-700 bg-purple-50 dark:border-purple-500/20 dark:text-purple-300 dark:bg-purple-500/10 hover:bg-purple-500/20';
-        if (subscription.daysRemaining <= 5) return 'border-amber-200 text-amber-700 bg-amber-50 dark:border-amber-500/20 dark:text-amber-300 dark:bg-amber-500/10 hover:bg-amber-500/20';
+        if (subscription?.isExpired) return 'border-red-200 text-red-700 bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:bg-red-500/10 hover:bg-red-500/20';
+        if (subscription?.plan === 'lifetime') return 'border-purple-200 text-purple-700 bg-purple-50 dark:border-purple-500/20 dark:text-purple-300 dark:bg-purple-500/10 hover:bg-purple-500/20';
+        if ((subscription?.daysRemaining || 0) <= 5) return 'border-amber-200 text-amber-700 bg-amber-50 dark:border-amber-500/20 dark:text-amber-300 dark:bg-amber-500/10 hover:bg-amber-500/20';
         return 'border-emerald-200 text-emerald-700 bg-emerald-50 dark:border-emerald-500/20 dark:text-emerald-300 dark:bg-emerald-500/10 hover:bg-emerald-500/20';
     };
 
-    const StatusIcon = subscription.isExpired ? ExclamationTriangleIcon : (subscription.plan === 'lifetime' ? CheckBadgeIcon : CheckBadgeIcon);
+    const StatusIcon = subscription?.isExpired ? ExclamationTriangleIcon : CheckBadgeIcon;
 
     const handleLogout = async (e: React.MouseEvent) => {
         e.preventDefault();
@@ -166,7 +166,7 @@ export const Sidebar: React.FC = memo(() => {
     };
 
     // --- USER_MANAGEMENT_BLOCK ---
-    const showUsersButton = subscription.role === 'owner' && !isSecondaryUser;
+    const showUsersButton = subscription?.role === 'owner' && !isSecondaryUser;
     const handleUsersClick = () => {
         setActiveView('users');
     };

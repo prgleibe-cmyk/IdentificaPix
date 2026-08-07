@@ -184,12 +184,13 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
     });
 
     return useMemo(() => {
-        const matchResults = reconciliation.matchResults || [];
-        const hasSession = reconciliation.hasActiveSession;
-        const isHistorical = !hasSession && reportManager.savedReports.length > 0;
+        const matchResults = reconciliation?.matchResults || [];
+        const hasSession = !!reconciliation?.hasActiveSession;
+        const savedReports = reportManager?.savedReports || [];
+        const isHistorical = !hasSession && savedReports.length > 0;
 
         const currentFilters = {
-            dateRange: reportManager.searchFilters?.dateRange,
+            dateRange: reportManager?.searchFilters?.dateRange,
             selectedBankId,
             hasActiveSession: hasSession,
             isHistorical,
@@ -198,17 +199,17 @@ export const useSummaryData = (reconciliation: any, reportManager: any, selected
         };
 
         const dateRange = currentFilters.dateRange;
-        const isSecondary = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
+        const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+            subscription?.role !== 'owner' &&
+            subscription?.role !== 'admin' &&
+            subscription?.role !== 'principal';
 
         const prevMatchResults = cacheRef.current.prevMatchResults;
         const prevFilters = cacheRef.current.prevFilters;
         
         let needsFullRebuild = false;
         
-        if (!prevMatchResults || !prevFilters || !cacheRef.current.output || !areFiltersIdentical(prevFilters, currentFilters)) {
+        if (!prevMatchResults || !prevFilters || !areFiltersIdentical(prevFilters, currentFilters)) {
             needsFullRebuild = true;
         }
         

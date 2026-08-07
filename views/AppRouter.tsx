@@ -45,14 +45,14 @@ export const AppRouter: React.FC = memo(() => {
     const { activeView } = useUI();
     const { user, subscription } = useAuth();
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
-    const isOwner = subscription.role === 'owner';
+    const isOwner = subscription?.role === 'owner';
     
-    const isSecondaryUser = (subscription.ownerId && subscription.ownerId !== user?.id) &&
-        subscription.role !== 'owner' &&
-        subscription.role !== 'admin' &&
-        subscription.role !== 'principal';
+    const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
+        subscription?.role !== 'owner' &&
+        subscription?.role !== 'admin' &&
+        subscription?.role !== 'principal';
 
-    const perms = (subscription.permissions || {}) as Record<string, any>;
+    const perms = (subscription?.permissions || {}) as Record<string, any>;
     const canManageAccounts = !isSecondaryUser || (perms.gestao_contas !== false && perms.manageAccounts !== false);
     const canManagePledges = !isSecondaryUser || (perms.carnes_propositos !== false && perms.managePledges !== false);
     const canManagePatrimony = !isSecondaryUser || (perms.patrimonio !== false && perms.managePatrimony !== false);

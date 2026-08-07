@@ -193,24 +193,27 @@ export const useReconciliation = (props: any) => {
     const files = useFileProcessor({ ...params, persistTransactions, clearRemoteList, hydrate });
 
     const applySecurityFilters = useCallback((results: MatchResult[]) => {
+        if (!Array.isArray(results)) return [];
+
         const isSecondary = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
-            subscription.role !== 'owner' &&
-            subscription.role !== 'admin' &&
-            subscription.role !== 'principal';
+            subscription?.role !== 'owner' &&
+            subscription?.role !== 'admin' &&
+            subscription?.role !== 'principal';
         if (!isSecondary) return results;
 
         let filtered = results;
 
-        if (subscription.congregationIds?.length > 0) {
+        if (subscription?.congregationIds && subscription.congregationIds.length > 0) {
             filtered = filtered.filter(r => {
+                if (!r) return false;
                 const churchId = r.church?.id || r._churchId || (r.transaction as any)?.church_id || 'unidentified';
                 return churchId === 'unidentified' || subscription.congregationIds.includes(churchId);
             });
         }
 
-        if (subscription.bankIds?.length > 0) {
+        if (subscription?.bankIds && subscription.bankIds.length > 0) {
             filtered = filtered.filter(r =>
-                subscription.bankIds.includes(String(r.transaction.bank_id))
+                r?.transaction?.bank_id ? subscription.bankIds.includes(String(r.transaction.bank_id)) : false
             );
         }
 
