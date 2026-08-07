@@ -93,7 +93,7 @@ export const ContributorsReportSection: React.FC = () => {
                                 email: fc.email || '',
                                 city: fc.city || '',
                                 state: fc.state || '',
-                                photo: fc.photo || fc.photoUrl || fc.avatarUrl || ''
+                                photo: fc.photo || fc.photo_url || fc.photoUrl || fc.avatarUrl || ''
                             });
                         }
                     });
@@ -125,7 +125,7 @@ export const ContributorsReportSection: React.FC = () => {
 
     // Check helper for missing attributes
     const getContributorMissingData = (c: any) => {
-        const hasPhoto = !!(c.photo || c.photoUrl || c.avatarUrl);
+        const hasPhoto = !!(c.photo || c.photo_url || c.photoUrl || c.avatarUrl);
         const hasPhone = !!(c.phone || c.mobile || c.telefone || c.celular);
         const hasEmail = !!(c.email);
         const hasAddress = !!(c.address || c.city || c.cidade || c.state || c.uf || c.street);
@@ -516,7 +516,7 @@ export const ContributorsReportSection: React.FC = () => {
                                     const name = item.name || item.fullName || 'NÃO INFORMADO';
                                     const initial = name.charAt(0).toUpperCase();
                                     const quality = getContributorMissingData(item);
-                                    const photoUrl = item.photo || item.photoUrl || item.avatarUrl;
+                                    const photoUrl = item.photo || item.photo_url || item.photoUrl || item.avatarUrl;
 
                                     return (
                                         <tr 

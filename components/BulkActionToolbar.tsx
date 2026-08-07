@@ -2,9 +2,7 @@ import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { UserPlusIcon, XMarkIcon, LockClosedIcon, TrashIcon } from './Icons';
-import { MessageCircle } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
-import { sendWhatsAppDirect } from './modals/WhatsAppReceiptModal';
 
 interface BulkActionToolbarProps {
     selectedIds: string[];
@@ -13,7 +11,7 @@ interface BulkActionToolbarProps {
 }
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedIds, results, onClear }) => {
-    const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation, openWhatsAppReceiptModal, contributors, churches, showToast } = useContext(AppContext);
+    const { setBulkIdentificationTxs, toggleConfirmation, openDeleteConfirmation } = useContext(AppContext);
     const { language } = useTranslation();
 
     // ✅ PROTEÇÃO TOTAL contra undefined
@@ -58,38 +56,6 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
     const handleBulkConfirm = async () => {
         await toggleConfirmation(selectedIds, true);
         onClear();
-    };
-
-    const handleBulkWhatsApp = () => {
-        const items = selectedData.map((r: any) => {
-            const tx = r.transaction || r;
-            const contributor = r.contributor;
-            const displayName = r.identifiedName || contributor?.name || r.contributorName || tx.description || 'Irmão(ã)';
-            const displayAmount = Math.abs(
-                typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount || 0).replace(',', '.')) || 0
-            );
-            const displayType = r.contributionType || tx.category || 'Dízimo / Oferta';
-            const churchName = r.church?.name;
-            const date = tx.date;
-            const transactionId = tx.id;
-            const phone = contributor?.phone || contributor?.mobile || contributor?.whatsapp || '';
-
-            return {
-                contributorName: displayName,
-                phone,
-                amount: displayAmount,
-                contributionType: displayType,
-                churchName,
-                date,
-                transactionId
-            };
-        });
-
-        if (items.length === 1) {
-            sendWhatsAppDirect(items[0], { contributors, churches, showToast });
-        } else if (openWhatsAppReceiptModal) {
-            openWhatsAppReceiptModal({ items });
-        }
     };
 
     const handleBulkDelete = () => {
@@ -138,15 +104,6 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({ selectedId
                             Confirmar Final
                         </button>
                     )}
-
-                    <button
-                        onClick={handleBulkWhatsApp}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[8px] font-black uppercase tracking-widest transition-all shadow-md shadow-emerald-600/20 border border-emerald-400/30 cursor-pointer"
-                        title="Disparar comprovantes via WhatsApp para selecionados"
-                    >
-                        <MessageCircle className="w-3 h-3 fill-white/20" />
-                        WhatsApp ({selectedIds.length})
-                    </button>
 
                     <button
                         onClick={handleBulkDelete}

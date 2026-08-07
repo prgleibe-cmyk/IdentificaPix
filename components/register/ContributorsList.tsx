@@ -190,10 +190,52 @@ export const ContributorsList: React.FC = () => {
     const [status, setStatus] = useState<'Ativo' | 'Inativo'>('Ativo');
     const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
-    // Photo States (Client-side visual only, prepared for POST /api/v1/contributors/:id/photo)
+    // Photo States
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const convertFileToDataUrl = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 600;
+
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                        resolve(dataUrl);
+                    } else {
+                        resolve(e.target?.result as string);
+                    }
+                };
+                img.onerror = () => {
+                    resolve(e.target?.result as string);
+                };
+                img.src = e.target?.result as string;
+            };
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+        });
+    };
 
     // Batch Import States
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -547,6 +589,11 @@ export const ContributorsList: React.FC = () => {
         setAddressState(contributor.address_state || '');
         setNotes(contributor.notes || '');
         setStatus(contributor.status === 'inactive' ? 'Inativo' : 'Ativo');
+
+        const existingPhoto = contributor.photo_url || contributor.photo || contributor.photoUrl || contributor.avatarUrl || null;
+        setPhotoPreview(existingPhoto);
+        setPhotoFile(null);
+
         setIsModalOpen(true);
     };
 
@@ -591,21 +638,21 @@ export const ContributorsList: React.FC = () => {
         }
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (photoPreview) {
-                URL.revokeObjectURL(photoPreview);
+            try {
+                const dataUrl = await convertFileToDataUrl(file);
+                setPhotoFile(file);
+                setPhotoPreview(dataUrl);
+            } catch (err) {
+                console.error('[ContributorsList] Error processing photo:', err);
+                showToast("Erro ao processar imagem da foto. Tente outra imagem.", "error");
             }
-            setPhotoFile(file);
-            setPhotoPreview(URL.createObjectURL(file));
         }
     };
 
     const handleRemovePhoto = () => {
-        if (photoPreview) {
-            URL.revokeObjectURL(photoPreview);
-        }
         setPhotoFile(null);
         setPhotoPreview(null);
         if (fileInputRef.current) {
@@ -642,10 +689,7 @@ export const ContributorsList: React.FC = () => {
         setStatus('Ativo');
         setAttemptedSubmit(false);
 
-        // Reset photo state and revoke preview URL
-        if (photoPreview) {
-            URL.revokeObjectURL(photoPreview);
-        }
+        // Reset photo state
         setPhotoFile(null);
         setPhotoPreview(null);
         if (fileInputRef.current) {
@@ -704,7 +748,8 @@ export const ContributorsList: React.FC = () => {
                 address_number: addressNumber.trim() || null,
                 address_city: addressCity.trim() || null,
                 address_state: addressState.trim() || null,
-                notes: notes.trim() || null
+                notes: notes.trim() || null,
+                photo_url: photoPreview || null
             };
 
             let response;
@@ -866,12 +911,23 @@ export const ContributorsList: React.FC = () => {
                                     <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors animate-fade-in">
                                         <td className="px-4 py-3.5 whitespace-nowrap">
                                             <div className="flex items-center space-x-3">
-                                                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs uppercase shrink-0 select-none shadow-sm ${
+                                                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs uppercase shrink-0 select-none shadow-sm overflow-hidden ${
                                                     isPJ 
                                                         ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40' 
                                                         : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40'
                                                 }`}>
-                                                    {isPJ ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                                                    {(c.photo_url || c.photo || c.photoUrl || c.avatarUrl) ? (
+                                                        <img 
+                                                            src={c.photo_url || c.photo || c.photoUrl || c.avatarUrl} 
+                                                            alt={c.canonical_name} 
+                                                            className="w-full h-full object-cover" 
+                                                            referrerPolicy="no-referrer"
+                                                        />
+                                                    ) : isPJ ? (
+                                                        <Building2 className="w-4 h-4" />
+                                                    ) : (
+                                                        <User className="w-4 h-4" />
+                                                    )}
                                                 </div>
                                                 <div className="truncate max-w-[220px]">
                                                     <div className="flex items-center space-x-1.5 mb-0.5">

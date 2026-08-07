@@ -365,6 +365,7 @@ async function initializeDatabase() {
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS notes TEXT;");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT FALSE;");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS role_position VARCHAR(100);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS photo_url TEXT;");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
 
     // Create table banks
@@ -1707,8 +1708,10 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       person_type, trade_name, rg_ie, birth_date, contact_person,
       category, pix_key, bank_name, bank_agency, bank_account,
       address_cep, address_street, address_number, address_city, address_state, notes,
-      is_global, role_position
+      is_global, role_position, photo_url, photo
     } = req.body;
+
+    const cleanPhotoUrl = photo_url !== undefined ? photo_url : (photo !== undefined ? photo : null);
 
     // UUID Pattern validation
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -1758,11 +1761,12 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
            SET canonical_name = $1, 
                email = COALESCE($2, email), 
                phone = COALESCE($3, phone),
+               photo_url = COALESCE($6, photo_url),
                is_global = CASE WHEN $5 = TRUE THEN TRUE ELSE is_global END,
                updated_at = NOW() 
            WHERE id = $4 
            RETURNING *`,
-          [sanitizedName, sanitizedEmail, sanitizedPhone, existing.id, isGlobalValue]
+          [sanitizedName, sanitizedEmail, sanitizedPhone, existing.id, isGlobalValue, cleanPhotoUrl]
         );
         return res.status(200).json(updateResult.rows[0] || existing);
       }
@@ -1774,15 +1778,15 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
         church_id, canonical_name, cpf, email, phone, status,
         person_type, trade_name, rg_ie, birth_date, contact_person,
         category, pix_key, bank_name, bank_agency, bank_account,
-        address_cep, address_street, address_number, address_city, address_state, notes, is_global, role_position
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        address_cep, address_street, address_number, address_city, address_state, notes, is_global, role_position, photo_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *`,
       [
         cleanChurchId, sanitizedName, sanitizedCpf, sanitizedEmail, sanitizedPhone, sanitizedStatus,
         person_type || 'PF', trade_name || null, rg_ie || null, birth_date || null, contact_person || null,
         category || null, pix_key || null, bank_name || null, bank_agency || null, bank_account || null,
         address_cep || null, address_street || null, address_number || null, address_city || null, address_state || null, notes || null,
-        isGlobalValue, role_position || null
+        isGlobalValue, role_position || null, cleanPhotoUrl
       ]
     );
 
@@ -1798,6 +1802,34 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/v1/contributors/:id/photo
+app.post('/api/v1/contributors/:id/photo', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { photo_url, photo } = req.body;
+    const cleanPhotoUrl = photo_url !== undefined ? photo_url : (photo !== undefined ? photo : null);
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ error: 'INVALID_ID' });
+    }
+
+    const result = await pool.query(
+      'UPDATE contributors SET photo_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [cleanPhotoUrl, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'CONTRIBUTOR_NOT_FOUND' });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[Contributors API] Error updating contributor photo:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+});
+
 // PUT /api/v1/contributors/:id
 app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   try {
@@ -1807,7 +1839,7 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
       person_type, trade_name, rg_ie, birth_date, contact_person,
       category, pix_key, bank_name, bank_agency, bank_account,
       address_cep, address_street, address_number, address_city, address_state, notes,
-      is_global, role_position
+      is_global, role_position, photo_url, photo
     } = req.body;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -1859,6 +1891,10 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 
     if (is_global !== undefined) {
       addField('is_global', Boolean(is_global));
+    }
+
+    if (photo_url !== undefined || photo !== undefined) {
+      addField('photo_url', photo_url !== undefined ? photo_url : photo);
     }
 
     addField('person_type', person_type);

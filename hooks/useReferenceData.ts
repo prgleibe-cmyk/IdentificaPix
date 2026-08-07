@@ -176,9 +176,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                                         body: JSON.stringify({
                                             name: b.name,
                                             user_id: ownerId,
-                                            bank_key: b.bankKey || (b as any).bank_key,
-                                            account_name: b.accountName || (b as any).account_name || b.name,
-                                            accepted_contribution_types: b.acceptedContributionTypes || (b as any).accepted_contribution_types
+                                            bank_key: (b as any).bankKey || (b as any).bank_key,
+                                            account_name: (b as any).accountName || (b as any).account_name || b.name,
+                                            accepted_contribution_types: (b as any).acceptedContributionTypes || (b as any).accepted_contribution_types
                                         })
                                     });
                                 } catch {}
