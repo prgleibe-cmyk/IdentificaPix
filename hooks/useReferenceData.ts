@@ -159,8 +159,12 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     }
                     
                     if (!ignore) {
-                        setBanks(filteredBanks);
-                        setChurches(filteredChurches);
+                        if (filteredBanks.length > 0 || !banks || banks.length === 0) {
+                            setBanks(filteredBanks);
+                        }
+                        if (filteredChurches.length > 0 || !churches || churches.length === 0) {
+                            setChurches(filteredChurches);
+                        }
 
                         if (filteredBanks.length === 0 && banks && banks.length > 0) {
                             console.log('[useReferenceData] Sincronizando bancos locais com o servidor...');

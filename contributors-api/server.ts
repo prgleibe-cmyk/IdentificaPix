@@ -1492,6 +1492,7 @@ app.get('/api/v1/contribution-types/public', async (req: Request, res: Response)
 app.get('/api/v1/contribution-types', async (req: Request, res: Response) => {
   try {
     const { user_id, type, is_active } = req.query;
+    const cleanUserId = typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null;
 
     let query = `
       SELECT 
@@ -1511,11 +1512,9 @@ app.get('/api/v1/contribution-types', async (req: Request, res: Response) => {
     `;
     const params: any[] = [];
 
-    if (user_id && typeof user_id === 'string' && user_id.trim()) {
-      params.push(user_id.trim());
-      query += ` AND (ct.user_id = $${params.length} OR ct.user_id IS NULL)`;
-    } else {
-      query += ` AND ct.user_id IS NULL`;
+    if (cleanUserId) {
+      params.push(cleanUserId);
+      query += ` AND (ct.user_id = $1 OR ct.user_id IS NULL OR ct.user_id = '00000000-0000-0000-0000-000000000001')`;
     }
 
     if (type && typeof type === 'string') {
@@ -1530,7 +1529,38 @@ app.get('/api/v1/contribution-types', async (req: Request, res: Response) => {
 
     query += ' ORDER BY ct.type ASC, ct."order" ASC, ct.name ASC';
 
-    const result = await pool.query(query, params);
+    let result = await pool.query(query, params);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Auto-seed standard contribution types if none exist
+    const defaultTypes = [
+      { name: 'Dízimo', type: 'entrada', order: 1 },
+      { name: 'Oferta', type: 'entrada', order: 2 },
+      { name: 'Contribuição Especial', type: 'entrada', order: 3 },
+      { name: 'Doação / Voto', type: 'entrada', order: 4 },
+      { name: 'Despesas Operacionais', type: 'saida', order: 1 },
+      { name: 'Manutenção e Reformas', type: 'saida', order: 2 },
+      { name: 'Energia / Água / Internet', type: 'saida', order: 3 },
+      { name: 'Preletor / Ajuda de Custo', type: 'saida', order: 4 },
+      { name: 'Eventos e Festividades', type: 'saida', order: 5 }
+    ];
+
+    for (const dt of defaultTypes) {
+      try {
+        await pool.query(
+          `INSERT INTO contribution_types (name, type, category, "order", is_active, user_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [dt.name, dt.type, dt.type === 'entrada' ? 'Receita' : 'Despesa', dt.order, true, cleanUserId]
+        );
+      } catch (e) {
+        console.error('Error auto-seeding contribution type:', e);
+      }
+    }
+
+    result = await pool.query(query, params);
     return res.json(result.rows);
   } catch (err: any) {
     console.error('[Contributors API] Error listing contribution types:', err);
@@ -1921,6 +1951,35 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Helper to fetch table data from Supabase REST API as a fallback
+const fetchSupabaseTable = async (table: string, userId?: string) => {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
+                     process.env.SERVICE_ROLE_KEY ||
+                     process.env.SUPABASE_SERVICE_KEY;
+  if (!serviceKey) return [];
+  const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
+  try {
+    let url = `${supabaseUrl}/rest/v1/${table}?select=*`;
+    if (userId) {
+      url += `&or=(user_id.eq.${userId},owner_id.eq.${userId},user_id.is.null)`;
+    }
+    const response = await fetch(url, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`
+      }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    }
+  } catch (err) {
+    console.warn(`[Supabase Fetch Fallback] Error fetching ${table}:`, err);
+  }
+  return [];
+};
+
 // ==========================================
 // BANKS ENDPOINTS
 // ==========================================
@@ -1929,15 +1988,70 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 app.get('/api/v1/banks', async (req: Request, res: Response) => {
   try {
     const { user_id } = req.query;
+    const cleanUserId = typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null;
+
     let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
     const params: any[] = [];
-    if (user_id) {
-      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
-      params.push(user_id);
+    if (cleanUserId) {
+      params.push(cleanUserId);
+      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
-    return res.json(result.rows);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Fallback 1: Query Supabase
+    if (cleanUserId) {
+      const supaBanks = await fetchSupabaseTable('banks', cleanUserId);
+      if (supaBanks.length > 0) {
+        for (const b of supaBanks) {
+          try {
+            await pool.query(
+              `INSERT INTO banks (id, name, user_id, bank_key, account_name, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (id) DO NOTHING`,
+              [b.id, b.name, b.user_id || cleanUserId, b.bank_key || null, b.account_name || b.name, b.created_at || new Date()]
+            );
+          } catch (e) {
+            console.error('Error auto-syncing bank from Supabase:', e);
+          }
+        }
+        const recheck = await pool.query(query, params);
+        if (recheck.rows.length > 0) return res.json(recheck.rows);
+      }
+    }
+
+    // Fallback 2: Auto-seed standard default banks for user
+    const defaultBanks = [
+      { name: 'Banco do Brasil', bank_key: '001' },
+      { name: 'Itaú Unibanco', bank_key: '341' },
+      { name: 'Caixa Econômica Federal', bank_key: '104' },
+      { name: 'Bradesco', bank_key: '237' },
+      { name: 'Santander', bank_key: '033' },
+      { name: 'Sicoob', bank_key: '756' },
+      { name: 'Nubank', bank_key: '260' },
+      { name: 'Banco Inter', bank_key: '077' }
+    ];
+
+    const insertedRows: any[] = [];
+    for (const dbank of defaultBanks) {
+      try {
+        const ins = await pool.query(
+          `INSERT INTO banks (name, user_id, bank_key, account_name)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at`,
+          [dbank.name, cleanUserId, dbank.bank_key, dbank.name]
+        );
+        if (ins.rows[0]) insertedRows.push(ins.rows[0]);
+      } catch (e) {
+        console.error('Error auto-seeding default bank:', e);
+      }
+    }
+
+    return res.json(insertedRows.length > 0 ? insertedRows : []);
   } catch (err) {
     console.error('[Contributors API] Error GET banks:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2000,15 +2114,51 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
 app.get('/api/v1/churches', async (req: Request, res: Response) => {
   try {
     const { user_id } = req.query;
+    const cleanUserId = typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null;
+
     let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
-    if (user_id) {
-      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
-      params.push(user_id);
+    if (cleanUserId) {
+      params.push(cleanUserId);
+      query += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
     }
     query += ' ORDER BY name ASC';
     const result = await pool.query(query, params);
-    return res.json(result.rows);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.json(result.rows);
+    }
+
+    // Fallback 1: Query Supabase
+    if (cleanUserId) {
+      const supaChurches = await fetchSupabaseTable('churches', cleanUserId);
+      if (supaChurches.length > 0) {
+        for (const c of supaChurches) {
+          try {
+            await pool.query(
+              `INSERT INTO churches (id, name, address, "logoUrl", pastor, user_id, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (id) DO NOTHING`,
+              [c.id, c.name, c.address || '', c.logoUrl || '', c.pastor || '', c.user_id || cleanUserId, c.created_at || new Date()]
+            );
+          } catch (e) {
+            console.error('Error auto-syncing church from Supabase:', e);
+          }
+        }
+        const recheck = await pool.query(query, params);
+        if (recheck.rows.length > 0) return res.json(recheck.rows);
+      }
+    }
+
+    // Fallback 2: Auto-seed default church
+    const ins = await pool.query(
+      `INSERT INTO churches (name, address, "logoUrl", pastor, user_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      ['Igreja Sede Central', 'Sede Central', '', 'Pr. Responsável', cleanUserId]
+    );
+
+    return res.json(ins.rows);
   } catch (err) {
     console.error('[Contributors API] Error GET churches:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
