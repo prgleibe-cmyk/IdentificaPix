@@ -144,9 +144,9 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     let fetchedReports = data.reports || [];
                     let fetchedAssociations = data.associations || [];
                     
-                    const isOwner = subscription.ownerId === user?.id;
+                    const isSecondaryUser = Boolean(subscription.ownerId && subscription.ownerId !== user?.id);
                     
-                    if (!isOwner) {
+                    if (isSecondaryUser) {
                         const allowedBankIds = subscription.bankIds || [];
                         const allowedChurchIds = subscription.congregationIds || [];
                         
@@ -159,9 +159,10 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     }
                     
                     if (!ignore) {
-                        if (filteredBanks.length > 0) {
-                            setBanks(filteredBanks);
-                        } else if (banks && banks.length > 0) {
+                        setBanks(filteredBanks);
+                        setChurches(filteredChurches);
+
+                        if (filteredBanks.length === 0 && banks && banks.length > 0) {
                             console.log('[useReferenceData] Sincronizando bancos locais com o servidor...');
                             banks.forEach(async (b) => {
                                 try {
@@ -180,9 +181,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                             });
                         }
 
-                        if (filteredChurches.length > 0) {
-                            setChurches(filteredChurches);
-                        } else if (churches && churches.length > 0) {
+                        if (filteredChurches.length === 0 && churches && churches.length > 0) {
                             console.log('[useReferenceData] Sincronizando igrejas locais com o servidor...');
                             churches.forEach(async (c) => {
                                 try {
