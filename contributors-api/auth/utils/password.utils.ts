@@ -11,17 +11,8 @@ export async function comparePassword(password: string, hash: string): Promise<b
 }
 
 export function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
-  if (!password || password.length < 8) {
-    return { valid: false, message: 'A senha deve ter no mínimo 8 caracteres.' };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { valid: false, message: 'A senha deve conter ao menos uma letra maiúscula.' };
-  }
-  if (!/[a-z]/.test(password)) {
-    return { valid: false, message: 'A senha deve conter ao menos uma letra minúscula.' };
-  }
-  if (!/[0-9]/.test(password)) {
-    return { valid: false, message: 'A senha deve conter ao menos um número.' };
+  if (!password || password.length < 4) {
+    return { valid: false, message: 'A senha deve ter no mínimo 4 caracteres.' };
   }
   return { valid: true };
 }

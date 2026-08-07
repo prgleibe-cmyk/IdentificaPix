@@ -60,8 +60,8 @@ export const useAuthController = () => {
             return;
         }
 
-        if (password.length < 6) {
-            setError('A senha precisa ter no mínimo 6 caracteres.');
+        if (password.length < 4) {
+            setError('A senha precisa ter no mínimo 4 caracteres.');
             setLoading(false);
             return;
         }
@@ -78,8 +78,7 @@ export const useAuthController = () => {
                 if (!res.success) {
                     throw new Error(res.error || 'Erro ao realizar cadastro.');
                 }
-                setMessage('Cadastro realizado com sucesso! Você já pode entrar.');
-                setIsLogin(true);
+                window.location.reload();
             }
         } catch (err: any) {
             console.error("Auth error:", err);

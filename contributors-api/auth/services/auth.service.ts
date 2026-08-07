@@ -42,7 +42,7 @@ export class AuthService {
         ip_address: ip,
         user_agent: userAgent
       });
-      throw new Error('Credenciais inválidas.');
+      throw new Error('Credenciais inválidas. Se sua conta é da migração do Supabase, clique em "Criar conta" com este e-mail para cadastrar sua senha.');
     }
 
     if (!user.is_active) {
@@ -82,7 +82,7 @@ export class AuthService {
       if (lockStatus.locked) {
         throw new Error('Muitas tentativas malsucedidas. Conta bloqueada por 15 minutos.');
       }
-      throw new Error('Credenciais inválidas.');
+      throw new Error('Senha incorreta. Se você migrou do Supabase, clique em "Criar conta" abaixo com este mesmo e-mail para cadastrar sua nova senha.');
     }
 
     await this.repo.updateUserLoginSuccess(user.id);
@@ -145,11 +145,13 @@ export class AuthService {
       await this.repo.updateUserPassword(existing.id, passwordHash);
       userToAuth = { ...existing, password_hash: passwordHash };
     } else {
+      const existingProfile = await this.repo.findProfileByEmail(email);
       userToAuth = await this.repo.createUser({
+        id: existingProfile?.id || existingProfile?.owner_id || undefined,
         email,
         password_hash: passwordHash,
-        name,
-        role: role || 'user',
+        name: name || existingProfile?.name || null,
+        role: role || existingProfile?.role || 'user',
         church_id: churchId || null,
         permissions: [],
         is_active: true,

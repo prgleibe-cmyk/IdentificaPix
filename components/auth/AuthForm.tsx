@@ -91,18 +91,25 @@ export const AuthForm: React.FC<AuthFormProps> = ({
                 {loading ? 'Processando...' : (isRecoveryMode ? 'Recuperar Senha' : (isLogin ? 'Entrar na Plataforma' : 'Criar Conta Grátis'))}
             </button>
 
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center space-y-2">
                 {isRecoveryMode ? (
                     <button type="button" onClick={() => setIsRecoveryMode(false)} className="text-xs font-bold text-slate-500 hover:text-brand-blue transition-colors underline decoration-2 underline-offset-2">
                         Voltar para o Login
                     </button>
                 ) : (
-                    <p className="text-xs font-bold text-slate-400">
-                        {isLogin ? 'Novo por aqui?' : 'Já possui conta?'}
-                        <button type="button" onClick={onToggleMode} className="text-slate-700 hover:text-brand-blue ml-1 transition-colors underline decoration-2 underline-offset-2">
-                            {isLogin ? 'Criar conta' : 'Fazer Login'}
-                        </button>
-                    </p>
+                    <>
+                        <p className="text-xs font-bold text-slate-400">
+                            {isLogin ? 'Novo por aqui?' : 'Já possui conta?'}
+                            <button type="button" onClick={onToggleMode} className="text-slate-700 hover:text-brand-blue ml-1 transition-colors underline decoration-2 underline-offset-2">
+                                {isLogin ? 'Criar conta' : 'Fazer Login'}
+                            </button>
+                        </p>
+                        {isLogin && (
+                            <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium leading-tight">
+                                💡 <strong>Conta antiga?</strong> Se você já tinha cadastro no Supabase, clique em <strong className="text-brand-blue">Criar conta</strong> usando seu e-mail para cadastrar sua senha no novo servidor. Seus dados antigos serão mantidos!
+                            </p>
+                        )}
+                    </>
                 )}
             </div>
         </form>

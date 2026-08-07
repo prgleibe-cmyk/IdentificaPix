@@ -120,6 +120,19 @@ export class AuthRepository {
     return this.mapUserRow(res.rows[0]);
   }
 
+  async findProfileByEmail(email: string): Promise<{ id: string; owner_id?: string; name?: string; role?: string } | null> {
+    try {
+      const res = await this.pool.query(
+        'SELECT id, owner_id, name, role FROM profiles WHERE LOWER(email) = LOWER($1) LIMIT 1',
+        [email]
+      );
+      if (res.rows.length === 0) return null;
+      return res.rows[0];
+    } catch {
+      return null;
+    }
+  }
+
   async findUserById(id: string): Promise<LocalUser | null> {
     const res = await this.pool.query(
       'SELECT * FROM app_users WHERE id = $1 AND deleted_at IS NULL LIMIT 1',
