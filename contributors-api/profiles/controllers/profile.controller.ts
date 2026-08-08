@@ -11,7 +11,20 @@ export class ProfileController {
 
   getAll = async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
+      const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
+      const authenticatedUserId = user?.userId || user?.id;
+
       const { owner_id } = req.query;
+
+      if (user && !isSuperAdmin && authenticatedUserId) {
+        if (owner_id && owner_id !== authenticatedUserId) {
+          return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado aos perfis de outro usuário.' });
+        }
+        const profiles = await this.service.getByOwnerId(authenticatedUserId);
+        return res.json({ success: true, data: profiles });
+      }
+
       if (typeof owner_id === 'string' && owner_id.trim() !== '') {
         const profiles = await this.service.getByOwnerId(owner_id);
         return res.json({ success: true, data: profiles });
@@ -28,10 +41,19 @@ export class ProfileController {
   getById = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const user = (req as any).user;
+      const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
+      const authenticatedUserId = user?.userId || user?.id;
+
       const profile = await this.service.getById(id);
       if (!profile) {
         return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO', message: `Perfil "${id}" não encontrado.` });
       }
+
+      if (user && !isSuperAdmin && authenticatedUserId && profile.owner_id && profile.owner_id !== authenticatedUserId) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado a este perfil.' });
+      }
+
       return res.json({ success: true, data: profile });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: 'FALHA_AO_BUSCAR_PERFIL', message: err?.message });
@@ -40,6 +62,17 @@ export class ProfileController {
 
   createOrUpsert = async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
+      const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
+      const authenticatedUserId = user?.userId || user?.id;
+
+      if (user && !isSuperAdmin && authenticatedUserId) {
+        if (req.body.owner_id && req.body.owner_id !== authenticatedUserId) {
+          return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Não é permitido criar perfil para outro usuário.' });
+        }
+        req.body.owner_id = authenticatedUserId;
+      }
+
       const validation = ProfileValidator.validateCreate(req.body);
       if (!validation.isValid) {
         return res.status(400).json({ success: false, error: validation.error });
@@ -56,15 +89,25 @@ export class ProfileController {
   update = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const user = (req as any).user;
+      const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
+      const authenticatedUserId = user?.userId || user?.id;
+
+      const existing = await this.service.getById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO' });
+      }
+
+      if (user && !isSuperAdmin && authenticatedUserId && existing.owner_id && existing.owner_id !== authenticatedUserId) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado para alterar este perfil.' });
+      }
+
       const validation = ProfileValidator.validateUpdate(req.body);
       if (!validation.isValid) {
         return res.status(400).json({ success: false, error: validation.error });
       }
 
       const updated = await this.service.update(id, req.body);
-      if (!updated) {
-        return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO' });
-      }
       return res.json({ success: true, message: 'Perfil atualizado com sucesso.', data: updated });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: 'FALHA_AO_ATUALIZAR_PERFIL', message: err?.message });
@@ -74,10 +117,20 @@ export class ProfileController {
   delete = async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const deleted = await this.service.delete(id);
-      if (!deleted) {
+      const user = (req as any).user;
+      const isSuperAdmin = Boolean(user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMINISTRADOR_GERAL');
+      const authenticatedUserId = user?.userId || user?.id;
+
+      const existing = await this.service.getById(id);
+      if (!existing) {
         return res.status(404).json({ success: false, error: 'PERFIL_NAO_ENCONTRADO' });
       }
+
+      if (user && !isSuperAdmin && authenticatedUserId && existing.owner_id && existing.owner_id !== authenticatedUserId) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Acesso negado para remover este perfil.' });
+      }
+
+      const deleted = await this.service.delete(id);
       return res.json({ success: true, message: 'Perfil removido com sucesso.' });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: 'FALHA_AO_EXCLUIR_PERFIL', message: err?.message });

@@ -68,29 +68,99 @@ export function requirePermission(...requiredPermissions: string[]) {
   };
 }
 
-// In-Memory Rate Limiter Guard
+// In-Memory Rate Limiter Guard with proxy IP extraction & route key isolation
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
-export function authRateLimiter(windowMs: number = 15 * 60 * 1000, maxRequests: number = 20) {
+// Periodic cleanup of expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitMap.entries()) {
+    if (now > record.resetTime) {
+      rateLimitMap.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+export interface RateLimiterOptions {
+  windowMs?: number;
+  maxRequests?: number;
+  keyPrefix?: string;
+  message?: string;
+}
+
+export function authRateLimiter(options?: RateLimiterOptions | number, defaultMax?: number) {
+  let windowMs = 15 * 60 * 1000;
+  let maxRequests = 20;
+  let keyPrefix = 'auth';
+  let message = 'Muitas requisições enviadas. Por favor, aguarde alguns minutos e tente novamente.';
+
+  if (typeof options === 'number') {
+    windowMs = options;
+    if (typeof defaultMax === 'number') {
+      maxRequests = defaultMax;
+    }
+  } else if (typeof options === 'object' && options !== null) {
+    if (options.windowMs) windowMs = options.windowMs;
+    if (options.maxRequests) maxRequests = options.maxRequests;
+    if (options.keyPrefix) keyPrefix = options.keyPrefix;
+    if (options.message) message = options.message;
+  }
+
+  // Override windowMs and maxRequests with env variables if set
+  if (process.env.AUTH_RATE_LIMIT_WINDOW_MS) {
+    const envWin = parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10);
+    if (!isNaN(envWin) && envWin > 0) windowMs = envWin;
+  }
+
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    // Extract IP taking x-forwarded-for into account for reverse proxy / Nginx
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    let ip = '127.0.0.1';
+    if (xForwardedFor) {
+      const ips = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
+      ip = ips.split(',')[0].trim();
+    } else {
+      ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    }
+
+    const routeKey = `${keyPrefix}:${ip}`;
     const now = Date.now();
 
-    const record = rateLimitMap.get(ip);
+    let record = rateLimitMap.get(routeKey);
 
     if (!record || now > record.resetTime) {
-      rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+      record = { count: 1, resetTime: now + windowMs };
+      rateLimitMap.set(routeKey, record);
+      
+      res.setHeader('X-RateLimit-Limit', maxRequests);
+      res.setHeader('X-RateLimit-Remaining', maxRequests - 1);
+      res.setHeader('X-RateLimit-Reset', Math.ceil(record.resetTime / 1000));
       return next();
     }
 
     if (record.count >= maxRequests) {
+      const retryAfterSeconds = Math.ceil((record.resetTime - now) / 1000);
+      res.setHeader('Retry-After', retryAfterSeconds);
+      res.setHeader('X-RateLimit-Limit', maxRequests);
+      res.setHeader('X-RateLimit-Remaining', 0);
+      res.setHeader('X-RateLimit-Reset', Math.ceil(record.resetTime / 1000));
+
       return res.status(429).json({
         success: false,
-        error: 'Muitas requisições enviadas. Por favor, aguarde alguns minutos e tente novamente.'
+        error: message,
+        retryAfter: retryAfterSeconds
       });
     }
 
     record.count++;
+    res.setHeader('X-RateLimit-Limit', maxRequests);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, maxRequests - record.count));
+    res.setHeader('X-RateLimit-Reset', Math.ceil(record.resetTime / 1000));
+
     next();
   };
+}
+
+export function resetRateLimitStore() {
+  rateLimitMap.clear();
 }

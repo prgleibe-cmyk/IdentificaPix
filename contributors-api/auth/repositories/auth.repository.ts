@@ -7,6 +7,10 @@ export class AuthRepository {
     this.pool = pool;
   }
 
+  getPool(): any {
+    return this.pool;
+  }
+
   async initTables(): Promise<void> {
     const client = await this.pool.connect();
     try {

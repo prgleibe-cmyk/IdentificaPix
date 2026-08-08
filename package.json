@@ -17,6 +17,7 @@
     "postinstall": "npm install --prefix contributors-api"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
     "@google/genai": "*",
     "@supabase/supabase-js": "^2.39.0",
     "@types/compression": "^1.8.1",

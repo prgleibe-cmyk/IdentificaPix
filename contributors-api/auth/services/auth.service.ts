@@ -3,6 +3,7 @@ import { hashPassword, comparePassword, validatePasswordStrength } from '../util
 import { generateAccessToken, generateRefreshToken, hashRefreshToken, verifyAccessToken, generateResetToken } from '../utils/jwt.utils.js';
 import { sanitizeEmail } from '../validators/auth.validators.js';
 import { UserResponse, LoginResult, AuthTokens } from '../types/auth.types.js';
+import { logAudit } from '../../services/audit.service.js';
 
 export class AuthService {
   private repo: AuthRepository;
@@ -181,6 +182,23 @@ export class AuthService {
       event: existing ? 'SIGNUP_UPDATE_PASSWORD_SUCCESS' : 'SIGNUP_SUCCESS',
       ip_address: ip,
       user_agent: userAgent
+    });
+
+    await logAudit(this.repo.getPool(), {
+      userId: userToAuth.id,
+      churchId: userToAuth.church_id,
+      action: existing ? 'UPDATE' : 'CREATE',
+      entity: 'app_users',
+      entityId: userToAuth.id,
+      ipAddress: ip,
+      userAgent: userAgent,
+      newValues: {
+        id: userToAuth.id,
+        email: userToAuth.email,
+        name: userToAuth.name,
+        role: userToAuth.role,
+        church_id: userToAuth.church_id
+      }
     });
 
     return {

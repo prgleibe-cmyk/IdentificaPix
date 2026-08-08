@@ -4,14 +4,18 @@ import pg from 'pg';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { createAuthRouter, AuthRepository } from './auth/routes/auth.routes.js';
+import { verifyAccessToken } from './auth/utils/jwt.utils.js';
 import { createAdminConfigRouter } from './admin-config/routes/admin_config.routes.js';
 import { createAutomationMacroRouter } from './automation-macros/routes/automation_macro.routes.js';
 import { createFileModelRouter } from './file-models/routes/file_model.routes.js';
 import { createProfileRouter } from './profiles/routes/profile.routes.js';
 import { createPaymentRouter } from './payments/routes/payment.routes.js';
+import { executeBackup, scheduleAutomatedBackups, getBackupDirectory } from './services/backup.service.js';
+import { initAuditDatabase, logAudit, queryAuditLogs } from './services/audit.service.js';
 
 const requireFallback = createRequire(import.meta.url);
 
@@ -23,222 +27,28 @@ dotenv.config();
 
 const { Pool } = pg;
 
-// Helper function to query SQLite fallback
-function querySqlite(db: any, sql: string, params?: any[]): any {
-  let translatedSql = sql;
-  let translatedParams = params || [];
-
-  if (/CREATE\s+EXTENSION/i.test(sql)) {
-    console.log('[SQLite Fallback] Ignoring CREATE EXTENSION:', sql);
-    return { rows: [], rowCount: 0 };
-  }
-  if (/ALTER\s+COLUMN/i.test(sql)) {
-    console.log('[SQLite Fallback] Ignoring ALTER COLUMN:', sql);
-    return { rows: [], rowCount: 0 };
-  }
-
-  // Handle ALTER TABLE ADD COLUMN
-  const cleanSql = sql.replace(/\s+/g, ' ').trim();
-  const alterMatch = cleanSql.match(/ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+(.+)/i);
-  if (alterMatch) {
-    const tableName = alterMatch[1];
-    const columnName = alterMatch[2];
-    let columnDef = alterMatch[3];
-    if (columnDef.endsWith(';')) {
-      columnDef = columnDef.slice(0, -1);
-    }
-
-    try {
-      const infoStmt = db.prepare(`PRAGMA table_info("${tableName}");`);
-      const cols = infoStmt.all();
-      const colExists = cols.some((c: any) => c.name.toLowerCase() === columnName.toLowerCase());
-      if (colExists) {
-        console.log(`[SQLite Fallback] Column "${columnName}" already exists on table "${tableName}". Skipping ADD COLUMN.`);
-        return { rows: [], rowCount: 0 };
-      }
-
-      let sqliteColDef = columnDef
-        .replace(/UUID\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid\(\)/ig, 'TEXT PRIMARY KEY')
-        .replace(/\bVARCHAR\(\d+\)/ig, 'TEXT')
-        .replace(/\bVARCHAR\b/ig, 'TEXT')
-        .replace(/\bTIMESTAMP\b/ig, 'TEXT')
-        .replace(/\bBOOLEAN\b/ig, 'INTEGER')
-        .replace(/\bJSONB\b/ig, 'TEXT')
-        .replace(/\bINT\b/ig, 'INTEGER')
-        .replace(/\bNUMERIC\(\d+,\s*\d+\)/ig, 'NUMERIC')
-        .replace(/DEFAULT\s+NOW\(\)/ig, "DEFAULT (now())")
-        .replace(/DEFAULT\s+gen_random_uuid\(\)/ig, "DEFAULT (gen_random_uuid())");
-
-      const runSql = `ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${sqliteColDef};`;
-      console.log('[SQLite Fallback] Executing ADD COLUMN:', runSql);
-      db.exec(runSql);
-      return { rows: [], rowCount: 0 };
-    } catch (err: any) {
-      console.error('[SQLite Fallback] Error in ALTER TABLE ADD COLUMN:', err.message);
-      return { rows: [], rowCount: 0 };
-    }
-  }
-
-  // Translate general CREATE TABLE types and defaults, remove PostgreSQL type casts, and handle NOW()
-  translatedSql = translatedSql
-    .replace(/UUID\s+PRIMARY\s+KEY\s+DEFAULT\s+gen_random_uuid\(\)(?:::\w+)?/ig, 'TEXT PRIMARY KEY DEFAULT (gen_random_uuid())')
-    .replace(/\bVARCHAR\(\d+\)/ig, 'TEXT')
-    .replace(/\bVARCHAR\b/ig, 'TEXT')
-    .replace(/\bTIMESTAMP\b/ig, 'TEXT')
-    .replace(/\bBOOLEAN\b/ig, 'INTEGER')
-    .replace(/\bJSONB\b/ig, 'TEXT')
-    .replace(/\bINT\b/ig, 'INTEGER')
-    .replace(/\bNUMERIC\(\d+,\s*\d+\)/ig, 'NUMERIC')
-    .replace(/DEFAULT\s+NOW\(\)/ig, "DEFAULT (now())")
-    .replace(/DEFAULT\s+now\(\)/ig, "DEFAULT (now())")
-    .replace(/DEFAULT\s+gen_random_uuid\(\)(?:::\w+)?/ig, "DEFAULT (gen_random_uuid())")
-    .replace(/::\w+/g, '')
-    .replace(/\bNOW\(\)/ig, "now()");
-
-  if (translatedSql.includes('id = ANY($1)') && Array.isArray(translatedParams[0])) {
-    const ids = translatedParams[0];
-    if (ids.length === 0) {
-      return { rows: [], rowCount: 0 };
-    }
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
-    translatedSql = translatedSql.replace('id = ANY($1)', `id IN (${placeholders})`);
-    translatedParams = ids;
-  }
-
-  const sqliteParams: any = {};
-  for (let i = 0; i < translatedParams.length; i++) {
-    let val = translatedParams[i];
-    if (typeof val === 'boolean') {
-      val = val ? 1 : 0;
-    } else if (val === undefined) {
-      val = null;
-    }
-    sqliteParams[`$${i + 1}`] = val;
-  }
-
-  try {
-    const isMutatingNoSelect = /^(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)/i.test(translatedSql) && !/RETURNING/i.test(translatedSql);
-    if (isMutatingNoSelect) {
-      const stmt = db.prepare(translatedSql);
-      const runResult = stmt.run(sqliteParams);
-      return {
-        rows: [],
-        rowCount: runResult.changes,
-        fields: []
-      };
-    } else {
-      const stmt = db.prepare(translatedSql);
-      const rows = stmt.all(sqliteParams);
-
-      const mappedRows = rows.map((row: any) => {
-        const mappedRow = { ...row };
-        for (const key in mappedRow) {
-          if (key === 'data' && typeof mappedRow[key] === 'string') {
-            try {
-              mappedRow[key] = JSON.parse(mappedRow[key]);
-            } catch (e) {
-              // Ignore
-            }
-          }
-          if ((key === 'is_confirmed' || key === 'is_active' || key === 'active' || key === 'tithe_enabled') && typeof mappedRow[key] === 'number') {
-            mappedRow[key] = mappedRow[key] === 1;
-          }
-        }
-        return mappedRow;
-      });
-
-      return {
-        rows: mappedRows,
-        rowCount: mappedRows.length,
-        fields: []
-      };
-    }
-  } catch (err: any) {
-    console.error('[SQLite Fallback] Database query execution error:', err.message, '\nOriginal SQL:', sql);
-    throw err;
-  }
-}
-
-class SqliteClient {
-  constructor(private db: any) {}
-  async query(sql: string, params?: any[]): Promise<any> {
-    return querySqlite(this.db, sql, params);
-  }
-  release() {
-    // No-op
-  }
-}
-
+// Connection pool wrapper enforcing strict PostgreSQL persistence with no SQLite fallback
 class SmartPool {
   private pgPool: pg.Pool;
-  private sqliteDb: any = null;
-  private isSqliteFallback = false;
-  private fallbackChecked = false;
 
   constructor(config: pg.PoolConfig) {
     this.pgPool = new Pool(config);
   }
 
-  private async checkConnection(): Promise<boolean> {
-    if (this.fallbackChecked) {
-      return !this.isSqliteFallback;
-    }
+  async connect(): Promise<pg.PoolClient> {
     try {
-      const client = await this.pgPool.connect();
-      client.release();
-      this.isSqliteFallback = false;
-      this.fallbackChecked = true;
-      console.log('[Contributors API] PostgreSQL connected successfully.');
-      return true;
+      return await this.pgPool.connect();
     } catch (err: any) {
-      console.warn('[Contributors API] PostgreSQL failed to connect. Falling back to native SQLite:', err.message);
-      this.initSqlite();
-      this.isSqliteFallback = true;
-      this.fallbackChecked = true;
-      return false;
+      console.error('[Contributors API] PostgreSQL connection error:', err?.message || err);
+      throw err;
     }
   }
 
-  private initSqlite() {
-    if (this.sqliteDb) return;
-    try {
-      const dbPath = path.join(__dirname, 'local_fallback.db');
-      console.log('[Contributors API] SQLite fallback active at:', dbPath);
-      const { DatabaseSync } = requireFallback('node:sqlite') as any;
-      this.sqliteDb = new DatabaseSync(dbPath);
-      this.sqliteDb.function('gen_random_uuid', () => crypto.randomUUID());
-      this.sqliteDb.function('GEN_RANDOM_UUID', () => crypto.randomUUID());
-      this.sqliteDb.function('now', () => new Date().toISOString());
-      this.sqliteDb.function('NOW', () => new Date().toISOString());
-    } catch (err: any) {
-      console.error('[Contributors API] SQLite initialization failed:', err.message);
-    }
-  }
-
-  async connect(): Promise<any> {
-    await this.checkConnection();
-    if (this.isSqliteFallback) {
-      this.initSqlite();
-      return new SqliteClient(this.sqliteDb);
-    }
-    return await this.pgPool.connect();
-  }
-
-  async query(sql: string, params?: any[]): Promise<any> {
-    await this.checkConnection();
-    if (this.isSqliteFallback) {
-      this.initSqlite();
-      return querySqlite(this.sqliteDb, sql, params);
-    }
+  async query(sql: string, params?: any[]): Promise<pg.QueryResult<any>> {
     try {
       return await this.pgPool.query(sql, params);
     } catch (err: any) {
-      if (err.code === 'EAI_AGAIN' || err.code === 'ECONNREFUSED' || err.message.includes('getaddrinfo') || err.message.includes('connect')) {
-        console.warn('[Contributors API] PostgreSQL query failed with connection error, switching to SQLite fallback.');
-        this.initSqlite();
-        this.isSqliteFallback = true;
-        return querySqlite(this.sqliteDb, sql, params);
-      }
+      console.error('[Contributors API] PostgreSQL query error:', err?.message || err);
       throw err;
     }
   }
@@ -249,6 +59,7 @@ class SmartPool {
 }
 
 export const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3010;
 
 app.use(cors());
@@ -742,6 +553,9 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_contrib_types_bank ON contribution_types(bank_id);");
     console.log('[Contributors API] Table "contribution_types" verified or successfully created.');
 
+    // Initialize Audit Logs Database
+    await initAuditDatabase(pool);
+
   } catch (err) {
     console.error('[Contributors API] Database initialization could not be completed:', (err as Error).message);
   } finally {
@@ -750,7 +564,62 @@ async function initializeDatabase() {
 }
 
 // Ensure database table setup executes upon initialization
-initializeDatabase();
+initializeDatabase().then(() => {
+  scheduleAutomatedBackups(pool);
+}).catch(err => {
+  console.error('[Contributors API] Error during init/schedule:', err);
+});
+
+// Admin Backup Endpoints
+app.post('/api/v1/admin/backup/run', async (req: Request, res: Response) => {
+  try {
+    const result = await executeBackup(pool);
+    if (result.success) {
+      res.json({
+        message: 'Backup PostgreSQL executado com sucesso.',
+        filename: result.filename,
+        sizeBytes: result.sizeBytes,
+        durationMs: result.durationMs,
+        verified: result.verified,
+        cleanedCount: result.cleanedCount,
+        offsiteUploaded: result.offsiteUploaded,
+        offsiteKey: result.offsiteKey,
+        offsiteError: result.offsiteError
+      });
+    } else {
+      res.status(500).json({
+        error: 'Falha ao executar backup do PostgreSQL',
+        details: result.error
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      error: 'Erro interno ao processar backup',
+      details: err?.message || String(err)
+    });
+  }
+});
+
+app.get('/api/v1/admin/backup/status', async (req: Request, res: Response) => {
+  try {
+    const backupDir = getBackupDirectory();
+    let files: string[] = [];
+    if (fs.existsSync(backupDir)) {
+      files = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith('backup-') && f.endsWith('.enc'))
+        .sort()
+        .reverse();
+    }
+    res.json({
+      backupDir,
+      totalBackups: files.length,
+      latestBackup: files[0] || null,
+      backups: files.slice(0, 10)
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
 
 // GET /
 app.get('/', (req: Request, res: Response) => {
@@ -759,6 +628,55 @@ app.get('/', (req: Request, res: Response) => {
     status: 'running'
   });
 });
+
+export interface TenantContext {
+  userId: string | null;
+  churchId: string | null;
+  role: string | null;
+  isSuperAdmin: boolean;
+  isAuthenticated: boolean;
+}
+
+export function getTenantContext(req: Request): TenantContext {
+  const reqAny = req as any;
+  let user = reqAny.user;
+
+  if (!user && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    try {
+      const token = req.headers.authorization.substring(7).trim();
+      user = verifyAccessToken(token);
+      reqAny.user = user;
+    } catch (e) {
+      // invalid token
+    }
+  }
+
+  if (user) {
+    const userId = user.user_id || user.id || null;
+    const churchId = user.church_id || (req.headers['x-church-id'] as string) || null;
+    const role = user.role || 'user';
+    const isSuperAdmin = Boolean(user.is_superadmin || role === 'superadmin');
+
+    return {
+      userId,
+      churchId,
+      role,
+      isSuperAdmin,
+      isAuthenticated: true
+    };
+  }
+
+  const headerChurchId = (req.headers['x-church-id'] as string) || null;
+  const headerUserId = (req.headers['x-user-id'] as string) || null;
+
+  return {
+    userId: headerUserId,
+    churchId: headerChurchId,
+    role: null,
+    isSuperAdmin: false,
+    isAuthenticated: false
+  };
+}
 
 // GET /health
 app.get('/health', (req: Request, res: Response) => {
@@ -769,17 +687,84 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
+// GET /api/v1/audit-logs
+app.get('/api/v1/audit-logs', async (req: Request, res: Response) => {
+  try {
+    const { church_id, user_id, entity, action, start_date, end_date, limit, offset } = req.query;
+    const ctx = getTenantContext(req);
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: você não tem permissão para acessar os logs desta igreja.'
+        });
+      }
+    }
+
+    const targetChurchId = ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId
+      ? ctx.churchId
+      : ((church_id || req.headers['x-church-id'] || ctx.churchId) as string | undefined);
+
+    if (!targetChurchId && !ctx.isSuperAdmin) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Acesso negado: church_id é obrigatório para consultar logs de auditoria.'
+      });
+    }
+
+    const result = await queryAuditLogs(pool, {
+      churchId: targetChurchId,
+      userId: user_id ? String(user_id) : undefined,
+      entity: entity ? String(entity) : undefined,
+      action: action ? String(action) : undefined,
+      startDate: start_date ? String(start_date) : undefined,
+      endDate: end_date ? String(end_date) : undefined,
+      limit: limit ? Number(limit) : 50,
+      offset: offset ? Number(offset) : 0
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[Contributors API] Error GET audit-logs:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err?.message || String(err) });
+  }
+});
+
 // GET /api/v1/contributors
 app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
-    const { church_id, status } = req.query;
+    const ctx = getTenantContext(req);
+    const requestedChurchId = req.query.church_id as string | undefined;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (requestedChurchId && requestedChurchId !== ctx.churchId) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: você não tem permissão para acessar os dados desta igreja.'
+        });
+      }
+    }
+
+    const effectiveChurchId = ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId
+      ? ctx.churchId
+      : (requestedChurchId || (req.headers['x-church-id'] as string) || ctx.churchId);
+
+    if (!effectiveChurchId && !ctx.isSuperAdmin) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'church_id é obrigatório para consultar contribuintes.'
+      });
+    }
+
+    const { status } = req.query;
     let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];
     let paramCounter = 1;
 
-    if (church_id && typeof church_id === 'string') {
+    if (effectiveChurchId) {
       query += ` AND (church_id = $${paramCounter} OR is_global = TRUE)`;
-      params.push(church_id);
+      params.push(effectiveChurchId);
       paramCounter++;
     }
 
@@ -1057,7 +1042,7 @@ app.post('/api/v1/contribution-requests', async (req: Request, res: Response) =>
 app.get('/api/v1/contribution-requests/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { church_id } = req.query;
+    const ctx = getTenantContext(req);
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!id || !uuidRegex.test(id)) {
@@ -1082,7 +1067,21 @@ app.get('/api/v1/contribution-requests/:id', async (req: Request, res: Response)
     const requestObj = result.rows[0];
 
     // Multi-tenant protection check
-    if (church_id && typeof church_id === 'string' && requestObj.church_id !== church_id) {
+    const requestedChurchId = req.query.church_id as string | undefined;
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (requestedChurchId && requestedChurchId !== ctx.churchId) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: a solicitação pertence a outra igreja.'
+        });
+      }
+    }
+
+    const effectiveChurchId = ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId
+      ? ctx.churchId
+      : (requestedChurchId || (req.headers['x-church-id'] as string) || ctx.churchId);
+
+    if (!ctx.isSuperAdmin && effectiveChurchId && requestObj.church_id !== effectiveChurchId) {
       return res.status(403).json({
         error: 'FORBIDDEN',
         message: 'Acesso negado: a solicitação pertence a outra igreja.'
@@ -1102,10 +1101,25 @@ app.get('/api/v1/contribution-requests/:id', async (req: Request, res: Response)
 // GET /api/v1/contribution-requests (List requests for a church)
 app.get('/api/v1/contribution-requests', async (req: Request, res: Response) => {
   try {
-    const { church_id, contributor_id, status } = req.query;
+    const ctx = getTenantContext(req);
+    const { contributor_id, status } = req.query;
+
+    const requestedChurchId = req.query.church_id as string | undefined;
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (requestedChurchId && requestedChurchId !== ctx.churchId) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Acesso negado: você não tem permissão para acessar os dados desta igreja.'
+        });
+      }
+    }
+
+    const effectiveChurchId = ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId
+      ? ctx.churchId
+      : (requestedChurchId || (req.headers['x-church-id'] as string) || ctx.churchId);
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    if (!church_id || typeof church_id !== 'string' || !uuidRegex.test(church_id)) {
+    if (!effectiveChurchId || typeof effectiveChurchId !== 'string' || !uuidRegex.test(effectiveChurchId)) {
       return res.status(400).json({
         error: 'VALIDATION_ERROR',
         message: 'church_id é obrigatório para consultar solicitações.'
@@ -1113,7 +1127,7 @@ app.get('/api/v1/contribution-requests', async (req: Request, res: Response) => 
     }
 
     let query = 'SELECT id, church_id, contributor_id, amount, description, status, created_at, updated_at FROM contribution_requests WHERE church_id = $1';
-    const params: any[] = [church_id];
+    const params: any[] = [effectiveChurchId];
     let paramCounter = 2;
 
     if (contributor_id && typeof contributor_id === 'string' && uuidRegex.test(contributor_id)) {
@@ -1703,6 +1717,7 @@ app.delete('/api/v1/contribution-types/:id', async (req: Request, res: Response)
 // POST /api/v1/contributors
 app.post('/api/v1/contributors', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { 
       church_id, canonical_name, cpf, email, phone, status,
       person_type, trade_name, rg_ie, birth_date, contact_person,
@@ -1711,12 +1726,18 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       is_global, role_position, photo_url, photo
     } = req.body;
 
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: você não tem permissão para criar contribuinte para outra igreja.' });
+      }
+    }
+
     const cleanPhotoUrl = photo_url !== undefined ? photo_url : (photo !== undefined ? photo : null);
 
     // UUID Pattern validation
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-    let cleanChurchId = church_id;
+    let cleanChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
     if (!cleanChurchId || typeof cleanChurchId !== 'string' || !uuidRegex.test(cleanChurchId)) {
       cleanChurchId = '00000000-0000-0000-0000-000000000001';
     }
@@ -1790,7 +1811,17 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
       ]
     );
 
-    return res.status(201).json(insertResult.rows[0]);
+    const createdContrib = insertResult.rows[0];
+    await logAudit(pool, {
+      action: 'CREATE',
+      entity: 'contributors',
+      entityId: createdContrib.id,
+      churchId: createdContrib.church_id,
+      newValues: createdContrib,
+      req
+    });
+
+    return res.status(201).json(createdContrib);
 
   } catch (err) {
     console.error('[Contributors API] Error processing post contributors request:', err);
@@ -1834,6 +1865,7 @@ app.post('/api/v1/contributors/:id/photo', async (req: Request, res: Response) =
 app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const { 
       church_id, canonical_name, cpf, email, phone, status,
       person_type, trade_name, rg_ie, birth_date, contact_person,
@@ -1845,6 +1877,21 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!uuidRegex.test(id)) {
       return res.status(400).json({ error: 'INVALID_ID' });
+    }
+
+    const checkContribRes = await pool.query("SELECT * FROM contributors WHERE id = $1", [id]);
+    if (checkContribRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+    const oldContrib = checkContribRes.rows[0];
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (oldContrib.church_id && oldContrib.church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o contribuinte pertence a outra igreja.' });
+      }
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: não é permitido transferir o contribuinte para outra igreja.' });
+      }
     }
 
     const updates: string[] = [];
@@ -1928,7 +1975,18 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
 
-    return res.json(result.rows[0]);
+    const updatedContrib = result.rows[0];
+    await logAudit(pool, {
+      action: 'UPDATE',
+      entity: 'contributors',
+      entityId: id,
+      churchId: updatedContrib.church_id || oldContrib?.church_id,
+      oldValues: oldContrib,
+      newValues: updatedContrib,
+      req
+    });
+
+    return res.json(updatedContrib);
   } catch (err) {
     console.error('[Contributors API] Error processing put contributor request:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -1939,10 +1997,24 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
 app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const hardDelete = req.query.hard === 'true';
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     if (!uuidRegex.test(id)) {
       return res.status(400).json({ error: 'INVALID_ID' });
+    }
+
+    const oldContribRes = await pool.query("SELECT * FROM contributors WHERE id = $1", [id]);
+    const oldContrib = oldContribRes.rows[0] || null;
+
+    if (!oldContrib) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (oldContrib.church_id && oldContrib.church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o contribuinte pertence a outra igreja.' });
+      }
     }
 
     let result;
@@ -1979,6 +2051,15 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND' });
     }
+
+    await logAudit(pool, {
+      action: hardDelete ? 'DELETE' : 'UPDATE',
+      entity: 'contributors',
+      entityId: id,
+      churchId: oldContrib?.church_id,
+      oldValues: oldContrib,
+      req
+    });
 
     return res.json({ success: true, id: id, hard: hardDelete });
   } catch (err) {
@@ -2022,8 +2103,22 @@ const fetchSupabaseTable = async (table: string, userId?: string) => {
 
 const getReferenceDataHandler = async (req: Request, res: Response) => {
   try {
-    const ownerId = req.params.ownerId || req.query.user_id;
-    const cleanUserId = typeof ownerId === 'string' && ownerId.trim() ? ownerId.trim() : null;
+    const ctx = getTenantContext(req);
+    const paramOwnerId = req.params.ownerId || req.query.user_id;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (paramOwnerId && paramOwnerId !== ctx.userId && paramOwnerId !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos dados de referência de outro usuário.' });
+      }
+    }
+
+    const cleanUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
+      ? ctx.userId
+      : (typeof paramOwnerId === 'string' && paramOwnerId.trim() ? paramOwnerId.trim() : ctx.userId);
+
+    if (!cleanUserId && !ctx.isSuperAdmin) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ownerId é obrigatório.' });
+    }
 
     // 1. Fetch Banks
     let banksQuery = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
@@ -2125,8 +2220,22 @@ app.get('/api/reference/data/:ownerId', getReferenceDataHandler);
 // GET /api/v1/banks
 app.get('/api/v1/banks', async (req: Request, res: Response) => {
   try {
-    const { user_id } = req.query;
-    const cleanUserId = typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null;
+    const ctx = getTenantContext(req);
+    const requestedUserId = req.query.user_id as string | undefined;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (requestedUserId && requestedUserId !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para este usuário.' });
+      }
+    }
+
+    const cleanUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
+      ? ctx.userId
+      : (requestedUserId && requestedUserId.trim() ? requestedUserId.trim() : ctx.userId);
+
+    if (!cleanUserId && !ctx.isSuperAdmin) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'user_id é obrigatório para consultar bancos.' });
+    }
 
     let query = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
     const params: any[] = [];
@@ -2199,15 +2308,34 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
 // POST /api/v1/banks
 app.post('/api/v1/banks', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { name, user_id, bank_key, account_name, accepted_contribution_types } = req.body;
-    if (!name || !user_id) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar banco para outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (!name || !effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
     const result = await pool.query(
       'INSERT INTO banks (name, user_id, bank_key, account_name, accepted_contribution_types) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, user_id, bank_key || null, account_name || name, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null]
+      [name, effectiveUserId, bank_key || null, account_name || name, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null]
     );
-    return res.status(201).json(result.rows[0]);
+    const createdBank = result.rows[0];
+    await logAudit(pool, {
+      action: 'CREATE',
+      entity: 'banks',
+      entityId: createdBank.id,
+      userId: effectiveUserId,
+      newValues: createdBank,
+      req
+    });
+    return res.status(201).json(createdBank);
   } catch (err) {
     console.error('[Contributors API] Error POST bank:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2218,13 +2346,35 @@ app.post('/api/v1/banks', async (req: Request, res: Response) => {
 app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const { name, bank_key, account_name, accepted_contribution_types } = req.body;
+    const oldBankRes = await pool.query('SELECT * FROM banks WHERE id = $1', [id]);
+    const oldBank = oldBankRes.rows[0] || null;
+
+    if (!oldBank) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (oldBank.user_id && oldBank.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o recurso pertence a outro usuário.' });
+      }
+    }
+
     const result = await pool.query(
       'UPDATE banks SET name = COALESCE($1, name), bank_key = COALESCE($2, bank_key), account_name = COALESCE($3, account_name), accepted_contribution_types = $4 WHERE id = $5 RETURNING *',
       [name, bank_key || null, account_name || null, Array.isArray(accepted_contribution_types) ? accepted_contribution_types : null, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
-    return res.json(result.rows[0]);
+
+    const updatedBank = result.rows[0];
+    await logAudit(pool, {
+      action: 'UPDATE',
+      entity: 'banks',
+      entityId: id,
+      userId: updatedBank.user_id || oldBank?.user_id,
+      oldValues: oldBank,
+      newValues: updatedBank,
+      req
+    });
+    return res.json(updatedBank);
   } catch (err) {
     console.error('[Contributors API] Error PUT bank:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2235,8 +2385,28 @@ app.put('/api/v1/banks/:id', async (req: Request, res: Response) => {
 app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+    const oldBankRes = await pool.query('SELECT * FROM banks WHERE id = $1', [id]);
+    const oldBank = oldBankRes.rows[0] || null;
+
+    if (!oldBank) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (oldBank.user_id && oldBank.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o recurso pertence a outro usuário.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM banks WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    await logAudit(pool, {
+      action: 'DELETE',
+      entity: 'banks',
+      entityId: id,
+      userId: oldBank?.user_id,
+      oldValues: oldBank,
+      req
+    });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE bank:', err);
@@ -2251,8 +2421,18 @@ app.delete('/api/v1/banks/:id', async (req: Request, res: Response) => {
 // GET /api/v1/churches
 app.get('/api/v1/churches', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id } = req.query;
-    const cleanUserId = typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para este usuário.' });
+      }
+    }
+
+    const cleanUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
+      ? ctx.userId
+      : (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : ctx.userId);
 
     let query = 'SELECT * FROM churches WHERE 1=1';
     const params: any[] = [];
@@ -2306,8 +2486,18 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
 // POST /api/v1/churches
 app.post('/api/v1/churches', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation, user_id } = req.body;
-    if (!name || !user_id) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar igreja para outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (!name || !effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
     const pastorsVal = pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null;
@@ -2335,10 +2525,22 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
         whatsapp_responsible || 'tesouraria',
         auto_comm_enabled !== undefined ? auto_comm_enabled : true,
         auto_send_on_confirmation !== undefined ? auto_send_on_confirmation : true,
-        user_id
+        effectiveUserId
       ]
     );
-    return res.status(201).json(result.rows[0]);
+
+    const createdChurch = result.rows[0];
+    await logAudit(pool, {
+      action: 'CREATE',
+      entity: 'churches',
+      entityId: createdChurch.id,
+      churchId: createdChurch.id,
+      userId: effectiveUserId,
+      newValues: createdChurch,
+      req
+    });
+
+    return res.status(201).json(createdChurch);
   } catch (err) {
     console.error('[Contributors API] Error POST church:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2349,9 +2551,23 @@ app.post('/api/v1/churches', async (req: Request, res: Response) => {
 app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const { name, address, logoUrl, pastor, cnpj, phone, email, pixKey, cep, city, state, treasurer, pastors, treasurers, whatsapp_official, whatsapp_responsible, auto_comm_enabled, auto_send_on_confirmation } = req.body;
     const pastorsVal = pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null;
     const treasurersVal = treasurers ? (typeof treasurers === 'string' ? treasurers : JSON.stringify(treasurers)) : null;
+
+    const oldChurchRes = await pool.query('SELECT * FROM churches WHERE id = $1', [id]);
+    const oldChurch = oldChurchRes.rows[0] || null;
+
+    if (!oldChurch) {
+      return res.status(404).json({ error: 'NOT_FOUND' });
+    }
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (ctx.churchId && id !== ctx.churchId && oldChurch.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a igreja pertence a outra organização.' });
+      }
+    }
 
     const result = await pool.query(
       `UPDATE churches SET 
@@ -2397,7 +2613,19 @@ app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
       ]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
-    return res.json(result.rows[0]);
+
+    const updatedChurch = result.rows[0];
+    await logAudit(pool, {
+      action: 'UPDATE',
+      entity: 'churches',
+      entityId: id,
+      churchId: id,
+      oldValues: oldChurch,
+      newValues: updatedChurch,
+      req
+    });
+
+    return res.json(updatedChurch);
   } catch (err) {
     console.error('[Contributors API] Error PUT church:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
@@ -2407,11 +2635,21 @@ app.put('/api/v1/churches/:id', async (req: Request, res: Response) => {
 // GET /api/v1/pastoral_messages
 app.get('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { church_id, user_id } = req.query;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+      }
+    }
+
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+
     let query = 'SELECT * FROM pastoral_messages WHERE 1=1';
     const params: any[] = [];
-    if (church_id) {
-      params.push(church_id);
+    if (effectiveChurchId) {
+      params.push(effectiveChurchId);
       query += ` AND church_id = $${params.length}`;
     }
     if (user_id) {
@@ -2430,14 +2668,24 @@ app.get('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
 // POST /api/v1/pastoral_messages
 app.post('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { church_id, title, type, content, start_date, end_date, is_active, user_id } = req.body;
-    if (!church_id || !title || !content) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+      }
+    }
+
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+
+    if (!effectiveChurchId || !title || !content) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
     const result = await pool.query(
       `INSERT INTO pastoral_messages (church_id, title, type, content, start_date, end_date, is_active, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [church_id, title, type || 'texto', content, start_date || null, end_date || null, is_active !== undefined ? is_active : true, user_id || null]
+      [effectiveChurchId, title, type || 'texto', content, start_date || null, end_date || null, is_active !== undefined ? is_active : true, user_id || ctx.userId || null]
     );
     return res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -2450,7 +2698,19 @@ app.post('/api/v1/pastoral_messages', async (req: Request, res: Response) => {
 app.put('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const { title, type, content, start_date, end_date, is_active } = req.body;
+
+    const oldRes = await pool.query('SELECT * FROM pastoral_messages WHERE id = $1', [id]);
+    const oldMsg = oldRes.rows[0] || null;
+    if (!oldMsg) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (oldMsg.church_id && oldMsg.church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE pastoral_messages SET
         title = COALESCE($1, title),
@@ -2462,7 +2722,6 @@ app.put('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => 
        WHERE id = $7 RETURNING *`,
       [title, type, content, start_date, end_date, is_active, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json(result.rows[0]);
   } catch (err) {
     console.error('[Contributors API] Error PUT pastoral_messages:', err);
@@ -2474,8 +2733,19 @@ app.put('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => 
 app.delete('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+
+    const oldRes = await pool.query('SELECT * FROM pastoral_messages WHERE id = $1', [id]);
+    const oldMsg = oldRes.rows[0] || null;
+    if (!oldMsg) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (oldMsg.church_id && oldMsg.church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM pastoral_messages WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE pastoral_messages:', err);
@@ -2486,11 +2756,21 @@ app.delete('/api/v1/pastoral_messages/:id', async (req: Request, res: Response) 
 // GET /api/v1/communication_logs
 app.get('/api/v1/communication_logs', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { church_id, user_id, status, event_type } = req.query;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+      }
+    }
+
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+
     let query = 'SELECT * FROM communication_logs WHERE 1=1';
     const params: any[] = [];
-    if (church_id) {
-      params.push(church_id);
+    if (effectiveChurchId) {
+      params.push(effectiveChurchId);
       query += ` AND church_id = $${params.length}`;
     }
     if (user_id) {
@@ -2517,11 +2797,21 @@ app.get('/api/v1/communication_logs', async (req: Request, res: Response) => {
 // GET /api/v1/communication_events
 app.get('/api/v1/communication_events', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { church_id, user_id, status, event_type } = req.query;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para outra igreja.' });
+      }
+    }
+
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+
     let query = 'SELECT * FROM communication_events WHERE 1=1';
     const params: any[] = [];
-    if (church_id) {
-      params.push(church_id);
+    if (effectiveChurchId) {
+      params.push(effectiveChurchId);
       query += ` AND church_id = $${params.length}`;
     }
     if (user_id) {
@@ -2548,8 +2838,18 @@ app.get('/api/v1/communication_events', async (req: Request, res: Response) => {
 // POST /api/v1/communication_events
 app.post('/api/v1/communication_events', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { event_type, church_id, contributor_id, reference_id, payload, status, user_id } = req.body;
-    if (!event_type || !church_id) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) {
+      if (church_id && church_id !== ctx.churchId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado para registrar evento de outra igreja.' });
+      }
+    }
+
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+
+    if (!event_type || !effectiveChurchId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: event_type and church_id are required' });
     }
 
@@ -2560,12 +2860,12 @@ app.post('/api/v1/communication_events', async (req: Request, res: Response) => 
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [
         event_type,
-        church_id,
+        effectiveChurchId,
         contributor_id || null,
         reference_id || null,
         JSON.stringify(payloadObj),
         status || 'PENDING',
-        user_id || null
+        user_id || ctx.userId || null
       ]
     );
 
@@ -2577,7 +2877,7 @@ app.post('/api/v1/communication_events', async (req: Request, res: Response) => 
       `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, recipient_phone, message_summary, user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
-        church_id,
+        effectiveChurchId,
         contributor_id || null,
         contribName,
         event_type,
@@ -2585,7 +2885,7 @@ app.post('/api/v1/communication_events', async (req: Request, res: Response) => 
         'pendente',
         recipientPhone,
         summary,
-        user_id || null
+        user_id || ctx.userId || null
       ]
     );
 
@@ -3089,8 +3389,21 @@ app.post('/api/v1/communication_queue/:id/retry', async (req: Request, res: Resp
 app.delete('/api/v1/churches/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const oldChurchRes = await pool.query('SELECT * FROM churches WHERE id = $1', [id]);
+    const oldChurch = oldChurchRes.rows[0] || null;
+
     const result = await pool.query('DELETE FROM churches WHERE id = $1 RETURNING id', [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    await logAudit(pool, {
+      action: 'DELETE',
+      entity: 'churches',
+      entityId: id,
+      churchId: id,
+      oldValues: oldChurch,
+      req
+    });
+
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE church:', err);
@@ -3105,12 +3418,24 @@ app.delete('/api/v1/churches/:id', async (req: Request, res: Response) => {
 // GET /api/v1/learned_associations
 app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id } = req.query;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos dados de outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
+      ? ctx.userId
+      : (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null);
+
     let query = 'SELECT id, user_id, normalized_description, contributor_normalized_name, church_id, created_at FROM learned_associations WHERE 1=1';
     const params: any[] = [];
-    if (user_id) {
+    if (effectiveUserId) {
       query += ` AND (user_id = $1 OR user_id IS NULL OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
-      params.push(user_id);
+      params.push(effectiveUserId);
     }
     const result = await pool.query(query, params);
     return res.json(result.rows);
@@ -3123,15 +3448,25 @@ app.get('/api/v1/learned_associations', async (req: Request, res: Response) => {
 // POST /api/v1/learned_associations
 app.post('/api/v1/learned_associations', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id, normalized_description, contributor_normalized_name, church_id } = req.body;
-    if (!user_id || !normalized_description || !contributor_normalized_name || !church_id) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar associação para outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (!effectiveUserId || !normalized_description || !contributor_normalized_name || !church_id) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
 
     // Check if duplicate
     const checkResult = await pool.query(
       'SELECT id FROM learned_associations WHERE user_id = $1 AND normalized_description = $2 LIMIT 1',
-      [user_id, normalized_description]
+      [effectiveUserId, normalized_description]
     );
 
     let result;
@@ -3145,7 +3480,7 @@ app.post('/api/v1/learned_associations', async (req: Request, res: Response) => 
       // Insert
       result = await pool.query(
         'INSERT INTO learned_associations (user_id, normalized_description, contributor_normalized_name, church_id) VALUES ($1, $2, $3, $4) RETURNING *',
-        [user_id, normalized_description, contributor_normalized_name, church_id]
+        [effectiveUserId, normalized_description, contributor_normalized_name, church_id]
       );
     }
     return res.json(result.rows[0]);
@@ -3159,8 +3494,19 @@ app.post('/api/v1/learned_associations', async (req: Request, res: Response) => 
 app.delete('/api/v1/learned_associations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+
+    const oldRes = await pool.query('SELECT * FROM learned_associations WHERE id = $1', [id]);
+    const oldItem = oldRes.rows[0] || null;
+    if (!oldItem) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (oldItem.user_id && oldItem.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a associação pertence a outro usuário.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM learned_associations WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE learned association:', err);
@@ -3172,6 +3518,14 @@ app.delete('/api/v1/learned_associations/:id', async (req: Request, res: Respons
 app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request, res: Response) => {
   try {
     const { user_id } = req.params;
+    const ctx = getTenantContext(req);
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: não é permitido remover associações de outro usuário.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM learned_associations WHERE user_id = $1 RETURNING id', [user_id]);
     return res.json({ success: true, count: result.rows.length });
   } catch (err) {
@@ -3187,16 +3541,28 @@ app.delete('/api/v1/learned_associations/by-user/:user_id', async (req: Request,
 // GET /api/v1/saved_reports
 app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id, exclude_data } = req.query;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos relatórios de outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId)
+      ? ctx.userId
+      : (typeof user_id === 'string' && user_id.trim() ? user_id.trim() : null);
+
     let selectFields = 'id, name, record_count, user_id, church_id, created_at';
     if (exclude_data !== 'true') {
       selectFields += ', data';
     }
     let query = `SELECT ${selectFields} FROM saved_reports WHERE 1=1`;
     const params: any[] = [];
-    if (user_id) {
+    if (effectiveUserId) {
       query += ` AND (user_id = $1 OR user_id IS NULL OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
-      params.push(user_id);
+      params.push(effectiveUserId);
     }
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
@@ -3210,8 +3576,18 @@ app.get('/api/v1/saved_reports', async (req: Request, res: Response) => {
 // POST /api/v1/saved_reports
 app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { id, name, record_count, user_id, data, church_id } = req.body;
-    if (!name || !user_id || !data) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Não é permitido criar relatório para outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (!name || !effectiveUserId || !data) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
     const finalId = id || undefined;
@@ -3227,12 +3603,12 @@ app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
            data = EXCLUDED.data,
            church_id = EXCLUDED.church_id
          RETURNING *`,
-         [finalId, name, record_count || 0, user_id, finalData, church_id || null]
+         [finalId, name, record_count || 0, effectiveUserId, finalData, church_id || ctx.churchId || null]
       );
     } else {
       result = await pool.query(
         'INSERT INTO saved_reports (name, record_count, user_id, data, church_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [name, record_count || 0, user_id, finalData, church_id || null]
+        [name, record_count || 0, effectiveUserId, finalData, church_id || ctx.churchId || null]
       );
     }
     return res.status(201).json(result.rows[0]);
@@ -3246,7 +3622,19 @@ app.post('/api/v1/saved_reports', async (req: Request, res: Response) => {
 app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const { name, data, record_count, church_id } = req.body;
+
+    const oldRes = await pool.query('SELECT * FROM saved_reports WHERE id = $1', [id]);
+    const oldReport = oldRes.rows[0] || null;
+    if (!oldReport) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (oldReport.user_id && oldReport.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a outro usuário.' });
+      }
+    }
+
     let query = 'UPDATE saved_reports SET ';
     const params: any[] = [];
     let counter = 1;
@@ -3282,9 +3670,6 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
     params.push(id);
 
     const result = await pool.query(query, params);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'NOT_FOUND' });
-    }
     return res.json(result.rows[0]);
   } catch (err) {
     console.error('[Contributors API] Error PUT saved report:', err);
@@ -3296,8 +3681,19 @@ app.put('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
 app.delete('/api/v1/saved_reports/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+
+    const oldRes = await pool.query('SELECT * FROM saved_reports WHERE id = $1', [id]);
+    const oldReport = oldRes.rows[0] || null;
+    if (!oldReport) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (oldReport.user_id && oldReport.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o relatório pertence a outro usuário.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM saved_reports WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE saved report:', err);
@@ -3372,7 +3768,17 @@ async function matchAndLinkContributionRequest(clientOrPool: any, tx: {
 // GET /api/v1/consolidated_transactions
 app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id, status, type, start_date, end_date, limit, offset, row_hash, ids } = req.query;
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (ctx.churchId) {
+        req.query.church_id = ctx.churchId;
+      } else if (ctx.userId) {
+        req.query.user_id = ctx.userId;
+      }
+    }
+
     let query = 'SELECT id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id FROM consolidated_transactions WHERE 1=1';
     const params: any[] = [];
     let counter = 1;
@@ -3384,15 +3790,19 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
       counter++;
     }
 
-    if (user_id) {
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (effectiveUserId) {
       query += ` AND (user_id = $${counter} OR user_id IS NULL OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $${counter} LIMIT 1)))`;
-      params.push(user_id);
+      params.push(effectiveUserId);
       counter++;
     }
 
-    if (req.query.church_id) {
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : req.query.church_id;
+
+    if (effectiveChurchId) {
       query += ` AND church_id = $${counter}`;
-      params.push(req.query.church_id);
+      params.push(effectiveChurchId);
       counter++;
     }
 
@@ -3457,21 +3867,26 @@ app.get('/api/v1/consolidated_transactions', async (req: Request, res: Response)
 // POST /api/v1/consolidated_transactions
 app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
-    if (amount === undefined || amount === null || !description || !type || !user_id || !transaction_date) {
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+
+    if (amount === undefined || amount === null || !description || !type || !effectiveUserId || !transaction_date) {
       return res.status(400).json({ error: 'VALIDATION_ERROR' });
     }
 
     // Check row_hash duplicate if row_hash is provided
     if (row_hash) {
-      const dupCheck = await pool.query('SELECT id FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1', [user_id, row_hash]);
+      const dupCheck = await pool.query('SELECT id FROM consolidated_transactions WHERE user_id = $1 AND row_hash = $2 LIMIT 1', [effectiveUserId, row_hash]);
       if (dupCheck.rows.length > 0) {
         return res.status(409).json({ error: 'ROW_HASH_ALREADY_EXISTS', id: dupCheck.rows[0].id });
       }
     }
 
     const finalContribReqId = await matchAndLinkContributionRequest(pool, {
-      church_id,
+      church_id: effectiveChurchId,
       contributor_id,
       amount,
       contribution_request_id
@@ -3497,12 +3912,12 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
           contribution_type = EXCLUDED.contribution_type,
           contribution_request_id = EXCLUDED.contribution_request_id
         RETURNING *`;
-      params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+      params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
     } else {
       query = `INSERT INTO consolidated_transactions 
         (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`;
-      params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+      params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
     }
 
     const result = await pool.query(query, params);
@@ -3510,6 +3925,18 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
 
     if (row && row.is_confirmed) {
       publishContributionConfirmedEvent(pool, row).catch(e => console.error('[EventPublish] Error:', e));
+    }
+
+    if (row) {
+      await logAudit(pool, {
+        action: 'CREATE',
+        entity: 'consolidated_transactions',
+        entityId: row.id,
+        churchId: row.church_id,
+        userId: row.user_id,
+        newValues: row,
+        req
+      });
     }
 
     return res.status(201).json(row);
@@ -3523,6 +3950,7 @@ app.post('/api/v1/consolidated_transactions', async (req: Request, res: Response
 app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
+    const ctx = getTenantContext(req);
     const { transactions } = req.body;
     if (!Array.isArray(transactions) || transactions.length === 0) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: Transactions array is required' });
@@ -3534,8 +3962,11 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
     for (const tx of transactions) {
       const { id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = tx;
       
+      const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+      const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+
       const finalContribReqId = await matchAndLinkContributionRequest(client, {
-        church_id,
+        church_id: effectiveChurchId,
         contributor_id,
         amount,
         contribution_request_id
@@ -3561,12 +3992,12 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
             contribution_type = EXCLUDED.contribution_type,
             contribution_request_id = EXCLUDED.contribution_request_id
           RETURNING *`;
-        params = [finalId, amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+        params = [finalId, amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
       } else {
         query = `INSERT INTO consolidated_transactions 
           (amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id) 
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`;
-        params = [amount, description, type, pix_key || null, source || 'file', user_id, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, church_id || null, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
+        params = [amount, description, type, pix_key || null, source || 'file', effectiveUserId, status || 'pending', bank_id || null, row_hash || null, is_confirmed || false, transaction_date, effectiveChurchId, contributor_id || null, report_id || null, payment_method || null, contribution_type || null, finalContribReqId || null];
       }
 
       const result = await client.query(query, params);
@@ -3593,21 +4024,27 @@ app.post('/api/v1/consolidated_transactions/bulk', async (req: Request, res: Res
 app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const { amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, contribution_request_id } = req.body;
     
+    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
+    const oldTx = oldTxRes.rows[0] || null;
+    if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
+      }
+    }
+
     let finalContribReqId = contribution_request_id;
     if (!finalContribReqId && (church_id || contributor_id || amount !== undefined)) {
-      // Get existing values if necessary
-      const currentTx = await pool.query('SELECT church_id, contributor_id, amount, contribution_request_id FROM consolidated_transactions WHERE id = $1 LIMIT 1', [id]);
-      if (currentTx.rows.length > 0) {
-        const row = currentTx.rows[0];
-        finalContribReqId = await matchAndLinkContributionRequest(pool, {
-          church_id: church_id || row.church_id,
-          contributor_id: contributor_id || row.contributor_id,
-          amount: amount !== undefined ? amount : row.amount,
-          contribution_request_id: row.contribution_request_id
-        });
-      }
+      finalContribReqId = await matchAndLinkContributionRequest(pool, {
+        church_id: church_id || oldTx.church_id,
+        contributor_id: contributor_id || oldTx.contributor_id,
+        amount: amount !== undefined ? amount : oldTx.amount,
+        contribution_request_id: oldTx.contribution_request_id
+      });
     }
 
     const result = await pool.query(
@@ -3631,12 +4068,22 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
       WHERE id = $17 RETURNING *`,
       [amount, description, type, pix_key, source, status, bank_id, row_hash, is_confirmed, transaction_date, church_id, contributor_id, report_id, payment_method, contribution_type, finalContribReqId || null, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
 
     const updatedRow = result.rows[0];
     if (updatedRow && updatedRow.is_confirmed) {
       publishContributionConfirmedEvent(pool, updatedRow).catch(e => console.error('[EventPublish] Error:', e));
     }
+
+    await logAudit(pool, {
+      action: 'UPDATE',
+      entity: 'consolidated_transactions',
+      entityId: id,
+      churchId: updatedRow.church_id || oldTx?.church_id,
+      userId: updatedRow.user_id || oldTx?.user_id,
+      oldValues: oldTx,
+      newValues: updatedRow,
+      req
+    });
 
     return res.json(updatedRow);
   } catch (err) {
@@ -3649,8 +4096,30 @@ app.put('/api/v1/consolidated_transactions/:id', async (req: Request, res: Respo
 app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+
+    const oldTxRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = $1', [id]);
+    const oldTx = oldTxRes.rows[0] || null;
+    if (!oldTx) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a transação pertence a outra organização.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    await logAudit(pool, {
+      action: 'DELETE',
+      entity: 'consolidated_transactions',
+      entityId: id,
+      churchId: oldTx?.church_id,
+      userId: oldTx?.user_id,
+      oldValues: oldTx,
+      req
+    });
+
     return res.json({ success: true, id });
   } catch (err) {
     console.error('[Contributors API] Error DELETE consolidated_transaction:', err);
@@ -3661,11 +4130,36 @@ app.delete('/api/v1/consolidated_transactions/:id', async (req: Request, res: Re
 // POST /api/v1/consolidated_transactions/bulk-delete
 app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: ids array is required' });
     }
+    const oldTxsRes = await pool.query('SELECT * FROM consolidated_transactions WHERE id = ANY($1)', [ids]);
+    const oldTxs = oldTxsRes.rows || [];
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      for (const oldTx of oldTxs) {
+        if (ctx.churchId && oldTx.church_id && oldTx.church_id !== ctx.churchId && oldTx.user_id !== ctx.userId) {
+          return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: uma ou mais transações pertencem a outra organização.' });
+        }
+      }
+    }
+
     const result = await pool.query('DELETE FROM consolidated_transactions WHERE id = ANY($1) RETURNING id', [ids]);
+
+    for (const oldTx of oldTxs) {
+      await logAudit(pool, {
+        action: 'DELETE',
+        entity: 'consolidated_transactions',
+        entityId: oldTx.id,
+        churchId: oldTx.church_id,
+        userId: oldTx.user_id,
+        oldValues: oldTx,
+        req
+      });
+    }
+
     return res.json({ success: true, count: result.rows.length });
   } catch (err) {
     console.error('[Contributors API] Error POST bulk-delete consolidated_transactions:', err);
@@ -3676,18 +4170,30 @@ app.post('/api/v1/consolidated_transactions/bulk-delete', async (req: Request, r
 // GET /api/v1/financial_records
 app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id, church_id, type, status } = req.query;
-    if (!user_id) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado aos registros financeiros de outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (!effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
     }
 
     let query = 'SELECT * FROM financial_records WHERE user_id = $1';
-    const params: any[] = [user_id];
+    const params: any[] = [effectiveUserId];
     let count = 2;
 
-    if (church_id) {
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : church_id;
+
+    if (effectiveChurchId) {
       query += ` AND church_id = $${count}`;
-      params.push(church_id);
+      params.push(effectiveChurchId);
       count++;
     }
     if (type) {
@@ -3714,6 +4220,7 @@ app.get('/api/v1/financial_records', async (req: Request, res: Response) => {
 // POST /api/v1/financial_records
 app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const {
       user_id,
       church_id,
@@ -3732,7 +4239,10 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       bank_transaction_desc
     } = req.body;
 
-    if (!user_id || !title || amount === undefined || !type) {
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+
+    if (!effectiveUserId || !title || amount === undefined || !type) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, title, amount, and type are required' });
     }
 
@@ -3743,8 +4253,8 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
         bank_transaction_id, bank_transaction_desc
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
       [
-        user_id,
-        church_id || null,
+        effectiveUserId,
+        effectiveChurchId,
         title,
         description || '',
         amount,
@@ -3761,7 +4271,18 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       ]
     );
 
-    return res.status(201).json(result.rows[0]);
+    const createdRec = result.rows[0];
+    await logAudit(pool, {
+      action: 'CREATE',
+      entity: 'financial_records',
+      entityId: createdRec.id,
+      churchId: createdRec.church_id,
+      userId: createdRec.user_id,
+      newValues: createdRec,
+      req
+    });
+
+    return res.status(201).json(createdRec);
   } catch (err: any) {
     console.error('[Contributors API] Error POST financial_records:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
@@ -3772,6 +4293,7 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
 app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const {
       church_id,
       title,
@@ -3788,6 +4310,16 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       bank_transaction_id,
       bank_transaction_desc
     } = req.body;
+
+    const oldRecRes = await pool.query('SELECT * FROM financial_records WHERE id = $1', [id]);
+    const oldRec = oldRecRes.rows[0] || null;
+    if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
+      }
+    }
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -3818,19 +4350,26 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       }
     });
 
-    if (updates.length === 0) {
-      updates.push('updated_at = NOW()');
-    } else {
-      updates.push('updated_at = NOW()');
-    }
+    updates.push('updated_at = NOW()');
 
     values.push(id);
     const query = `UPDATE financial_records SET ${updates.join(', ')} WHERE id = $${placeholderIndex} RETURNING *`;
     
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
-    return res.json(result.rows[0]);
+    const updatedRec = result.rows[0];
+    await logAudit(pool, {
+      action: 'UPDATE',
+      entity: 'financial_records',
+      entityId: id,
+      churchId: updatedRec.church_id || oldRec?.church_id,
+      userId: updatedRec.user_id || oldRec?.user_id,
+      oldValues: oldRec,
+      newValues: updatedRec,
+      req
+    });
+
+    return res.json(updatedRec);
   } catch (err: any) {
     console.error('[Contributors API] Error PUT financial_records:', err);
     return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
@@ -3841,8 +4380,30 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
 app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+
+    const oldRecRes = await pool.query('SELECT * FROM financial_records WHERE id = $1', [id]);
+    const oldRec = oldRecRes.rows[0] || null;
+    if (!oldRec) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (oldRec.user_id && ctx.userId && oldRec.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: o registro pertence a outro usuário.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM financial_records WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    await logAudit(pool, {
+      action: 'DELETE',
+      entity: 'financial_records',
+      entityId: id,
+      churchId: oldRec?.church_id,
+      userId: oldRec?.user_id,
+      oldValues: oldRec,
+      req
+    });
+
     return res.json({ success: true, id });
   } catch (err: any) {
     console.error('[Contributors API] Error DELETE financial_records:', err);
@@ -3853,13 +4414,23 @@ app.delete('/api/v1/financial_records/:id', async (req: Request, res: Response) 
 // GET /api/v1/pastor_automations
 app.get('/api/v1/pastor_automations', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const { user_id } = req.query;
-    if (!user_id) {
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) {
+      if (user_id && user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado às automações de outro usuário.' });
+      }
+    }
+
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+
+    if (!effectiveUserId) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id is required' });
     }
     const result = await pool.query(
       'SELECT * FROM pastor_automations WHERE user_id = $1 ORDER BY payment_day ASC, created_at DESC',
-      [user_id]
+      [effectiveUserId]
     );
     return res.json(result.rows);
   } catch (err: any) {
@@ -3871,6 +4442,7 @@ app.get('/api/v1/pastor_automations', async (req: Request, res: Response) => {
 // POST /api/v1/pastor_automations
 app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
   try {
+    const ctx = getTenantContext(req);
     const {
       user_id,
       pastor_name,
@@ -3885,7 +4457,10 @@ app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
       active
     } = req.body;
 
-    if (!user_id || !pastor_name || !pix_key) {
+    const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
+    const effectiveChurchId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.churchId) ? ctx.churchId : (church_id || null);
+
+    if (!effectiveUserId || !pastor_name || !pix_key) {
       return res.status(400).json({ error: 'VALIDATION_ERROR: user_id, pastor_name, and pix_key are required' });
     }
 
@@ -3895,7 +4470,7 @@ app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
         gross_amount, net_amount, tithe_amount, tithe_enabled, church_id, active
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
-        user_id,
+        effectiveUserId,
         pastor_name,
         pix_key,
         pix_key_type || 'cpf',
@@ -3904,7 +4479,7 @@ app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
         net_amount || 0,
         tithe_amount || 0,
         tithe_enabled !== undefined ? tithe_enabled : true,
-        church_id || null,
+        effectiveChurchId,
         active !== undefined ? active : true
       ]
     );
@@ -3920,6 +4495,7 @@ app.post('/api/v1/pastor_automations', async (req: Request, res: Response) => {
 app.put('/api/v1/pastor_automations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
     const {
       pastor_name,
       pix_key,
@@ -3932,6 +4508,16 @@ app.put('/api/v1/pastor_automations/:id', async (req: Request, res: Response) =>
       church_id,
       active
     } = req.body;
+
+    const oldRes = await pool.query('SELECT * FROM pastor_automations WHERE id = $1', [id]);
+    const oldAuto = oldRes.rows[0] || null;
+    if (!oldAuto) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (oldAuto.user_id && ctx.userId && oldAuto.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a automação pertence a outro usuário.' });
+      }
+    }
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -3967,7 +4553,6 @@ app.put('/api/v1/pastor_automations/:id', async (req: Request, res: Response) =>
     const query = `UPDATE pastor_automations SET ${updates.join(', ')} WHERE id = $${placeholderIndex} RETURNING *`;
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json(result.rows[0]);
   } catch (err: any) {
     console.error('[Contributors API] Error PUT pastor_automations:', err);
@@ -3979,8 +4564,19 @@ app.put('/api/v1/pastor_automations/:id', async (req: Request, res: Response) =>
 app.delete('/api/v1/pastor_automations/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const ctx = getTenantContext(req);
+
+    const oldRes = await pool.query('SELECT * FROM pastor_automations WHERE id = $1', [id]);
+    const oldAuto = oldRes.rows[0] || null;
+    if (!oldAuto) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    if (ctx.isAuthenticated && !ctx.isSuperAdmin) {
+      if (oldAuto.user_id && ctx.userId && oldAuto.user_id !== ctx.userId) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Acesso negado: a automação pertence a outro usuário.' });
+      }
+    }
+
     const result = await pool.query('DELETE FROM pastor_automations WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'NOT_FOUND' });
     return res.json({ success: true, id });
   } catch (err: any) {
     console.error('[Contributors API] Error DELETE pastor_automations:', err);
