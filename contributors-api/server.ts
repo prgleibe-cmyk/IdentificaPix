@@ -2017,6 +2017,108 @@ const fetchSupabaseTable = async (table: string, userId?: string) => {
 };
 
 // ==========================================
+// REFERENCE DATA ENDPOINT
+// ==========================================
+
+const getReferenceDataHandler = async (req: Request, res: Response) => {
+  try {
+    const ownerId = req.params.ownerId || req.query.user_id;
+    const cleanUserId = typeof ownerId === 'string' && ownerId.trim() ? ownerId.trim() : null;
+
+    // 1. Fetch Banks
+    let banksQuery = 'SELECT id, name, user_id, bank_key, account_name, accepted_contribution_types, created_at FROM banks WHERE 1=1';
+    const banksParams: any[] = [];
+    if (cleanUserId) {
+      banksParams.push(cleanUserId);
+      banksQuery += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
+    }
+    banksQuery += ' ORDER BY created_at DESC';
+    let banksResult = await pool.query(banksQuery, banksParams);
+    let banks = banksResult.rows || [];
+
+    if (banks.length === 0 && cleanUserId) {
+      const defaultBanks = [
+        { name: 'Banco do Brasil', bank_key: '001' },
+        { name: 'Itaú Unibanco', bank_key: '341' },
+        { name: 'Caixa Econômica Federal', bank_key: '104' },
+        { name: 'Bradesco', bank_key: '237' },
+        { name: 'Santander', bank_key: '033' },
+        { name: 'Sicoob', bank_key: '756' },
+        { name: 'Nubank', bank_key: '260' },
+        { name: 'Banco Inter', bank_key: '077' }
+      ];
+      for (const dbank of defaultBanks) {
+        try {
+          await pool.query(
+            `INSERT INTO banks (name, user_id, bank_key, account_name) VALUES ($1, $2, $3, $4)`,
+            [dbank.name, cleanUserId, dbank.bank_key, dbank.name]
+          );
+        } catch (e) {}
+      }
+      banksResult = await pool.query(banksQuery, banksParams);
+      banks = banksResult.rows || [];
+    }
+
+    // 2. Fetch Churches
+    let churchesQuery = 'SELECT * FROM churches WHERE 1=1';
+    const churchesParams: any[] = [];
+    if (cleanUserId) {
+      churchesParams.push(cleanUserId);
+      churchesQuery += ` AND (user_id = $1 OR user_id IS NULL OR user_id = '00000000-0000-0000-0000-000000000001' OR user_id IN (SELECT id FROM app_users WHERE LOWER(email) = (SELECT LOWER(email) FROM app_users WHERE id = $1 LIMIT 1)))`;
+    }
+    churchesQuery += ' ORDER BY name ASC';
+    let churchesResult = await pool.query(churchesQuery, churchesParams);
+    let churches = churchesResult.rows || [];
+
+    if (churches.length === 0 && cleanUserId) {
+      try {
+        await pool.query(
+          `INSERT INTO churches (name, address, "logoUrl", pastor, user_id) VALUES ($1, $2, $3, $4, $5)`,
+          ['Igreja Sede Central', 'Sede Central', '', 'Pr. Responsável', cleanUserId]
+        );
+      } catch (e) {}
+      churchesResult = await pool.query(churchesQuery, churchesParams);
+      churches = churchesResult.rows || [];
+    }
+
+    // 3. Fetch Reports
+    let reportsQuery = 'SELECT id, name, user_id, church_id, record_count, created_at FROM saved_reports WHERE 1=1';
+    const reportsParams: any[] = [];
+    if (cleanUserId) {
+      reportsParams.push(cleanUserId);
+      reportsQuery += ` AND (user_id = $1 OR user_id IS NULL)`;
+    }
+    reportsQuery += ' ORDER BY created_at DESC';
+    let reportsResult = await pool.query(reportsQuery, reportsParams);
+    let reports = reportsResult.rows || [];
+
+    // 4. Fetch Associations
+    let assocQuery = 'SELECT * FROM learned_associations WHERE 1=1';
+    const assocParams: any[] = [];
+    if (cleanUserId) {
+      assocParams.push(cleanUserId);
+      assocQuery += ` AND (user_id = $1 OR user_id IS NULL)`;
+    }
+    assocQuery += ' ORDER BY created_at DESC';
+    let assocResult = await pool.query(assocQuery, assocParams);
+    let associations = assocResult.rows || [];
+
+    return res.json({
+      banks,
+      churches,
+      reports,
+      associations
+    });
+  } catch (err: any) {
+    console.error('[Contributors API] Error fetching reference data:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR' });
+  }
+};
+
+app.get('/api/v1/reference/data/:ownerId', getReferenceDataHandler);
+app.get('/api/reference/data/:ownerId', getReferenceDataHandler);
+
+// ==========================================
 // BANKS ENDPOINTS
 // ==========================================
 

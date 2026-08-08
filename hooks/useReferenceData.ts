@@ -127,7 +127,7 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                 const token = await getAuthToken();
                 const ownerId = subscription.ownerId || user.id;
 
-                const response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
+                let response = await fetch(`/api/v1/reference/data/${ownerId}?limit=50&offset=0`, {
                     method: 'GET',
                     cache: 'no-store',
                     headers: {
@@ -135,10 +135,37 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
                     }
                 });
 
+                if (!response.ok) {
+                    response = await fetch(`/api/reference/data/${ownerId}?limit=50&offset=0`, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                }
+
+                let data: any = null;
                 if (response.ok) {
-                    const data = await response.json();
-                    if (ignore) return;
-                    
+                    data = await response.json();
+                } else {
+                    const [bRes, cRes, aRes] = await Promise.all([
+                        fetch(`/api/v1/banks?user_id=${ownerId}`),
+                        fetch(`/api/v1/churches?user_id=${ownerId}`),
+                        fetch(`/api/v1/learned_associations?user_id=${ownerId}`)
+                    ]);
+                    const bList = bRes.ok ? await bRes.json() : [];
+                    const cList = cRes.ok ? await cRes.json() : [];
+                    const aList = aRes.ok ? await aRes.json() : [];
+                    data = {
+                        banks: Array.isArray(bList) ? bList : [],
+                        churches: Array.isArray(cList) ? cList : [],
+                        reports: [],
+                        associations: Array.isArray(aList) ? aList : []
+                    };
+                }
+
+                if (data && !ignore) {
                     let filteredBanks = data.banks || [];
                     let filteredChurches = data.churches || [];
                     let fetchedReports = data.reports || [];

@@ -243,8 +243,13 @@ try {
     if (contributorsApp) {
         console.log(`[IdentificaPix] Usando Contributors API de forma integrada (rodando no mesmo processo da porta 3000).`);
         
-        // Mapear as rotas da Contributors API sob /api/v1 preservando o caminho original completo
+        // Mapear as rotas da Contributors API sob /api/v1 e /api/reference preservando o caminho original completo
         app.use('/api/v1', (req, res, next) => {
+            req.url = req.originalUrl;
+            contributorsApp(req, res, next);
+        });
+
+        app.use('/api/reference', (req, res, next) => {
             req.url = req.originalUrl;
             contributorsApp(req, res, next);
         });
