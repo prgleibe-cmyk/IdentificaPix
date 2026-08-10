@@ -1,5 +1,4 @@
 import express from 'express';
-import { getSupabaseAdmin } from '../lib/supabase.js';
 import { validateOwnerAccess } from '../lib/validateOwnerAccess.js';
 import { authMiddleware } from '../middleware/auth.js';
 
@@ -244,40 +243,8 @@ export default (ai) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
         }
 
-        const supabaseAdmin = getSupabaseAdmin();
-
-        // 🧠 Auto-correction index / bank match fallback for truncated UUIDs in iOS Shortcuts
-        if (bankId && bankId.length < 36 && supabaseAdmin && userId) {
-            console.log(`[Inbox API] 🔍 bankId recebido de tamanho ${bankId.length} ("${bankId}"). Tentando auto-completar com as contas cadastradas do usuário...`);
-            try {
-                const { data: bList } = await supabaseAdmin
-                    .from('banks')
-                    .select('id, name')
-                    .eq('user_id', userId);
-                
-                if (bList && bList.length > 0) {
-                    const match = bList.find(b => b.id.toLowerCase().startsWith(bankId.toLowerCase()) || bankId.toLowerCase().startsWith(b.id.toLowerCase()));
-                    if (match) {
-                        console.log(`[Inbox API] 🩹 AUTO-AJUSTE: bankId inválido/truncado ("${bankId}") auto-corrigido para o banco: "${match.name}" (ID Real: "${match.id}")`);
-                        bankId = match.id;
-                    } else {
-                        console.warn(`[Inbox API] ⚠️ Nenhuma conta do usuário inicia com o prefixo "${bankId}"`);
-                    }
-                } else {
-                    console.warn(`[Inbox API] ⚠️ Nenhuma conta ativa encontrada no Supabase para o usuário ${userId}`);
-                }
-            } catch (e) {
-                console.error(`[Inbox API] Erro ao tentar auto-ajustar bankId:`, e.message);
-            }
-        }
-
         if (req.user) {
             validateOwnerAccess(req, userId);
-        }
-
-        if (!supabaseAdmin) {
-            console.error(`[Inbox API] ❌ Erro: Conexão com banco de dados Supabase Admin não configurada.`);
-            return res.status(500).json({ error: "Conexão com banco de dados não configurada." });
         }
         if (!text) {
             console.warn(`[Inbox API] ⚠️ Requisição de notificação barrada: Conteúdo de texto vazio.`);

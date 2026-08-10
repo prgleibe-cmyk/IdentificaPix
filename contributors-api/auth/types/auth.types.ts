@@ -8,6 +8,9 @@ export interface LocalUser {
   permissions: string[];
   is_active: boolean;
   is_verified: boolean;
+  two_factor_enabled: boolean;
+  two_factor_secret?: string | null;
+  two_factor_recovery_codes?: string[] | null;
   failed_attempts: number;
   lock_until?: Date | null;
   last_login?: Date | null;
@@ -25,6 +28,7 @@ export interface UserResponse {
   permissions: string[];
   is_active: boolean;
   is_verified: boolean;
+  two_factor_enabled: boolean;
   last_login?: Date | null;
   created_at: Date;
 }
@@ -59,8 +63,10 @@ export interface AuthTokens {
 }
 
 export interface LoginResult {
-  user: UserResponse;
-  tokens: AuthTokens;
+  requiresTwoFactor?: boolean;
+  tempToken?: string;
+  user?: UserResponse;
+  tokens?: AuthTokens;
 }
 
 export interface AuthAuditLogInput {
@@ -71,3 +77,4 @@ export interface AuthAuditLogInput {
   user_agent?: string | null;
   details?: Record<string, any> | null;
 }
+

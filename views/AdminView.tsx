@@ -20,9 +20,10 @@ import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminAuditTab } from '../components/admin/AdminAuditTab';
 import { AdminCommunicationTab } from '../components/admin/AdminCommunicationTab';
+import { AdminSecurityTab } from '../components/admin/AdminSecurityTab';
 import { MessageSquare } from 'lucide-react';
 
-type AdminTab = 'settings' | 'users' | 'communication' | 'audit';
+type AdminTab = 'settings' | 'users' | 'security' | 'communication' | 'audit';
 
 const FIX_SQL = `
 -- ============================================================
@@ -81,7 +82,7 @@ export const AdminView: React.FC = () => {
 
     const copySql = () => {
         navigator.clipboard.writeText(FIX_SQL);
-        showToast("SQL V12 copiado! Execute no Supabase SQL Editor.", "success");
+        showToast("SQL V12 copiado! Execute no banco de dados PostgreSQL.", "success");
     };
 
     const runDiagnostics = async () => {
@@ -91,19 +92,19 @@ export const AdminView: React.FC = () => {
         const results: any = {
             apiStatus: 'ONLINE',
             geminiKey: !!process.env.API_KEY,
-            supabaseStatus: 'CHECKING',
+            vpsApiStatus: 'CHECKING',
             tableModelsStatus: 'CHECKING',
             authStatus: !!user
         };
 
         try {
             const healthRes = await fetch('/api/health');
-            results.supabaseStatus = healthRes.ok ? 'CONNECTED' : 'ERROR';
+            results.vpsApiStatus = healthRes.ok ? 'CONNECTED' : 'ERROR';
 
             const modelsRes = await fetch('/api/v1/file-models');
             results.tableModelsStatus = modelsRes.ok ? 'OK' : 'MISSING';
         } catch (e) {
-            results.supabaseStatus = 'FAILED';
+            results.vpsApiStatus = 'FAILED';
         }
 
         setTimeout(() => {
@@ -146,6 +147,7 @@ export const AdminView: React.FC = () => {
                     <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar">
                         <AdminTabButton id="settings" label={t('admin.tab.settings')} icon={Cog6ToothIcon} colorTheme="slate" />
                         <AdminTabButton id="users" label={t('admin.tab.users')} icon={UserIcon} colorTheme="amber" />
+                        <AdminTabButton id="security" label="Painel de Segurança" icon={ShieldCheckIcon} colorTheme="violet" />
                         <AdminTabButton id="communication" label="Central de Comunicação" icon={MessageSquare} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                     </div>
@@ -159,6 +161,7 @@ export const AdminView: React.FC = () => {
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
                 {activeTab === 'settings' && <AdminSettingsTab />}
                 {activeTab === 'users' && <AdminUsersTab />}
+                {activeTab === 'security' && <AdminSecurityTab />}
                 {activeTab === 'communication' && <AdminCommunicationTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
             </div>
@@ -173,7 +176,7 @@ export const AdminView: React.FC = () => {
                             {isLoadingDiag ? (<div className="text-center py-8"><div className="animate-spin h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full mx-auto mb-3"></div><p className="text-xs text-slate-500">Varrendo variáveis e tabelas...</p></div>) : diagResult ? (
                                 <div className="space-y-3">
                                     <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.geminiKey ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><span className="text-xs font-bold text-slate-700">Chave Gemini (process.env)</span>{diagResult.geminiKey ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
-                                    <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.supabaseStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão API VPS</span>{diagResult.supabaseError && <span className="text-[10px] text-red-500 mt-1">{diagResult.supabaseError}</span>}</div>{diagResult.supabaseStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
+                                    <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.vpsApiStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão API VPS</span>{diagResult.vpsApiError && <span className="text-[10px] text-red-500 mt-1">{diagResult.vpsApiError}</span>}</div>{diagResult.vpsApiStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
                                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
                                         <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V12)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">ESTÁVEL</span></div>
                                         <div className="mt-1">

@@ -22,15 +22,17 @@ export function createAuthRouter(pool: any): Router {
   const oauthMax = parseInt(process.env.RATE_LIMIT_OAUTH_MAX || '', 10) || 15;
   const changePassMax = parseInt(process.env.RATE_LIMIT_CHANGE_PASS_MAX || '', 10) || 10;
 
-  const loginLimiter = authRateLimiter({ keyPrefix: 'login', windowMs: defaultWindow, maxRequests: loginMax, message: 'Muitas tentativas de login. Por favor, aguarde alguns minutos e tente novamente.' });
-  const signupLimiter = authRateLimiter({ keyPrefix: 'signup', windowMs: defaultWindow, maxRequests: signupMax, message: 'Muitas tentativas de criação de conta. Por favor, aguarde alguns minutos e tente novamente.' });
-  const resetLimiter = authRateLimiter({ keyPrefix: 'reset', windowMs: defaultWindow, maxRequests: resetMax, message: 'Muitas solicitações de redefinição de senha. Por favor, aguarde alguns minutos e tente novamente.' });
-  const refreshLimiter = authRateLimiter({ keyPrefix: 'refresh', windowMs: defaultWindow, maxRequests: refreshMax, message: 'Muitas tentativas de renovação de sessão. Por favor, tente novamente mais tarde.' });
-  const oauthLimiter = authRateLimiter({ keyPrefix: 'oauth', windowMs: defaultWindow, maxRequests: oauthMax });
-  const changePassLimiter = authRateLimiter({ keyPrefix: 'changepass', windowMs: defaultWindow, maxRequests: changePassMax });
+  const loginLimiter = authRateLimiter({ keyPrefix: 'login', windowMs: defaultWindow, maxRequests: loginMax, message: 'Muitas tentativas de login. Por favor, aguarde alguns minutos e tente novamente.', pool });
+  const signupLimiter = authRateLimiter({ keyPrefix: 'signup', windowMs: defaultWindow, maxRequests: signupMax, message: 'Muitas tentativas de criação de conta. Por favor, aguarde alguns minutos e tente novamente.', pool });
+  const resetLimiter = authRateLimiter({ keyPrefix: 'reset', windowMs: defaultWindow, maxRequests: resetMax, message: 'Muitas solicitações de redefinição de senha. Por favor, aguarde alguns minutos e tente novamente.', pool });
+  const refreshLimiter = authRateLimiter({ keyPrefix: 'refresh', windowMs: defaultWindow, maxRequests: refreshMax, message: 'Muitas tentativas de renovação de sessão. Por favor, tente novamente mais tarde.', pool });
+  const oauthLimiter = authRateLimiter({ keyPrefix: 'oauth', windowMs: defaultWindow, maxRequests: oauthMax, pool });
+  const changePassLimiter = authRateLimiter({ keyPrefix: 'changepass', windowMs: defaultWindow, maxRequests: changePassMax, pool });
+  const twoFactorLimiter = authRateLimiter({ keyPrefix: '2fa', windowMs: defaultWindow, maxRequests: 10, message: 'Muitas tentativas de 2FA. Por favor, aguarde alguns minutos e tente novamente.', pool });
 
   // Public Auth Routes
   router.post('/login', loginLimiter, controller.login);
+  router.post('/verify-2fa', twoFactorLimiter, controller.verifyLogin2fa);
   router.post('/signup', signupLimiter, controller.signup);
   router.post('/refresh', refreshLimiter, controller.refresh);
   router.post('/logout', controller.logout);
@@ -43,6 +45,9 @@ export function createAuthRouter(pool: any): Router {
   router.post('/me', authenticateJWT, controller.me);
   router.get('/me', authenticateJWT, controller.me);
   router.post('/change-password', authenticateJWT, changePassLimiter, controller.changePassword);
+  router.post('/2fa/setup', authenticateJWT, twoFactorLimiter, controller.setup2fa);
+  router.post('/2fa/confirm', authenticateJWT, twoFactorLimiter, controller.confirm2fa);
+  router.post('/2fa/disable', authenticateJWT, twoFactorLimiter, controller.disable2fa);
 
   return router;
 }

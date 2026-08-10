@@ -1,16 +1,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
-                   process.env.SERVICE_ROLE_KEY ||
-                   process.env.SUPABASE_SERVICE_KEY;
-
 console.log(`[Server] Verificando variáveis de ambiente...`);
-console.log(`[Server] Supabase Service Key: ${serviceKey ? 'Detectada (tamanho: ' + serviceKey.length + ')' : 'NÃO ENCONTRADA'}`);
 console.log(`[Server] API_KEY: ${process.env.API_KEY ? 'Detectada' : 'NÃO ENCONTRADA'}`);
 console.log(`[Server] ASAAS_API_KEY: ${process.env.ASAAS_API_KEY ? 'Detectada' : 'NÃO ENCONTRADA'}`);
 console.log(`[Server] ASAAS_API_KEY_B64: ${process.env.ASAAS_API_KEY_B64 ? 'Detectada' : 'NÃO ENCONTRADA'}`);
@@ -253,33 +246,8 @@ try {
             req.url = req.originalUrl;
             contributorsApp(req, res, next);
         });
-
-        // Mapear o endpoint de migração administrativo diretamente na rota principal
-        app.get('/api/admin/migrate-supabase-to-postgres', (req, res, next) => {
-            console.log(`[IdentificaPix] Executando migração de forma integrada...`);
-            req.url = '/api/v1/admin/migrate-supabase-to-postgres';
-            contributorsApp(req, res, next);
-        });
     } else {
         console.log(`[IdentificaPix] Usando modo Proxy de rede para o Contributors API externo/separado.`);
-        
-        // Endpoint de migração administrativa do Supabase para o Postgres do VPS
-        app.get('/api/admin/migrate-supabase-to-postgres', async (req, res) => {
-            try {
-                const vpsUrl = process.env.CONTRIBUTORS_API_URL || 'http://127.0.0.1:3010';
-                const cleanVpsUrl = vpsUrl.endsWith('/') ? vpsUrl.slice(0, -1) : vpsUrl;
-                const targetUrl = `${cleanVpsUrl}/api/v1/admin/migrate-supabase-to-postgres`;
-                
-                console.log(`[Migrate Proxy] Calling VPS migration endpoint at: ${targetUrl}`);
-                const response = await fetch(targetUrl);
-                const data = await response.json();
-                
-                return res.status(response.status).json(data);
-            } catch (err) {
-                console.error("Erro ao chamar endpoint de migração do VPS:", err);
-                return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
-            }
-        });
 
         // Proxy para o Contributors API (PG + VPS)
         app.all('/api/v1/*', async (req, res) => {

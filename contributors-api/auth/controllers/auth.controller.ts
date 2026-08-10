@@ -251,4 +251,102 @@ export class AuthController {
       });
     }
   };
+
+  verifyLogin2fa = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { tempToken, code } = req.body;
+      if (!tempToken || !code) {
+        return res.status(400).json({ success: false, error: 'Token temporário e código 2FA são obrigatórios.' });
+      }
+
+      const { ip, userAgent } = this.getClientInfo(req);
+      const result = await this.service.verifyLogin2fa(tempToken, code, ip, userAgent);
+
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (err: any) {
+      return res.status(400).json({
+        success: false,
+        error: err?.message || 'Erro na verificação do 2FA.'
+      });
+    }
+  };
+
+  setup2fa = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Não autenticado.' });
+      }
+
+      const result = await this.service.setup2fa(userId);
+
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+    } catch (err: any) {
+      return res.status(400).json({
+        success: false,
+        error: err?.message || 'Erro ao gerar chave de configuração 2FA.'
+      });
+    }
+  };
+
+  confirm2fa = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Não autenticado.' });
+      }
+
+      const { code } = req.body;
+      if (!code) {
+        return res.status(400).json({ success: false, error: 'Código de verificação é obrigatório.' });
+      }
+
+      const { ip, userAgent } = this.getClientInfo(req);
+      const result = await this.service.confirm2fa(userId, code, ip, userAgent);
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+        message: '2FA ativado com sucesso. Guarde os códigos de recuperação em local seguro.'
+      });
+    } catch (err: any) {
+      return res.status(400).json({
+        success: false,
+        error: err?.message || 'Erro ao confirmar ativação de 2FA.'
+      });
+    }
+  };
+
+  disable2fa = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user?.user_id;
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Não autenticado.' });
+      }
+
+      const { password } = req.body;
+      if (!password) {
+        return res.status(400).json({ success: false, error: 'Confirmação de senha é obrigatória.' });
+      }
+
+      const { ip, userAgent } = this.getClientInfo(req);
+      await this.service.disable2fa(userId, password, ip, userAgent);
+
+      return res.status(200).json({
+        success: true,
+        message: '2FA desativado com sucesso.'
+      });
+    } catch (err: any) {
+      return res.status(400).json({
+        success: false,
+        error: err?.message || 'Erro ao desativar 2FA.'
+      });
+    }
+  };
 }

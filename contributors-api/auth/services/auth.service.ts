@@ -1,6 +1,23 @@
 import { AuthRepository } from '../repositories/auth.repository.js';
 import { hashPassword, comparePassword, validatePasswordStrength } from '../utils/password.utils.js';
-import { generateAccessToken, generateRefreshToken, hashRefreshToken, verifyAccessToken, generateResetToken } from '../utils/jwt.utils.js';
+import { 
+  generateAccessToken, 
+  generateRefreshToken, 
+  hashRefreshToken, 
+  verifyAccessToken, 
+  generateResetToken,
+  generate2faTempToken,
+  verify2faTempToken
+} from '../utils/jwt.utils.js';
+import { 
+  generateBase32Secret, 
+  generateOtpauthUrl, 
+  encryptSecret, 
+  decryptSecret, 
+  verifyTotpCode, 
+  generateRecoveryCodes, 
+  hashRecoveryCode 
+} from '../utils/totp.utils.js';
 import { sanitizeEmail } from '../validators/auth.validators.js';
 import { UserResponse, LoginResult, AuthTokens } from '../types/auth.types.js';
 import { logAudit } from '../../services/audit.service.js';
@@ -22,6 +39,7 @@ export class AuthService {
       permissions: user.permissions || [],
       is_active: user.is_active,
       is_verified: user.is_verified,
+      two_factor_enabled: Boolean(user.two_factor_enabled),
       last_login: user.last_login,
       created_at: user.created_at
     };
@@ -86,6 +104,26 @@ export class AuthService {
       throw new Error('Senha incorreta. Se você migrou do Supabase, clique em "Criar conta" abaixo com este mesmo e-mail para cadastrar sua nova senha.');
     }
 
+    const isAdminRole = user.role === 'superadmin' || user.role === 'admin' || user.role === 'owner';
+
+    if (user.two_factor_enabled || isAdminRole) {
+      const secrets = await this.repo.getTotpSecrets(user.id);
+      if (secrets && secrets.totp_enabled) {
+        const tempToken = generate2faTempToken(user.id);
+        await this.repo.createAuditLog({
+          user_id: user.id,
+          email: user.email,
+          event: 'LOGIN_2FA_REQUIRED',
+          ip_address: ip,
+          user_agent: userAgent
+        });
+        return {
+          requiresTwoFactor: true,
+          tempToken
+        };
+      }
+    }
+
     await this.repo.updateUserLoginSuccess(user.id);
 
     const accessInfo = generateAccessToken({
@@ -120,6 +158,206 @@ export class AuthService {
         expiresIn: accessInfo.expiresIn
       }
     };
+  }
+
+  async verifyLogin2fa(
+    tempToken: string,
+    codeOrRecovery: string,
+    ip?: string,
+    userAgent?: string
+  ): Promise<LoginResult> {
+    let payload: { user_id: string };
+    try {
+      payload = verify2faTempToken(tempToken);
+    } catch {
+      throw new Error('Sessão de verificação 2FA expirada ou inválida. Faça login novamente.');
+    }
+
+    const user = await this.repo.findUserById(payload.user_id);
+    if (!user || !user.is_active) {
+      throw new Error('Usuário inválido ou inativo.');
+    }
+
+    const secrets = await this.repo.getTotpSecrets(user.id);
+    if (!secrets || !secrets.totp_enabled || !secrets.totp_secret_encrypted) {
+      throw new Error('2FA não configurado para este usuário.');
+    }
+
+    let isValid = false;
+    let usedRecoveryCode = false;
+
+    try {
+      const plainSecret = decryptSecret(secrets.totp_secret_encrypted);
+      isValid = verifyTotpCode(plainSecret, codeOrRecovery);
+    } catch (e) {
+      isValid = false;
+    }
+
+    if (!isValid && secrets.totp_recovery_codes && secrets.totp_recovery_codes.length > 0) {
+      const inputHash = hashRecoveryCode(codeOrRecovery);
+      const codeIndex = secrets.totp_recovery_codes.indexOf(inputHash);
+      if (codeIndex !== -1) {
+        isValid = true;
+        usedRecoveryCode = true;
+        const updatedCodes = [...secrets.totp_recovery_codes];
+        updatedCodes.splice(codeIndex, 1);
+        await this.repo.updateTotpRecoveryCodes(user.id, updatedCodes);
+      }
+    }
+
+    if (!isValid) {
+      await this.repo.createAuditLog({
+        user_id: user.id,
+        email: user.email,
+        event: '2FA_AUTH_FAILED',
+        ip_address: ip,
+        user_agent: userAgent,
+        details: { reason: 'Código TOTP ou de recuperação inválido' }
+      });
+      throw new Error('Código de verificação 2FA ou código de recuperação inválido.');
+    }
+
+    await this.repo.updateUserLoginSuccess(user.id);
+
+    const accessInfo = generateAccessToken({
+      userId: user.id,
+      churchId: user.church_id,
+      role: user.role,
+      permissions: user.permissions
+    });
+
+    const refreshInfo = generateRefreshToken();
+    await this.repo.saveRefreshToken({
+      userId: user.id,
+      tokenHash: refreshInfo.tokenHash,
+      expiresAt: refreshInfo.expiresAt,
+      ipAddress: ip,
+      userAgent: userAgent
+    });
+
+    await this.repo.createAuditLog({
+      user_id: user.id,
+      email: user.email,
+      event: usedRecoveryCode ? '2FA_RECOVERY_CODE_USED' : '2FA_AUTH_SUCCESS',
+      ip_address: ip,
+      user_agent: userAgent
+    });
+
+    return {
+      user: this.toUserResponse(user),
+      tokens: {
+        accessToken: accessInfo.token,
+        refreshToken: refreshInfo.rawToken,
+        expiresIn: accessInfo.expiresIn
+      }
+    };
+  }
+
+  async setup2fa(userId: string): Promise<{ secret: string; otpauthUrl: string }> {
+    const user = await this.repo.findUserById(userId);
+    if (!user) {
+      throw new Error('Usuário não encontrado.');
+    }
+
+    const secretBase32 = generateBase32Secret(20);
+    const encryptedSecret = encryptSecret(secretBase32);
+
+    await this.repo.saveTotpTempSecret(userId, encryptedSecret);
+
+    const otpauthUrl = generateOtpauthUrl(user.email, secretBase32);
+
+    return {
+      secret: secretBase32,
+      otpauthUrl
+    };
+  }
+
+  async confirm2fa(userId: string, code: string, ip?: string, userAgent?: string): Promise<{ recoveryCodes: string[] }> {
+    const user = await this.repo.findUserById(userId);
+    if (!user) throw new Error('Usuário não encontrado.');
+
+    const secrets = await this.repo.getTotpSecrets(userId);
+    if (!secrets || !secrets.totp_temp_secret_encrypted) {
+      throw new Error('Solicitação de configuração 2FA não iniciada. Solicite a chave novamente.');
+    }
+
+    let plainTempSecret: string;
+    try {
+      plainTempSecret = decryptSecret(secrets.totp_temp_secret_encrypted);
+    } catch {
+      throw new Error('Erro ao descriptografar chave temporária.');
+    }
+
+    const isValid = verifyTotpCode(plainTempSecret, code);
+    if (!isValid) {
+      await this.repo.createAuditLog({
+        user_id: user.id,
+        email: user.email,
+        event: '2FA_CONFIRM_FAILED',
+        ip_address: ip,
+        user_agent: userAgent
+      });
+      throw new Error('Código TOTP fornecido é inválido. Verifique o aplicativo autenticador.');
+    }
+
+    const rawRecoveryCodes = generateRecoveryCodes(8);
+    const hashedCodes = rawRecoveryCodes.map(c => hashRecoveryCode(c));
+
+    await this.repo.enableTotp(userId, secrets.totp_temp_secret_encrypted, hashedCodes);
+
+    await this.repo.createAuditLog({
+      user_id: user.id,
+      email: user.email,
+      event: '2FA_ENABLED',
+      ip_address: ip,
+      user_agent: userAgent
+    });
+
+    await logAudit(this.repo.getPool(), {
+      userId: user.id,
+      churchId: user.church_id,
+      action: 'UPDATE',
+      entity: 'app_users',
+      entityId: user.id,
+      ipAddress: ip,
+      userAgent: userAgent,
+      newValues: { two_factor_enabled: true }
+    });
+
+    return {
+      recoveryCodes: rawRecoveryCodes
+    };
+  }
+
+  async disable2fa(userId: string, passwordConfirm: string, ip?: string, userAgent?: string): Promise<void> {
+    const user = await this.repo.findUserById(userId);
+    if (!user) throw new Error('Usuário não encontrado.');
+
+    const isMatch = await comparePassword(passwordConfirm, user.password_hash);
+    if (!isMatch) {
+      throw new Error('Senha incorreta para confirmação de desativação de 2FA.');
+    }
+
+    await this.repo.disableTotp(userId);
+
+    await this.repo.createAuditLog({
+      user_id: user.id,
+      email: user.email,
+      event: '2FA_DISABLED',
+      ip_address: ip,
+      user_agent: userAgent
+    });
+
+    await logAudit(this.repo.getPool(), {
+      userId: user.id,
+      churchId: user.church_id,
+      action: 'UPDATE',
+      entity: 'app_users',
+      entityId: user.id,
+      ipAddress: ip,
+      userAgent: userAgent,
+      newValues: { two_factor_enabled: false }
+    });
   }
 
   async signup(

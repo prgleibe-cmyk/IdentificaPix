@@ -14,8 +14,9 @@ import { createAutomationMacroRouter } from './automation-macros/routes/automati
 import { createFileModelRouter } from './file-models/routes/file_model.routes.js';
 import { createProfileRouter } from './profiles/routes/profile.routes.js';
 import { createPaymentRouter } from './payments/routes/payment.routes.js';
-import { executeBackup, scheduleAutomatedBackups, getBackupDirectory } from './services/backup.service.js';
+import { executeBackup, scheduleAutomatedBackups, getBackupDirectory, listBackups } from './services/backup.service.js';
 import { initAuditDatabase, logAudit, queryAuditLogs } from './services/audit.service.js';
+import { getMonitoringStatus, sendAlertNotification, startMonitoringService, getSecurityDashboardStatus } from './services/monitoring.service.js';
 
 const requireFallback = createRequire(import.meta.url);
 
@@ -566,8 +567,67 @@ async function initializeDatabase() {
 // Ensure database table setup executes upon initialization
 initializeDatabase().then(() => {
   scheduleAutomatedBackups(pool);
+  startMonitoringService(pool);
 }).catch(err => {
   console.error('[Contributors API] Error during init/schedule:', err);
+});
+
+// Infrastructure & Monitoring Endpoints
+app.get(['/health', '/api/v1/health', '/api/v1/monitoring/status'], async (req: Request, res: Response) => {
+  try {
+    const reqContext = {
+      ip: req.ip,
+      protocol: req.protocol,
+      secure: req.secure
+    };
+    const report = await getMonitoringStatus(pool, reqContext);
+    const statusCode = report.status === 'critical' ? 503 : 200;
+    res.status(statusCode).json(report);
+  } catch (err: any) {
+    res.status(500).json({
+      status: 'critical',
+      timestamp: new Date().toISOString(),
+      error: err?.message || String(err)
+    });
+  }
+});
+
+app.get('/api/v1/admin/security-status', async (req: Request, res: Response) => {
+  try {
+    const reqContext = {
+      ip: req.ip,
+      protocol: req.protocol,
+      secure: req.secure
+    };
+    const securityData = await getSecurityDashboardStatus(pool, reqContext);
+    res.json(securityData);
+  } catch (err: any) {
+    res.status(500).json({
+      error: err?.message || String(err),
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.post('/api/v1/monitoring/test-alert', async (req: Request, res: Response) => {
+  try {
+    const report = await getMonitoringStatus(pool);
+    // Inject a simulated test alert
+    report.alerts.push({
+      severity: 'warning',
+      component: 'testSystem',
+      message: 'Teste manual de notificação de alerta de infraestrutura (Sanitized)',
+      timestamp: new Date().toISOString()
+    });
+    const result = await sendAlertNotification(report, pool);
+    res.json({
+      message: 'Alerta de teste enviado com sucesso',
+      dispatchResult: result,
+      alertCount: report.alerts.length
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
 });
 
 // Admin Backup Endpoints
@@ -600,21 +660,30 @@ app.post('/api/v1/admin/backup/run', async (req: Request, res: Response) => {
   }
 });
 
+app.get('/api/v1/admin/backups', async (req: Request, res: Response) => {
+  try {
+    const listResult = await listBackups();
+    res.json({
+      source: listResult.source,
+      backupDir: listResult.backupDir,
+      totalBackups: listResult.totalBackups,
+      latestBackup: listResult.latestBackup,
+      backups: listResult.files
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
 app.get('/api/v1/admin/backup/status', async (req: Request, res: Response) => {
   try {
-    const backupDir = getBackupDirectory();
-    let files: string[] = [];
-    if (fs.existsSync(backupDir)) {
-      files = fs.readdirSync(backupDir)
-        .filter(f => f.startsWith('backup-') && f.endsWith('.enc'))
-        .sort()
-        .reverse();
-    }
+    const listResult = await listBackups();
     res.json({
-      backupDir,
-      totalBackups: files.length,
-      latestBackup: files[0] || null,
-      backups: files.slice(0, 10)
+      source: listResult.source,
+      backupDir: listResult.backupDir,
+      totalBackups: listResult.totalBackups,
+      latestBackup: listResult.latestBackup,
+      backups: listResult.files.slice(0, 10)
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || String(err) });
@@ -2068,34 +2137,7 @@ app.delete('/api/v1/contributors/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Helper to fetch table data from Supabase REST API as a fallback
-const fetchSupabaseTable = async (table: string, userId?: string) => {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
-                     process.env.SERVICE_ROLE_KEY ||
-                     process.env.SUPABASE_SERVICE_KEY;
-  if (!serviceKey) return [];
-  const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
-  try {
-    let url = `${supabaseUrl}/rest/v1/${table}?select=*`;
-    if (userId) {
-      url += `&or=(user_id.eq.${userId},owner_id.eq.${userId},user_id.is.null)`;
-    }
-    const response = await fetch(url, {
-      headers: {
-        'apikey': serviceKey,
-        'Authorization': `Bearer ${serviceKey}`
-      }
-    });
-    if (response.ok) {
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
-    }
-  } catch (err) {
-    console.warn(`[Supabase Fetch Fallback] Error fetching ${table}:`, err);
-  }
-  return [];
-};
+
 
 // ==========================================
 // REFERENCE DATA ENDPOINT
@@ -2250,26 +2292,7 @@ app.get('/api/v1/banks', async (req: Request, res: Response) => {
       return res.json(result.rows);
     }
 
-    // Fallback 1: Query Supabase
-    if (cleanUserId) {
-      const supaBanks = await fetchSupabaseTable('banks', cleanUserId);
-      if (supaBanks.length > 0) {
-        for (const b of supaBanks) {
-          try {
-            await pool.query(
-              `INSERT INTO banks (id, name, user_id, bank_key, account_name, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               ON CONFLICT (id) DO NOTHING`,
-              [b.id, b.name, b.user_id || cleanUserId, b.bank_key || null, b.account_name || b.name, b.created_at || new Date()]
-            );
-          } catch (e) {
-            console.error('Error auto-syncing bank from Supabase:', e);
-          }
-        }
-        const recheck = await pool.query(query, params);
-        if (recheck.rows.length > 0) return res.json(recheck.rows);
-      }
-    }
+
 
     // Fallback 2: Auto-seed standard default banks for user
     const defaultBanks = [
@@ -2447,26 +2470,7 @@ app.get('/api/v1/churches', async (req: Request, res: Response) => {
       return res.json(result.rows);
     }
 
-    // Fallback 1: Query Supabase
-    if (cleanUserId) {
-      const supaChurches = await fetchSupabaseTable('churches', cleanUserId);
-      if (supaChurches.length > 0) {
-        for (const c of supaChurches) {
-          try {
-            await pool.query(
-              `INSERT INTO churches (id, name, address, "logoUrl", pastor, user_id, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
-               ON CONFLICT (id) DO NOTHING`,
-              [c.id, c.name, c.address || '', c.logoUrl || '', c.pastor || '', c.user_id || cleanUserId, c.created_at || new Date()]
-            );
-          } catch (e) {
-            console.error('Error auto-syncing church from Supabase:', e);
-          }
-        }
-        const recheck = await pool.query(query, params);
-        if (recheck.rows.length > 0) return res.json(recheck.rows);
-      }
-    }
+
 
     // Fallback 2: Auto-seed default church
     const ins = await pool.query(
@@ -3051,146 +3055,238 @@ const WhatsAppGatewayService = {
 };
 
 // Communication Queue Processor Engine
+export async function recoverAbandonedProcessingQueueItems(pool: pg.Pool, churchIdFilter?: string): Promise<{ recovered: number; failed: number }> {
+  const client = await pool.connect();
+  let recoveredCount = 0;
+  let failedCount = 0;
+
+  try {
+    await client.query('BEGIN');
+    let recoveryQuery = `
+      SELECT id, attempts, max_attempts 
+      FROM communication_queue 
+      WHERE status = 'PROCESSING' 
+        AND updated_at < NOW() - INTERVAL '5 minutes'
+    `;
+    const recoveryParams: any[] = [];
+    if (churchIdFilter) {
+      recoveryParams.push(churchIdFilter);
+      recoveryQuery += ` AND church_id = ${recoveryParams.length}`;
+    }
+    recoveryQuery += " ORDER BY updated_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED";
+
+    const selectedStale = await client.query(recoveryQuery, recoveryParams);
+    if (selectedStale.rows.length > 0) {
+      for (const staleItem of selectedStale.rows) {
+        const attempts = staleItem.attempts || 0;
+        const maxAttempts = staleItem.max_attempts || 3;
+        const isMaxed = attempts >= maxAttempts;
+
+        if (isMaxed) {
+          await client.query(
+            `UPDATE communication_queue
+             SET status = 'FAILED', error_message = 'Timeout de processamento (registro abandonado em PROCESSING)', updated_at = NOW()
+             WHERE id = $1`,
+            [staleItem.id]
+          );
+          failedCount++;
+        } else {
+          await client.query(
+            `UPDATE communication_queue
+             SET status = 'READY_FOR_SEND', next_attempt_at = NOW(), error_message = 'Recuperado de timeout de processamento (abandonado em PROCESSING)', updated_at = NOW()
+             WHERE id = $1`,
+            [staleItem.id]
+          );
+          recoveredCount++;
+        }
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err0) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[CommunicationProcessor] Recovery Error:', err0);
+  } finally {
+    client.release();
+  }
+
+  return { recovered: recoveredCount, failed: failedCount };
+}
+
 async function runCommunicationProcessor(churchIdFilter?: string) {
   try {
-    let eventQuery = "SELECT * FROM communication_events WHERE status = 'PENDING'";
-    const eventParams: any[] = [];
-    if (churchIdFilter) {
-      eventParams.push(churchIdFilter);
-      eventQuery += ` AND church_id = $${eventParams.length}`;
-    }
-    eventQuery += " ORDER BY created_at ASC LIMIT 50";
-
-    const pendingEvents = await pool.query(eventQuery, eventParams);
     let processedCount = 0;
+    let queuedCount = 0;
+    let sentCount = 0;
 
-    for (const ev of pendingEvents.rows) {
-      const payload = typeof ev.payload === 'object' ? ev.payload : (JSON.parse(ev.payload || '{}'));
-      const churchId = ev.church_id;
+    // Step 0: Recovery of Abandoned PROCESSING Items (> 5 minutes timeout)
+    await recoverAbandonedProcessingQueueItems(pool, churchIdFilter);
 
-      // Fetch church configuration
-      const churchRes = await pool.query(
-        'SELECT id, name, pastor, auto_comm_enabled, auto_send_on_confirmation FROM churches WHERE id = $1 LIMIT 1',
-        [churchId]
-      );
-      const church = churchRes.rows[0] || { name: 'Igreja', pastor: 'Pastor' };
-
-      if (church.auto_comm_enabled === false || church.auto_send_on_confirmation === false) {
-        await pool.query("UPDATE communication_events SET status = 'SKIPPED' WHERE id = $1", [ev.id]);
-        await pool.query(
-          `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, message_summary, error_message)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            churchId,
-            ev.contributor_id || null,
-            payload.contributor_name || 'Contribuinte Não Identificado',
-            ev.event_type || 'ContributionConfirmed',
-            'whatsapp',
-            'skipped',
-            'SKIPPED: Comunicação automática desativada para a igreja',
-            'Comunicação automática desativada'
-          ]
-        );
-        continue;
+    // Step 1: Events Processing (communication_events PENDING -> communication_queue PENDING)
+    const client1 = await pool.connect();
+    let eventsToProcess: any[] = [];
+    try {
+      await client1.query('BEGIN');
+      let eventQuery = "SELECT * FROM communication_events WHERE status = 'PENDING'";
+      const eventParams: any[] = [];
+      if (churchIdFilter) {
+        eventParams.push(churchIdFilter);
+        eventQuery += ` AND church_id = $${eventParams.length}`;
       }
+      eventQuery += " ORDER BY created_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED";
 
-      // Check recipient phone
-      let recipientPhone = payload.contributor_phone || null;
-      let contributorName = payload.contributor_name || 'Contribuinte Não Identificado';
+      const pendingEvents = await client1.query(eventQuery, eventParams);
+      eventsToProcess = pendingEvents.rows;
 
-      if (!recipientPhone && ev.contributor_id) {
-        const contribRes = await pool.query(
-          'SELECT name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
-          [ev.contributor_id]
-        );
-        if (contribRes.rows.length > 0) {
-          const c = contribRes.rows[0];
-          contributorName = c.name || contributorName;
-          recipientPhone = c.whatsapp || c.phone || null;
-        }
-      }
+      for (const ev of eventsToProcess) {
+        const payload = typeof ev.payload === 'object' ? ev.payload : (JSON.parse(ev.payload || '{}'));
+        const churchId = ev.church_id;
 
-      if (!recipientPhone) {
-        await pool.query("UPDATE communication_events SET status = 'SKIPPED' WHERE id = $1", [ev.id]);
-        await pool.query(
-          `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, message_summary, error_message)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            churchId,
-            ev.contributor_id || null,
-            contributorName,
-            ev.event_type || 'ContributionConfirmed',
-            'whatsapp',
-            'skipped',
-            'SKIPPED: Contribuinte sem WhatsApp cadastrado',
-            'Contribuinte sem WhatsApp cadastrado'
-          ]
-        );
-        continue;
-      }
-
-      // Check active pastoral message
-      let pastoralAddon = '';
-      try {
-        const pastoralRes = await pool.query(
-          `SELECT title, content FROM pastoral_messages 
-           WHERE church_id = $1 AND is_active = true 
-             AND (start_date IS NULL OR start_date <= NOW()) 
-             AND (end_date IS NULL OR end_date >= NOW()) 
-           ORDER BY created_at DESC LIMIT 1`,
+        // Fetch church configuration
+        const churchRes = await client1.query(
+          'SELECT id, name, pastor, auto_comm_enabled, auto_send_on_confirmation FROM churches WHERE id = $1 LIMIT 1',
           [churchId]
         );
-        if (pastoralRes.rows.length > 0) {
-          const pMsg = pastoralRes.rows[0];
-          pastoralAddon = `\n\n[Mensagem Pastoral - ${pMsg.title}]:\n${pMsg.content}`;
+        const church = churchRes.rows[0] || { name: 'Igreja', pastor: 'Pastor' };
+
+        if (church.auto_comm_enabled === false || church.auto_send_on_confirmation === false) {
+          await client1.query("UPDATE communication_events SET status = 'SKIPPED' WHERE id = $1", [ev.id]);
+          await client1.query(
+            `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, message_summary, error_message)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              churchId,
+              ev.contributor_id || null,
+              payload.contributor_name || 'Contribuinte Não Identificado',
+              ev.event_type || 'ContributionConfirmed',
+              'whatsapp',
+              'skipped',
+              'SKIPPED: Comunicação automática desativada para a igreja',
+              'Comunicação automática desativada'
+            ]
+          );
+          continue;
         }
-      } catch (e) {
-        console.warn('[CommunicationProcessor] Error querying pastoral message:', e);
+
+        // Check recipient phone
+        let recipientPhone = payload.contributor_phone || null;
+        let contributorName = payload.contributor_name || 'Contribuinte Não Identificado';
+
+        if (!recipientPhone && ev.contributor_id) {
+          const contribRes = await client1.query(
+            'SELECT name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
+            [ev.contributor_id]
+          );
+          if (contribRes.rows.length > 0) {
+            const c = contribRes.rows[0];
+            contributorName = c.name || contributorName;
+            recipientPhone = c.whatsapp || c.phone || null;
+          }
+        }
+
+        if (!recipientPhone) {
+          await client1.query("UPDATE communication_events SET status = 'SKIPPED' WHERE id = $1", [ev.id]);
+          await client1.query(
+            `INSERT INTO communication_logs (church_id, contributor_id, contributor_name, event_type, channel, status, message_summary, error_message)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              churchId,
+              ev.contributor_id || null,
+              contributorName,
+              ev.event_type || 'ContributionConfirmed',
+              'whatsapp',
+              'skipped',
+              'SKIPPED: Contribuinte sem WhatsApp cadastrado',
+              'Contribuinte sem WhatsApp cadastrado'
+            ]
+          );
+          continue;
+        }
+
+        // Check active pastoral message
+        let pastoralAddon = '';
+        try {
+          const pastoralRes = await client1.query(
+            `SELECT title, content FROM pastoral_messages 
+             WHERE church_id = $1 AND is_active = true 
+               AND (start_date IS NULL OR start_date <= NOW()) 
+               AND (end_date IS NULL OR end_date >= NOW()) 
+             ORDER BY created_at DESC LIMIT 1`,
+            [churchId]
+          );
+          if (pastoralRes.rows.length > 0) {
+            const pMsg = pastoralRes.rows[0];
+            pastoralAddon = `\n\n[Mensagem Pastoral - ${pMsg.title}]:\n${pMsg.content}`;
+          }
+        } catch (e) {
+          console.warn('[CommunicationProcessor] Error querying pastoral message:', e);
+        }
+
+        const amountVal = parseFloat(payload.amount) || 0;
+        const amountFormatted = amountVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const contribType = payload.contribution_type || payload.description || 'Dízimo/Oferta';
+
+        const renderedContent = `Olá ${contributorName}, sua contribuição no valor de ${amountFormatted} (${contribType}) foi confirmada com sucesso pela ${church.name}. Que Deus abençoe rica e abundantemente sua fidelidade!${pastoralAddon}`;
+
+        await client1.query(
+          `INSERT INTO communication_queue (event_id, church_id, contributor_id, recipient_phone, channel, message_type, rendered_content, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            ev.id,
+            churchId,
+            ev.contributor_id || null,
+            recipientPhone,
+            'whatsapp',
+            ev.event_type || 'ContributionConfirmed',
+            renderedContent,
+            'PENDING'
+          ]
+        );
+
+        await client1.query("UPDATE communication_events SET status = 'PROCESSED' WHERE id = $1", [ev.id]);
+        processedCount++;
       }
-
-      const amountVal = parseFloat(payload.amount) || 0;
-      const amountFormatted = amountVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      const contribType = payload.contribution_type || payload.description || 'Dízimo/Oferta';
-
-      const renderedContent = `Olá ${contributorName}, sua contribuição no valor de ${amountFormatted} (${contribType}) foi confirmada com sucesso pela ${church.name}. Que Deus abençoe rica e abundantemente sua fidelidade!${pastoralAddon}`;
-
-      await pool.query(
-        `INSERT INTO communication_queue (event_id, church_id, contributor_id, recipient_phone, channel, message_type, rendered_content, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          ev.id,
-          churchId,
-          ev.contributor_id || null,
-          recipientPhone,
-          'whatsapp',
-          ev.event_type || 'ContributionConfirmed',
-          renderedContent,
-          'PENDING'
-        ]
-      );
-
-      await pool.query("UPDATE communication_events SET status = 'PROCESSED' WHERE id = $1", [ev.id]);
-      processedCount++;
+      await client1.query('COMMIT');
+    } catch (err1) {
+      await client1.query('ROLLBACK').catch(() => {});
+      console.error('[CommunicationProcessor] Step 1 Error:', err1);
+    } finally {
+      client1.release();
     }
 
     // Step 2: Queue Worker Processing (PENDING -> READY_FOR_SEND)
-    let queueQuery = "SELECT * FROM communication_queue WHERE status = 'PENDING' AND next_attempt_at <= NOW()";
-    const queueParams: any[] = [];
-    if (churchIdFilter) {
-      queueParams.push(churchIdFilter);
-      queueQuery += ` AND church_id = $${queueParams.length}`;
+    const client2 = await pool.connect();
+    let pendingQueueRows: any[] = [];
+    try {
+      await client2.query('BEGIN');
+      let queueQuery = "SELECT id FROM communication_queue WHERE status = 'PENDING' AND next_attempt_at <= NOW()";
+      const queueParams: any[] = [];
+      if (churchIdFilter) {
+        queueParams.push(churchIdFilter);
+        queueQuery += ` AND church_id = $${queueParams.length}`;
+      }
+      queueQuery += " ORDER BY created_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED";
+
+      const selectedQueue = await client2.query(queueQuery, queueParams);
+      if (selectedQueue.rows.length > 0) {
+        const ids = selectedQueue.rows.map((r: any) => r.id);
+        const updateRes = await client2.query(
+          `UPDATE communication_queue
+           SET status = 'PROCESSING', attempts = attempts + 1, updated_at = NOW()
+           WHERE id = ANY($1::uuid[])
+           RETURNING *`,
+          [ids]
+        );
+        pendingQueueRows = updateRes.rows;
+      }
+      await client2.query('COMMIT');
+    } catch (err2) {
+      await client2.query('ROLLBACK').catch(() => {});
+      console.error('[CommunicationProcessor] Step 2 Lock Error:', err2);
+    } finally {
+      client2.release();
     }
-    queueQuery += " ORDER BY created_at ASC LIMIT 50";
 
-    const pendingQueue = await pool.query(queueQuery, queueParams);
-    let queuedCount = 0;
-
-    for (const qItem of pendingQueue.rows) {
-      await pool.query(
-        "UPDATE communication_queue SET status = 'PROCESSING', attempts = attempts + 1, updated_at = NOW() WHERE id = $1",
-        [qItem.id]
-      );
-
+    for (const qItem of pendingQueueRows) {
       if (!qItem.recipient_phone || !qItem.rendered_content) {
         await pool.query(
           "UPDATE communication_queue SET status = 'FAILED', error_message = $1, updated_at = NOW() WHERE id = $2",
@@ -3229,23 +3325,39 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
     }
 
     // Step 3: Gateway Dispatch (READY_FOR_SEND -> SENT / FAILED)
-    let readyQuery = "SELECT * FROM communication_queue WHERE status = 'READY_FOR_SEND' AND next_attempt_at <= NOW()";
-    const readyParams: any[] = [];
-    if (churchIdFilter) {
-      readyParams.push(churchIdFilter);
-      readyQuery += ` AND church_id = $${readyParams.length}`;
+    const client3 = await pool.connect();
+    let readyItemsToProcess: any[] = [];
+    try {
+      await client3.query('BEGIN');
+      let readyQuery = "SELECT id FROM communication_queue WHERE status = 'READY_FOR_SEND' AND next_attempt_at <= NOW()";
+      const readyParams: any[] = [];
+      if (churchIdFilter) {
+        readyParams.push(churchIdFilter);
+        readyQuery += ` AND church_id = $${readyParams.length}`;
+      }
+      readyQuery += " ORDER BY created_at ASC LIMIT 50 FOR UPDATE SKIP LOCKED";
+
+      const selectedReady = await client3.query(readyQuery, readyParams);
+      if (selectedReady.rows.length > 0) {
+        const ids = selectedReady.rows.map((r: any) => r.id);
+        const updateRes = await client3.query(
+          `UPDATE communication_queue
+           SET status = 'PROCESSING', updated_at = NOW()
+           WHERE id = ANY($1::uuid[])
+           RETURNING *`,
+          [ids]
+        );
+        readyItemsToProcess = updateRes.rows;
+      }
+      await client3.query('COMMIT');
+    } catch (err3) {
+      await client3.query('ROLLBACK').catch(() => {});
+      console.error('[CommunicationProcessor] Step 3 Lock Error:', err3);
+    } finally {
+      client3.release();
     }
-    readyQuery += " ORDER BY created_at ASC LIMIT 50";
 
-    const readyItems = await pool.query(readyQuery, readyParams);
-    let sentCount = 0;
-
-    for (const item of readyItems.rows) {
-      await pool.query(
-        "UPDATE communication_queue SET status = 'PROCESSING', updated_at = NOW() WHERE id = $1",
-        [item.id]
-      );
-
+    for (const item of readyItemsToProcess) {
       const gatewayResult = await WhatsAppGatewayService.send({
         to: item.recipient_phone,
         message: item.rendered_content,
@@ -4585,202 +4697,9 @@ app.delete('/api/v1/pastor_automations/:id', async (req: Request, res: Response)
 });
 
 // GET /api/v1/admin/migrate-supabase-to-postgres
-app.get('/api/v1/admin/migrate-supabase-to-postgres', async (req: Request, res: Response) => {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 
-                     process.env.SERVICE_ROLE_KEY ||
-                     process.env.SUPABASE_SERVICE_KEY;
 
-  if (!serviceKey) {
-    return res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY not configured in environment" });
-  }
 
-  const supabaseUrl = 'https://uflheoknbopcgmzyjbft.supabase.co';
-  const stats = {
-    banks: 0,
-    churches: 0,
-    learned_associations: 0,
-    saved_reports: 0,
-    consolidated_transactions: 0
-  };
-
-  let pgClient;
-  try {
-    pgClient = await pool.connect();
-
-    // Helper to fetch all rows paginated from Supabase REST API
-    const fetchAll = async (table: string) => {
-      let allData: any[] = [];
-      let from = 0;
-      const pageSize = 1000;
-      while (true) {
-        const url = `${supabaseUrl}/rest/v1/${table}?select=*&limit=${pageSize}&offset=${from}`;
-        const response = await fetch(url, {
-          headers: {
-            'apikey': serviceKey,
-            'Authorization': `Bearer ${serviceKey}`
-          }
-        });
-
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`Failed to fetch ${table} from Supabase: ${response.statusText} - ${errText}`);
-        }
-
-        const data = await response.json();
-        if (!data || data.length === 0) break;
-        allData = [...allData, ...data];
-        if (data.length < pageSize) break;
-        from += pageSize;
-      }
-      return allData;
-    };
-
-    // 1. Banks
-    const banks = await fetchAll('banks');
-    for (const bank of banks) {
-      await pgClient.query(`
-        INSERT INTO banks (id, name, user_id, bank_key, account_name, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          user_id = EXCLUDED.user_id,
-          bank_key = EXCLUDED.bank_key,
-          account_name = EXCLUDED.account_name,
-          created_at = EXCLUDED.created_at;
-      `, [
-        bank.id,
-        bank.name,
-        bank.user_id,
-        bank.bank_key || null,
-        bank.account_name || bank.name,
-        bank.created_at || new Date()
-      ]);
-      stats.banks++;
-    }
-
-    // 2. Churches
-    const churches = await fetchAll('churches');
-    for (const church of churches) {
-      await pgClient.query(`
-        INSERT INTO churches (id, name, address, "logoUrl", pastor, user_id, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          address = EXCLUDED.address,
-          "logoUrl" = EXCLUDED."logoUrl",
-          pastor = EXCLUDED.pastor,
-          user_id = EXCLUDED.user_id,
-          created_at = EXCLUDED.created_at;
-      `, [
-        church.id,
-        church.name,
-        church.address || '',
-        church.logoUrl || '',
-        church.pastor || '',
-        church.user_id,
-        church.created_at || new Date()
-      ]);
-      stats.churches++;
-    }
-
-    // 3. Learned Associations
-    const associations = await fetchAll('learned_associations');
-    for (const assoc of associations) {
-      await pgClient.query(`
-        INSERT INTO learned_associations (id, user_id, normalized_description, contributor_normalized_name, church_id, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (id) DO UPDATE SET
-          user_id = EXCLUDED.user_id,
-          normalized_description = EXCLUDED.normalized_description,
-          contributor_normalized_name = EXCLUDED.contributor_normalized_name,
-          church_id = EXCLUDED.church_id,
-          created_at = EXCLUDED.created_at;
-      `, [
-        assoc.id,
-        assoc.user_id,
-        assoc.normalized_description,
-        assoc.contributor_normalized_name,
-        assoc.church_id,
-        assoc.created_at || new Date()
-      ]);
-      stats.learned_associations++;
-    }
-
-    // 4. Saved Reports
-    const savedReports = await fetchAll('saved_reports');
-    for (const report of savedReports) {
-      await pgClient.query(`
-        INSERT INTO saved_reports (id, name, record_count, user_id, data, church_id, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          record_count = EXCLUDED.record_count,
-          user_id = EXCLUDED.user_id,
-          data = EXCLUDED.data,
-          church_id = EXCLUDED.church_id,
-          created_at = EXCLUDED.created_at;
-      `, [
-        report.id,
-        report.name,
-        report.record_count || 0,
-        report.user_id,
-        typeof report.data === 'string' ? report.data : JSON.stringify(report.data),
-        report.church_id || null,
-        report.created_at || new Date()
-      ]);
-      stats.saved_reports++;
-    }
-
-    // 5. Consolidated Transactions
-    const transactions = await fetchAll('consolidated_transactions');
-    for (const tx of transactions) {
-      await pgClient.query(`
-        INSERT INTO consolidated_transactions (
-          id, amount, description, type, pix_key, source, user_id, status, bank_id, row_hash, is_confirmed, transaction_date, created_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        ON CONFLICT (id) DO UPDATE SET
-          amount = EXCLUDED.amount,
-          description = EXCLUDED.description,
-          type = EXCLUDED.type,
-          pix_key = EXCLUDED.pix_key,
-          source = EXCLUDED.source,
-          user_id = EXCLUDED.user_id,
-          status = EXCLUDED.status,
-          bank_id = EXCLUDED.bank_id,
-          row_hash = EXCLUDED.row_hash,
-          is_confirmed = EXCLUDED.is_confirmed,
-          transaction_date = EXCLUDED.transaction_date,
-          created_at = EXCLUDED.created_at;
-      `, [
-        tx.id,
-        tx.amount,
-        tx.description,
-        tx.type,
-        tx.pix_key || null,
-        tx.source || 'file',
-        tx.user_id,
-        tx.status || 'pending',
-        tx.bank_id || null,
-        tx.row_hash || null,
-        tx.is_confirmed !== undefined ? tx.is_confirmed : false,
-        tx.transaction_date,
-        tx.created_at || new Date()
-      ]);
-      stats.consolidated_transactions++;
-    }
-
-    return res.json({ success: true, message: "Migração executada com sucesso no Postgres do VPS", stats });
-  } catch (err: any) {
-    console.error('[Contributors API] Error running migration:', err);
-    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
-  } finally {
-    if (pgClient) pgClient.release();
-  }
-});
-
-if (process.env.INTEGRATED_MODE !== 'true') {
+if (process.env.INTEGRATED_MODE !== 'true' && process.env.NODE_ENV !== 'test') {
   app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`[Contributors API] Server running on port ${PORT}`);
   });

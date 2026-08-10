@@ -160,7 +160,7 @@ export const ptBiz = {
     'admin.actions.viewSql': 'Ver SQL',
     'admin.actions.sync': 'Sincronizar',
     'admin.debug.title': 'Scripts de Depuração',
-    'admin.debug.desc': 'Utilize estes scripts no Supabase SQL Editor para verificar o estado atual.',
+    'admin.debug.desc': 'Utilize estes scripts no banco de dados PostgreSQL para verificar o estado atual.',
     'admin.users.title': 'Gerenciar Usuários',
     'admin.users.searchPlaceholder': 'Buscar por nome ou email...',
     'admin.users.table.user': 'Usuário',

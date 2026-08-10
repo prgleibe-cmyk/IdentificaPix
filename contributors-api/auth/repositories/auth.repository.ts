@@ -28,6 +28,10 @@ export class AuthRepository {
           permissions JSONB DEFAULT '[]'::jsonb,
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
           is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+          totp_secret_encrypted TEXT,
+          totp_temp_secret_encrypted TEXT,
+          totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          totp_recovery_codes JSONB DEFAULT '[]'::jsonb,
           failed_attempts INT NOT NULL DEFAULT 0,
           lock_until TIMESTAMP,
           last_login TIMESTAMP,
@@ -35,6 +39,14 @@ export class AuthRepository {
           updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
           deleted_at TIMESTAMP
         );
+      `);
+
+      // Migration for existing table app_users
+      await client.query(`
+        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_secret_encrypted TEXT;
+        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_temp_secret_encrypted TEXT;
+        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_recovery_codes JSONB DEFAULT '[]'::jsonb;
       `);
 
       // Indexes
@@ -377,6 +389,71 @@ export class AuthRepository {
     }
   }
 
+  async saveTotpTempSecret(userId: string, encryptedTempSecret: string): Promise<void> {
+    await this.pool.query(
+      'UPDATE app_users SET totp_temp_secret_encrypted = $1, updated_at = NOW() WHERE id = $2',
+      [encryptedTempSecret, userId]
+    );
+  }
+
+  async enableTotp(userId: string, encryptedSecret: string, hashedRecoveryCodes: string[]): Promise<void> {
+    await this.pool.query(
+      `UPDATE app_users 
+       SET totp_secret_encrypted = $1, 
+           totp_enabled = TRUE, 
+           totp_temp_secret_encrypted = NULL, 
+           totp_recovery_codes = $2::jsonb, 
+           updated_at = NOW() 
+       WHERE id = $3`,
+      [encryptedSecret, JSON.stringify(hashedRecoveryCodes), userId]
+    );
+  }
+
+  async disableTotp(userId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE app_users 
+       SET totp_secret_encrypted = NULL, 
+           totp_temp_secret_encrypted = NULL, 
+           totp_enabled = FALSE, 
+           totp_recovery_codes = '[]'::jsonb, 
+           updated_at = NOW() 
+       WHERE id = $1`,
+      [userId]
+    );
+  }
+
+  async updateTotpRecoveryCodes(userId: string, remainingHashedCodes: string[]): Promise<void> {
+    await this.pool.query(
+      `UPDATE app_users SET totp_recovery_codes = $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(remainingHashedCodes), userId]
+    );
+  }
+
+  async getTotpSecrets(userId: string): Promise<{
+    totp_secret_encrypted: string | null;
+    totp_temp_secret_encrypted: string | null;
+    totp_enabled: boolean;
+    totp_recovery_codes: string[];
+  } | null> {
+    const res = await this.pool.query(
+      `SELECT totp_secret_encrypted, totp_temp_secret_encrypted, totp_enabled, totp_recovery_codes FROM app_users WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
+      [userId]
+    );
+    if (res.rows.length === 0) return null;
+    const row = res.rows[0];
+    let codes: string[] = [];
+    if (Array.isArray(row.totp_recovery_codes)) codes = row.totp_recovery_codes;
+    else if (typeof row.totp_recovery_codes === 'string') {
+      try { codes = JSON.parse(row.totp_recovery_codes); } catch { codes = []; }
+    }
+    return {
+      totp_secret_encrypted: row.totp_secret_encrypted || null,
+      totp_temp_secret_encrypted: row.totp_temp_secret_encrypted || null,
+      totp_enabled: Boolean(row.totp_enabled),
+      totp_recovery_codes: codes
+    };
+  }
+
   private mapUserRow(row: any): LocalUser {
     let permissionsArr: string[] = [];
     if (Array.isArray(row.permissions)) {
@@ -395,6 +472,7 @@ export class AuthRepository {
       permissions: permissionsArr,
       is_active: Boolean(row.is_active),
       is_verified: Boolean(row.is_verified),
+      two_factor_enabled: Boolean(row.totp_enabled),
       failed_attempts: Number(row.failed_attempts || 0),
       lock_until: row.lock_until ? new Date(row.lock_until) : null,
       last_login: row.last_login ? new Date(row.last_login) : null,

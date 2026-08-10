@@ -43,7 +43,13 @@ const SENSITIVE_KEYS = new Set([
   'backup_key',
   'card_number',
   'cvv',
-  'pin'
+  'pin',
+  'code',
+  'totp_code',
+  'totp_secret',
+  'recovery_code',
+  'recovery_codes',
+  'mfa_token'
 ]);
 
 /**

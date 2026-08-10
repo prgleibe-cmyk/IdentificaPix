@@ -396,6 +396,65 @@ export async function executeBackup(pool: pg.Pool): Promise<BackupResult> {
 }
 
 /**
+ * ID do advisory lock no PostgreSQL para garantir execução exclusiva do backup entre múltiplas instâncias
+ */
+export const BACKUP_ADVISORY_LOCK_ID = 88492041;
+
+/**
+ * Executes backup wrapped with a PostgreSQL advisory lock (pg_try_advisory_lock).
+ * Holds a dedicated DB connection for the duration of the backup to keep the advisory lock active across instances.
+ * Skips execution gracefully if another instance is already running the backup.
+ */
+export async function executeBackupWithLock(pool: pg.Pool): Promise<BackupResult> {
+  let client: pg.PoolClient | null = null;
+  let lockAcquired = false;
+
+  try {
+    client = await pool.connect();
+    const lockRes = await client.query('SELECT pg_try_advisory_lock($1) AS acquired', [BACKUP_ADVISORY_LOCK_ID]);
+    lockAcquired = lockRes.rows[0]?.acquired === true;
+
+    if (!lockAcquired) {
+      console.log(`[BackupService] PostgreSQL advisory lock (${BACKUP_ADVISORY_LOCK_ID}) is held by another instance. Skipping backup execution on this instance.`);
+      return {
+        success: false,
+        filename: '',
+        filepath: '',
+        sizeBytes: 0,
+        durationMs: 0,
+        error: 'Backup em execução em outra instância (lock indisponível)'
+      };
+    }
+
+    console.log(`[BackupService] Acquired PostgreSQL advisory lock (${BACKUP_ADVISORY_LOCK_ID}). Executing backup...`);
+    return await executeBackup(pool);
+  } catch (err: any) {
+    const errorMsg = err?.message || String(err);
+    console.error(`[BackupService] Error during advisory lock or backup execution:`, errorMsg);
+    return {
+      success: false,
+      filename: '',
+      filepath: '',
+      sizeBytes: 0,
+      durationMs: 0,
+      error: errorMsg
+    };
+  } finally {
+    if (client) {
+      if (lockAcquired) {
+        try {
+          await client.query('SELECT pg_advisory_unlock($1)', [BACKUP_ADVISORY_LOCK_ID]);
+          console.log(`[BackupService] Released PostgreSQL advisory lock (${BACKUP_ADVISORY_LOCK_ID}).`);
+        } catch (unlockErr: any) {
+          console.error('[BackupService] Error releasing PostgreSQL advisory lock:', unlockErr?.message || String(unlockErr));
+        }
+      }
+      client.release();
+    }
+  }
+}
+
+/**
  * Schedules daily backup execution in Node process if enabled via env
  */
 export function scheduleAutomatedBackups(pool: pg.Pool): void {
@@ -405,16 +464,87 @@ export function scheduleAutomatedBackups(pool: pg.Pool): void {
     return;
   }
 
-  console.log('[BackupService] Initializing automated daily PostgreSQL backup schedule...');
+  console.log('[BackupService] Initializing automated daily PostgreSQL backup schedule with distributed advisory lock protection...');
   
   // Run once on startup (after a short delay to let DB initialize)
   setTimeout(() => {
-    executeBackup(pool).catch(e => console.error('[BackupService] Scheduled backup error:', e));
+    executeBackupWithLock(pool).catch(e => console.error('[BackupService] Scheduled backup error:', e));
   }, 10000);
 
   // Run every 24 hours
   const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
   setInterval(() => {
-    executeBackup(pool).catch(e => console.error('[BackupService] Scheduled backup error:', e));
+    executeBackupWithLock(pool).catch(e => console.error('[BackupService] Scheduled backup error:', e));
   }, TWENTY_FOUR_HOURS_MS);
+}
+
+export interface BackupListResult {
+  source: 's3' | 'local';
+  files: string[];
+  totalBackups: number;
+  latestBackup: string | null;
+  backupDir: string;
+  error?: string;
+}
+
+/**
+ * Lists administrative backups from centralized S3/R2 storage when configured,
+ * or falls back to local ./backups directory if S3 is unavailable or unconfigured.
+ */
+export async function listBackups(): Promise<BackupListResult> {
+  const backupDir = getBackupDirectory();
+  const s3Config = getS3Client();
+
+  if (s3Config) {
+    try {
+      const { client, bucket, prefix } = s3Config;
+      const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
+
+      const command = new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: normalizedPrefix
+      });
+
+      const response = await client.send(command);
+      const objects = response.Contents || [];
+
+      const filenamesSet = new Set<string>();
+      for (const obj of objects) {
+        if (!obj.Key) continue;
+        const filename = path.basename(obj.Key);
+        if (filename.startsWith('backup-') && filename.endsWith('.enc')) {
+          filenamesSet.add(filename);
+        }
+      }
+
+      const files = Array.from(filenamesSet).sort().reverse();
+
+      return {
+        source: 's3',
+        files,
+        totalBackups: files.length,
+        latestBackup: files[0] || null,
+        backupDir
+      };
+    } catch (s3Err: any) {
+      console.warn('[BackupService] Could not list backups from S3 storage, falling back to local directory:', s3Err?.message || s3Err);
+    }
+  }
+
+  // Fallback to local ./backups filesystem
+  let files: string[] = [];
+  if (fs.existsSync(backupDir)) {
+    files = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('backup-') && f.endsWith('.enc'))
+      .sort()
+      .reverse();
+  }
+
+  return {
+    source: 'local',
+    files,
+    totalBackups: files.length,
+    latestBackup: files[0] || null,
+    backupDir
+  };
 }

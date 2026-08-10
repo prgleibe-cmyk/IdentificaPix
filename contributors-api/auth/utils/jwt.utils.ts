@@ -56,6 +56,28 @@ export function generateResetToken(): { rawToken: string; tokenHash: string; exp
   return { rawToken, tokenHash, expiresAt };
 }
 
+export function generate2faTempToken(userId: string): string {
+  const claims = {
+    user_id: userId,
+    type: '2fa_temp',
+    iss: ISSUER,
+    aud: AUDIENCE,
+    jti: crypto.randomUUID()
+  };
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: '5m' });
+}
+
+export function verify2faTempToken(token: string): { user_id: string } {
+  const decoded = jwt.verify(token, JWT_SECRET, {
+    issuer: ISSUER,
+    audience: AUDIENCE
+  }) as any;
+  if (decoded.type !== '2fa_temp') {
+    throw new Error('Token temporário inválido');
+  }
+  return { user_id: decoded.user_id };
+}
+
 export function verifyAccessToken(token: string): JwtPayload {
   const decoded = jwt.verify(token, JWT_SECRET, {
     issuer: ISSUER,
