@@ -178,6 +178,8 @@ async function initializeDatabase() {
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT FALSE;");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS role_position VARCHAR(100);");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS photo_url TEXT;");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS name VARCHAR(255);");
+    await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
 
     // Create table banks
@@ -2922,7 +2924,7 @@ async function publishContributionConfirmedEvent(clientOrPool: any, txRow: any) 
     if (txRow.contributor_id) {
       try {
         const contribRes = await clientOrPool.query(
-          'SELECT name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
+          'SELECT COALESCE(canonical_name, name) AS name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
           [txRow.contributor_id]
         );
         if (contribRes.rows.length > 0) {
@@ -3173,7 +3175,7 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
 
         if (!recipientPhone && ev.contributor_id) {
           const contribRes = await client1.query(
-            'SELECT name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
+            'SELECT COALESCE(canonical_name, name) AS name, phone, whatsapp FROM contributors WHERE id = $1 LIMIT 1',
             [ev.contributor_id]
           );
           if (contribRes.rows.length > 0) {
@@ -3302,7 +3304,7 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
 
       let cName = 'Contribuinte';
       if (qItem.contributor_id) {
-        const cRes = await pool.query('SELECT name FROM contributors WHERE id = $1 LIMIT 1', [qItem.contributor_id]);
+        const cRes = await pool.query('SELECT COALESCE(canonical_name, name) AS name FROM contributors WHERE id = $1 LIMIT 1', [qItem.contributor_id]);
         if (cRes.rows.length > 0) cName = cRes.rows[0].name;
       }
 
@@ -3367,7 +3369,7 @@ async function runCommunicationProcessor(churchIdFilter?: string) {
 
       let contributorName = 'Contribuinte';
       if (item.contributor_id) {
-        const cRes = await pool.query('SELECT name FROM contributors WHERE id = $1 LIMIT 1', [item.contributor_id]);
+        const cRes = await pool.query('SELECT COALESCE(canonical_name, name) AS name FROM contributors WHERE id = $1 LIMIT 1', [item.contributor_id]);
         if (cRes.rows.length > 0) contributorName = cRes.rows[0].name;
       }
 
