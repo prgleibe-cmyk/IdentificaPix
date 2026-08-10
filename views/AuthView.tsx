@@ -1,12 +1,14 @@
-import React from 'react';
-import { GoogleIcon } from '../components/Icons';
+import React, { useState } from 'react';
+import { GoogleIcon, DocumentTextIcon } from '../components/Icons';
 import { AuthBackground } from '../components/auth/AuthBackground';
 import { AuthHero } from '../components/auth/AuthHero';
 import { AuthForm } from '../components/auth/AuthForm';
+import { ContractTermsModal } from '../components/modals/ContractTermsModal';
 import { useAuthController } from '../hooks/useAuthController';
 
 export const AuthView: React.FC = () => {
     const auth = useAuthController();
+    const [isTermsOpen, setIsTermsOpen] = useState(false);
   
     return (
         <div className="h-[100dvh] w-full flex flex-col bg-gradient-to-b from-[#E6EFEA] via-[#D8E8DF] to-[#CADFD4] dark:from-[#0B1411] dark:to-[#050D0A] text-slate-800 dark:text-slate-200 relative overflow-hidden font-sans selection:bg-orange-500/30">
@@ -17,9 +19,9 @@ export const AuthView: React.FC = () => {
                     
                     <AuthHero />
 
-                    <div className="flex justify-center lg:justify-end lg:pr-12 pb-8 lg:pb-0">
+                    <div className="flex flex-col items-center lg:items-end lg:pr-12 pb-8 lg:pb-0">
                         <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-[400px] p-8 relative overflow-hidden border border-slate-100/50">
-                                                        <div className="text-center mb-6">
+                            <div className="text-center mb-6">
                                 <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-tight">
                                     {auth.isRecoveryMode ? 'Recuperar Senha' : (auth.isLogin ? 'Bem-vindo' : 'Criar Conta')}
                                 </h2>
@@ -54,9 +56,26 @@ export const AuthView: React.FC = () => {
                                 onToggleMode={auth.toggleMode}
                             />
                         </div>
+
+                        {/* Link to Contract & Terms */}
+                        <div className="mt-4 text-center w-full max-w-[400px]">
+                            <button
+                                type="button"
+                                onClick={() => setIsTermsOpen(true)}
+                                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:text-brand-blue dark:hover:text-brand-blue transition-colors cursor-pointer"
+                            >
+                                <DocumentTextIcon className="w-3.5 h-3.5 text-brand-blue" />
+                                <span>Termos de Licença e Uso do Sistema</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <ContractTermsModal
+                isOpen={isTermsOpen}
+                onClose={() => setIsTermsOpen(false)}
+            />
         </div>
     );
 };

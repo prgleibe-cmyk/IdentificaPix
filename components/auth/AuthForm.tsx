@@ -104,11 +104,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({
                                 {isLogin ? 'Criar conta' : 'Fazer Login'}
                             </button>
                         </p>
-                        {isLogin && (
-                            <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-medium leading-tight">
-                                💡 <strong>Conta antiga?</strong> Se você já tinha cadastro no Supabase, clique em <strong className="text-brand-blue">Criar conta</strong> usando seu e-mail para cadastrar sua senha no novo servidor. Seus dados antigos serão mantidos!
-                            </p>
-                        )}
                     </>
                 )}
             </div>

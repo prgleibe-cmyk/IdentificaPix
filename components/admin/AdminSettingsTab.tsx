@@ -144,7 +144,35 @@ export const AdminSettingsTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 4. General Config */}
+                {/* 4. Owner & Legal Info */}
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-4">Dados do Proprietário (Pessoa Física)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <InputGroup 
+                            label="Nome do Proprietário" 
+                            name="ownerName" 
+                            value={formData.ownerName || 'Gleibe Oliveira da Silva'} 
+                            onChange={handleChange}
+                            placeholder="Gleibe Oliveira da Silva"
+                        />
+                        <InputGroup 
+                            label="CPF do Proprietário" 
+                            name="ownerCpf" 
+                            value={formData.ownerCpf || '907.169.901-30'} 
+                            onChange={handleChange}
+                            placeholder="000.000.000-00"
+                        />
+                        <InputGroup 
+                            label="E-mail de Contato / Licença" 
+                            name="ownerEmail" 
+                            value={formData.ownerEmail || 'identificapix@gmail.com'} 
+                            onChange={handleChange}
+                            placeholder="identificapix@gmail.com"
+                        />
+                    </div>
+                </div>
+
+                {/* 5. General Config */}
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700 relative overflow-hidden">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-4">Configurações Gerais</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

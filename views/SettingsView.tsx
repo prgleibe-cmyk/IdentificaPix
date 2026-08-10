@@ -4,6 +4,7 @@ import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { SettingsTab, Language } from '../types';
+import { ContractTermsModal } from '../components/modals/ContractTermsModal';
 import { 
     BrainIcon, 
     SearchIcon, 
@@ -20,7 +21,9 @@ import {
     GlobeAltIcon,
     TrashIcon,
     BanknotesIcon,
-    CalendarIcon
+    CalendarIcon,
+    DocumentTextIcon,
+    ShieldCheckIcon
 } from '../components/Icons';
 
 const PreferencesTab: React.FC = () => {
@@ -28,6 +31,7 @@ const PreferencesTab: React.FC = () => {
     const { theme, toggleTheme } = useUI();
     const { t } = useTranslation();
     const [monthsToKeep, setMonthsToKeep] = useState(6);
+    const [isTermsOpen, setIsTermsOpen] = useState(false);
 
     const handleCleanOldReports = () => {
         const date = new Date();
@@ -97,7 +101,41 @@ const PreferencesTab: React.FC = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* Legal & Terms Card */}
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center space-x-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/50">
+                            <div className="p-2 bg-blue-50 dark:bg-blue-950/20 rounded-xl text-brand-blue border border-blue-100 dark:border-blue-900/50">
+                                <ShieldCheckIcon className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">Licença e Propriedade</h3>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">Termos legais, LGPD e dados do proprietário</p>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setIsTermsOpen(true)}
+                            className="w-full flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-brand-blue transition-all group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-brand-blue">
+                                    <DocumentTextIcon className="w-4 h-4" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-200">Ver Termos de Uso e Licença</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">Gleibe Oliveira da Silva (Proprietário PF)</span>
+                                </div>
+                            </div>
+                            <span className="text-xs font-bold text-brand-blue group-hover:translate-x-1 transition-transform">→</span>
+                        </button>
+                    </div>
                 </div>
+
+                <ContractTermsModal
+                    isOpen={isTermsOpen}
+                    onClose={() => setIsTermsOpen(false)}
+                />
 
                 <div className="space-y-4 md:space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-[1.5rem] shadow-card border border-slate-100 dark:border-slate-700">

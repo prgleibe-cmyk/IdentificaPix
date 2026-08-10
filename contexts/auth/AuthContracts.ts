@@ -11,6 +11,10 @@ export interface SystemSettings {
     baseSlots: number;
     supportNumber: string;
     ignoredKeywords: string[];
+    ownerName?: string;
+    ownerCpf?: string;
+    ownerEmail?: string;
+    ownerDocumentType?: string;
 }
 
 export interface AuthContextType {
@@ -37,5 +41,9 @@ export const DEFAULT_SETTINGS: SystemSettings = {
     baseAiLimit: 100,
     baseSlots: 2,
     supportNumber: '5565996835098',
-    ignoredKeywords: ['PIX', 'TED', 'DOC', 'TRANSFERENCIA', 'RECEBIMENTO', 'PAGAMENTO']
+    ignoredKeywords: ['PIX', 'TED', 'DOC', 'TRANSFERENCIA', 'RECEBIMENTO', 'PAGAMENTO'],
+    ownerName: 'Gleibe Oliveira da Silva',
+    ownerCpf: '907.169.901-30',
+    ownerEmail: 'identificapix@gmail.com',
+    ownerDocumentType: 'PF'
 };
