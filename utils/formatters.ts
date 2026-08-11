@@ -95,7 +95,7 @@ export const resolvePaymentMethod = (
     if (desc.includes('DOC')) return 'DOC';
     if (desc.includes('BOLETO')) return 'BOLETO';
     if (desc.includes('DINHEIRO') || desc.includes('ESPECIE') || desc.includes('ESPÉCIE')) return 'DINHEIRO';
-    if (desc.includes('CARTAO') || desc.includes('CARTÃO') || desc.includes('DEBITO') || desc.includes('CREDITO')) return 'CARTÃO';
+    if (desc.includes('CARTAO') || desc.includes('CARTÃO') || desc.includes('DEBITO') || desc.includes('CREDITO') || desc.includes('MASTERCARD') || desc.includes('VISA') || desc.includes('COMPRA')) return 'CARTÃO';
     if (desc.includes('TRANSF') || desc.includes('TRANSFERENCIA') || desc.includes('TRANSFERÊNCIA')) return 'TRANSFERÊNCIA';
 
     // If registered payment methods exist in system and include PIX, use PIX

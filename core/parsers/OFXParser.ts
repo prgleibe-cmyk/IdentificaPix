@@ -31,15 +31,17 @@ export class OFXParser extends BaseParser<string> {
           const isGeneric = (str: string) => {
             const u = str.toUpperCase().trim();
             return (
-              u === 'PIX RECEBIDO - OUTRA IF' ||
-              u === 'PIX RECEB.OUTRA IF' ||
-              u === 'PIX EMIT.OUTRA IF' ||
-              u === 'PIX_CRED' ||
-              u === 'PIX_DEB' ||
-              u === 'PIX RECEBIDO' ||
-              u === 'PIX ENVIADO' ||
-              u === 'PAGAMENTO PIX' ||
-              u === 'RECEBIMENTO PIX' ||
+              u.includes('PIX RECEBIDO') ||
+              u.includes('PIX RECEB') ||
+              u.includes('PIX EMIT') ||
+              u.includes('PIX ENVIADO') ||
+              u.includes('PAGAMENTO PIX') ||
+              u.includes('RECEBIMENTO PIX') ||
+              u.includes('PIX_CRED') ||
+              u.includes('PIX_DEB') ||
+              u.includes('CR COMPRAS') ||
+              u.includes('COMPRAS MASTERCARD') ||
+              u.includes('COMPRAS VISA') ||
               u === 'PIX' ||
               u === 'SEM DESCRICAO' ||
               u === 'OUTRA IF'
@@ -79,6 +81,11 @@ export class OFXParser extends BaseParser<string> {
     const regex = new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i');
     const match = xml.match(regex);
     if (!match) return '';
-    return match[1].replace(new RegExp(`</${tag}>`, 'i'), '').trim();
+    let val = match[1];
+    const closeIndex = val.toLowerCase().indexOf(`</${tag.toLowerCase()}>`);
+    if (closeIndex !== -1) {
+      val = val.substring(0, closeIndex);
+    }
+    return val.trim();
   }
 }
