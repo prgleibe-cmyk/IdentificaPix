@@ -21,17 +21,23 @@ export class PDFAdapter extends BaseAdapter<string[]> {
       const textContent = await page.getTextContent();
       const items = textContent.items as any[];
       
-      // Agrupamento RAW por coordenada Y para manter fidelidade de linha
-      const lineMap: Map<number, any[]> = new Map();
+      // Agrupamento RAW por coordenada Y com tolerância de 2.5px para manter fidelidade de linha em layouts PDF
+      const lineBuckets: { y: number; items: any[] }[] = [];
       items.forEach(item => {
-        const y = Math.round(item.transform[5]);
-        if (!lineMap.has(y)) lineMap.set(y, []);
-        lineMap.get(y)!.push(item);
+        const itemY = item.transform[5];
+        let bucket = lineBuckets.find(b => Math.abs(b.y - itemY) <= 2.5);
+        if (!bucket) {
+          bucket = { y: itemY, items: [] };
+          lineBuckets.push(bucket);
+        }
+        bucket.items.push(item);
       });
 
-      const sortedY = Array.from(lineMap.keys()).sort((a, b) => b - a);
-      sortedY.forEach(y => {
-        const row = lineMap.get(y)!
+      // Ordenar os buckets do topo para o rodapé (Y decrescente)
+      lineBuckets.sort((a, b) => b.y - a.y);
+
+      lineBuckets.forEach(bucket => {
+        const row = bucket.items
           .sort((a, b) => a.transform[4] - b.transform[4])
           .map(item => item.str)
           .join(' ');

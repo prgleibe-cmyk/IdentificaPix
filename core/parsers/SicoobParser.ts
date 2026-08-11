@@ -30,9 +30,9 @@ export class SicoobParser {
     const transactions: Transaction[] = [];
 
     // O formato padrão de início de transação é "DD/MM DESCRICAO VALOR_INDICADOR"
-    // Exemplo: "01/06 PIX RECEB.OUTRA IF 145,00C" ou "03/06 TARIFA EXTRATO 5,00D"
-    // Atualizado para suportar anos opcionais, espaços antes do indicador, e sinais de negativo/positivo diretos.
-    const txStartRegex = /^(\d{2})\/(\d{2})(?:\/\d{2,4})?\s+(.+?)\s+(-?[\d.,]+)\s*([CDcd])?$/;
+    // Exemplo: "01/06 PIX RECEB.OUTRA IF 145,00C" ou "03/06 TARIFA EXTRATO 5,00D" ou "06/07 PIX EMIT.OUTRA IF 3.000,00 D"
+    const txStartRegex = /^(\d{2})\/(\d{2})(?:\/\d{2,4})?\s+(.+?)\s+(-?(?:R\$\s*)?[\d.,]+)\s*([CDcd\-\+])?$/;
+    const dateOnlyRegex = /^(\d{2})\/(\d{2})(?:\/\d{2,4})?$/;
 
     interface SicoobBlock {
       headerLine: string;
@@ -47,8 +47,20 @@ export class SicoobParser {
     const blocks: SicoobBlock[] = [];
     let currentBlock: SicoobBlock | null = null;
 
-    // 3. Segmentação em blocos de transação
-    for (const line of lines) {
+    // 3. Segmentação em blocos de transação (com suporte a fusão de linha de data isolada)
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+
+      // Tenta fusão com linha posterior se esta linha tiver apenas a data DD/MM
+      const dateOnlyMatch = line.match(dateOnlyRegex);
+      if (dateOnlyMatch && i + 1 < lines.length) {
+        const candidateCombined = `${line} ${lines[i + 1]}`;
+        if (txStartRegex.test(candidateCombined)) {
+          line = candidateCombined;
+          i++; // avança índice pois consumiu a linha seguinte
+        }
+      }
+
       const match = line.match(txStartRegex);
       if (match) {
         const day = match[1];
@@ -57,42 +69,27 @@ export class SicoobParser {
         const amountPart = match[4].trim();
         const indicator = (match[5] || '').toUpperCase();
 
-        // Ignorar linhas puramente administrativas/sistema (como saldos ou avisos de rodapé) de forma precisa,
-        // garantindo que transações com palavras comuns como "Sicoob", "Conta", "Tarifa" ou "Encargos" NÃO sejam descartadas.
+        // Ignorar apenas cabeçalhos puramente administrativos/saldos de rodapé
         const descUpper = descPart.toUpperCase();
         const numericOrCurrencyRegex = /^[\sR$\-+]?[\d.,]+[CDcd]?$/;
         const isSystemLine = 
           numericOrCurrencyRegex.test(descPart) ||
-          descUpper.includes("SALDO") ||
-          descUpper.includes("RESUMO") ||
-          descUpper.includes("BALANCO") ||
-          descUpper.includes("BALANÇO") ||
-          descUpper.includes("DISPONIVEL") ||
-          descUpper.includes("DISPONÍVEL") ||
-          descUpper.includes("APLICAÇÃO") ||
-          descUpper.includes("APLICACAO") ||
-          descUpper.includes("APLIC") ||
-          descUpper.includes("INVESTIMENTO") ||
-          descUpper.includes("BLOQUEADO") ||
-          descUpper.includes("TOTAL") ||
-          descUpper.includes("RDC") ||
-          descUpper.includes("RESGATE") ||
-          descUpper.includes("RENDIMENTO") ||
+          descUpper.includes("SALDO ANTERIOR") ||
+          descUpper.includes("SALDO DO DIA") ||
+          descUpper.includes("SALDO ATUAL") ||
+          descUpper.includes("SALDO DISPONIVEL") ||
+          descUpper.includes("SALDO DISPONÍVEL") ||
+          descUpper.includes("RESUMO DA CONTA") ||
           descUpper.startsWith("SD.") ||
           descUpper.startsWith("SD ") ||
           descUpper === "SICOOB" ||
-          descUpper === "EXTRATO" ||
           descUpper.includes("SAC SICOOB") ||
           descUpper.includes("OUVIDORIA SICOOB") ||
           descUpper.includes("TELEFONE SICOOB") ||
           descUpper.includes("ATENDIMENTO SICOOB") ||
-          descUpper.includes("CONTACT-CENTER") ||
-          descUpper.includes("FALE CONOSCO") ||
-          descUpper.includes("SAC:") ||
-          descUpper.includes("OUVIDORIA:") ||
           descUpper.includes("PERÍODO:") ||
           descUpper.includes("PERIODO:") ||
-          descUpper.includes("DEMONSTRATIVO");
+          descUpper === "DEMONSTRATIVO";
 
         if (!isSystemLine) {
           currentBlock = {
@@ -128,16 +125,68 @@ export class SicoobParser {
     // 4. Mapeamento dos blocos em objetos Transaction
     blocks.forEach((block, index) => {
       // Conversão do valor financeiro: "145,00" -> 145.00 | "50,00D" -> -50.00
-      let cleanAmountStr = block.amountPart.replace(/\./g, '').replace(',', '.');
+      let cleanAmountStr = block.amountPart.replace(/[^0-9,-]/g, '').replace(/\./g, '').replace(',', '.');
       let amount = parseFloat(cleanAmountStr);
-      if (block.indicator === 'D' || block.indicator === 'd') {
+
+      let effectiveIndicator = block.indicator;
+
+      // 1. Procura por indicador 'D' ou 'C' nas linhas de detalhe do bloco caso não tenha vindo no cabeçalho
+      if (!effectiveIndicator) {
+        for (const detailLine of block.details) {
+          const trimmedDetail = detailLine.trim().toUpperCase();
+          if (trimmedDetail === 'D' || trimmedDetail === 'C') {
+            effectiveIndicator = trimmedDetail;
+            break;
+          }
+          if (/\bD\b/.test(trimmedDetail) || /\bD$/.test(trimmedDetail)) {
+            effectiveIndicator = 'D';
+            break;
+          }
+          if (/\bC\b/.test(trimmedDetail) || /\bC$/.test(trimmedDetail)) {
+            effectiveIndicator = 'C';
+            break;
+          }
+        }
+      }
+
+      // 2. Regra semântica bancária determinística para definir indicador se ainda estiver ausente
+      const fullTextUpper = [block.descPart, ...block.details].join(' ').toUpperCase();
+      if (!effectiveIndicator) {
+        if (
+          fullTextUpper.includes('PIX EMIT') || 
+          fullTextUpper.includes('PAG') || 
+          fullTextUpper.includes('PAGAMENTO') || 
+          fullTextUpper.includes('DÉB') || 
+          fullTextUpper.includes('DEB.') || 
+          fullTextUpper.includes('DÉBITO') || 
+          fullTextUpper.includes('DEBITO') || 
+          fullTextUpper.includes('TARIFA') || 
+          fullTextUpper.includes('SAIDA') ||
+          fullTextUpper.includes('SAÍDA') ||
+          fullTextUpper.includes('RETIRADA') ||
+          fullTextUpper.includes('TIT.COMPE')
+        ) {
+          effectiveIndicator = 'D';
+        } else if (
+          fullTextUpper.includes('PIX RECEB') || 
+          fullTextUpper.includes('RECEB') || 
+          fullTextUpper.includes('CRÉDITO') || 
+          fullTextUpper.includes('CREDITO') || 
+          fullTextUpper.includes('DEPÓSITO') || 
+          fullTextUpper.includes('DEPOSITO')
+        ) {
+          effectiveIndicator = 'C';
+        }
+      }
+
+      if (effectiveIndicator === 'D') {
         amount = -Math.abs(amount);
-      } else if (block.indicator === 'C' || block.indicator === 'c') {
+      } else if (effectiveIndicator === 'C') {
         amount = Math.abs(amount);
       }
 
       // Montagem da data ISO: YYYY-MM-DD
-      const isoDate = `${anchorYear}-${block.month}-${block.day}`;
+      const isoDate = `${anchorYear}-${block.month.padStart(2, '0')}-${block.day.padStart(2, '0')}`;
 
       let contributorName = '';
       const details = block.details;
