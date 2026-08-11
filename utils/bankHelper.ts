@@ -524,32 +524,7 @@ export const resolveBankBrand = (bank: { name: string; bank_key?: string | null 
  * Retorna a lista de formatos aceitos e sugeridos para cada banco.
  */
 export const resolveBankFormats = (bank: { name: string; bank_key?: string | null } | string): string[] => {
-    const key = resolveBankKey(bank);
-
-    switch (key) {
-        case 'SICREDI':
-            return ['OFX', 'XLSX', 'CSV'];
-        case 'SICOOB':
-            return ['OFX', 'XLSX', 'CSV'];
-        case 'BB':
-            return ['OFX', 'XLSX', 'PDF'];
-        case 'CAIXA':
-            return ['OFX', 'TXT', 'CSV'];
-        case 'BRADESCO':
-            return ['OFX', 'XLSX', 'PDF'];
-        case 'ITAU':
-            return ['OFX', 'XLSX', 'PDF'];
-        case 'SANTANDER':
-            return ['OFX', 'XLSX', 'CSV'];
-        case 'NUBANK':
-            return ['OFX', 'CSV'];
-        case 'INTER':
-            return ['OFX', 'PDF', 'CSV'];
-        case 'MERCADO_PAGO':
-            return ['XLSX', 'CSV'];
-        default:
-            return ['OFX', 'PDF', 'XLSX', 'CSV', 'TXT'];
-    }
+    return ['OFX'];
 };
 
 /**
@@ -560,27 +535,11 @@ export const resolveBankInstructions = (bank: { name: string; bank_key?: string 
 
     switch (key) {
         case 'SICREDI':
-            return 'Acesse o Internet Banking Sicredi, acesse Conta Corrente > Extrato > Salvar em OFX ou Excel.';
+            return 'Acesse o Internet Banking Sicredi > Conta Corrente > Extrato > Exportar no formato OFX.';
         case 'SICOOB':
-            return 'No aplicativo ou portal Sicoob, acesse Conta Corrente > Extrato > Exportar nos formatos OFX ou Planilha.';
-        case 'BB':
-            return 'No portal Banco do Brasil, vá em Conta Corrente > Extrato > Clique em Salvar em formato OFX (ou Extrato Completo PDF/XLSX).';
-        case 'CAIXA':
-            return 'No Internet Banking Caixa, selecione Extrato > Clique com botão direito ou em salvar nas opções e selecione exportar .OFX de preferência.';
-        case 'BRADESCO':
-            return 'Acesse o menu de Extratos do Bradesco, escolha o período e clique em salvar em arquivos para exportar em formato OFX ou Excel.';
-        case 'ITAU':
-            return 'Acesse o extrato no portal Itaú, clique em Saldo e Extrato > Extrato Mensal/Período, depois escolha Exportar para OFX ou PDF.';
-        case 'SANTANDER':
-            return 'No portal Santander, acesse o extrato detalhado do período desejado, clique no botão de exportação e escolha OFX ou CSV.';
-        case 'NUBANK':
-            return 'Pelo aplicativo móvel do Nubank, acesse sua tela de conta > Exportar Extrato. Escolha o período e selecione OFX ou CSV.';
-        case 'INTER':
-            return 'No Internet Banking ou App do Banco Inter, acesse o painel de Conta Corrente > Extrato > Exportar Extrato nos formatos OFX ou PDF.';
-        case 'MERCADO_PAGO':
-            return 'No portal ou aplicativo do Mercado Pago, acesse Extrato > Baixar Extrato e escolha o formato CSV ou Excel (XLSX).';
+            return 'No aplicativo ou portal Sicoob > Conta Corrente > Extrato > Exportar no formato OFX.';
         default:
-            return 'Exporte o extrato bancário diretamente no portal do seu banco utilizando de preferência o formato OFX original.';
+            return 'Exporte o extrato bancário no portal do seu banco exclusivamente no formato OFX.';
     }
 };
 

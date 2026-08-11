@@ -66,12 +66,7 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                     const key = resolveBankKey(bank);
                     const colors = resolveBankColors(bank);
                     const isGeneric = key === 'GENERIC';
-                    const rawFormats = resolveBankFormats(bank);
-                    const formats = key === 'SICOOB'
-                        ? ['PDF']
-                        : key === 'SICREDI'
-                            ? ['OFX']
-                            : rawFormats;
+                    const formats = ['OFX'];
 
                     return (
                         <>
@@ -133,16 +128,9 @@ export const SmartBankCard: React.FC<SmartBankCardProps> = ({ bank }) => {
                                         <span className="text-[10px] text-slate-400 italic font-medium">Nenhum arquivo</span>
                                     </div>
                                 )}
-                                {resolveBankKey(bank) === 'SICOOB' && (
-                                    <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold mt-1">
-                                        Banco Sicoob: somente arquivos PDF são aceitos.
-                                    </span>
-                                )}
-                                {resolveBankKey(bank) === 'SICREDI' && (
-                                    <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold mt-1">
-                                        Banco Sicredi: somente arquivos OFX são aceitos.
-                                    </span>
-                                )}
+                                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                                    Formato aceito: Exclusivamente arquivo OFX (.ofx).
+                                </span>
                             </div>
                         </>
                     );

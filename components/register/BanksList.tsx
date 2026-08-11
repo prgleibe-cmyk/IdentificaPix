@@ -13,6 +13,8 @@ export const BanksList: React.FC = () => {
     
     const filteredBanks = useMemo(() => 
         banks.filter((b: any) => {
+            const key = resolveBankKey(b);
+            if (key !== 'SICOOB' && key !== 'SICREDI') return false;
             const query = search.toLowerCase();
             const nameMatch = (b.name || '').toLowerCase().includes(query);
             const accMatch = (b.account_name || '').toLowerCase().includes(query);

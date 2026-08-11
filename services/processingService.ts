@@ -86,96 +86,84 @@ export const processFileContent = async (
     
     const rawContent = normalizeRawContent(content);
 
-    // Intercepta e bypassa se o banco for SICOOB (Fase 2A)
-    if (bank) {
-        const bankKey = resolveBankKey(bank);
-        if (bankKey === 'SICOOB') {
-            const transactions = SicoobParser.parse(rawContent, bank?.id);
-            console.log(`[SICOOB:BYPASS] Bypass arquitetural finalizado para banco SICOOB (${fileName}). Extraiu ${transactions.length} transacoes.`);
-            return {
-                transactions,
-                strategyName: 'Sicoob Parser Determinístico'
-            };
-        }
-    }
-    
-    // Intercepta arquivos .ofx antes da consulta de modelo ou StrategyEngine
+    // Exclusividade de arquivo .OFX
     const isOfxFile = fileName.toLowerCase().endsWith('.ofx') || content.includes('<OFX') || content.includes('<STMTTRN>');
     
-    if (isOfxFile) {
-        const parser = new OFXParser();
-        const doc = {
-            sourceName: fileName,
-            fileType: 'OFX' as any,
-            content: rawContent,
-            timestamp: new Date().toISOString(),
-            metadata: {
-                size: rawContent.length,
-                encoding: 'utf-8'
-            }
-        };
-        const drafts = parser.parse(doc);
-        
-        const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
-        
-        // Conversor/Adaptador mínimo para transformar TransactionDraft[] em Transaction[]
-        const transactions: Transaction[] = drafts.map((draft, index) => {
-            const rawAmt = draft.rawAmount || '0';
-            const numAmount = parseFloat(rawAmt.replace(',', '.'));
-            
-            // Format OFX date (YYYYMMDD to YYYY-MM-DD) if format is standard
-            let finalDate = draft.rawDate;
-            if (finalDate && finalDate.length >= 8 && /^\d+$/.test(finalDate.substring(0, 8))) {
-                const yyyy = finalDate.substring(0, 4);
-                const mm = finalDate.substring(4, 6);
-                const dd = finalDate.substring(6, 8);
-                finalDate = `${yyyy}-${mm}-${dd}`;
-            }
-            
-            let cleanedDesc = NameResolver.clean(
-                draft.rawDescription
-            );
-
-            if (isSicredi) {
-                const prefixes = [
-                    /RECEBIMENTO PIX-PIX_CRED/gi,
-                    /PAGAMENTO PIX-PIX_DEB/gi,
-                    /PIX_CRED/gi,
-                    /PIX_DEB/gi
-                ];
-                let tempDesc = cleanedDesc;
-                for (const r of prefixes) {
-                    tempDesc = tempDesc.replace(r, '');
-                }
-                cleanedDesc = tempDesc.trim();
-            }
-            
-            return {
-                id: `ofx-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
-                date: finalDate,
-                description: cleanedDesc,
-                rawDescription: draft.rawDescription,
-                amount: numAmount,
-                originalAmount: rawAmt,
-                cleanedDescription: cleanedDesc,
-                contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
-                paymentMethod: 'OUTROS'
-            };
-        });
-
-        console.log(`[OFX:AUDIT] Parsed transactions count: ${transactions.length}`);
-        console.log(`[OFX:AUDIT] bank_id: ${bank?.id || 'undefined'}`);
-        console.log(`[OFX:AUDIT] first transaction: ${transactions.length > 0 ? JSON.stringify(transactions[0]) : 'none'}`);
-
-        return {
-            transactions,
-            strategyName: 'OFX Parser Direto',
-            appliedModel: undefined
-        };
+    if (!isOfxFile) {
+        throw new Error("O IdentificaPix aceita exclusivamente extratos bancários no formato OFX (.ofx). Por gentileza, exporte e envie o extrato no formato OFX do seu banco.");
     }
+
+    const parser = new OFXParser();
+    const doc = {
+        sourceName: fileName,
+        fileType: 'OFX' as any,
+        content: rawContent,
+        timestamp: new Date().toISOString(),
+        metadata: {
+            size: rawContent.length,
+            encoding: 'utf-8'
+        }
+    };
+    const drafts = parser.parse(doc);
     
-    // Se não for Sicoob PDF ou Sicredi/OFX OFX, não prosseguir para o Laboratório ou IA
-    throw new Error("Formato ainda não suportado pelo IdentificaPix.\n\nBancos atualmente suportados:\n• Sicoob (PDF)\n• Sicredi (OFX)");
+    const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
+    const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
+    
+    // Conversor/Adaptador de TransactionDraft[] em Transaction[]
+    const transactions: Transaction[] = drafts.map((draft, index) => {
+        const rawAmt = draft.rawAmount || '0';
+        const numAmount = parseFloat(rawAmt.replace(',', '.'));
+        
+        // Format OFX date (YYYYMMDD to YYYY-MM-DD) if format is standard
+        let finalDate = draft.rawDate;
+        if (finalDate && finalDate.length >= 8 && /^\d+$/.test(finalDate.substring(0, 8))) {
+            const yyyy = finalDate.substring(0, 4);
+            const mm = finalDate.substring(4, 6);
+            const dd = finalDate.substring(6, 8);
+            finalDate = `${yyyy}-${mm}-${dd}`;
+        }
+        
+        let cleanedDesc = NameResolver.clean(
+            draft.rawDescription
+        );
+
+        if (isSicredi || isSicoob) {
+            const prefixes = [
+                /RECEBIMENTO PIX-PIX_CRED/gi,
+                /PAGAMENTO PIX-PIX_DEB/gi,
+                /PIX_CRED/gi,
+                /PIX_DEB/gi,
+                /PIX EMIT\.OUTRA IF/gi,
+                /PIX RECEB\.OUTRA IF/gi,
+                /DÉB\.TIT\.COMPE\.EFETI/gi
+            ];
+            let tempDesc = cleanedDesc;
+            for (const r of prefixes) {
+                tempDesc = tempDesc.replace(r, '');
+            }
+            cleanedDesc = tempDesc.trim() || cleanedDesc;
+        }
+        
+        return {
+            id: `ofx-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
+            date: finalDate,
+            description: cleanedDesc,
+            rawDescription: draft.rawDescription,
+            amount: numAmount,
+            originalAmount: rawAmt,
+            cleanedDescription: cleanedDesc,
+            contributionType: numAmount >= 0 ? 'ENTRADA' : 'SAÍDA',
+            paymentMethod: 'OUTROS'
+        };
+    });
+
+    console.log(`[OFX:AUDIT] Parsed transactions count: ${transactions.length} (${fileName})`);
+
+    return {
+        transactions,
+        strategyName: 'OFX Parser Direto',
+        appliedModel: undefined
+    };
 };
 
 export const parseContributors = (content: string, typeKeywords: string[] = []): any[] => {

@@ -17,6 +17,8 @@ import {
     LightBulbIcon
 } from '../components/Icons';
 
+import { resolveBankKey } from '../utils/bankHelper';
+
 export const ConnectorsView: React.FC = memo(() => {
     const { session, user } = useAuth();
     const { showToast, setActiveView } = useUI();
@@ -125,7 +127,10 @@ export const ConnectorsView: React.FC = memo(() => {
                                     className="w-full pl-12 pr-10 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-700 dark:text-white outline-none focus:ring-4 focus:ring-brand-blue/10 appearance-none transition-all"
                                 >
                                     <option value="" disabled>Escolha o banco...</option>
-                                    {banks.map(bank => (
+                                    {banks.filter(b => {
+                                        const key = resolveBankKey(b);
+                                        return key === 'SICOOB' || key === 'SICREDI';
+                                    }).map(bank => (
                                         <option key={bank.id} value={bank.id}>{bank.name}</option>
                                     ))}
                                 </select>

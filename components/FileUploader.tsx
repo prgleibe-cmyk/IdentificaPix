@@ -85,25 +85,12 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || isBusyRef.current) return;
-    
-    const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
-    if (isSicoob) {
-      const fileNameLower = file.name.toLowerCase();
-      if (!fileNameLower.endsWith('.pdf')) {
-         alert("O banco Sicoob aceita exclusivamente arquivos PDF.");
-         if (fileInputRef.current) fileInputRef.current.value = '';
-         return;
-      }
-    }
 
-    const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
-    if (isSicredi) {
-      const fileNameLower = file.name.toLowerCase();
-      if (!fileNameLower.endsWith('.ofx')) {
-         alert("O banco Sicredi aceita exclusivamente arquivos OFX.");
-         if (fileInputRef.current) fileInputRef.current.value = '';
-         return;
-      }
+    const fileNameLower = file.name.toLowerCase();
+    if (!fileNameLower.endsWith('.ofx')) {
+       alert("O sistema aceita exclusivamente arquivos no formato OFX (.ofx). Por gentileza, selecione um arquivo de extrato .ofx.");
+       if (fileInputRef.current) fileInputRef.current.value = '';
+       return;
     }
     
     await processFile(file);
@@ -117,41 +104,13 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     setIsParsing(true);
     
     try {
-        await ensureLibsLoaded();
         const fileNameLower = file.name.toLowerCase();
-        const fileBuffer = await file.arrayBuffer();
-        
-        // 🚀 CAPTURA BINÁRIA PARA IA (SEM OCR LOCAL)
-        const base64 = btoa(new Uint8Array(fileBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-
-        let extractedText = '';
-
-        if (fileNameLower.endsWith('.pdf')) {
-             console.log(`[PDF:PHASE:1:READING] START -> ${file.name} (${file.size} bytes)`);
-             console.log(`[PDF:PHASE:1:READING] Extracting text locally using PDFAdapter.`);
-             try {
-                 await ensurePdfjsLoaded();
-                 const adapter = new PDFAdapter();
-                 const rawDoc = await adapter.readRaw(file);
-                 extractedText = rawDoc.content.join('\n');
-                 console.log(`[PDF:PHASE:1:READING] PDF text extracted successfully (${extractedText.length} chars)`);
-             } catch (adapterError: any) {
-                 console.error("[PDFAdapter] Error extracting PDF text:", adapterError);
-                 throw new Error("Não foi possível ler as linhas do PDF localmente de forma determinística.");
-             }
-             console.log(`[PDF:PHASE:2:RAW_TEXT] PDF_TEXT -> (length: ${extractedText.length})`);
-        } else if (fileNameLower.endsWith('.xlsx') || fileNameLower.endsWith('.xls')) {
-            if (!XLSX) throw new Error("Excel lib missing");
-            const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
-            extractedText = jsonData
-                .map(row => row.map(cell => cell === null || cell === undefined ? '' : String(cell).trim()).join(';'))
-                .filter(line => line.replace(/;/g, '').trim().length > 0)
-                .join('\n');
-        } else {
-            extractedText = new TextDecoder('utf-8').decode(fileBuffer);
+        if (!fileNameLower.endsWith('.ofx')) {
+            throw new Error("O sistema aceita exclusivamente arquivos no formato OFX (.ofx).");
         }
+        const fileBuffer = await file.arrayBuffer();
+        const base64 = btoa(new Uint8Array(fileBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+        const extractedText = new TextDecoder('utf-8').decode(fileBuffer);
 
         await onFileUpload(extractedText, file.name, file, base64);
 
@@ -169,13 +128,7 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
     if (!disabled && !isParsing && !isBusyRef.current) fileInputRef.current?.click();
   };
 
-  const isSicoob = bank && resolveBankKey(bank) === 'SICOOB';
-  const isSicredi = bank && resolveBankKey(bank) === 'SICREDI';
-  const acceptFilter = isSicoob 
-    ? ".pdf,application/pdf" 
-    : isSicredi 
-      ? ".ofx" 
-      : SUPPORTED_FORMATS;
+  const acceptFilter = ".ofx";
 
   if (customTrigger) {
       return (

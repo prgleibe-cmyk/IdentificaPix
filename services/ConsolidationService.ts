@@ -300,6 +300,37 @@ export const consolidationService = {
     },
 
     /**
+     * ENRIQUECIMENTO CRUZADO DE TRANSAÇÃO (SMS + OFX)
+     */
+    enrichTransaction: async (id: string, newSource: string, newDescription?: string) => {
+        try {
+            const updatePayload: any = {
+                source: newSource,
+                updated_at: new Date().toISOString()
+            };
+            if (newDescription && newDescription.trim()) {
+                updatePayload.description = newDescription.trim();
+            }
+
+            const response = await fetch(`/api/v1/consolidated_transactions/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.warn(`[Consolidation] Falha ao enriquecer transação ${id}:`, errorText);
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error("[Consolidation] Erro ao enriquecer transação:", error);
+            return false;
+        }
+    },
+
+    /**
      * CONFIRMAÇÃO FINAL
      */
     updateConfirmationStatus: async (ids: string[], is_confirmed: boolean, churchId?: string | null, bankId?: string, contributorId?: string | null) => {

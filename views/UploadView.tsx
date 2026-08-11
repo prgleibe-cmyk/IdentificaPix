@@ -1,5 +1,5 @@
 
-import React, { useContext, useEffect, memo } from 'react';
+import React, { useContext, useEffect, memo, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { BanknotesIcon, SparklesIcon, InformationCircleIcon, WhatsAppIcon, ShieldCheckIcon, DevicePhoneMobileIcon } from '../components/Icons';
@@ -7,6 +7,7 @@ import { SmartBankCard } from '../components/upload/SmartBankCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { resolveBankKey } from '../utils/bankHelper';
 
 /**
  * UPLOAD VIEW (V9 - DESIGN REFINADO COM ESCOLHA DE MODO DE ENTRADA)
@@ -162,15 +163,22 @@ export const UploadView: React.FC = memo(() => {
                             <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 relative z-10 transition-all duration-300 ${
                                 feedingMode === 'android' ? 'pointer-events-none select-none blur-[2px] opacity-20' : ''
                             }`}>
-                                {banks.length > 0 ? (
-                                    banks.map((bank: any) => (
+                                {(() => {
+                                    const filteredBanks = (banks || []).filter((b: any) => {
+                                        const key = resolveBankKey(b);
+                                        return key === 'SICOOB' || key === 'SICREDI';
+                                    });
+                                    if (filteredBanks.length === 0) {
+                                        return (
+                                            <div className="p-10 text-center border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-3xl col-span-full">
+                                                <p className="text-slate-400 text-sm font-medium">Nenhum banco cadastrado (Sicoob ou Sicredi). Vá em "Cadastro" para adicionar.</p>
+                                            </div>
+                                        );
+                                    }
+                                    return filteredBanks.map((bank: any) => (
                                         <SmartBankCard key={bank.id} bank={bank} />
-                                    ))
-                                ) : (
-                                    <div className="p-10 text-center border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-3xl col-span-full">
-                                        <p className="text-slate-400 text-sm font-medium">Nenhum banco cadastrado. Vá em "Cadastro" para adicionar.</p>
-                                    </div>
-                                )}
+                                    ));
+                                })()}
                             </div>
 
                             {/* OVERLAY EXPLICATIVO DO MODO ANDROID */}

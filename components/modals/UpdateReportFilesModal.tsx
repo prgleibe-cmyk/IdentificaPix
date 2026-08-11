@@ -158,16 +158,9 @@ const BankRow: React.FC<{
                                 ) : (
                                     <span className="text-[10px] text-slate-400 italic">Nenhum extrato</span>
                                 )}
-                                {resolveBankKey(bank) === 'SICOOB' && (
-                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">
-                                        Banco Sicoob: somente arquivos PDF são aceitos.
-                                    </span>
-                                )}
-                                {resolveBankKey(bank) === 'SICREDI' && (
-                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-1">
-                                        Banco Sicredi: somente arquivos OFX são aceitos.
-                                    </span>
-                                )}
+                                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                                    Formato aceito: Exclusivamente arquivo OFX (.ofx).
+                                </span>
                             </div>
                         </>
                     );

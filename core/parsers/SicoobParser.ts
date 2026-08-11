@@ -201,23 +201,46 @@ export class SicoobParser {
         }
       }
 
-      // Se achamos uma linha de CPF, o nome do contribuinte é a linha diretamente anterior a ela
-      if (taxIdIndex > 0) {
-        const potentialName = details[taxIdIndex - 1].trim();
-        // Evita usar strings curtas ou cabeçalhos de sistema conhecidos
-        if (potentialName.length > 2 && !potentialName.toUpperCase().includes('RECEBIMENTO')) {
-          contributorName = potentialName;
+      // Helper para verificar se a linha é um texto genérico de sistema/operação
+      const isGenericSystemLine = (str: string) => {
+        const u = str.trim().toUpperCase();
+        return (
+          u === 'PAGAMENTO PIX' ||
+          u === 'RECEBIMENTO PIX' ||
+          u === 'PAGAMENTO' ||
+          u === 'RECEBIMENTO' ||
+          u === 'PIX' ||
+          u.startsWith('DOC.:') ||
+          u.startsWith('SICOOB') ||
+          u.startsWith('TARIFA')
+        );
+      };
+
+      // Se achamos uma linha de CPF/CNPJ, procuramos o nome do pagador/recebedor
+      if (taxIdIndex >= 0) {
+        // Tenta linha anterior se válida
+        if (taxIdIndex > 0) {
+          const potentialName = details[taxIdIndex - 1].trim();
+          if (potentialName.length > 2 && !isGenericSystemLine(potentialName)) {
+            contributorName = potentialName;
+          }
+        }
+        // Se a linha anterior for genérica (ex: "Pagamento Pix"), tenta a linha seguinte ao CPF
+        if (!contributorName && taxIdIndex + 1 < details.length) {
+          const potentialNameAfter = details[taxIdIndex + 1].trim();
+          if (potentialNameAfter.length > 2 && !isGenericSystemLine(potentialNameAfter)) {
+            contributorName = potentialNameAfter;
+          }
         }
       }
 
-      // Se não achamos CPF, tentamos extrair o nome pelas linhas que não contêm identificadores padrão nem números/valores
+      // Se não achamos CPF ou nome via CPF, filtramos todas as linhas de detalhe por candidatos a nome
       if (!contributorName) {
         const numericOrCurrencyRegex = /^[\sR$\-+]?[\d.,]+[CDcd]?$/;
         const candidateLines = details.filter(line => {
           const trimmed = line.trim();
-          const lower = trimmed.toLowerCase();
           const isNumeric = numericOrCurrencyRegex.test(trimmed);
-          return !isNumeric && !lower.includes('recebimento') && !lower.includes('doc.:') && !lower.includes('tarifa') && trimmed.length > 2;
+          return !isNumeric && !isGenericSystemLine(trimmed) && trimmed.length > 2;
         });
         if (candidateLines.length > 0) {
           contributorName = candidateLines[0].trim();

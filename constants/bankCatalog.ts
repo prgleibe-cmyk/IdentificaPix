@@ -9,73 +9,73 @@ export const BANK_CATALOG: BankCatalogItem[] = [
   {
     key: "sicoob",
     name: "Sicoob",
-    formats: [],
+    formats: [".ofx"],
     active: true
   },
   {
     key: "sicredi",
     name: "Sicredi",
-    formats: [],
+    formats: [".ofx"],
     active: true
   },
   {
     key: "caixa",
     name: "Caixa Econômica Federal",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "banco_do_brasil",
     name: "Banco do Brasil",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "itau",
     name: "Itaú Unibanco",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "bradesco",
     name: "Banco Bradesco",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "santander",
     name: "Banco Santander",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "nubank",
     name: "Nubank (Nu Pagamentos)",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "inter",
     name: "Banco Inter",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "mercado_pago",
     name: "Mercado Pago",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "c6_bank",
     name: "C6 Bank",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   },
   {
     key: "pagbank",
     name: "PagBank / PagSeguro",
-    formats: [],
-    active: true
+    formats: [".ofx"],
+    active: false
   }
 ];
