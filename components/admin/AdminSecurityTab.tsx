@@ -143,22 +143,22 @@ export const AdminSecurityTab: React.FC = () => {
   return (
     <div className="space-y-4 animate-fade-in pb-6">
       {/* Overview Header Card */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-5 rounded-[1.5rem] shadow-xl border border-slate-700/60 relative overflow-hidden">
-        <div className="absolute -right-8 -bottom-8 opacity-10 text-white pointer-events-none">
+      <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/60 to-purple-50/80 dark:from-slate-800 dark:via-slate-800/90 dark:to-indigo-950/80 text-slate-800 dark:text-white p-5 rounded-[1.5rem] shadow-card border border-blue-100/80 dark:border-slate-700 relative overflow-hidden">
+        <div className="absolute -right-8 -bottom-8 text-brand-blue/10 dark:text-white/5 pointer-events-none">
           <ShieldCheck className="w-48 h-48" />
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-brand-blue/20 rounded-2xl border border-brand-blue/40 text-brand-blue backdrop-blur-md">
-              <ShieldCheck className="w-7 h-7 text-cyan-400" />
+            <div className="p-3 bg-brand-blue/10 dark:bg-brand-blue/20 rounded-2xl border border-brand-blue/20 dark:border-brand-blue/40 text-brand-blue backdrop-blur-md">
+              <ShieldCheck className="w-7 h-7 text-brand-blue dark:text-cyan-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black tracking-tight text-white">Painel de Segurança IgGestor</h3>
+                <h3 className="text-lg font-black tracking-tight text-slate-800 dark:text-white">Painel de Segurança IgGestor</h3>
                 {renderStatusBadge(overallStatus)}
               </div>
-              <p className="text-xs text-slate-300 mt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
                 Estado real e verificação contínua da infraestrutura de proteção (Etapas 1–9)
               </p>
             </div>
@@ -168,7 +168,7 @@ export const AdminSecurityTab: React.FC = () => {
             <button
               onClick={() => fetchSecurityStatus(true)}
               disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md transition-all active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 backdrop-blur-md transition-all active:scale-95 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span>Atualizar</span>
@@ -177,7 +177,7 @@ export const AdminSecurityTab: React.FC = () => {
             <button
               onClick={handleTestAlert}
               disabled={testingAlert}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 backdrop-blur-md transition-all active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 shadow-sm hover:bg-amber-100/80 backdrop-blur-md transition-all active:scale-95 disabled:opacity-50"
             >
               <BellRing className={`w-3.5 h-3.5 ${testingAlert ? 'animate-bounce' : ''}`} />
               <span>Testar Alerta</span>
@@ -185,7 +185,7 @@ export const AdminSecurityTab: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
+        <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/10 flex flex-wrap items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 gap-2">
           <span>Última Verificação: {new Date(timestamp).toLocaleString('pt-BR')}</span>
           <span>Ambiente Protegido & Isolado (Multi-tenant Restrito)</span>
         </div>

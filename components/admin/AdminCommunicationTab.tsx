@@ -574,21 +574,21 @@ export const AdminCommunicationTab: React.FC = () => {
                     </div>
 
                     {/* Architecture & Status Banner */}
-                    <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-6 rounded-2xl shadow-md border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="bg-gradient-to-r from-indigo-50/90 via-blue-50/60 to-slate-50 dark:from-slate-800 dark:via-slate-800/90 dark:to-indigo-950/80 p-6 rounded-2xl shadow-card border border-indigo-100 dark:border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
                                 Arquitetura de Eventos Oficial
                             </span>
-                            <h4 className="text-lg font-black tracking-tight">
+                            <h4 className="text-lg font-black tracking-tight text-slate-800 dark:text-white">
                                 Central de Comunicação Pronta para Eventos Oficiais
                             </h4>
-                            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                                As notificações automáticas são ativadas diretamente pelo evento oficial <code className="bg-indigo-900/80 px-1.5 py-0.5 rounded text-indigo-200 font-mono text-[11px]">ContributionConfirmed</code>, disparado quando o Motor de Conciliação valida a contribuição.
+                            <p className="text-xs text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+                                As notificações automáticas são ativadas diretamente pelo evento oficial <code className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/80 dark:text-indigo-200 px-1.5 py-0.5 rounded font-mono text-[11px]">ContributionConfirmed</code>, disparado quando o Motor de Conciliação valida a contribuição.
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 text-xs font-bold flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
                                 WhatsApp Ativo
                             </span>
                         </div>

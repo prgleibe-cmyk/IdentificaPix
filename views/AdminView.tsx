@@ -1,20 +1,11 @@
 
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
 import { 
     ShieldCheckIcon,
     Cog6ToothIcon,
     UserIcon,
-    BanknotesIcon,
-    XMarkIcon,
-    CircleStackIcon,
-    BoltIcon,
-    CheckCircleIcon,
-    XCircleIcon,
-    ArrowsRightLeftIcon,
-    ClipboardDocumentIcon
+    BanknotesIcon
 } from '../components/Icons';
 import { AdminSettingsTab } from '../components/admin/AdminSettingsTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
@@ -25,93 +16,9 @@ import { MessageSquare } from 'lucide-react';
 
 type AdminTab = 'settings' | 'users' | 'security' | 'communication' | 'audit';
 
-const FIX_SQL = `
--- ============================================================
--- SCRIPT DE CORREÇÃO DEFINITIVA (V12 - Persistence Fix)
--- ============================================================
-
-BEGIN;
-
--- 1. Garantir Tabela de Configurações Administrativas
-CREATE TABLE IF NOT EXISTS public.admin_config (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    key TEXT NOT NULL,
-    value JSONB NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 2. CRÍTICO: Garantir que a coluna 'key' é única para o UPSERT funcionar
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'admin_config_key_key'
-    ) THEN
-        -- Limpa duplicatas antes de adicionar a constraint (mantém a mais recente)
-        DELETE FROM public.admin_config a 
-        WHERE a.id NOT IN (
-            SELECT id FROM (
-                SELECT id, ROW_NUMBER() OVER (PARTITION BY key ORDER BY updated_at DESC) as rn
-                FROM public.admin_config
-            ) t WHERE rn = 1
-        );
-        
-        ALTER TABLE public.admin_config ADD CONSTRAINT admin_config_key_key UNIQUE (key);
-    END IF;
-END $$;
-
--- 3. Políticas RLS para garantir acesso do Admin
-ALTER TABLE public.admin_config ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Enable read access for all" ON public.admin_config;
-CREATE POLICY "Enable read access for all" ON public.admin_config FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Enable all access for authenticated users" ON public.admin_config;
-CREATE POLICY "Enable all access for authenticated users" ON public.admin_config FOR ALL USING (auth.role() = 'authenticated');
-
-COMMIT;
-`;
-
 export const AdminView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>('settings');
-    const { user } = useAuth();
-    const { showToast } = useUI();
     const { t } = useTranslation();
-    const [showDiagModal, setShowDiagModal] = useState(false);
-    const [diagResult, setDiagResult] = useState<any>(null);
-    const [isLoadingDiag, setIsLoadingDiag] = useState(false);
-
-    const copySql = () => {
-        navigator.clipboard.writeText(FIX_SQL);
-        showToast("SQL V12 copiado! Execute no banco de dados PostgreSQL.", "success");
-    };
-
-    const runDiagnostics = async () => {
-        setIsLoadingDiag(true);
-        setShowDiagModal(true);
-        
-        const results: any = {
-            apiStatus: 'ONLINE',
-            geminiKey: !!process.env.API_KEY,
-            vpsApiStatus: 'CHECKING',
-            tableModelsStatus: 'CHECKING',
-            authStatus: !!user
-        };
-
-        try {
-            const healthRes = await fetch('/api/health');
-            results.vpsApiStatus = healthRes.ok ? 'CONNECTED' : 'ERROR';
-
-            const modelsRes = await fetch('/api/v1/file-models');
-            results.tableModelsStatus = modelsRes.ok ? 'OK' : 'MISSING';
-        } catch (e) {
-            results.vpsApiStatus = 'FAILED';
-        }
-
-        setTimeout(() => {
-            setDiagResult(results);
-            setIsLoadingDiag(false);
-        }, 800);
-    };
 
     const AdminTabButton = ({ id, label, icon: Icon, colorTheme }: any) => {
         const isActive = activeTab === id;
@@ -140,7 +47,7 @@ export const AdminView: React.FC = () => {
                     <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><ShieldCheckIcon className="w-5 h-5 text-slate-700 dark:text-slate-200" /></div>
                     <div>
                         <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none">{t('admin.title')}</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-0.5">Diagnóstico e Gestão do Sistema</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-0.5">Gestão do Sistema e Painel Administrativo</p>
                     </div>
                 </div>
                 <div className="flex flex-col md:flex-row gap-3 md:items-center">
@@ -151,11 +58,6 @@ export const AdminView: React.FC = () => {
                         <AdminTabButton id="communication" label="Central de Comunicação" icon={MessageSquare} colorTheme="blue" />
                         <AdminTabButton id="audit" label={t('admin.tab.audit')} icon={BanknotesIcon} colorTheme="emerald" />
                     </div>
-                    <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 hidden md:block mx-1"></div>
-                    <button onClick={runDiagnostics} className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-sm uppercase shadow-amber-500/20 hover:-translate-y-0.5 transition-all">
-                        <BoltIcon className="w-3.5 h-3.5 text-white" />
-                        <span>Diagnóstico</span>
-                    </button>
                 </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
@@ -165,32 +67,6 @@ export const AdminView: React.FC = () => {
                 {activeTab === 'communication' && <AdminCommunicationTab />}
                 {activeTab === 'audit' && <AdminAuditTab />}
             </div>
-            {showDiagModal && (
-                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#020610]/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-[#0F172A] rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden animate-scale-in">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><BoltIcon className="w-5 h-5 text-amber-500" />Saúde do Ambiente</h3>
-                            <button onClick={() => setShowDiagModal(false)} className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"><XMarkIcon className="w-5 h-5" /></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            {isLoadingDiag ? (<div className="text-center py-8"><div className="animate-spin h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full mx-auto mb-3"></div><p className="text-xs text-slate-500">Varrendo variáveis e tabelas...</p></div>) : diagResult ? (
-                                <div className="space-y-3">
-                                    <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.geminiKey ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><span className="text-xs font-bold text-slate-700">Chave Gemini (process.env)</span>{diagResult.geminiKey ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
-                                    <div className={`p-4 rounded-xl border flex items-center justify-between ${diagResult.vpsApiStatus === 'CONNECTED' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><div className="flex flex-col"><span className="text-xs font-bold text-slate-700">Conexão API VPS</span>{diagResult.vpsApiError && <span className="text-[10px] text-red-500 mt-1">{diagResult.vpsApiError}</span>}</div>{diagResult.vpsApiStatus === 'CONNECTED' ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <XCircleIcon className="w-5 h-5 text-red-500" />}</div>
-                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col gap-2">
-                                        <div className="flex items-center justify-between"><span className="text-xs font-bold text-amber-800">Correção de Estrutura (V12)</span><span className="text-[9px] font-black text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-200">ESTÁVEL</span></div>
-                                        <div className="mt-1">
-                                            <p className="text-[10px] text-amber-700 mb-2 leading-tight">Este script resolve o problema das palavras-chave sumindo e garante que o servidor suba no Coolify.</p>
-                                            <button onClick={copySql} className="w-full flex items-center justify-center gap-2 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-[10px] font-bold uppercase transition-colors shadow-sm"><ClipboardDocumentIcon className="w-3.5 h-3.5" />Copiar SQL V12</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end"><button onClick={() => setShowDiagModal(false)} className="px-5 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl transition-colors uppercase">Fechar</button></div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

@@ -6,7 +6,6 @@ import {
     DollarSignIcon, 
     FloppyDiskIcon, 
     Cog6ToothIcon, 
-    SparklesIcon, 
     CircleStackIcon, 
     ClockIcon
 } from '../Icons';
@@ -79,7 +78,7 @@ export const AdminSettingsTab: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <InputGroup 
                             label="Dias de Teste" 
                             name="defaultTrialDays" 
@@ -87,14 +86,6 @@ export const AdminSettingsTab: React.FC = () => {
                             value={formData.defaultTrialDays}
                             onChange={handleChange}
                             icon={ClockIcon} 
-                        />
-                        <InputGroup 
-                            label="Limite Base de IA" 
-                            name="baseAiLimit" 
-                            type="number" 
-                            value={formData.baseAiLimit}
-                            onChange={handleChange}
-                            icon={SparklesIcon} 
                         />
                         <InputGroup 
                             label="Cadastros Base (Slots)" 
@@ -119,7 +110,7 @@ export const AdminSettingsTab: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <InputGroup 
                             label="Mensalidade Base (R$)" 
                             name="monthlyPrice" 
@@ -132,13 +123,6 @@ export const AdminSettingsTab: React.FC = () => {
                             name="pricePerExtra" 
                             type="number" 
                             value={formData.pricePerExtra}
-                            onChange={handleChange}
-                        />
-                        <InputGroup 
-                            label="Pacote de Tokens IA (R$)" 
-                            name="pricePerAiBlock" 
-                            type="number" 
-                            value={formData.pricePerAiBlock}
                             onChange={handleChange}
                         />
                     </div>
