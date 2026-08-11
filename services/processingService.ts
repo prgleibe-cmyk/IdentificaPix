@@ -127,22 +127,44 @@ export const processFileContent = async (
             draft.rawDescription
         );
 
-        if (isSicredi || isSicoob) {
-            const prefixes = [
-                /RECEBIMENTO PIX-PIX_CRED/gi,
-                /PAGAMENTO PIX-PIX_DEB/gi,
-                /PIX_CRED/gi,
-                /PIX_DEB/gi,
-                /PIX EMIT\.OUTRA IF/gi,
-                /PIX RECEB\.OUTRA IF/gi,
-                /DÉB\.TIT\.COMPE\.EFETI/gi
-            ];
-            let tempDesc = cleanedDesc;
-            for (const r of prefixes) {
-                tempDesc = tempDesc.replace(r, '');
-            }
-            cleanedDesc = tempDesc.trim() || cleanedDesc;
+        const prefixes = [
+            /RECEBIMENTO PIX-PIX_CRED/gi,
+            /PAGAMENTO PIX-PIX_DEB/gi,
+            /PIX_CRED/gi,
+            /PIX_DEB/gi,
+            /PIX EMIT\.OUTRA IF/gi,
+            /PIX RECEB\.OUTRA IF/gi,
+            /PIX RECEBIDO - OUTRA IF/gi,
+            /PIX RECEBIDO OUTRA IF/gi,
+            /PIX ENVIADO - OUTRA IF/gi,
+            /PIX ENVIADO OUTRA IF/gi,
+            /RECEBIMENTO PIX -/gi,
+            /RECEBIMENTO PIX/gi,
+            /RECEBIMENTO DE PIX/gi,
+            /PAGAMENTO PIX -/gi,
+            /PAGAMENTO PIX/gi,
+            /PAGAMENTO DE PIX/gi,
+            /PIX RECEBIDO -/gi,
+            /PIX RECEBIDO/gi,
+            /PIX ENVIADO -/gi,
+            /PIX ENVIADO/gi,
+            /DÉB\.TIT\.COMPE\.EFETI/gi,
+            /DEB\.TIT\.COMPE\.EFETI/gi,
+            /TRANSFERENCIA RECEBIDA/gi,
+            /TRANSFERÊNCIA RECEBIDA/gi,
+            /TRANSFERENCIA ENVIADA/gi,
+            /TRANSFERÊNCIA ENVIADA/gi,
+            /CREDITO DE PIX/gi,
+            /CRÉDITO DE PIX/gi,
+            /DEBITO DE PIX/gi,
+            /DÉBITO DE PIX/gi
+        ];
+        let tempDesc = cleanedDesc;
+        for (const r of prefixes) {
+            tempDesc = tempDesc.replace(r, '');
         }
+        tempDesc = tempDesc.replace(/^[\s\-:]+/, '').replace(/[\s\-:]+$/, '').trim();
+        cleanedDesc = tempDesc || cleanedDesc;
         
         return {
             id: `ofx-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
