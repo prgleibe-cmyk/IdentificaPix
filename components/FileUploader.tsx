@@ -110,7 +110,16 @@ export const FileUploader = forwardRef<FileUploaderHandle, FileUploaderProps>(({
         }
         const fileBuffer = await file.arrayBuffer();
         const base64 = btoa(new Uint8Array(fileBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-        const extractedText = new TextDecoder('utf-8').decode(fileBuffer);
+        
+        let extractedText = '';
+        try {
+            extractedText = new TextDecoder('utf-8', { fatal: true }).decode(fileBuffer);
+        } catch (e) {
+            extractedText = new TextDecoder('iso-8859-1').decode(fileBuffer);
+        }
+        if (extractedText.includes('\uFFFD') || extractedText.includes('')) {
+            extractedText = new TextDecoder('iso-8859-1').decode(fileBuffer);
+        }
 
         await onFileUpload(extractedText, file.name, file, base64);
 

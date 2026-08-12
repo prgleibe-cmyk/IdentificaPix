@@ -240,12 +240,14 @@ export const matchTransactions = (
             let bestMatch: any = null;
             let highestScore = 0;
 
-            const { cpf: extractedCpf } = extractNameAndCpf(tx.description);
+            const { cpf: extractedCpf1 } = extractNameAndCpf(tx.description);
+            const { cpf: extractedCpf2 } = extractNameAndCpf(tx.rawDescription || '');
+            const targetCpf = extractedCpf1 || extractedCpf2;
 
             // ⚡ Prioridade: Match por CPF compatível (incluindo máscaras)
-            if (extractedCpf) {
+            if (targetCpf) {
                 const cpfMatch = allContributorsFlat.find((contrib: any) => 
-                    isCpfCompatible(extractedCpf, contrib.cpf)
+                    isCpfCompatible(targetCpf, contrib.cpf || contrib.document || contrib.cnpj || contrib.code)
                 );
                 if (cpfMatch) {
                     bestMatch = cpfMatch;

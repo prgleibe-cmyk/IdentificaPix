@@ -4,6 +4,7 @@ import { ReconciliationStatus, MatchMethod, MatchResult } from '../types';
 import { strictNormalize, groupResultsByChurch, isInvalidOrNumericName } from '../services/processingService';
 import { consolidationService } from '../services/ConsolidationService';
 import { batchState } from './reconciliation/useCloudSync';
+import { extractNameAndCpf, isCpfCompatible } from '../utils/contributorHelper';
 
 interface UseAiAutoIdentifyProps {
     reconciliation: any;
@@ -12,26 +13,6 @@ interface UseAiAutoIdentifyProps {
     showToast: (msg: string, type: 'success' | 'error') => void;
     onAfterIdentification?: (results: MatchResult[]) => void;
 }
-
-/**
- * Calcula similaridade de tokens.
- */
-const getConfidenceScore = (s1: string, s2: string): number => {
-    if (s1 === s2) return 100;
-    const clean1 = s1.replace(/[^A-Z0-9]/g, '');
-    const clean2 = s2.replace(/[^A-Z0-9]/g, '');
-    if (clean1 === clean2 && clean1.length > 0) return 100;
-    
-    const set1 = new Set();
-    for (let i = 0; i < s1.length - 1; i++) set1.add(s1.substring(i, i + 2));
-    const set2 = new Set();
-    for (let i = 0; i < s2.length - 1; i++) set2.add(s2.substring(i, i + 2));
-    
-    const intersection = new Set([...set1].filter(x => set2.has(x)));
-    const total = set1.size + set2.size;
-    if (total === 0) return 0;
-    return (2.0 * intersection.size) / total * 100;
-};
 
 export const useAiAutoIdentify = ({
     reconciliation,
@@ -43,7 +24,7 @@ export const useAiAutoIdentify = ({
     
     const runAiAutoIdentification = useCallback(async () => {
         const { matchResults, setMatchResults, setReportPreviewData } = reconciliation;
-        const { learnedAssociations, churches } = referenceData;
+        const { learnedAssociations, churches, contributorFiles, learnAssociation } = referenceData;
 
         if (!matchResults || matchResults.length === 0) {
             showToast("Nenhuma transação carregada para identificar.", "error");
@@ -53,15 +34,21 @@ export const useAiAutoIdentify = ({
         setIsLoading(true);
         let identifiedCount = 0;
         
+        const allContributorsFlat = (contributorFiles || []).flatMap((f: any) => 
+            (f.contributors || []).map((c: any) => ({ ...c, _churchId: c._churchId || c.church_id || f.church?.id }))
+        );
+
         const nextResults = [];
 
         for (const res of matchResults) {
             if (res.status === ReconciliationStatus.UNIDENTIFIED) {
-                const currentTxDna = strictNormalize(res.transaction.description);
+                const currentTxDna = strictNormalize(res.transaction.description || '');
+                const rawTxDna = res.transaction.rawDescription ? strictNormalize(res.transaction.rawDescription) : '';
                 
+                // 1. Checar Associações Aprendidas (Aprendizado prévio)
                 const learned = learnedAssociations.find((la: any) => {
                     const learnedDna = la.normalizedDescription;
-                    return learnedDna && learnedDna === currentTxDna;
+                    return learnedDna && (learnedDna === currentTxDna || (rawTxDna && learnedDna === rawTxDna));
                 });
 
                 if (learned) {
@@ -69,15 +56,16 @@ export const useAiAutoIdentify = ({
                     if (church) {
                         identifiedCount++;
                         
-                        // Atualiza no banco
                         if (!res.transaction.id.includes('ghost') && !res.transaction.id.includes('sim')) {
+                            const itemType = (res.transaction.amount >= 0) ? 'income' : 'expense';
                             await consolidationService.updateTransactionStatus(
                                 res.transaction.id, 
                                 'identified', 
                                 church.id, 
                                 res.transaction.bank_id,
                                 undefined,
-                                false
+                                false,
+                                itemType
                             );
                         }
 
@@ -85,10 +73,11 @@ export const useAiAutoIdentify = ({
                             ? learned.contributorNormalizedName 
                             : null;
 
-                        nextResults.push({
+                        const updatedResult: MatchResult = {
                             ...res,
                             status: ReconciliationStatus.IDENTIFIED,
                             church: church,
+                            _churchId: church.id,
                             matchMethod: MatchMethod.LEARNED,
                             similarity: 100,
                             contributor: validContribName ? { 
@@ -99,8 +88,67 @@ export const useAiAutoIdentify = ({
                             contributorAmount: res.transaction.amount,
                             suggestion: undefined,
                             updatedAt: new Date().toISOString()
-                        });
+                        };
+
+                        nextResults.push(updatedResult);
                         continue;
+                    }
+                }
+
+                // 2. Checar Correspondência por CPF/CNPJ (Extrato x Cadastros)
+                const { cpf: extractedCpf1 } = extractNameAndCpf(res.transaction.description || '');
+                const { cpf: extractedCpf2 } = extractNameAndCpf(res.transaction.rawDescription || '');
+                const targetCpf = extractedCpf1 || extractedCpf2;
+
+                if (targetCpf && allContributorsFlat.length > 0) {
+                    const cpfMatch = allContributorsFlat.find((contrib: any) => 
+                        isCpfCompatible(targetCpf, contrib.cpf || contrib.document || contrib.cnpj || contrib.code)
+                    );
+
+                    if (cpfMatch) {
+                        const church = churches.find((c: any) => c.id === cpfMatch._churchId);
+                        if (church) {
+                            identifiedCount++;
+                            const contribName = cpfMatch.name || cpfMatch.cleanedName || cpfMatch.canonical_name;
+
+                            if (!res.transaction.id.includes('ghost') && !res.transaction.id.includes('sim')) {
+                                const itemType = (res.transaction.amount >= 0) ? 'income' : 'expense';
+                                await consolidationService.updateTransactionStatus(
+                                    res.transaction.id, 
+                                    'identified', 
+                                    church.id, 
+                                    res.transaction.bank_id,
+                                    cpfMatch.id,
+                                    false,
+                                    itemType
+                                );
+                            }
+
+                            const updatedResult: MatchResult = {
+                                ...res,
+                                status: ReconciliationStatus.IDENTIFIED,
+                                church: church,
+                                _churchId: church.id,
+                                matchMethod: MatchMethod.CPF,
+                                similarity: 100,
+                                contributor: {
+                                    id: cpfMatch.id,
+                                    name: contribName,
+                                    cleanedName: contribName,
+                                    amount: res.transaction.amount
+                                },
+                                contributorAmount: res.transaction.amount,
+                                suggestion: undefined,
+                                updatedAt: new Date().toISOString()
+                            };
+
+                            if (learnAssociation) {
+                                learnAssociation(updatedResult);
+                            }
+
+                            nextResults.push(updatedResult);
+                            continue;
+                        }
                     }
                 }
             }
@@ -128,7 +176,7 @@ export const useAiAutoIdentify = ({
             showToast(`Sucesso: ${identifiedCount} itens identificados automaticamente!`, "success");
             if (onAfterIdentification) onAfterIdentification(nextResults);
         } else {
-            showToast("Vínculos: Nenhuma linha coincide com o aprendizado salvo.", "error");
+            showToast("Vínculos: Nenhuma linha coincide com o aprendizado salvo ou CPF/CNPJ.", "error");
         }
         
         setIsLoading(false);

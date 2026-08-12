@@ -151,10 +151,13 @@ export const ManualIdModal: React.FC = () => {
     useEffect(() => {
         if (bulkIdentificationTxs && bulkIdentificationTxs.length > 0 && contributorFiles && contributorFiles.length > 0) {
             const firstTx = bulkIdentificationTxs[0];
-            const { name, cpf } = extractNameAndCpf(firstTx.description);
-            if (name) {
+            const { name: name1, cpf: cpf1 } = extractNameAndCpf(firstTx.description || '');
+            const { name: name2, cpf: cpf2 } = extractNameAndCpf(firstTx.rawDescription || '');
+            const targetCpf = cpf1 || cpf2;
+            const targetName = name1 || name2;
+            if (targetName || targetCpf) {
                 // Procurar contribuintes semelhantes nas igrejas cadastradas com pontuação de corte (40%)
-                const matches = findSimilarContributors(name, cpf, contributorFiles, 40);
+                const matches = findSimilarContributors(targetName, targetCpf, contributorFiles, 40);
                 setSimilarMatches(matches);
                 if (matches.length > 0) {
                     // Se houver um match muito forte (ex: CPF idêntico ou similaridade > 80%), auto-seleciona "unificar"

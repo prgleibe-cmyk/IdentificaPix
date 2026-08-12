@@ -10,89 +10,143 @@ import { calculateNameSimilarity } from '../services/processingService';
  */
 export function isCpfCompatible(cpfA: string | null, cpfB: string | null): boolean {
   if (!cpfA || !cpfB) return false;
-  const cleanA = cpfA.trim().toLowerCase();
-  const cleanB = cpfB.trim().toLowerCase();
+  const strA = cpfA.trim().toUpperCase();
+  const strB = cpfB.trim().toUpperCase();
   
-  // Extract only digits and asterisk/x characters
-  const charsA = cleanA.split('').filter(c => /\d|\*|x/.test(c));
-  const charsB = cleanB.split('').filter(c => /\d|\*|x/.test(c));
+  // Extract digits only
+  const digitsA = strA.replace(/\D/g, '');
+  const digitsB = strB.replace(/\D/g, '');
   
-  if (charsA.length !== 11 || charsB.length !== 11) {
-    // Loose matching if either doesn't match standard length (could be partially formatted or unformatted)
-    const digitsA = cleanA.replace(/\D/g, '');
-    const digitsB = cleanB.replace(/\D/g, '');
-    if (digitsA.length > 0 && digitsB.length > 0) {
-      if (digitsA === digitsB) return true;
-      if (digitsA.includes(digitsB) || digitsB.includes(digitsA)) {
-        return Math.min(digitsA.length, digitsB.length) >= 6;
-      }
-    }
-    return false;
+  // Direct digit match (if both have at least 6 digits)
+  if (digitsA.length >= 6 && digitsB.length >= 6) {
+    if (digitsA === digitsB) return true;
+    if (digitsA.length >= 6 && digitsB.includes(digitsA)) return true;
+    if (digitsB.length >= 6 && digitsA.includes(digitsB)) return true;
   }
   
-  let matchCount = 0;
-  let nonMaskCount = 0;
-  for (let i = 0; i < 11; i++) {
-    const charA = charsA[i];
-    const charB = charsB[i];
-    const isMaskA = charA === '*' || charA === 'x';
-    const isMaskB = charB === '*' || charB === 'x';
+  // Position-by-position masked comparison (for 11-digit CPF or 14-digit CNPJ)
+  const charsA = strA.split('').filter(c => /[\d*X]/i.test(c));
+  const charsB = strB.split('').filter(c => /[\d*X]/i.test(c));
+  
+  if (charsA.length === 11 && charsB.length === 11) {
+    let matchCount = 0;
+    let nonMaskCount = 0;
+    let mismatch = false;
     
-    if (!isMaskA && !isMaskB) {
-      nonMaskCount++;
-      if (charA === charB) {
-        matchCount++;
-      } else {
-        return false; // Concrete mismatch
+    for (let i = 0; i < 11; i++) {
+      const ca = charsA[i];
+      const cb = charsB[i];
+      const isMaskA = ca === '*' || ca === 'X';
+      const isMaskB = cb === '*' || cb === 'X';
+      
+      if (!isMaskA && !isMaskB) {
+        nonMaskCount++;
+        if (ca === cb) {
+          matchCount++;
+        } else {
+          mismatch = true;
+          break;
+        }
       }
+    }
+    
+    if (!mismatch && nonMaskCount >= 4 && matchCount === nonMaskCount) {
+      return true;
+    }
+  }
+
+  if (charsA.length === 14 && charsB.length === 14) {
+    let matchCount = 0;
+    let nonMaskCount = 0;
+    let mismatch = false;
+    
+    for (let i = 0; i < 14; i++) {
+      const ca = charsA[i];
+      const cb = charsB[i];
+      const isMaskA = ca === '*' || ca === 'X';
+      const isMaskB = cb === '*' || cb === 'X';
+      
+      if (!isMaskA && !isMaskB) {
+        nonMaskCount++;
+        if (ca === cb) {
+          matchCount++;
+        } else {
+          mismatch = true;
+          break;
+        }
+      }
+    }
+    
+    if (!mismatch && nonMaskCount >= 5 && matchCount === nonMaskCount) {
+      return true;
     }
   }
   
-  // We require at least 3 concrete matched digits to avoid empty matching on fully masked fields
-  return nonMaskCount >= 3 && matchCount === nonMaskCount;
+  return false;
 }
 
 /**
- * Extracts clean name and CPF from a transaction description format (e.g., "JOAO SILVA - 123.456.789-00" or "Pix Recebido Joao, CPF ***.001.009-**")
+ * Extracts clean name and CPF/CNPJ (including masked or partial digits) from a transaction description.
  */
 export function extractNameAndCpf(description: string): { name: string; cpf: string | null } {
   if (!description) {
     return { name: '', cpf: null };
   }
 
-  // SICOOB or other format: "NAME - CPF/CNPJ" or similar
-  const parts = description.split(' - ');
-  let name = parts[0].trim();
+  let text = description.trim();
   let cpf: string | null = null;
 
-  // Pattern for masked/normal CPF: e.g., ***.001.009-** or 123.456.789-00
-  const cpfRegex = /([\d*xX]{3}\.[\d*xX]{3}\.[\d*xX]{3}-[\d*xX]{2})|([\d*xX]{11})/;
+  // Regex patterns for CPF / CNPJ / Masked CPF / Partial digit sequences
+  // 1. Formatted CPF: e.g. 123.456.789-00 or ***.196.901-**
+  const formattedCpfRegex = /([\d*xX]{3}\.[\d*xX]{3}\.[\d*xX]{3}-[\d*xX]{2})/i;
+  // 2. Formatted CNPJ: e.g. 12.345.678/0001-90 or **.345.678/0001-**
+  const formattedCnpjRegex = /([\d*xX]{2}\.[\d*xX]{3}\.[\d*xX]{3}\/[\d*xX]{4}-[\d*xX]{2})/i;
+  // 3. Unformatted masked CPF/CNPJ or 11-14 char digits with mask (e.g. ***196901**, ***19690120)
+  const maskedCpfRegex = /(\*{2,4}[\d]{5,8}\*{0,4})|([\d*xX]{11,14})/i;
+  // 4. Standalone digit sequence of 6 to 14 digits (e.g. 196901, 035802, 41592215)
+  const standaloneDigitsRegex = /\b\d{6,14}\b/;
 
-  if (parts.length > 1) {
-    const rawCpf = parts[1].trim();
-    if (cpfRegex.test(rawCpf)) {
-      cpf = rawCpf;
+  // Try matching formatted CPF first
+  let match = text.match(formattedCpfRegex) || text.match(formattedCnpjRegex);
+  if (match) {
+    cpf = match[0];
+  } else {
+    // Try masked CPF regex
+    match = text.match(maskedCpfRegex);
+    if (match && (match[0].replace(/\D/g, '').length >= 5 || match[0].includes('*'))) {
+      cpf = match[0];
+    } else {
+      // Try standalone digits
+      match = text.match(standaloneDigitsRegex);
+      if (match) {
+        cpf = match[0];
+      }
     }
   }
 
-  // Attempt regex fallback if cpf not set or not separated by ' - '
-  if (!cpf) {
-    const cpfMatch = description.match(cpfRegex);
-    if (cpfMatch) {
-      cpf = cpfMatch[0];
-      name = description.replace(cpf, '').trim();
+  // Extract name by removing the matched CPF from text
+  let name = text;
+  if (cpf) {
+    name = text.replace(cpf, '').trim();
+  }
+
+  // Handle "NAME - CPF" pattern if hyphen exists
+  if (name.includes(' - ')) {
+    const parts = name.split(' - ');
+    if (parts.length > 1) {
+      name = parts[0].trim();
     }
   }
 
-  // Remove trailing/leading "CPF", "CPF:", "CPF/CNPJ", etc from name and description
+  // Remove trailing/leading "CPF", "CNPJ", "DOC", etc.
   name = name.replace(/(CPF|CNPJ|CPF\/CNPJ|DOCUMENTO|DOC):?\s*[\d*xX.#_-]*\s*\**\*?\s*$/i, '').trim();
-  name = name.replace(/,\s*$/, '').trim(); // remove trailing comma
+  name = name.replace(/,\s*$/, '').trim();
 
-  // Basic cleanup of name (remove words like PIX, RECEBIMENTO, etc)
-  const prefixRegex = /^(RECEBIMENTO PIX|PAGAMENTO PIX|TED|DOC|PIX RECEB|PIX TRANSF|PIX ENTRADA|PIX DE RECEBIDO DE|PIX DE RECEBIDO|PIX RECEBIDO DE|PIX RECEBIDO|PIX DE|RECEBIDO DE|TRANSFERIDO POR|PIX ENTRADA DE|PIX ENVIADO POR|PAGTO|PAGAMENTO|TRANSF|TRANSFERENCIA DE|TRANSFERENCIA)\s+/i;
+  // Remove common bank operational prefixes
+  const prefixRegex = /^(RECEBIMENTO PIX|PAGAMENTO PIX|TED|DOC|PIX RECEB|PIX TRANSF|PIX ENTRADA|PIX DE RECEBIDO DE|PIX DE RECEBIDO|PIX RECEBIDO DE|PIX RECEBIDO|PIX DE|RECEBIDO DE|TRANSFERIDO POR|PIX ENTRADA DE|PIX ENVIADO POR|PAGTO|PAGAMENTO|TRANSF|TRANSFERENCIA DE|TRANSFERENCIA|REM\.:?)\s+/i;
   name = name.replace(prefixRegex, '').trim();
 
-  // Strip trailing punctuation or special non-alphanumeric chars
+  // Strip trailing punctuation
   name = name.replace(/[^a-zA-Z0-9À-ÿ\s]+$/, '').trim();
 
   return { name, cpf };

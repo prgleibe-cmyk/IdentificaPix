@@ -115,6 +115,7 @@ const MobileCard = memo(({
     const displayDate = formatDate(row.transaction.date);
 
     const displayName = getResolvedDisplayName(row) || '---';
+    const rawBankDesc = row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '';
     const displayForm = resolvePaymentMethod(
         row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,
         row.transaction?.description || row.transaction?.cleanedDescription,
@@ -150,6 +151,12 @@ const MobileCard = memo(({
                                 {displayName}
                             </span>
                         </div>
+                        {rawBankDesc && (
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 mt-0.5 leading-tight break-words" title={`Extrato Original: ${rawBankDesc}`}>
+                                <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
+                                <span className="font-mono text-slate-500 dark:text-slate-400">{rawBankDesc}</span>
+                            </div>
+                        )}
                         {row.splits && row.splits.length > 0 && (
                             <div className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
                                 <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[8px]">Distribuição:</span>
@@ -382,6 +389,12 @@ const IncomeRow = memo(({
                         {(row.contributor || isGhost) ? <UserIcon className="w-3.5 h-3.5 text-indigo-500 shrink-0" /> : <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                         <span className={`text-xs font-bold break-words uppercase ${confirmed ? 'text-slate-500/70' : isGhost ? 'text-slate-500' : 'text-slate-900 dark:text-white'}`}>{displayName}</span>
                     </div>
+                    {rawBankDesc && (
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal tracking-tight pl-5.5 leading-tight break-words max-w-md" title={`Extrato Original: ${rawBankDesc}`}>
+                            <span className="text-[9px] font-semibold uppercase text-slate-400/80 mr-1">Extrato:</span>
+                            <span className="font-mono text-slate-500 dark:text-slate-400">{rawBankDesc}</span>
+                        </div>
+                    )}
                     {row.splits && row.splits.length > 0 && (
                         <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
                             <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[8px]">Distribuição:</span>

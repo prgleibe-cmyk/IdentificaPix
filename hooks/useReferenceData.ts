@@ -285,7 +285,8 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             return;
         }
         
-        const normalizedDesc = strictNormalize(matchResult.transaction.description);
+        const normalizedDesc = strictNormalize(matchResult.transaction.description || '');
+        const rawNormalizedDesc = matchResult.transaction.rawDescription ? strictNormalize(matchResult.transaction.rawDescription) : '';
         
         if (isBatchUpdating) return;
 
@@ -298,9 +299,21 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
             user_id: effectiveUserId 
         };
 
+        const descsToSave = [normalizedDesc];
+        if (rawNormalizedDesc && rawNormalizedDesc !== normalizedDesc) {
+            descsToSave.push(rawNormalizedDesc);
+        }
+
         setLearnedAssociations(prev => {
-            const filtered = prev.filter(la => la.normalizedDescription !== normalizedDesc);
-            return [newAssociation, ...filtered];
+            const filtered = prev.filter(la => !descsToSave.includes(la.normalizedDescription));
+            const newEntries = descsToSave.map(desc => ({
+                normalizedDescription: desc, 
+                contributorNormalizedName: contributorName, 
+                churchId: matchResult.church.id, 
+                bankId: 'global',
+                user_id: effectiveUserId 
+            }));
+            return [...newEntries, ...filtered];
         });
 
         console.log('[IA-LEARN] Salvando aprendizado', {
@@ -309,16 +322,18 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
 
         try {
             console.log(`[WRITE:FIX] Persistindo learned_association com effectiveUserId: ${effectiveUserId} no VPS`);
-            await fetch('/api/v1/learned_associations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: effectiveUserId,
-                    normalized_description: normalizedDesc,
-                    contributor_normalized_name: contributorName,
-                    church_id: matchResult.church.id
-                })
-            });
+            for (const desc of descsToSave) {
+                await fetch('/api/v1/learned_associations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: effectiveUserId,
+                        normalized_description: desc,
+                        contributor_normalized_name: contributorName,
+                        church_id: matchResult.church.id
+                    })
+                });
+            }
         } catch (err) {
             console.error("Erro ao persistir aprendizado no VPS:", err);
         }
