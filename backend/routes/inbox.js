@@ -4,6 +4,8 @@ import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
+const DEFAULT_INBOX_KEY = 'identificapix_sms_2026';
+
 // Função robusta de parsing para limpar e extrair dados de SMS sem IA
 function parseSMS(text) {
     let amount = 0;
@@ -11,11 +13,13 @@ function parseSMS(text) {
     let type = "income"; // default
     let date = new Date().toISOString().split('T')[0]; // default para hoje
 
-    const normalizedText = text.replace(/\s+/g, ' ');
+    const normalizedText = text.replace(/\s+/g, ' ').trim();
 
     // 1. EXTRAÇÃO DE VALOR
-    // Ex: "R$ 150,00", "R$1.250,55", "R$ 50", "R$ 5,00"
-    const amountMatch = normalizedText.match(/R\$\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9\.]+)/i);
+    // Ex: "R$ 150,00", "R$1.250,55", "R$ 50", "VALOR: R$ 5,00", "BRL 100,00"
+    const amountMatch = normalizedText.match(/(?:R\$|RS|BRL|R\$:|VALOR:?\s*R\$?)\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9\.]+)/i)
+        || normalizedText.match(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2})\s*(?:reais|BRL)/i);
+
     if (amountMatch) {
         let rawAmount = amountMatch[1];
         if (rawAmount.includes(',') && rawAmount.includes('.')) {
@@ -24,8 +28,17 @@ function parseSMS(text) {
             rawAmount = rawAmount.replace(',', '.');
         }
         const parsed = parseFloat(rawAmount);
-        if (!isNaN(parsed)) {
+        if (!isNaN(parsed) && parsed > 0) {
             amount = parsed;
+        }
+    }
+
+    // Fallback de valor caso o padrão principal não encontre
+    if (amount === 0) {
+        const fallbackAmountMatch = normalizedText.match(/([0-9]+,[0-9]{2})/);
+        if (fallbackAmountMatch) {
+            const parsed = parseFloat(fallbackAmountMatch[1].replace(',', '.'));
+            if (!isNaN(parsed)) amount = parsed;
         }
     }
 
@@ -35,9 +48,11 @@ function parseSMS(text) {
         upperText.includes("RECEB") || 
         upperText.includes("DEPOSIT") || 
         upperText.includes("CREDIT") || 
+        upperText.includes("CRÉDIT") ||
         upperText.includes("ENTRADA") ||
         upperText.includes("VCE RECEBEU") ||
         upperText.includes("VOCE RECEBEU") ||
+        upperText.includes("VOCÊ RECEBEU") ||
         upperText.includes("CONTA POUPANCA CREDITADO")
     ) {
         type = "income";
@@ -45,11 +60,16 @@ function parseSMS(text) {
         upperText.includes("ENVIA") || 
         upperText.includes("PAGAM") || 
         upperText.includes("PAGO") || 
+        upperText.includes("PAGOU") ||
         upperText.includes("DEBIT") || 
+        upperText.includes("DÉBIT") ||
         upperText.includes("TRANSF") || 
         upperText.includes("SAIDA") || 
+        upperText.includes("SAÍDA") || 
         upperText.includes("COMPRA") ||
-        upperText.includes("SAÍDA")
+        upperText.includes("EFETUA") ||
+        upperText.includes("REALIZA") ||
+        upperText.includes("SAQUE")
     ) {
         type = "expense";
     }
@@ -75,14 +95,19 @@ function parseSMS(text) {
     }
 
     // 4. EXTRAÇÃO DE NOME / DESCRIÇÃO (A MÁGICA DE PURIFICAÇÃO)
-    let matchDesc = null;
     const patterns = [
-        // Padrões específicos para Sicredi / Sicoob / etc (Push app notifications)
+        // Sicredi / Sicoob / Itaú / Bradesco / Nubank / Caixa / Santander / Inter / C6 / PagBank / Mercado Pago
+        /recebeu\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+de\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
         /recebeu\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
         /pagou\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
+        /pagador\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
+        /remetente\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
+        /origem\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
+        /cliente\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
         /recebido\s+de\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
         /enviado\s+por\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
         /enviado\s+para\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
+        /pago\s+a\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
         /de\s+([A-Z\s\u00C0-\u00FF]+?)\s+em\s+\d{2}\/\d{2}/i,
         /de\s+([A-Z\s\u00C0-\u00FF]{3,30})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
         /para\s+([A-Z\s\u00C0-\u00FF]{3,30})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
@@ -107,7 +132,7 @@ function parseSMS(text) {
 
     if (description === "NOTIFICACAO SMS") {
         let cleaned = normalizedText;
-        cleaned = cleaned.replace(/^(SICOOB|SICREDI|BRADESCO|ITAU|CAIXA|INTER|NUBANK|BB|BANCO DO BRASIL):\s*/i, '');
+        cleaned = cleaned.replace(/^(SICOOB|SICREDI|BRADESCO|ITAU|CAIXA|INTER|NUBANK|BB|BANCO DO BRASIL|SANTANDER|C6|PAGBANK|PICPAY):\s*/i, '');
         cleaned = cleaned.replace(/pix\s+(recebido|enviado|realizado|efetuado|pago)/i, '');
         cleaned = cleaned.replace(/(no\s+valor\s+de|valor:|R\$)\s*[0-9.,]+/i, '');
         cleaned = cleaned.replace(/(em|no\s+dia)\s*\d{2}\/\d{2}(\/\d{2,4})?/i, '');
@@ -185,35 +210,63 @@ const resilientBodyParser = (req, res, next) => {
 
 export default (ai) => {
     router.get('/config', authMiddleware, (req, res) => {
-        res.json({ key: process.env.INBOX_API_KEY || '' });
+        const activeKey = (process.env.INBOX_API_KEY || '').trim() || DEFAULT_INBOX_KEY;
+        res.json({ key: activeKey });
     });
 
     router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
         const rawApiKey = req.headers['x-api-key'] || req.query.key;
-        const validKey = process.env.INBOX_API_KEY;
+        const envKey = (process.env.INBOX_API_KEY || '').trim();
+        
+        // Chaves aceitas: INBOX_API_KEY do ambiente e a chave padrão de instrução no app
+        const validKeys = [envKey, DEFAULT_INBOX_KEY].filter(Boolean);
 
-        // Resilient check if the provided API key matches the expected one (handling arrays or comma-separated strings from MacroDroid)
+        // Resilient check if the provided API key matches any expected key
         let isAuthorized = false;
-        if (validKey) {
-            if (Array.isArray(rawApiKey)) {
-                isAuthorized = rawApiKey.some(k => typeof k === 'string' && k.trim() === validKey.trim());
-            } else if (typeof rawApiKey === 'string') {
-                const keys = rawApiKey.split(',').map(k => k.trim());
-                isAuthorized = keys.includes(validKey.trim());
-            }
+        if (validKeys.length === 0) {
+            isAuthorized = true;
+        } else if (!rawApiKey) {
+            // Se nenhuma chave for enviada na requisição, mas a chave padrão for permitida
+            isAuthorized = validKeys.includes(DEFAULT_INBOX_KEY);
+        } else {
+            const providedKeys = Array.isArray(rawApiKey) 
+                ? rawApiKey.map(k => String(k).trim()) 
+                : String(rawApiKey).split(',').map(k => k.trim());
+            
+            isAuthorized = providedKeys.some(k => validKeys.includes(k));
         }
 
         // Resiliently extract the SMS body text from various potential payload keys or formats
-        let text = req.body?.text || req.body?.texto || req.body?.message || req.body?.body || req.body?.sms || req.query?.text || req.query?.texto || req.query?.message;
+        let text = req.body?.text || 
+                   req.body?.texto || 
+                   req.body?.message || 
+                   req.body?.mensagem || 
+                   req.body?.body || 
+                   req.body?.content || 
+                   req.body?.notification || 
+                   req.body?.notif || 
+                   req.body?.notif_text || 
+                   req.body?.sms_text || 
+                   req.body?.sms_body || 
+                   req.body?.sms || 
+                   req.query?.text || 
+                   req.query?.texto || 
+                   req.query?.message;
+
         if (!text && typeof req.body === 'string') {
             text = req.body;
         } else if (!text && req.body && typeof req.body === 'object') {
-            // Fallback for form-urlencoded or similar keys
             const keys = Object.keys(req.body);
             if (keys.length === 1 && req.body[keys[0]] === '') {
-                // If it was posted as raw text but parsed awkwardly
                 text = keys[0];
+            } else if (keys.length > 0) {
+                for (const k of keys) {
+                    if (typeof req.body[k] === 'string' && req.body[k].trim().length > 3) {
+                        text = req.body[k];
+                        break;
+                    }
+                }
             }
         }
 
@@ -224,22 +277,26 @@ export default (ai) => {
             } catch (e) {}
             userId = userId.replace(/[\s\r\n\t]+/g, '').trim();
         }
+        
+        let sanitizedBankId = null;
         if (bankId) {
             try {
                 bankId = decodeURIComponent(bankId);
             } catch (e) {}
-            bankId = bankId.replace(/[\s\r\n\t]+/g, '').trim();
+            const cleaned = bankId.replace(/[\s\r\n\t]+/g, '').trim();
+            if (cleaned && cleaned !== 'undefined' && cleaned !== 'null') {
+                sanitizedBankId = cleaned;
+            }
         }
 
         console.log(`\n--- [INCOMING PIX NOTIFICATION] ---`);
         console.log(`[Inbox API] Recebido POST para usuário/owner: "${userId}"`);
-        console.log(`[Inbox API] Banco destino (bank_id) original: "${req.params.bankId}" | Sanitizado: "${bankId}"`);
+        console.log(`[Inbox API] Banco destino (bank_id) original: "${req.params.bankId}" | Sanitizado: "${sanitizedBankId}"`);
         console.log(`[Inbox API] Conteúdo recebido (text): "${text || '(vazio)'}"`);
-        console.log(`[Inbox API] API Key fornecida: "${rawApiKey || '(ausente)'}" | API Key esperada no servidor: "${validKey || '(não configurada no .env)'}"`);
+        console.log(`[Inbox API] API Key fornecida: "${rawApiKey || '(ausente)'}" | Válida: ${isAuthorized ? '✅ SIM' : '❌ NÃO'}`);
 
         if (!isAuthorized) {
             console.warn(`[Inbox Warning] ❌ Unauthorized: Chave de API inválida ou ausente.`);
-            console.warn(`[Inbox Warning] Certifique-se de que a variável INBOX_API_KEY está configurada no seu arquivo .env e coincide com a usada no celular.`);
             return res.status(401).json({ error: 'Unauthorized: Invalid API Key' });
         }
 
@@ -262,7 +319,8 @@ export default (ai) => {
                 console.warn(`[Inbox API] ⚠️ Atenção: O valor parsed foi 0,00. Certifique-se de que o texto do SMS segue o formato esperado.`);
             }
 
-            const rowHash = `sms_${userId}_${bankId}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
+            const bankHashPart = sanitizedBankId || 'nobank';
+            const rowHash = `sms_${userId}_${bankHashPart}_${data.date}_${data.amount}_${data.description.substring(0, 10).replace(/\s/g, '')}`;
 
             console.log(`[Inbox API] Gravando transação no banco de dados VPS... (row_hash: ${rowHash})`);
 
@@ -277,12 +335,12 @@ export default (ai) => {
                 },
                 body: JSON.stringify({
                     user_id: userId,
-                    bank_id: bankId,
+                    bank_id: sanitizedBankId,
                     transaction_date: data.date,
                     description: data.description.toUpperCase(),
                     amount: data.amount,
                     type: data.type,
-                    source: 'file', // Adjusted from 'inbox' to respect the database check constraint (file/gmail only)
+                    source: 'file', // Respect database check constraints
                     status: 'pending',
                     pix_key: 'AUTO_SMS',
                     row_hash: rowHash

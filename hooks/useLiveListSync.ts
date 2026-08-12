@@ -130,8 +130,15 @@ export const useLiveListSync = ({
     }, [realtimeRefreshKey, hydrate]);
 
     useEffect(() => {
-        // Realtime sync handled via local API & polling
-    }, [user?.id, subscription?.ownerId, subscription?.role, realtimeRefreshKey]);
+        // Polling ativo a cada 10s para alimentar a Lista Viva em tempo real ao receber novos SMS / Notificações do celular
+        const intervalId = setInterval(() => {
+            if (!isCleaning && document.visibilityState === 'visible') {
+                hydrate(false);
+            }
+        }, 10000);
+
+        return () => clearInterval(intervalId);
+    }, [user?.id, subscription?.ownerId, subscription?.role, isCleaning, hydrate]);
 
     useEffect(() => {
         const effectiveUserId = subscription?.ownerId || user?.owner_id || user?.id;

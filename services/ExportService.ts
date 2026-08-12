@@ -1138,9 +1138,99 @@ ${itemsOfx}
     },
 
     /**
-     * Exporta o Livro Caixa em PDF formatado com Cabeçalho da Igreja, Logomarca, Número de Páginas e Assinaturas no Rodapé.
+     * Calcula a apuração detalhada de caixa para relatórios e PDFs
      */
-    downloadLivroCaixaPdf: (transactions: any[], churches: any[], title: string = 'Livro Caixa - Extrato Analítico', filename: string = 'livro_caixa.pdf', selectedChurchId?: string) => {
+    calculateLivroCaixaBreakdown: (transactions: any[], allReportData: any[] = [], customStartDate?: string, selectionMode?: string) => {
+        let saldoAnterior = 0;
+        let entradasDinheiro = 0;
+        let entradasPix = 0;
+        let entradasOutras = 0;
+        let transfRecebidas = 0;
+
+        let saidasDinheiro = 0;
+        let saidasPix = 0;
+        let saidasBoletoFaturas = 0;
+        let saidasOutras = 0;
+        let transfEnviadas = 0;
+
+        if (selectionMode === 'dates' && customStartDate && allReportData.length > 0) {
+            allReportData.forEach((item: any) => {
+                const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
+                if (itemDate && itemDate < customStartDate) {
+                    const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                    const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
+                    if (isExp) {
+                        saldoAnterior -= amt;
+                    } else {
+                        saldoAnterior += amt;
+                    }
+                }
+            });
+        }
+
+        transactions.forEach((item: any) => {
+            const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+            const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
+            const cat = (item.category || item.categoria || '').toString().toUpperCase();
+            const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
+            const isExp = item.type === 'expense' || Number(item.amount) < 0 || cat.includes('SAIDA') || cat.includes('SAÍDA');
+
+            const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+            if (isExp) {
+                if (isTransf) {
+                    transfEnviadas += amt;
+                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                    saidasDinheiro += amt;
+                } else if (pm.includes('PIX')) {
+                    saidasPix += amt;
+                } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                    saidasBoletoFaturas += amt;
+                } else {
+                    saidasOutras += amt;
+                }
+            } else {
+                if (isTransf) {
+                    transfRecebidas += amt;
+                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                    entradasDinheiro += amt;
+                } else if (pm.includes('PIX')) {
+                    entradasPix += amt;
+                } else {
+                    entradasOutras += amt;
+                }
+            }
+        });
+
+        const totalEntradas = entradasDinheiro + entradasPix + entradasOutras;
+        const totalSaidas = saidasDinheiro + saidasPix + saidasBoletoFaturas + saidasOutras;
+
+        const totalEntradasPlusTransf = totalEntradas + transfRecebidas;
+        const totalSaidasPlusTransf = totalSaidas + transfEnviadas;
+
+        const saldoFinal = saldoAnterior + totalEntradasPlusTransf - totalSaidasPlusTransf;
+
+        return {
+            saldoAnterior,
+            entradasDinheiro,
+            entradasPix,
+            totalEntradas,
+            saidasDinheiro,
+            saidasPix,
+            saidasBoletoFaturas,
+            totalSaidas,
+            transfRecebidas,
+            transfEnviadas,
+            totalEntradasPlusTransf,
+            totalSaidasPlusTransf,
+            saldoFinal
+        };
+    },
+
+    /**
+     * Exporta o Livro Caixa em PDF formatado com Cabeçalho da Igreja, Logomarca, Número de Páginas, Resumo Consolidado no Final e Assinaturas no Rodapé.
+     */
+    downloadLivroCaixaPdf: (transactions: any[], churches: any[], title: string = 'Livro Caixa - Extrato Analítico', filename: string = 'livro_caixa.pdf', selectedChurchId?: string, allReportData: any[] = [], customStartDate?: string, selectionMode?: string) => {
         const doc = new jsPDF();
         const targetChurch = resolveChurch(churches, selectedChurchId, transactions);
         const getChurchName = (item: any) => item.church || churches.find(c => c.id === item.churchId)?.name || targetChurch?.name || 'Igreja Sede';
@@ -1156,49 +1246,43 @@ ${itemsOfx}
         });
 
         const netBalance = totalIncome - totalExpense;
-        const subtitle = `Entradas: R$ ${totalIncome.toFixed(2)} | Saídas: R$ ${totalExpense.toFixed(2)} | Saldo Operacional: R$ ${netBalance.toFixed(2)} | Reg: ${transactions.length}`;
 
-        // Desenha o box de resumo no topo da primeira página
+        // Desenha o box de resumo discreto no topo da primeira página
         const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
         doc.setFillColor(248, 250, 252); // Slate 50
         doc.setDrawColor(226, 232, 240); // Slate 200
-        doc.roundedRect(10, 36, pageWidth - 20, 11, 2, 2, 'FD');
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        doc.setTextColor(100, 116, 139); // Slate 500
-        doc.text("ENTRADAS", 14, 40.5);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
-        doc.setTextColor(5, 150, 105); // Green
-        doc.text(`R$ ${totalIncome.toFixed(2)}`, 14, 44.5);
+        doc.roundedRect(10, 32, pageWidth - 20, 10, 2, 2, 'FD');
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text("SAÍDAS", 60, 40.5);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
-        doc.setTextColor(220, 38, 38); // Red
-        doc.text(`R$ ${totalExpense.toFixed(2)}`, 60, 44.5);
+        doc.text("ENTRADAS:", 14, 38.5);
+        doc.setFontSize(8);
+        doc.setTextColor(5, 150, 105);
+        doc.text(`R$ ${totalIncome.toFixed(2)}`, 32, 38.5);
 
-        doc.setFont("helvetica", "bold");
         doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text("SALDO OPERACIONAL", 105, 40.5);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
+        doc.text("SAÍDAS:", 68, 38.5);
+        doc.setFontSize(8);
+        doc.setTextColor(220, 38, 38);
+        doc.text(`R$ ${totalExpense.toFixed(2)}`, 82, 38.5);
+
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text("SALDO OPERACIONAL:", 118, 38.5);
+        doc.setFontSize(8);
         doc.setTextColor(netBalance < 0 ? 220 : 5, netBalance < 0 ? 38 : 150, netBalance < 0 ? 38 : 105);
-        doc.text(`R$ ${netBalance.toFixed(2)}`, 105, 44.5);
+        doc.text(`R$ ${netBalance.toFixed(2)}`, 154, 38.5);
 
-        doc.setFont("helvetica", "bold");
         doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text("REGISTROS", 160, 40.5);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
+        doc.text("REGISTROS:", 182, 38.5);
+        doc.setFontSize(8);
         doc.setTextColor(15, 23, 42);
-        doc.text(`${transactions.length}`, 160, 44.5);
+        doc.text(`${transactions.length}`, 200, 38.5);
 
         const headers = [["Data", "Descrição / Histórico", "Contribuinte / Favorecido", "Categoria", "Igreja", "Tipo", "Valor (R$)"]];
         
@@ -1219,7 +1303,7 @@ ${itemsOfx}
         autoTable(doc, {
             head: headers,
             body: rows,
-            startY: 50,
+            startY: 45,
             margin: { top: 38, bottom: 18, left: 10, right: 10 },
             theme: 'striped',
             headStyles: { fillColor: [249, 115, 22], fontSize: 8, fontStyle: 'bold' },
@@ -1228,15 +1312,265 @@ ${itemsOfx}
             styles: { overflow: 'linebreak', cellPadding: 2 }
         });
 
-        const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 100;
+        let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 100;
+
+        // Calcular o resumo detalhado de caixa
+        const breakdown = ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
+
+        // Se o espaço na página atual for insuficiente para o quadro de resumo (~50mm), cria nova página
+        if (finalY + 52 > pageHeight - 18) {
+            doc.addPage();
+            finalY = 32;
+        } else {
+            finalY += 8;
+        }
+
+        const fmtVal = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Tabela do Resumo Consolidado no final do relatório
+        autoTable(doc, {
+            startY: finalY,
+            head: [["ENTRADAS E CRÉDITOS", "SAÍDAS E DÉBITOS", "SALDOS DO PERÍODO"]],
+            body: [
+                [
+                    `• Entradas em dinheiro: R$ ${fmtVal(breakdown.entradasDinheiro)}\n` +
+                    `• Entradas em Pix: R$ ${fmtVal(breakdown.entradasPix)}\n` +
+                    `• Total de entradas: R$ ${fmtVal(breakdown.totalEntradas)}\n` +
+                    `• Total transf. recebidas: R$ ${fmtVal(breakdown.transfRecebidas)}\n\n` +
+                    `TOTAL ENTRADAS + TRANSF: R$ ${fmtVal(breakdown.totalEntradasPlusTransf)}`,
+
+                    `• Saídas em dinheiro: R$ ${fmtVal(breakdown.saidasDinheiro)}\n` +
+                    `• Saídas em Pix: R$ ${fmtVal(breakdown.saidasPix)}\n` +
+                    `• Saídas boleto/faturas: R$ ${fmtVal(breakdown.saidasBoletoFaturas)}\n` +
+                    `• Total de saídas: R$ ${fmtVal(breakdown.totalSaidas)}\n` +
+                    `• Total transf. enviadas: R$ ${fmtVal(breakdown.transfEnviadas)}\n\n` +
+                    `TOTAL SAÍDAS + TRANSF: R$ ${fmtVal(breakdown.totalSaidasPlusTransf)}`,
+
+                    `• Saldo Anterior: R$ ${fmtVal(breakdown.saldoAnterior)}\n\n\n\n\n` +
+                    `SALDO FINAL DO CAIXA: R$ ${fmtVal(breakdown.saldoFinal)}`
+                ]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+            bodyStyles: { fontSize: 7.5, cellPadding: 3, textColor: [51, 65, 85] },
+            margin: { left: 10, right: 10 },
+            columnStyles: {
+                0: { cellWidth: (pageWidth - 20) / 3 },
+                1: { cellWidth: (pageWidth - 20) / 3 },
+                2: { cellWidth: (pageWidth - 20) / 3 }
+            }
+        });
+
+        const finalYAfterResumo = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : finalY + 40;
 
         // Desenhar assinaturas do Pastor e Tesoureiro no final do relatório
-        drawChurchFooterSignatures(doc, targetChurch, finalY);
+        drawChurchFooterSignatures(doc, targetChurch, finalYAfterResumo);
 
-        // Aplicar cabeçalho institucional e paginação em todas as páginas
-        applyHeadersAndPageNumbers(doc, targetChurch, title, subtitle);
+        // Aplicar cabeçalho institucional e paginação (sem subtitle longo para não sobrepor texto)
+        applyHeadersAndPageNumbers(doc, targetChurch, title, undefined);
 
         doc.save(filename);
+    },
+
+    /**
+     * Gera relatório de impressão formatado do Livro Caixa em janela de impressão.
+     */
+    printLivroCaixa: (transactions: any[], churches: any[], allReportData: any[] = [], customStartDate?: string, selectionMode?: string, selectedChurchId?: string) => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const targetChurch = resolveChurch(churches, selectedChurchId, transactions);
+        const churchName = targetChurch?.name || 'Igreja Sede';
+        const cnpj = targetChurch?.cnpj ? `CNPJ: ${targetChurch.cnpj}` : '';
+        const address = targetChurch?.address || '';
+        const phone = targetChurch?.phone ? `Tel: ${targetChurch.phone}` : '';
+        const email = targetChurch?.email ? `Email: ${targetChurch.email}` : '';
+        const logo = targetChurch?.logo || targetChurch?.logoUrl || '';
+
+        const breakdown = ExportService.calculateLivroCaixaBreakdown(transactions, allReportData, customStartDate, selectionMode);
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        transactions.forEach(tx => {
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+            if (isExpense) totalExpense += amt;
+            else totalIncome += amt;
+        });
+        const netBalance = totalIncome - totalExpense;
+
+        const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        const tableRows = transactions.map(tx => {
+            const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
+            const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+            const dateStr = tx.date || '---';
+            const desc = (tx.desc || tx.description || tx.historico || 'Lançamento').toUpperCase();
+            const payer = tx.payer || tx.contribuinte || tx.nome || '---';
+            const cat = tx.category || tx.categoria || 'Geral';
+            const church = tx.church || churches.find(c => c.id === tx.churchId)?.name || churchName;
+            const typeStr = isExpense ? 'Saída' : 'Entrada';
+            const valColor = isExpense ? '#dc2626' : '#059669';
+            const formattedVal = `${isExpense ? '-' : '+'} ${formatBRL(amt)}`;
+
+            return `
+                <tr>
+                    <td style="padding: 6px 8px; font-family: monospace;">${dateStr}</td>
+                    <td style="padding: 6px 8px; font-weight: 500;">${desc}</td>
+                    <td style="padding: 6px 8px;">${payer}</td>
+                    <td style="padding: 6px 8px;">${cat}</td>
+                    <td style="padding: 6px 8px;">${church}</td>
+                    <td style="padding: 6px 8px;">${typeStr}</td>
+                    <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: bold; color: ${valColor};">${formattedVal}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const cityState = targetChurch?.city ? `${targetChurch.city}${targetChurch.state ? '/' + targetChurch.state : ''}` : 'Local';
+        const dateFormatted = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const pastorName = (targetChurch?.pastor || 'Pastor Presidente').toUpperCase();
+        const treasurerName = (targetChurch?.treasurer || 'Tesoureiro Geral').toUpperCase();
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Livro Caixa - ${churchName}</title>
+                    <style>
+                        @page { size: A4 portrait; margin: 12mm; }
+                        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 11px; color: #0f172a; margin: 0; padding: 0; }
+                        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 12px; }
+                        .header-logo { max-height: 50px; max-width: 120px; margin-right: 12px; }
+                        .header-info { flex: 1; }
+                        .header-info h2 { margin: 0; font-size: 16px; color: #0f172a; font-weight: 800; text-transform: uppercase; }
+                        .header-info p { margin: 2px 0 0 0; font-size: 9px; color: #64748b; }
+                        .header-title { text-align: right; }
+                        .header-title h3 { margin: 0; font-size: 14px; color: #f97316; text-transform: uppercase; font-weight: 800; }
+                        .header-title p { margin: 2px 0 0 0; font-size: 9px; color: #94a3b8; }
+                        
+                        .discrete-summary { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 11px; }
+                        .discrete-summary-item { display: flex; gap: 6px; align-items: center; }
+                        .discrete-summary-item span { font-weight: bold; }
+
+                        table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10px; }
+                        table.data-table th { background: #f97316; color: #ffffff; padding: 6px 8px; text-align: left; text-transform: uppercase; font-size: 9px; font-weight: 800; }
+                        table.data-table td { border-bottom: 1px solid #f1f5f9; }
+                        table.data-table tr:nth-child(even) { background: #fff7ed; }
+
+                        .resumo-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-top: 16px; background: #ffffff; page-break-inside: avoid; }
+                        .resumo-header { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+                        .resumo-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+                        .resumo-col { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; }
+                        .resumo-col-title { font-size: 9px; font-weight: 800; text-transform: uppercase; padding-bottom: 4px; border-bottom: 1px solid #cbd5e1; margin-bottom: 6px; }
+                        .resumo-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; }
+                        .resumo-row.total { font-weight: bold; border-top: 1px solid #e2e8f0; padding-top: 4px; margin-top: 4px; }
+                        
+                        .signatures { margin-top: 30px; page-break-inside: avoid; }
+                        .signatures-date { text-align: center; font-size: 10px; color: #475569; font-weight: 600; margin-bottom: 20px; }
+                        .signatures-grid { display: flex; justify-content: space-around; }
+                        .sig-block { text-align: center; width: 40%; }
+                        .sig-line { border-top: 1px solid #94a3b8; margin-bottom: 4px; }
+                        .sig-name { font-weight: bold; font-size: 10px; text-transform: uppercase; display: block; }
+                        .sig-role { font-size: 9px; color: #64748b; display: block; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div style="display: flex; align-items: center;">
+                            ${logo ? `<img src="${logo}" class="header-logo" />` : ''}
+                            <div class="header-info">
+                                <h2>${churchName}</h2>
+                                <p>${[cnpj, address, phone, email].filter(Boolean).join(' | ')}</p>
+                            </div>
+                        </div>
+                        <div class="header-title">
+                            <h3>LIVRO CAIXA</h3>
+                            <p>Extrato Analítico</p>
+                            <p>Emissão: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                    </div>
+
+                    <div class="discrete-summary">
+                        <div class="discrete-summary-item">ENTRADAS: <span style="color: #059669;">${formatBRL(totalIncome)}</span></div>
+                        <div class="discrete-summary-item">SAÍDAS: <span style="color: #dc2626;">${formatBRL(totalExpense)}</span></div>
+                        <div class="discrete-summary-item">SALDO OPERACIONAL: <span style="color: ${netBalance >= 0 ? '#059669' : '#dc2626'};">${formatBRL(netBalance)}</span></div>
+                        <div class="discrete-summary-item">REGISTROS: <span>${transactions.length}</span></div>
+                    </div>
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição / Histórico</th>
+                                <th>Contribuinte / Favorecido</th>
+                                <th>Categoria</th>
+                                <th>Igreja</th>
+                                <th>Tipo</th>
+                                <th style="text-align: right;">Valor (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+
+                    <div class="resumo-box">
+                        <div class="resumo-header">
+                            <span>RESUMO DE ENTRADAS E SAÍDAS</span>
+                            <span style="color: #64748b; font-size: 9px;">Demonstrativo Analítico do Caixa</span>
+                        </div>
+                        <div class="resumo-grid">
+                            <div class="resumo-col">
+                                <div class="resumo-col-title" style="color: #047857;">Entradas e Créditos</div>
+                                <div class="resumo-row"><span>Entradas em dinheiro:</span><strong>${formatBRL(breakdown.entradasDinheiro)}</strong></div>
+                                <div class="resumo-row"><span>Entradas em Pix:</span><strong>${formatBRL(breakdown.entradasPix)}</strong></div>
+                                <div class="resumo-row total"><span>Total de entradas:</span><strong style="color: #047857;">${formatBRL(breakdown.totalEntradas)}</strong></div>
+                                <div class="resumo-row"><span>Transf. recebidas:</span><strong>${formatBRL(breakdown.transfRecebidas)}</strong></div>
+                                <div class="resumo-row total" style="color: #047857; font-size: 10px;"><span>Total Entradas + Transf.:</span><strong>${formatBRL(breakdown.totalEntradasPlusTransf)}</strong></div>
+                            </div>
+
+                            <div class="resumo-col">
+                                <div class="resumo-col-title" style="color: #b91c1c;">Saídas e Débitos</div>
+                                <div class="resumo-row"><span>Saídas em dinheiro:</span><strong>${formatBRL(breakdown.saidasDinheiro)}</strong></div>
+                                <div class="resumo-row"><span>Saídas em Pix:</span><strong>${formatBRL(breakdown.saidasPix)}</strong></div>
+                                <div class="resumo-row"><span>Saídas boletos/faturas:</span><strong>${formatBRL(breakdown.saidasBoletoFaturas)}</strong></div>
+                                <div class="resumo-row total"><span>Total de saídas:</span><strong style="color: #b91c1c;">${formatBRL(breakdown.totalSaidas)}</strong></div>
+                                <div class="resumo-row"><span>Transf. enviadas:</span><strong>${formatBRL(breakdown.transfEnviadas)}</strong></div>
+                                <div class="resumo-row total" style="color: #b91c1c; font-size: 10px;"><span>Total Saídas + Transf.:</span><strong>${formatBRL(breakdown.totalSaidasPlusTransf)}</strong></div>
+                            </div>
+
+                            <div class="resumo-col" style="background: #fffbeb; border-color: #fde68a;">
+                                <div class="resumo-col-title" style="color: #b45309;">Saldos do Período</div>
+                                <div class="resumo-row"><span>Saldo Anterior:</span><strong>${formatBRL(breakdown.saldoAnterior)}</strong></div>
+                                <div style="margin-top: 25px; padding: 8px; background: #ffffff; border: 1px solid #fcd34d; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 800; font-size: 10px;">SALDO FINAL:</span>
+                                    <span style="font-weight: 900; font-size: 12px; color: ${breakdown.saldoFinal >= 0 ? '#047857' : '#b91c1c'};">${formatBRL(breakdown.saldoFinal)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="signatures">
+                        <div class="signatures-date">${cityState}, ${dateFormatted}</div>
+                        <div class="signatures-grid">
+                            <div class="sig-block">
+                                <div class="sig-line"></div>
+                                <span class="sig-name">${pastorName}</span>
+                                <span class="sig-role">Pastor Presidente / Responsável</span>
+                            </div>
+                            <div class="sig-block">
+                                <div class="sig-line"></div>
+                                <span class="sig-name">${treasurerName}</span>
+                                <span class="sig-role">Tesoureiro / Resp. Financeiro</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <script>window.onload = function() { setTimeout(() => { window.print(); }, 500); }</script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
     },
 
     /**

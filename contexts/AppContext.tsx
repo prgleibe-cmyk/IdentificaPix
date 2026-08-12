@@ -423,10 +423,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (c.id) churchMap.set(c.id, c);
         });
 
+        const bankMap = new Map<string, any>();
+        (referenceData.banks || []).forEach((b: any) => {
+            if (b.id) bankMap.set(b.id, b);
+        });
+
         return results.map((r: any) => {
             const tx = r.transaction || {};
             const contrib = r.contributor || {};
             const churchObj = churchMap.get(r.church?.id || r._churchId || tx.church_id) || r.church || {};
+
+            const bankId = tx.bank_id || tx.bankId || r.bank_id || r.bankId || r._bankId || r.bank?.id || '';
+            const bankObj = bankMap.get(bankId) || r.bank || {};
+            const bankName = bankObj.account_name || bankObj.name || (typeof bankObj === 'string' ? bankObj : '');
 
             const dateRaw = tx.date || contrib.date || r.launchedAt || '';
             const dateClean = dateRaw ? String(dateRaw).split('T')[0] : '';
@@ -460,6 +469,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 forma: paymentMethod,
                 church: churchName,
                 churchId: churchId,
+                bankId: bankId,
+                bankName: bankName,
                 amount: amount,
                 val: amount,
                 type: isExpense ? 'expense' : 'income',
@@ -468,7 +479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 raw: r
             };
         });
-    }, [reconciliation.fullMatchResults, reconciliation.matchResults, reportManager.savedReports, referenceData.churches]);
+    }, [reconciliation.fullMatchResults, reconciliation.matchResults, reportManager.savedReports, referenceData.churches, referenceData.banks]);
 
     const value = useMemo(() => ({
         ...referenceData,

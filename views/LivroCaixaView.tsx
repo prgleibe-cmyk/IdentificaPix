@@ -7,6 +7,7 @@ import { ChurchClosingModal } from '../components/modals/ChurchClosingModal';
 import { 
     BookOpen, 
     Building2, 
+    Landmark,
     Search, 
     Download, 
     Printer, 
@@ -62,12 +63,17 @@ export const LivroCaixaView: React.FC = memo(() => {
     const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
     const [isChurchDropdownOpen, setIsChurchDropdownOpen] = useState<boolean>(false);
 
+    // Multi-select bank filter
+    const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
+    const [isBankDropdownOpen, setIsBankDropdownOpen] = useState<boolean>(false);
+
     // Export dropdown state
     const [showExportLivroCaixa, setShowExportLivroCaixa] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [isClosingModalOpen, setIsClosingModalOpen] = useState<boolean>(false);
 
     const churchDropdownRef = useRef<HTMLDivElement>(null);
+    const bankDropdownRef = useRef<HTMLDivElement>(null);
     const exportLivroCaixaRef = useRef<HTMLDivElement>(null);
 
     const isSecondaryUser = (subscription?.ownerId && subscription.ownerId !== user?.id) &&
@@ -84,11 +90,22 @@ export const LivroCaixaView: React.FC = memo(() => {
         return subscription?.congregationIds || [];
     }, [isSecondaryUser, subscription?.congregationIds]);
 
+    const allowedBankIds = useMemo(() => {
+        if (!isSecondaryUser) return null;
+        return subscription?.bankIds || [];
+    }, [isSecondaryUser, subscription?.bankIds]);
+
     const churches = useMemo(() => {
         const raw = context?.churches || [];
         if (!isSecondaryUser || !allowedChurchIds || allowedChurchIds.length === 0) return raw;
         return raw.filter((c: any) => allowedChurchIds.includes(c.id));
     }, [context?.churches, isSecondaryUser, allowedChurchIds]);
+
+    const banks = useMemo(() => {
+        const raw = context?.banks || [];
+        if (!isSecondaryUser || !allowedBankIds || allowedBankIds.length === 0) return raw;
+        return raw.filter((b: any) => allowedBankIds.includes(b.id));
+    }, [context?.banks, isSecondaryUser, allowedBankIds]);
 
     const reportData = context?.reportData || [];
     const isHydratingFromCloud = context?.isHydratingFromCloud || context?.isHydrating || false;
@@ -98,6 +115,9 @@ export const LivroCaixaView: React.FC = memo(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (churchDropdownRef.current && !churchDropdownRef.current.contains(event.target as Node)) {
                 setIsChurchDropdownOpen(false);
+            }
+            if (bankDropdownRef.current && !bankDropdownRef.current.contains(event.target as Node)) {
+                setIsBankDropdownOpen(false);
             }
             if (exportLivroCaixaRef.current && !exportLivroCaixaRef.current.contains(event.target as Node)) {
                 setShowExportLivroCaixa(false);
@@ -124,6 +144,11 @@ export const LivroCaixaView: React.FC = memo(() => {
         return churches.find((c: any) => c.id === cId)?.name || 'Igreja Sede';
     };
 
+    const getBankName = (bId: string) => {
+        const found = banks.find((b: any) => b.id === bId);
+        return found?.account_name || found?.name || 'Banco';
+    };
+
     const toggleChurchSelection = (churchId: string) => {
         if (churchId === 'ALL') {
             setSelectedChurchIds([]);
@@ -134,6 +159,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                 return prev.filter(id => id !== churchId);
             } else {
                 return [...prev, churchId];
+            }
+        });
+    };
+
+    const toggleBankSelection = (bankId: string) => {
+        if (bankId === 'ALL') {
+            setSelectedBankIds([]);
+            return;
+        }
+        setSelectedBankIds(prev => {
+            if (prev.includes(bankId)) {
+                return prev.filter(id => id !== bankId);
+            } else {
+                return [...prev, bankId];
             }
         });
     };
@@ -190,6 +229,20 @@ export const LivroCaixaView: React.FC = memo(() => {
                 if (!matchesAny) return false;
             }
 
+            if (selectedBankIds.length > 0) {
+                const itemBankId = item.bankId || item.raw?.transaction?.bank_id || item.raw?.bankId;
+                const itemBankName = item.bankName;
+                const matchesAny = selectedBankIds.some(bId => {
+                    if (itemBankId && itemBankId === bId) return true;
+                    const bObj = banks.find((b: any) => b.id === bId);
+                    if (!bObj) return false;
+                    const bName = (bObj.account_name || bObj.name || '').toLowerCase();
+                    if (itemBankName && itemBankName.toLowerCase() === bName) return true;
+                    return false;
+                });
+                if (!matchesAny) return false;
+            }
+
             if (item.date) {
                 const itemDateIso = item.date.includes('T') ? item.date.split('T')[0] : item.date;
                 if (selectionMode === 'month') {
@@ -219,7 +272,7 @@ export const LivroCaixaView: React.FC = memo(() => {
 
             return true;
         });
-    }, [reportData, selectedChurchIds, selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate, searchTerm, isSecondaryUser, allowedChurchIds, churches]);
+    }, [reportData, selectedChurchIds, selectedBankIds, selectionMode, selectedMonth, selectedYear, customStartDate, customEndDate, searchTerm, isSecondaryUser, allowedChurchIds, churches, banks]);
 
     const financialTotals = useMemo(() => {
         let income = 0;
@@ -342,7 +395,7 @@ export const LivroCaixaView: React.FC = memo(() => {
         const dateStr = new Date().toISOString().slice(0, 10);
         
         if (format === 'pdf') {
-            ExportService.downloadLivroCaixaPdf(filteredReportData, churches, 'Livro Caixa - Extrato Analítico', `livro_caixa_${dateStr}.pdf`, selectedChurchIds[0]);
+            ExportService.downloadLivroCaixaPdf(filteredReportData, churches, 'Livro Caixa - Extrato Analítico', `livro_caixa_${dateStr}.pdf`, selectedChurchIds[0], reportData, customStartDate, selectionMode);
         } else if (format === 'excel') {
             ExportService.downloadLivroCaixaExcel(filteredReportData, churches, `livro_caixa_${dateStr}.xlsx`);
         } else if (format === 'csv') {
@@ -358,7 +411,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             showToast('Você não tem permissão para imprimir relatórios.', 'error');
             return;
         }
-        window.print();
+        ExportService.printLivroCaixa(filteredReportData, churches, reportData, customStartDate, selectionMode, selectedChurchIds[0]);
     };
 
     return (
@@ -491,7 +544,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                             <button
                                 type="button"
                                 onClick={() => setIsChurchDropdownOpen(!isChurchDropdownOpen)}
-                                className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+                                className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                             >
                                 <Building2 className="w-3.5 h-3.5 text-orange-500" />
                                 <span>
@@ -511,7 +564,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                         {selectedChurchIds.length > 0 && (
                                             <button 
                                                 onClick={() => setSelectedChurchIds([])}
-                                                className="text-[10px] text-orange-600 dark:text-orange-400 font-bold hover:underline"
+                                                className="text-[10px] text-orange-600 dark:text-orange-400 font-bold hover:underline cursor-pointer"
                                             >
                                                 Selecionar Todas
                                             </button>
@@ -524,7 +577,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                 type="checkbox"
                                                 checked={selectedChurchIds.length === 0}
                                                 onChange={() => setSelectedChurchIds([])}
-                                                className="accent-orange-500 rounded"
+                                                className="accent-orange-500 rounded cursor-pointer"
                                             />
                                             <span className="font-bold text-slate-800 dark:text-white">Todas as Igrejas</span>
                                         </label>
@@ -537,12 +590,81 @@ export const LivroCaixaView: React.FC = memo(() => {
                                                         type="checkbox"
                                                         checked={isChecked}
                                                         onChange={() => toggleChurchSelection(c.id)}
-                                                        className="accent-orange-500 rounded"
+                                                        className="accent-orange-500 rounded cursor-pointer"
                                                     />
                                                     <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{c.name}</span>
                                                 </label>
                                             );
                                         })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Multi/Single Select Bank Filter */}
+                        <div className="relative" ref={bankDropdownRef}>
+                            <button
+                                type="button"
+                                onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
+                                className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                                <Landmark className="w-3.5 h-3.5 text-blue-500" />
+                                <span>
+                                    {selectedBankIds.length === 0 
+                                        ? 'Todos os Bancos' 
+                                        : selectedBankIds.length === 1 
+                                        ? getBankName(selectedBankIds[0]) 
+                                        : `${selectedBankIds.length} Bancos Selecionados`}
+                                </span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            </button>
+
+                            {isBankDropdownOpen && (
+                                <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-white/10 p-3 z-50 text-xs space-y-2 animate-scale-in">
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
+                                        <span className="font-bold text-slate-800 dark:text-white uppercase text-[10px]">Filtrar por Banco</span>
+                                        {selectedBankIds.length > 0 && (
+                                            <button 
+                                                onClick={() => setSelectedBankIds([])}
+                                                className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                                            >
+                                                Selecionar Todos
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1.5 pt-1">
+                                        <label className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedBankIds.length === 0}
+                                                onChange={() => setSelectedBankIds([])}
+                                                className="accent-blue-500 rounded cursor-pointer"
+                                            />
+                                            <span className="font-bold text-slate-800 dark:text-white">Todos os Bancos</span>
+                                        </label>
+
+                                        {banks.length === 0 ? (
+                                            <div className="p-2 text-slate-400 text-center italic text-[11px]">
+                                                Nenhum banco cadastrado.
+                                            </div>
+                                        ) : (
+                                            banks.map((b: any) => {
+                                                const isChecked = selectedBankIds.includes(b.id);
+                                                const bName = b.account_name || b.name || 'Banco Sem Nome';
+                                                return (
+                                                    <label key={b.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isChecked}
+                                                            onChange={() => toggleBankSelection(b.id)}
+                                                            className="accent-blue-500 rounded cursor-pointer"
+                                                        />
+                                                        <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{bName}</span>
+                                                    </label>
+                                                );
+                                            })
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -616,125 +738,28 @@ export const LivroCaixaView: React.FC = memo(() => {
                     </div>
                 </div>
 
-                {/* Financial Totals Strip */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="p-4 rounded-xl border border-emerald-200/60 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20 flex justify-between items-center">
-                        <div>
-                            <span className="text-[10px] uppercase font-black tracking-wider text-emerald-600 dark:text-emerald-400 block">Entradas Totais</span>
-                            <span className="text-xl font-mono font-black text-emerald-700 dark:text-emerald-300">{formatBRL(financialTotals.income)}</span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            <ArrowUpRight className="w-6 h-6" />
-                        </div>
+                {/* Compact & Discrete Financial Totals Strip */}
+                <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Entradas:</span>
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatBRL(financialTotals.income)}</span>
                     </div>
-
-                    <div className="p-4 rounded-xl border border-rose-200/60 dark:border-rose-950 bg-rose-50/40 dark:bg-rose-950/20 flex justify-between items-center">
-                        <div>
-                            <span className="text-[10px] uppercase font-black tracking-wider text-rose-600 dark:text-rose-400 block">Saídas Totais</span>
-                            <span className="text-xl font-mono font-black text-rose-700 dark:text-rose-300">{formatBRL(financialTotals.expenses)}</span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                            <ArrowDownRight className="w-6 h-6" />
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Saídas:</span>
+                        <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatBRL(financialTotals.expenses)}</span>
                     </div>
-
-                    <div className={`p-4 rounded-xl border ${financialTotals.balance >= 0 ? 'border-blue-200/60 dark:border-blue-950 bg-blue-50/40 dark:bg-blue-950/20' : 'border-amber-200/60 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20'} flex justify-between items-center`}>
-                        <div>
-                            <span className="text-[10px] uppercase font-black tracking-wider text-slate-600 dark:text-slate-400 block">Saldo Operacional do Caixa</span>
-                            <span className={`text-xl font-mono font-black ${financialTotals.balance >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'}`}>{formatBRL(financialTotals.balance)}</span>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-slate-500/10 text-slate-600 dark:text-slate-400">
-                            <DollarSign className="w-6 h-6" />
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Saldo Operacional:</span>
+                        <span className={`font-mono font-extrabold ${financialTotals.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{formatBRL(financialTotals.balance)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-400">
+                        <span className="text-[10px] font-black uppercase tracking-wider">Registros:</span>
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{financialTotals.totalTransactions}</span>
                     </div>
                 </div>
 
-                {/* RESUMO DE CAIXA DETALHADO */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-4 bg-brand-orange rounded-full"></div>
-                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">RESUMO</h3>
-                        </div>
-                        <span className="text-[11px] font-bold text-slate-400">Demonstrativo Analítico do Caixa</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-xs">
-                        {/* Bloco Entradas & Créditos */}
-                        <div className="space-y-2 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
-                            <div className="font-black text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider mb-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-1.5">Entradas e Créditos</div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                                <span>Total de entradas em dinheiro:</span>
-                                <strong className="font-mono text-emerald-600">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
-                            </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                                <span>Total de entradas em Pix:</span>
-                                <strong className="font-mono text-emerald-600">{formatBRL(summaryBreakdown.entradasPix)}</strong>
-                            </div>
-                            <div className="flex justify-between font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-emerald-200/40">
-                                <span>Total de entradas:</span>
-                                <strong className="font-mono text-emerald-700">{formatBRL(summaryBreakdown.totalEntradas)}</strong>
-                            </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-1">
-                                <span>Total de transf. recebidas:</span>
-                                <strong className="font-mono text-emerald-600">{formatBRL(summaryBreakdown.transfRecebidas)}</strong>
-                            </div>
-                            <div className="flex justify-between font-extrabold text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200/80 dark:border-emerald-800/60 text-[11px]">
-                                <span>Total de Entradas + Transferência recebidas:</span>
-                                <span className="font-mono">{formatBRL(summaryBreakdown.totalEntradasPlusTransf)}</span>
-                            </div>
-                        </div>
-
-                        {/* Bloco Saídas & Débitos */}
-                        <div className="space-y-2 bg-rose-50/30 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100 dark:border-rose-900/30">
-                            <div className="font-black text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider mb-2 border-b border-rose-200/60 dark:border-rose-800/40 pb-1.5">Saídas e Débitos</div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                                <span>Total de saídas em dinheiro:</span>
-                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
-                            </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                                <span>Total de saídas em Pix:</span>
-                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.saidasPix)}</strong>
-                            </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                                <span>Total de saídas boleto, faturas:</span>
-                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.saidasBoletoFaturas)}</strong>
-                            </div>
-                            <div className="flex justify-between font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-rose-200/40">
-                                <span>Total de saídas:</span>
-                                <strong className="font-mono text-rose-700">{formatBRL(summaryBreakdown.totalSaidas)}</strong>
-                            </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-1">
-                                <span>Total de transf. enviadas:</span>
-                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.transfEnviadas)}</strong>
-                            </div>
-                            <div className="flex justify-between font-extrabold text-rose-800 dark:text-rose-300 pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px]">
-                                <span>Total de saídas + Transferência enviadas:</span>
-                                <span className="font-mono">{formatBRL(summaryBreakdown.totalSaidasPlusTransf)}</span>
-                            </div>
-                        </div>
-
-                        {/* Bloco Saldos */}
-                        <div className="space-y-3 bg-amber-50/40 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/30 flex flex-col justify-between">
-                            <div>
-                                <div className="font-black text-amber-800 dark:text-amber-400 uppercase text-[10px] tracking-wider mb-2 border-b border-amber-200/60 dark:border-amber-800/40 pb-1.5">Saldos do Período</div>
-                                <div className="flex justify-between text-slate-700 dark:text-slate-300 py-1">
-                                    <span className="font-bold">Saldo Anterior:</span>
-                                    <strong className="font-mono">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
-                                </div>
-                            </div>
-                            <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-300/80 dark:border-amber-800 shadow-xs flex justify-between items-center">
-                                <span className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">Saldo final:</span>
-                                <span className={`text-base font-black font-mono ${summaryBreakdown.saldoFinal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                    {formatBRL(summaryBreakdown.saldoFinal)}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Livro Caixa Table */}
-                <div className="flex-1 min-h-[350px] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                {/* Livro Caixa Table (Extrato Analítico) */}
+                <div className="flex-1 min-h-[300px] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col bg-white dark:bg-slate-900 shadow-xs">
                     <div className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                         <span>Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
                         <span>IgGestor Módulo Financeiro</span>
@@ -792,6 +817,90 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                {/* RESUMO DE CAIXA DETALHADO (NO FINAL DO RELATÓRIO) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-4 bg-brand-orange rounded-full"></div>
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">RESUMO</h3>
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400">Demonstrativo Analítico do Caixa</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+                        {/* Bloco Entradas & Créditos */}
+                        <div className="space-y-2 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                            <div className="font-black text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider mb-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-1.5">Entradas e Créditos</div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                <span>Total de entradas em dinheiro:</span>
+                                <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                <span>Total de entradas em Pix:</span>
+                                <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.entradasPix)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-emerald-200/40">
+                                <span>Total de entradas:</span>
+                                <strong className="font-mono text-emerald-700 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradas)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 pt-1">
+                                <span>Total de transf. recebidas:</span>
+                                <strong className="font-mono text-emerald-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.transfRecebidas)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center font-extrabold text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200/80 dark:border-emerald-800/60 text-[11px]">
+                                <span>Total Entradas + Transf.:</span>
+                                <span className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalEntradasPlusTransf)}</span>
+                            </div>
+                        </div>
+
+                        {/* Bloco Saídas & Débitos */}
+                        <div className="space-y-2 bg-rose-50/30 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100 dark:border-rose-900/30">
+                            <div className="font-black text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider mb-2 border-b border-rose-200/60 dark:border-rose-800/40 pb-1.5">Saídas e Débitos</div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                <span>Total de saídas em dinheiro:</span>
+                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                <span>Total de saídas em Pix:</span>
+                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasPix)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                                <span>Saídas boleto, faturas:</span>
+                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saidasBoletoFaturas)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-rose-200/40">
+                                <span>Total de saídas:</span>
+                                <strong className="font-mono text-rose-700 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidas)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-600 dark:text-slate-300 pt-1">
+                                <span>Total de transf. enviadas:</span>
+                                <strong className="font-mono text-rose-600 ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.transfEnviadas)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center font-extrabold text-rose-800 dark:text-rose-300 pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px]">
+                                <span>Total Saídas + Transf.:</span>
+                                <span className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.totalSaidasPlusTransf)}</span>
+                            </div>
+                        </div>
+
+                        {/* Bloco Saldos */}
+                        <div className="space-y-3 bg-amber-50/40 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/30 flex flex-col justify-between">
+                            <div>
+                                <div className="font-black text-amber-800 dark:text-amber-400 uppercase text-[10px] tracking-wider mb-2 border-b border-amber-200/60 dark:border-amber-800/40 pb-1.5">Saldos do Período</div>
+                                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-1">
+                                    <span className="font-bold">Saldo Anterior:</span>
+                                    <strong className="font-mono ml-2 whitespace-nowrap">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
+                                </div>
+                            </div>
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-300/80 dark:border-amber-800 shadow-xs flex justify-between items-center gap-2">
+                                <span className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">Saldo final:</span>
+                                <span className={`text-base font-black font-mono whitespace-nowrap ${summaryBreakdown.saldoFinal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    {formatBRL(summaryBreakdown.saldoFinal)}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
