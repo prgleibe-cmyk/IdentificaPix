@@ -403,6 +403,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (user !== undefined) setInitialDataLoaded(true);
     }, [user]);
 
+    // 📊 DADOS CONSOLIDADOS PARA RELATÓRIOS E LIVRO CAIXA
+    const reportData = useMemo(() => {
+        let results = reconciliation.fullMatchResults || reconciliation.matchResults || [];
+
+        // Fallback: Se não houver sessão ativa carregada no momento, tenta coletar de relatórios salvos
+        if (results.length === 0 && reportManager.savedReports && reportManager.savedReports.length > 0) {
+            const collected: any[] = [];
+            reportManager.savedReports.forEach((sr: any) => {
+                if (sr.data?.results && Array.isArray(sr.data.results)) {
+                    collected.push(...sr.data.results);
+                }
+            });
+            results = collected;
+        }
+
+        const churchMap = new Map<string, any>();
+        (referenceData.churches || []).forEach((c: any) => {
+            if (c.id) churchMap.set(c.id, c);
+        });
+
+        return results.map((r: any) => {
+            const tx = r.transaction || {};
+            const contrib = r.contributor || {};
+            const churchObj = churchMap.get(r.church?.id || r._churchId || tx.church_id) || r.church || {};
+
+            const dateRaw = tx.date || contrib.date || r.launchedAt || '';
+            const dateClean = dateRaw ? String(dateRaw).split('T')[0] : '';
+
+            const desc = tx.description || tx.rawDescription || contrib.name || 'Lançamento de Caixa';
+            const payer = contrib.name || (r.status === 'IDENTIFICADO' ? (contrib.cleanedName || contrib.name) : null) || 'NÃO IDENTIFICADO';
+            const category = r.contributionType || tx.contributionType || 'Geral';
+            const paymentMethod = r.paymentMethod || tx.paymentMethod || 'PIX';
+            const churchName = churchObj.name || (typeof churchObj === 'string' ? churchObj : 'Igreja Sede');
+            const churchId = churchObj.id || r._churchId || tx.church_id || '';
+
+            const amount = Number(tx.amount) || Number(r.contributorAmount) || Number(contrib.amount) || 0;
+            const isExpense = amount < 0 || 
+                tx.type === 'expense' || 
+                tx.type === 'saida' || 
+                (category && category.toLowerCase().includes('saida')) ||
+                (category && category.toLowerCase().includes('saída'));
+
+            return {
+                id: tx.id || r.id || r._injectedId,
+                date: dateClean,
+                desc: desc,
+                description: desc,
+                historico: desc,
+                payer: payer,
+                contribuinte: payer,
+                nome: payer,
+                category: category,
+                categoria: category,
+                paymentMethod: paymentMethod,
+                forma: paymentMethod,
+                church: churchName,
+                churchId: churchId,
+                amount: amount,
+                val: amount,
+                type: isExpense ? 'expense' : 'income',
+                status: r.status,
+                isConfirmed: r.isConfirmed,
+                raw: r
+            };
+        });
+    }, [reconciliation.fullMatchResults, reconciliation.matchResults, reportManager.savedReports, referenceData.churches]);
+
     const value = useMemo(() => ({
         ...referenceData,
         ...reportManager,
@@ -416,6 +483,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedBankId,
         setSelectedBankId,
         bankList,
+        reportData,
         saveCurrentReportChanges: persistActiveReport,
         confirmDeletion,
         runAiAutoIdentification,
@@ -437,7 +505,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         runAiAutoIdentification,
         viewSavedReport,
         selectedBankId,
-        bankList
+        bankList,
+        reportData
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -7,6 +7,7 @@ import {
     ReconciliationStatus
 } from '../types';
 import { PLACEHOLDER_CHURCH } from '../services/processingService';
+import { getCachedContributors } from '../services/contributorsCache';
 import { useLiveListSync } from './useLiveListSync';
 import { usePersistentState } from './usePersistentState';
 
@@ -54,28 +55,16 @@ export const useReconciliation = (props: any) => {
     
     const [launchedResults, setLaunchedResults] = usePersistentState<MatchResult[]>(`identificapix-launched${userSuffix}`, [], true);
 
-    // 🔄 REQUISIÇÃO E SINCRONIZAÇÃO DE CONTRIBUINTES DO BANCO DE DADOS VPS
+    // 🔄 REQUISIÇÃO E SINCRONIZAÇÃO DE CONTRIBUINTES DO BANCO DE DADOS VPS (COM CACHE)
     const fetchContributorsToFiles = useCallback(async () => {
         try {
             if (!churches || churches.length === 0) return;
 
-            // Busca os contribuintes apenas para as igrejas autorizadas do usuário
-            const promises = churches.map(async (church: any) => {
-                const resp = await fetch(`/api/v1/contributors?church_id=${church.id}`);
-                if (resp.ok) {
-                    const list = await resp.json();
-                    return Array.isArray(list) ? list : [];
-                }
-                return [];
-            });
-
-            const results = await Promise.all(promises);
-            const data = results.flat();
-            
+            const allContributors = await getCachedContributors();
             const allowedChurchIds = new Set((churches || []).map((ch: any) => ch.id));
             
             const grouped = new Map<string, any[]>();
-            data.forEach((c: any) => {
+            allContributors.forEach((c: any) => {
                 if (c.status !== 'inactive') {
                     const cid = c.church_id;
                     if (!allowedChurchIds.has(cid)) return; // Ignora contribuintes de igrejas não cadastradas
@@ -106,7 +95,7 @@ export const useReconciliation = (props: any) => {
                 };
             });
 
-            console.log('[ContributorSync] Loaded', data.length, 'contributors across', newFiles.length, 'churches.');
+            console.log('[ContributorSync] Loaded', allContributors.length, 'contributors across', newFiles.length, 'churches.');
             setContributorFiles(newFiles);
         } catch (e) {
             console.error('[ContributorSync] Error loading contributors:', e);

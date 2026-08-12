@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useContext } from 'react';
+import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
+import { getCachedContributors, invalidateContributorsCache } from '../../services/contributorsCache';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,11 +27,27 @@ export const ContributorsList: React.FC = () => {
     const isPrincipalUser = !subscription?.role || subscription?.role === 'owner' || subscription?.role === 'admin' || subscription?.role === 'principal' || subscription?.ownerId === user?.id;
     
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedChurchFilter, setSelectedChurchFilter] = useState<string>('all');
+    const [displayLimit, setDisplayLimit] = useState<number>(60);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [contributors, setContributors] = useState<any[]>([]);
     const [isLoadingContributors, setIsLoadingContributors] = useState<boolean>(true);
     const [editingContributor, setEditingContributor] = useState<any | null>(null);
+
+    // Debounce search input to avoid re-filtering on every keystroke
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+            setDisplayLimit(60);
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    // Reset page limit on church filter change
+    useEffect(() => {
+        setDisplayLimit(60);
+    }, [selectedChurchFilter]);
     
     // Form States (Pessoa Física & Empresa / Fornecedor)
     const [personType, setPersonType] = useState<'PF' | 'PJ'>('PF');
@@ -511,7 +528,8 @@ export const ContributorsList: React.FC = () => {
         setIsImportModalOpen(false);
         setImportFile(null);
         setParsedContributors([]);
-        fetchContributors();
+        invalidateContributorsCache();
+        fetchContributors(true);
     };
 
     // Real list of churches from context
@@ -520,16 +538,11 @@ export const ContributorsList: React.FC = () => {
         ...churches.map((c: any) => ({ id: c.id, name: c.name }))
     ];
 
-    const fetchContributors = async () => {
+    const fetchContributors = async (forceRefresh = false) => {
         try {
             setIsLoadingContributors(true);
-            const response = await fetch('/api/v1/contributors');
-            if (response.ok) {
-                const data = await response.json();
-                setContributors(data);
-            } else {
-                console.error('[ContributorsList] Failed to fetch contributors');
-            }
+            const data = await getCachedContributors(forceRefresh);
+            setContributors(data);
         } catch (error) {
             console.error('[ContributorsList] Error fetching contributors:', error);
         } finally {
@@ -608,7 +621,8 @@ export const ContributorsList: React.FC = () => {
             });
             if (response.ok) {
                 showToast("Contribuinte inativado com sucesso.", "success");
-                fetchContributors();
+                invalidateContributorsCache();
+                fetchContributors(true);
             } else {
                 showToast("Falha ao inativar contribuinte.", "error");
             }
@@ -629,7 +643,8 @@ export const ContributorsList: React.FC = () => {
             });
             if (response.ok) {
                 showToast("Contribuinte excluído definitivamente.", "success");
-                fetchContributors();
+                invalidateContributorsCache();
+                fetchContributors(true);
             } else {
                 showToast("Falha ao excluir contribuinte definitivamente.", "error");
             }
@@ -775,7 +790,8 @@ export const ContributorsList: React.FC = () => {
             if (response.status === 201 || response.status === 200) {
                 showToast(editingContributor ? "Cadastro atualizado com sucesso." : "Cadastro realizado com sucesso.", "success");
                 handleCloseModal();
-                fetchContributors();
+                invalidateContributorsCache();
+                fetchContributors(true);
             } else if (response.status === 409) {
                 showToast("Já existe um cadastro ativo com este CPF/CNPJ nesta igreja.", "error");
             } else if (response.status === 400) {
@@ -794,39 +810,64 @@ export const ContributorsList: React.FC = () => {
     const isNameInvalid = attemptedSubmit && !fullName.trim();
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
 
-    // Metrics counters
-    const totalContributorsCount = contributors.length;
-    const pfContributorsCount = contributors.filter(c => c.person_type !== 'PJ' && (!c.cpf || c.cpf.replace(/\D/g, '').length !== 14)).length;
-    const pjContributorsCount = contributors.filter(c => c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14)).length;
-
-    // CPF duplicate detection in form modal
-    const cleanTypedCpf = cpf.replace(/\D/g, '');
-    const existingContributorWithCpf = cleanTypedCpf && cleanTypedCpf.length >= 11 ? contributors.find(c => {
-        if (editingContributor && c.id === editingContributor.id) return false;
-        const cleanC = c.cpf?.replace(/\D/g, '');
-        return cleanC && cleanC === cleanTypedCpf && c.status === 'active';
-    }) : null;
-
-    const filteredContributors = contributors.filter(c => {
-        // 1. Church Filter
-        if (selectedChurchFilter !== 'all') {
-            const isMatch = c.church_id === selectedChurchFilter || c.is_global;
-            if (!isMatch) return false;
+    // Metrics counters memoized
+    const { totalContributorsCount, pfContributorsCount, pjContributorsCount } = useMemo(() => {
+        const total = contributors.length;
+        let pf = 0;
+        let pj = 0;
+        for (let i = 0; i < total; i++) {
+            const c = contributors[i];
+            const isPJ = c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14);
+            if (isPJ) {
+                pj++;
+            } else {
+                pf++;
+            }
         }
+        return { totalContributorsCount: total, pfContributorsCount: pf, pjContributorsCount: pj };
+    }, [contributors]);
 
-        // 2. Search query
-        const query = search.toLowerCase().trim();
-        if (!query) return true;
+    // CPF duplicate detection in form modal memoized
+    const cleanTypedCpf = cpf.replace(/\D/g, '');
+    const existingContributorWithCpf = useMemo(() => {
+        if (!cleanTypedCpf || cleanTypedCpf.length < 11) return null;
+        return contributors.find(c => {
+            if (editingContributor && c.id === editingContributor.id) return false;
+            const cleanC = c.cpf?.replace(/\D/g, '');
+            return cleanC && cleanC === cleanTypedCpf && c.status === 'active';
+        }) || null;
+    }, [contributors, cleanTypedCpf, editingContributor]);
 
-        const roleVal = c.role_position || c.category;
-        const nameMatch = c.canonical_name?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(query.normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    // Filtered contributors memoized using debouncedSearch
+    const filteredContributors = useMemo(() => {
+        const query = debouncedSearch.toLowerCase().trim();
         const cleanQueryCpf = query.replace(/\D/g, '');
-        const cpfMatch = cleanQueryCpf ? c.cpf?.replace(/\D/g, '').includes(cleanQueryCpf) : false;
-        const roleQueryMatch = roleVal?.toLowerCase().includes(query);
-        const tradeMatch = c.trade_name?.toLowerCase().includes(query);
-        const contactMatch = c.contact_person?.toLowerCase().includes(query);
-        return nameMatch || cpfMatch || roleQueryMatch || tradeMatch || contactMatch;
-    });
+        const normalizedQuery = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        return contributors.filter(c => {
+            // 1. Church Filter
+            if (selectedChurchFilter !== 'all') {
+                const isMatch = c.church_id === selectedChurchFilter || c.is_global;
+                if (!isMatch) return false;
+            }
+
+            // 2. Search query
+            if (!query) return true;
+
+            const roleVal = c.role_position || c.category;
+            const nameMatch = c.canonical_name?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalizedQuery);
+            const cpfMatch = cleanQueryCpf ? c.cpf?.replace(/\D/g, '').includes(cleanQueryCpf) : false;
+            const roleQueryMatch = roleVal?.toLowerCase().includes(query);
+            const tradeMatch = c.trade_name?.toLowerCase().includes(query);
+            const contactMatch = c.contact_person?.toLowerCase().includes(query);
+            return nameMatch || cpfMatch || roleQueryMatch || tradeMatch || contactMatch;
+        });
+    }, [contributors, selectedChurchFilter, debouncedSearch]);
+
+    // Paginated / slice displayed contributors for instant DOM rendering
+    const displayedContributors = useMemo(() => {
+        return filteredContributors.slice(0, displayLimit);
+    }, [filteredContributors, displayLimit]);
 
     return (
         <div className="h-full flex flex-col animate-fade-in" id="contributors-container">
@@ -959,7 +1000,7 @@ export const ContributorsList: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30 font-sans">
-                            {filteredContributors.map((c) => {
+                            {displayedContributors.map((c) => {
                                 const church = churches.find((ch: any) => ch.id === c.church_id);
                                 const isPJ = c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14);
                                 return (
@@ -1124,6 +1165,20 @@ export const ContributorsList: React.FC = () => {
                             })}
                         </tbody>
                     </table>
+
+                    {filteredContributors.length > displayLimit && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl mt-1">
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                Exibindo <strong className="text-slate-800 dark:text-slate-200">{displayedContributors.length}</strong> de <strong className="text-slate-800 dark:text-slate-200">{filteredContributors.length}</strong> cadastros
+                            </span>
+                            <button
+                                onClick={() => setDisplayLimit(prev => prev + 60)}
+                                className="px-5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm transition-all cursor-pointer"
+                            >
+                                Carregar mais 60 registros...
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 

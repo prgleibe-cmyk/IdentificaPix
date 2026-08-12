@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import pg from 'pg';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -64,6 +65,7 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3010;
 
 app.use(cors());
+app.use(compression() as any);
 app.use(express.json());
 
 // Configure PostgreSQL connection
@@ -180,6 +182,9 @@ async function initializeDatabase() {
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS photo_url TEXT;");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS name VARCHAR(255);");
     await client.query("ALTER TABLE contributors ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_church_status ON contributors(church_id, status);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_canonical_name ON contributors(canonical_name);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_cpf ON contributors(cpf);");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
 
     // Create table banks

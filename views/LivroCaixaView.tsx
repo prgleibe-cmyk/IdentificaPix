@@ -156,6 +156,21 @@ export const LivroCaixaView: React.FC = memo(() => {
         }
     };
 
+    // Auto-initialize custom dates when switching to period mode
+    useEffect(() => {
+        if (selectionMode === 'dates') {
+            if (!customStartDate) {
+                const start = context?.searchFilters?.dateRange?.start || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+                setCustomStartDate(start);
+            }
+            if (!customEndDate) {
+                const todayIso = new Date().toISOString().split('T')[0];
+                const end = context?.searchFilters?.dateRange?.end || todayIso;
+                setCustomEndDate(end);
+            }
+        }
+    }, [selectionMode, customStartDate, customEndDate, selectedYear, selectedMonth, context?.searchFilters]);
+
     // Filter reportData
     const filteredReportData = useMemo(() => {
         return reportData.filter((item: any) => {
@@ -165,21 +180,28 @@ export const LivroCaixaView: React.FC = memo(() => {
             }
 
             if (selectedChurchIds.length > 0) {
-                const itemChurchId = item.churchId || item.church;
-                if (!selectedChurchIds.includes(itemChurchId)) return false;
+                const itemChurchId = item.churchId;
+                const itemChurchName = item.church;
+                const matchesAny = selectedChurchIds.some(cId => {
+                    if (itemChurchId && itemChurchId === cId) return true;
+                    const chObj = churches.find((c: any) => c.id === cId);
+                    return chObj && (itemChurchName === chObj.name || itemChurchId === chObj.id);
+                });
+                if (!matchesAny) return false;
             }
 
             if (item.date) {
+                const itemDateIso = item.date.includes('T') ? item.date.split('T')[0] : item.date;
                 if (selectionMode === 'month') {
-                    const parts = item.date.split('-');
+                    const parts = itemDateIso.split('-');
                     if (parts.length === 3) {
                         const txYear = Number(parts[0]);
                         const txMonth = Number(parts[1]);
                         if (txYear !== selectedYear || txMonth !== selectedMonth) return false;
                     }
                 } else if (selectionMode === 'dates') {
-                    if (customStartDate && item.date < customStartDate) return false;
-                    if (customEndDate && item.date > customEndDate) return false;
+                    if (customStartDate && itemDateIso < customStartDate) return false;
+                    if (customEndDate && itemDateIso > customEndDate) return false;
                 }
             }
 
@@ -221,6 +243,95 @@ export const LivroCaixaView: React.FC = memo(() => {
             totalTransactions: filteredReportData.length
         };
     }, [filteredReportData]);
+
+    // Detalhado RESUMO financeiro do Livro Caixa
+    const summaryBreakdown = useMemo(() => {
+        let saldoAnterior = 0;
+        let entradasDinheiro = 0;
+        let entradasPix = 0;
+        let entradasOutras = 0;
+        let transfRecebidas = 0;
+
+        let saidasDinheiro = 0;
+        let saidasPix = 0;
+        let saidasBoletoFaturas = 0;
+        let saidasOutras = 0;
+        let transfEnviadas = 0;
+
+        // Cálculo do Saldo Anterior (se houver data de início)
+        if (selectionMode === 'dates' && customStartDate) {
+            reportData.forEach((item: any) => {
+                const itemDate = item.date ? (item.date.includes('T') ? item.date.split('T')[0] : item.date) : '';
+                if (itemDate && itemDate < customStartDate) {
+                    const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+                    const isExp = item.type === 'expense' || Number(item.amount) < 0 || (item.category && item.category.toLowerCase().includes('saida'));
+                    if (isExp) {
+                        saldoAnterior -= amt;
+                    } else {
+                        saldoAnterior += amt;
+                    }
+                }
+            });
+        }
+
+        filteredReportData.forEach((item: any) => {
+            const amt = Math.abs(Number(item.amount) || Number(item.val) || 0);
+            const pm = (item.paymentMethod || item.forma || '').toString().toUpperCase();
+            const cat = (item.category || item.categoria || '').toString().toUpperCase();
+            const desc = (item.desc || item.description || item.historico || '').toString().toUpperCase();
+            const isExp = item.type === 'expense' || Number(item.amount) < 0 || cat.includes('SAIDA') || cat.includes('SAÍDA');
+
+            const isTransf = pm.includes('TRANSFER') || pm.includes('TED') || pm.includes('DOC') || cat.includes('TRANSFER') || desc.includes('TRANSFER');
+
+            if (isExp) {
+                if (isTransf) {
+                    transfEnviadas += amt;
+                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                    saidasDinheiro += amt;
+                } else if (pm.includes('PIX')) {
+                    saidasPix += amt;
+                } else if (pm.includes('BOLETO') || pm.includes('FATURA') || pm.includes('CARTÃO') || pm.includes('CARTAO')) {
+                    saidasBoletoFaturas += amt;
+                } else {
+                    saidasOutras += amt;
+                }
+            } else {
+                if (isTransf) {
+                    transfRecebidas += amt;
+                } else if (pm.includes('DINHEIRO') || pm.includes('ESPÉCIE') || pm.includes('ESPECIE')) {
+                    entradasDinheiro += amt;
+                } else if (pm.includes('PIX')) {
+                    entradasPix += amt;
+                } else {
+                    entradasOutras += amt;
+                }
+            }
+        });
+
+        const totalEntradas = entradasDinheiro + entradasPix + entradasOutras;
+        const totalSaidas = saidasDinheiro + saidasPix + saidasBoletoFaturas + saidasOutras;
+
+        const totalEntradasPlusTransf = totalEntradas + transfRecebidas;
+        const totalSaidasPlusTransf = totalSaidas + transfEnviadas;
+
+        const saldoFinal = saldoAnterior + totalEntradasPlusTransf - totalSaidasPlusTransf;
+
+        return {
+            saldoAnterior,
+            entradasDinheiro,
+            entradasPix,
+            totalEntradas,
+            saidasDinheiro,
+            saidasPix,
+            saidasBoletoFaturas,
+            totalSaidas,
+            transfRecebidas,
+            transfEnviadas,
+            totalEntradasPlusTransf,
+            totalSaidasPlusTransf,
+            saldoFinal
+        };
+    }, [reportData, filteredReportData, selectionMode, customStartDate]);
 
     const handleExportLivroCaixa = (format: 'pdf' | 'excel' | 'csv' | 'ofx') => {
         setShowExportLivroCaixa(false);
@@ -534,6 +645,90 @@ export const LivroCaixaView: React.FC = memo(() => {
                         </div>
                         <div className="p-2.5 rounded-xl bg-slate-500/10 text-slate-600 dark:text-slate-400">
                             <DollarSign className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* RESUMO DE CAIXA DETALHADO */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-4 bg-brand-orange rounded-full"></div>
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">RESUMO</h3>
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400">Demonstrativo Analítico do Caixa</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-xs">
+                        {/* Bloco Entradas & Créditos */}
+                        <div className="space-y-2 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                            <div className="font-black text-emerald-800 dark:text-emerald-400 uppercase text-[10px] tracking-wider mb-2 border-b border-emerald-200/60 dark:border-emerald-800/40 pb-1.5">Entradas e Créditos</div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                                <span>Total de entradas em dinheiro:</span>
+                                <strong className="font-mono text-emerald-600">{formatBRL(summaryBreakdown.entradasDinheiro)}</strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                                <span>Total de entradas em Pix:</span>
+                                <strong className="font-mono text-emerald-600">{formatBRL(summaryBreakdown.entradasPix)}</strong>
+                            </div>
+                            <div className="flex justify-between font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-emerald-200/40">
+                                <span>Total de entradas:</span>
+                                <strong className="font-mono text-emerald-700">{formatBRL(summaryBreakdown.totalEntradas)}</strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-1">
+                                <span>Total de transf. recebidas:</span>
+                                <strong className="font-mono text-emerald-600">{formatBRL(summaryBreakdown.transfRecebidas)}</strong>
+                            </div>
+                            <div className="flex justify-between font-extrabold text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200/80 dark:border-emerald-800/60 text-[11px]">
+                                <span>Total de Entradas + Transferência recebidas:</span>
+                                <span className="font-mono">{formatBRL(summaryBreakdown.totalEntradasPlusTransf)}</span>
+                            </div>
+                        </div>
+
+                        {/* Bloco Saídas & Débitos */}
+                        <div className="space-y-2 bg-rose-50/30 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100 dark:border-rose-900/30">
+                            <div className="font-black text-rose-800 dark:text-rose-400 uppercase text-[10px] tracking-wider mb-2 border-b border-rose-200/60 dark:border-rose-800/40 pb-1.5">Saídas e Débitos</div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                                <span>Total de saídas em dinheiro:</span>
+                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.saidasDinheiro)}</strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                                <span>Total de saídas em Pix:</span>
+                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.saidasPix)}</strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                                <span>Total de saídas boleto, faturas:</span>
+                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.saidasBoletoFaturas)}</strong>
+                            </div>
+                            <div className="flex justify-between font-bold text-slate-800 dark:text-slate-100 pt-1 border-t border-rose-200/40">
+                                <span>Total de saídas:</span>
+                                <strong className="font-mono text-rose-700">{formatBRL(summaryBreakdown.totalSaidas)}</strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-300 pt-1">
+                                <span>Total de transf. enviadas:</span>
+                                <strong className="font-mono text-rose-600">{formatBRL(summaryBreakdown.transfEnviadas)}</strong>
+                            </div>
+                            <div className="flex justify-between font-extrabold text-rose-800 dark:text-rose-300 pt-2 border-t border-rose-200/80 dark:border-rose-800/60 text-[11px]">
+                                <span>Total de saídas + Transferência enviadas:</span>
+                                <span className="font-mono">{formatBRL(summaryBreakdown.totalSaidasPlusTransf)}</span>
+                            </div>
+                        </div>
+
+                        {/* Bloco Saldos */}
+                        <div className="space-y-3 bg-amber-50/40 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/60 dark:border-amber-900/30 flex flex-col justify-between">
+                            <div>
+                                <div className="font-black text-amber-800 dark:text-amber-400 uppercase text-[10px] tracking-wider mb-2 border-b border-amber-200/60 dark:border-amber-800/40 pb-1.5">Saldos do Período</div>
+                                <div className="flex justify-between text-slate-700 dark:text-slate-300 py-1">
+                                    <span className="font-bold">Saldo Anterior:</span>
+                                    <strong className="font-mono">{formatBRL(summaryBreakdown.saldoAnterior)}</strong>
+                                </div>
+                            </div>
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-300/80 dark:border-amber-800 shadow-xs flex justify-between items-center">
+                                <span className="font-black text-slate-900 dark:text-white uppercase text-[11px] tracking-tight">Saldo final:</span>
+                                <span className={`text-base font-black font-mono ${summaryBreakdown.saldoFinal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    {formatBRL(summaryBreakdown.saldoFinal)}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
