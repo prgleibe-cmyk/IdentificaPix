@@ -821,13 +821,6 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
       ? ctx.churchId
       : (requestedChurchId || (req.headers['x-church-id'] as string) || ctx.churchId);
 
-    if (!effectiveChurchId && !ctx.isSuperAdmin) {
-      return res.status(400).json({
-        error: 'VALIDATION_ERROR',
-        message: 'church_id é obrigatório para consultar contribuintes.'
-      });
-    }
-
     const { status } = req.query;
     let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];

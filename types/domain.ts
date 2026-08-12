@@ -10,7 +10,8 @@ export enum MatchMethod {
   MANUAL = 'MANUAL',
   LEARNED = 'LEARNED',
   AI = 'AI',
-  TEMPLATE = 'TEMPLATE'
+  TEMPLATE = 'TEMPLATE',
+  CPF = 'CPF'
 }
 
 export interface Bank {
