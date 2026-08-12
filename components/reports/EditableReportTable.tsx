@@ -314,6 +314,7 @@ const IncomeRow = memo(({
     const displayDate = formatDate(row.transaction.date);
     
     const displayName = getResolvedDisplayName(row) || '---';
+    const rawBankDesc = row.transaction?.rawDescription || row.transaction?.cleanedDescription || row.transaction?.description || '';
 
     const displayForm = resolvePaymentMethod(
         row.contributor?.paymentMethod || row.paymentMethod || row.transaction.paymentMethod,
