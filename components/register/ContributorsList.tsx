@@ -26,6 +26,7 @@ export const ContributorsList: React.FC = () => {
     const isPrincipalUser = !subscription?.role || subscription?.role === 'owner' || subscription?.role === 'admin' || subscription?.role === 'principal' || subscription?.ownerId === user?.id;
     
     const [search, setSearch] = useState('');
+    const [selectedChurchFilter, setSelectedChurchFilter] = useState<string>('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [contributors, setContributors] = useState<any[]>([]);
     const [isLoadingContributors, setIsLoadingContributors] = useState<boolean>(true);
@@ -793,7 +794,27 @@ export const ContributorsList: React.FC = () => {
     const isNameInvalid = attemptedSubmit && !fullName.trim();
     const isChurchInvalid = attemptedSubmit && (!selectedChurchId || selectedChurchId === 'church-1');
 
+    // Metrics counters
+    const totalContributorsCount = contributors.length;
+    const pfContributorsCount = contributors.filter(c => c.person_type !== 'PJ' && (!c.cpf || c.cpf.replace(/\D/g, '').length !== 14)).length;
+    const pjContributorsCount = contributors.filter(c => c.person_type === 'PJ' || (c.cpf && c.cpf.replace(/\D/g, '').length === 14)).length;
+
+    // CPF duplicate detection in form modal
+    const cleanTypedCpf = cpf.replace(/\D/g, '');
+    const existingContributorWithCpf = cleanTypedCpf && cleanTypedCpf.length >= 11 ? contributors.find(c => {
+        if (editingContributor && c.id === editingContributor.id) return false;
+        const cleanC = c.cpf?.replace(/\D/g, '');
+        return cleanC && cleanC === cleanTypedCpf && c.status === 'active';
+    }) : null;
+
     const filteredContributors = contributors.filter(c => {
+        // 1. Church Filter
+        if (selectedChurchFilter !== 'all') {
+            const isMatch = c.church_id === selectedChurchFilter || c.is_global;
+            if (!isMatch) return false;
+        }
+
+        // 2. Search query
         const query = search.toLowerCase().trim();
         if (!query) return true;
 
@@ -816,9 +837,23 @@ export const ContributorsList: React.FC = () => {
                         <UsersIcon className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
-                            Empresas / Pessoas
-                        </h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-base text-slate-800 dark:text-white leading-none">
+                                Empresas / Pessoas
+                            </h3>
+                            {/* Badges / Counters */}
+                            <div className="flex items-center gap-1.5 ml-1">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Total de cadastros">
+                                    Total: {totalContributorsCount}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40" title="Pessoas Físicas">
+                                    PF: {pfContributorsCount}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40" title="Empresas / Pessoa Jurídica">
+                                    PJ: {pjContributorsCount}
+                                </span>
+                            </div>
+                        </div>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
                             Gerenciamento de membros, congregados, parceiros, fornecedores, prestadores e favorecidos.
                         </p>
@@ -846,7 +881,7 @@ export const ContributorsList: React.FC = () => {
                 </div>
             </div>
 
-            {/* Visual Search input below the header */}
+            {/* Visual Search input & Church Filter Selector below header */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 flex-shrink-0">
                 <div className="relative flex-1">
                     <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
@@ -858,6 +893,26 @@ export const ContributorsList: React.FC = () => {
                         className="pl-8 p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-brand-graphite dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-medium outline-none" 
                         id="contributors-search"
                     />
+                </div>
+
+                {/* Church Selector Filter */}
+                <div className="sm:w-64 flex-shrink-0">
+                    <select
+                        value={selectedChurchFilter}
+                        onChange={(e) => setSelectedChurchFilter(e.target.value)}
+                        className="p-2.5 block w-full rounded-2xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 focus:border-brand-blue focus:ring-brand-blue transition-all shadow-sm focus:bg-white dark:focus:bg-slate-900 text-xs font-bold outline-none cursor-pointer"
+                        id="contributors-church-filter"
+                    >
+                        <option value="all">⛪ Todas as Igrejas ({totalContributorsCount})</option>
+                        {churches.map((ch: any) => {
+                            const churchCount = contributors.filter(c => c.church_id === ch.id || c.is_global).length;
+                            return (
+                                <option key={ch.id} value={ch.id}>
+                                    {ch.name} ({churchCount})
+                                </option>
+                            );
+                        })}
+                    </select>
                 </div>
             </div>
 
@@ -1277,6 +1332,14 @@ export const ContributorsList: React.FC = () => {
                                                 placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
                                                 className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm text-xs p-3.5 outline-none font-bold"
                                             />
+                                            {existingContributorWithCpf && (
+                                                <div className="flex items-start space-x-2 mt-2 text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800/80 font-medium animate-fade-in">
+                                                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                                                    <div>
+                                                        <strong>CPF/CNPJ já cadastrado:</strong> Pertence a <strong>{existingContributorWithCpf.canonical_name}</strong>. Ao salvar, os dados serão vinculados ao cadastro existente para evitar duplicidade.
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* RG / IE */}

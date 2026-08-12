@@ -1985,7 +1985,20 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     }
 
     if (cpf !== undefined) {
-      addField('cpf', cpf ? String(cpf).replace(/\D/g, '') : null);
+      const sanitizedCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
+      if (sanitizedCpf && sanitizedCpf.length > 0) {
+        const dupCheck = await pool.query(
+          "SELECT id, canonical_name FROM contributors WHERE id != $1 AND status = 'active' AND (cpf = $2 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $2) LIMIT 1",
+          [id, sanitizedCpf]
+        );
+        if (dupCheck.rows.length > 0) {
+          return res.status(409).json({
+            error: 'DUPLICATE_CPF',
+            message: `Já existe outro cadastro ativo (${dupCheck.rows[0].canonical_name}) com este CPF/CNPJ.`
+          });
+        }
+      }
+      addField('cpf', sanitizedCpf);
     }
 
     if (email !== undefined) {
