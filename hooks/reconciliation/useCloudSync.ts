@@ -183,9 +183,10 @@ export const useCloudSync = ({
             }
 
             console.log("[CloudSync:ATOM] Reconstruindo sessão ativa a partir de registros individuais...");
+            const hasDataAlready = Array.isArray(matchResults) && matchResults.length > 0;
             isHydratingFromCloud.current = true;
             setIsHydrating(true);
-            if (setIsLoading) setIsLoading(true);
+            if (setIsLoading && !hasDataAlready) setIsLoading(true);
             needsRetry.current = false;
 
             try {
@@ -568,7 +569,7 @@ export const useCloudSync = ({
 
                 setHasActiveSession(true);
 
-                if (reconstructed.length > 0) {
+                if (reconstructed.length > 0 && !hasDataAlready) {
                     showToast("Sessão ativa sincronizada.", "success");
                 }
 

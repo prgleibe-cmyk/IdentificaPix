@@ -37,31 +37,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [realtimeRefreshKey, setRealtimeRefreshKey] = useState(0);
 
-    // 📡 ESCUTA DE VISIBILIDADE / CONEXÃO (ROBUSTEZ PARA CELULAR, TABLET E NOTEBOOK)
+    // 📡 ESCUTA DE RECONEXÃO DE REDE (Sem travar a tela na troca de abas)
     useEffect(() => {
         let lastTriggerTime = 0;
         const triggerRefresh = () => {
             const now = Date.now();
-            if (now - lastTriggerTime < 1500) return; // debounce de 1.5s
+            if (now - lastTriggerTime < 5000) return; // debounce de 5s
             lastTriggerTime = now;
             
-            console.log("[AppContext:RealtimeRefresh] Dispositivos / Foco reativado. Sincronizando canais de tempo real e forçando hidratação.");
+            console.log("[AppContext:RealtimeRefresh] Conexão de rede restabelecida.");
             setRealtimeRefreshKey(prev => prev + 1);
         };
 
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                triggerRefresh();
-            }
-        };
-
-        window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('focus', triggerRefresh);
         window.addEventListener('online', triggerRefresh);
 
         return () => {
-            window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('focus', triggerRefresh);
             window.removeEventListener('online', triggerRefresh);
         };
     }, []);

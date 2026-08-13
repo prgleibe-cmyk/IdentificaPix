@@ -21,6 +21,7 @@ import { Toast } from './components/shared/Toast';
 import { LoadingSpinner } from './components/shared/LoadingSpinner';
 import { ManualIdModal } from './components/modals/ManualIdModal';
 import { ExpiredBlockOverlay } from './components/shared/ExpiredBlockOverlay';
+import { SystemVersionMonitor } from './components/shared/SystemVersionMonitor';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
@@ -69,6 +70,7 @@ const MainLayout: React.FC = () => {
             </main>
 
             {toast && <Toast message={toast.message} type={toast.type} />}
+            <SystemVersionMonitor />
         </div>
     );
 };

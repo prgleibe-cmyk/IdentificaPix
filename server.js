@@ -157,8 +157,20 @@ app.use((req, res, next) => {
     express.json({ limit: '50mb' })(req, res, next);
 });
 
-// Health check
+// Health check & versão pública
+const SERVER_START_TIME = new Date().toISOString();
+
 app.get('/health', (req, res) => res.status(200).send('OK'));
+
+app.get('/api/version', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.json({
+        version: process.env.APP_VERSION || '2.0.0',
+        serverStartTime: SERVER_START_TIME,
+        status: 'ok',
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Inicialização da IA Gemini
 let ai = null;
