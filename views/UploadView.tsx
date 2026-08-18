@@ -46,7 +46,7 @@ export const UploadView: React.FC = memo(() => {
     }, [setFeedingMode]);
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-6 pb-4 px-2 md:px-4">
+        <div className="flex flex-col min-h-full animate-fade-in gap-6 pb-8 md:pb-4 px-2 md:px-4">
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 flex-shrink-0">
                 <div>
                     <h2 className="text-2xl font-black text-brand-deep dark:text-white tracking-tight leading-none">Lançar Dados</h2>

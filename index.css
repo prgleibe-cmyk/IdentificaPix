@@ -37,7 +37,23 @@ html {
 body {
   @apply bg-brand-bg text-brand-graphite;
   height: 100%;
-  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tablet & Mobile Touch Kinetic Scrolling & Pinch-Zoom Engine */
+.custom-scrollbar,
+[class*="overflow-y-auto"],
+[class*="overflow-x-auto"],
+[class*="overflow-auto"],
+main,
+#main-scroll-container {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior-y: contain;
+}
+
+[class*="overflow-x-auto"] {
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 /* --- SUPER PREMIUM 3D SYSTEM --- */

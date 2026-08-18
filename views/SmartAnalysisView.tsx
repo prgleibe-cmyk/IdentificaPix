@@ -17,7 +17,7 @@ export const SmartAnalysisView: React.FC = () => {
     const ctrl = useSmartAnalysisController();
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-3 pb-2">
+        <div className="flex flex-col min-h-full animate-fade-in gap-3 pb-8 md:pb-4">
             <AnalysisToolbar 
                 activeTemplate={ctrl.activeTemplate} 
                 onRankingClick={ctrl.handleRankingClick} 

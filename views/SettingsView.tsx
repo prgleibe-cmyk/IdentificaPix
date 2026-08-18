@@ -237,7 +237,7 @@ export const SettingsView: React.FC = () => {
     const { t } = useTranslation();
 
     return (
-        <div className="flex flex-col h-full lg:h-[calc(100vh-1rem)] animate-fade-in gap-2 pb-1">
+        <div className="flex flex-col min-h-full animate-fade-in gap-2 pb-8 md:pb-4">
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <h2 className="text-xl font-black text-brand-deep dark:text-white tracking-tight leading-none whitespace-nowrap">{t('settings.title')}</h2>
                 

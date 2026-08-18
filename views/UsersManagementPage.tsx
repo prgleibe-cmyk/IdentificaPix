@@ -296,7 +296,7 @@ export const UsersManagementPage: React.FC = () => {
     );
 
     return (
-        <div className="flex flex-col h-full gap-6 animate-fade-in pb-6 overflow-y-auto custom-scrollbar relative">
+        <div className="flex flex-col min-h-full gap-6 animate-fade-in pb-8 md:pb-4 relative">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div className="flex items-center gap-3">

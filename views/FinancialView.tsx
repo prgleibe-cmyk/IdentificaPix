@@ -622,7 +622,7 @@ export const FinancialView: React.FC = memo(() => {
     }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth, dateRangeType, startDate, endDate]);
 
     return (
-        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full pb-8 md:pb-4">
             {/* Header Area */}
             <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
                 {/* Top Row: Title & Subtitle + Action Buttons */}

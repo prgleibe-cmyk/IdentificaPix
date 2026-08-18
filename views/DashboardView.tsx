@@ -29,7 +29,7 @@ export const DashboardView: React.FC = memo(() => {
     }
 
     return (
-        <div className="flex flex-col h-full gap-4 animate-fade-in pb-4 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-col min-h-full gap-4 animate-fade-in pb-8 md:pb-4">
             <div className="flex-shrink-0 flex items-center justify-between gap-4 px-1 mt-1 min-h-[40px]">
                 <div className="flex items-center gap-3">
                     <img 

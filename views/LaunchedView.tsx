@@ -81,7 +81,7 @@ export const LaunchedView: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-full animate-fade-in gap-4 pb-4 px-1">
+        <div className="flex flex-col min-h-full animate-fade-in gap-4 pb-8 md:pb-4 px-1">
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <div>

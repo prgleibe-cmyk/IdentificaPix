@@ -44,7 +44,7 @@ export const RegisterView: React.FC = memo(() => {
     const churchLimitReached = churches.length >= (subscription.maxChurches || 1);
 
     return (
-        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full flex flex-col h-full animate-fade-in pb-8">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full flex flex-col min-h-full animate-fade-in pb-8 md:pb-4">
             {/* Header Section */}
             <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 mt-1">
                 <div>

@@ -683,7 +683,7 @@ export const RelatoriosView: React.FC = memo(() => {
     // If report has not been generated yet, show the full Configuration Panel
     if (!hasGenerated) {
         return (
-            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-8 overflow-y-auto custom-scrollbar">
+            <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
                 {/* Title Card */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 p-5 md:p-6 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
@@ -1166,7 +1166,7 @@ export const RelatoriosView: React.FC = memo(() => {
 
     // Generated Report View
     return (
-        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-4">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
             {/* Top Bar on Generated Report Screen */}
             <div className="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
                 {/* Left: Active Report Title & Parameter Summary Badges */}

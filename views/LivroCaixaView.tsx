@@ -415,7 +415,7 @@ export const LivroCaixaView: React.FC = memo(() => {
     };
 
     return (
-        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full h-full flex flex-col animate-fade-in pb-4">
+        <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full flex flex-col animate-fade-in pb-8 md:pb-4">
             {/* Header Card */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm flex-shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
