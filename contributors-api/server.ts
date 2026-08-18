@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { createAuthRouter, AuthRepository } from './auth/routes/auth.routes.js';
@@ -15,9 +16,10 @@ import { createAutomationMacroRouter } from './automation-macros/routes/automati
 import { createFileModelRouter } from './file-models/routes/file_model.routes.js';
 import { createProfileRouter } from './profiles/routes/profile.routes.js';
 import { createPaymentRouter } from './payments/routes/payment.routes.js';
-import { executeBackup, scheduleAutomatedBackups, getBackupDirectory, listBackups } from './services/backup.service.js';
+import { executeBackup, scheduleAutomatedBackups, getBackupDirectory, listBackups, dumpDatabase } from './services/backup.service.js';
 import { initAuditDatabase, logAudit, queryAuditLogs } from './services/audit.service.js';
 import { getMonitoringStatus, sendAlertNotification, startMonitoringService, getSecurityDashboardStatus } from './services/monitoring.service.js';
+import { startBackgroundScheduler, getSchedulerStatus } from './services/scheduler.service.js';
 
 const requireFallback = createRequire(import.meta.url);
 
@@ -575,8 +577,18 @@ async function initializeDatabase() {
 initializeDatabase().then(() => {
   scheduleAutomatedBackups(pool);
   startMonitoringService(pool);
+  startBackgroundScheduler(pool);
 }).catch(err => {
   console.error('[Contributors API] Error during init/schedule:', err);
+});
+
+// Endpoint do Agendador Automático de Tarefas (Scheduler Status)
+app.get('/api/v1/admin/scheduler/status', async (req: Request, res: Response) => {
+  try {
+    res.json(getSchedulerStatus());
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
 });
 
 // Infrastructure & Monitoring Endpoints
@@ -642,6 +654,13 @@ app.post('/api/v1/admin/backup/run', async (req: Request, res: Response) => {
   try {
     const result = await executeBackup(pool);
     if (result.success) {
+      await logAudit(pool, {
+        action: 'EXECUTE_BACKUP',
+        entity: 'system_backups',
+        entityId: result.filename,
+        newValues: { filename: result.filename, sizeBytes: result.sizeBytes, verified: result.verified },
+        req
+      });
       res.json({
         message: 'Backup PostgreSQL executado com sucesso.',
         filename: result.filename,
@@ -662,6 +681,94 @@ app.post('/api/v1/admin/backup/run', async (req: Request, res: Response) => {
   } catch (err: any) {
     res.status(500).json({
       error: 'Erro interno ao processar backup',
+      details: err?.message || String(err)
+    });
+  }
+});
+
+// GET /api/v1/admin/backup/download - Direct streaming of compressed SQL dump for owner download
+app.get('/api/v1/admin/backup/download', async (req: Request, res: Response) => {
+  try {
+    const startTime = Date.now();
+    const sqlDump = await dumpDatabase(pool);
+    const gzippedBuffer = zlib.gzipSync(Buffer.from(sqlDump, 'utf8'), { level: 9 });
+    const durationMs = Date.now() - startTime;
+
+    const dateStr = new Date().toISOString().replace(/T/, '_').replace(/:/g, '-').replace(/\..+/, '');
+    const filename = `identificapix-backup-${dateStr}.sql.gz`;
+
+    await logAudit(pool, {
+      action: 'DOWNLOAD_BACKUP',
+      entity: 'system_backups',
+      entityId: filename,
+      newValues: { filename, sizeBytes: gzippedBuffer.length, durationMs },
+      req
+    });
+
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', gzippedBuffer.length.toString());
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.send(gzippedBuffer);
+  } catch (err: any) {
+    console.error('[Contributors API] Error generating downloadable backup:', err);
+    res.status(500).json({
+      error: 'Erro ao gerar download de backup do banco de dados',
+      details: err?.message || String(err)
+    });
+  }
+});
+
+// POST /api/v1/admin/database/optimize - Execute VACUUM ANALYZE & collect optimization metrics
+app.post('/api/v1/admin/database/optimize', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  try {
+    // 1. Run VACUUM ANALYZE across database
+    await pool.query('VACUUM ANALYZE;');
+
+    // 2. Fetch fresh table statistics & disk usage metrics
+    const statsRes = await pool.query(`
+      SELECT 
+        relname AS table_name,
+        n_live_tup AS live_tuples,
+        n_dead_tup AS dead_tuples,
+        pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+        pg_total_relation_size(relid) AS size_bytes,
+        last_vacuum,
+        last_autovacuum,
+        last_analyze,
+        last_autoanalyze
+      FROM pg_stat_user_tables
+      ORDER BY pg_total_relation_size(relid) DESC;
+    `);
+
+    // 3. Database total size
+    const dbSizeRes = await pool.query(`
+      SELECT pg_size_pretty(pg_database_size(current_database())) as total_db_size;
+    `);
+
+    const durationMs = Date.now() - startTime;
+    const totalDbSize = dbSizeRes.rows[0]?.total_db_size || 'N/A';
+
+    await logAudit(pool, {
+      action: 'OPTIMIZE_DATABASE',
+      entity: 'database_maintenance',
+      entityId: 'vacuum_analyze',
+      newValues: { durationMs, totalDbSize, tablesCount: statsRes.rows.length },
+      req
+    });
+
+    res.json({
+      success: true,
+      message: 'Otimização do banco de dados (VACUUM ANALYZE) concluída com sucesso.',
+      durationMs,
+      totalDbSize,
+      tables: statsRes.rows
+    });
+  } catch (err: any) {
+    console.error('[Contributors API] Error running VACUUM ANALYZE:', err);
+    res.status(500).json({
+      error: 'Erro ao executar otimização do banco de dados',
       details: err?.message || String(err)
     });
   }

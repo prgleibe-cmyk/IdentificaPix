@@ -22,12 +22,20 @@ export const useSystemSettings = () => {
                 if (remoteSettings) {
                     setSystemSettings(prev => ({
                         ...DEFAULT_SETTINGS,
-                        ...remoteSettings
+                        ...remoteSettings,
+                        announcement: {
+                            ...DEFAULT_SETTINGS.announcement,
+                            ...(remoteSettings?.announcement || {})
+                        }
                     }));
                 } else {
                     setSystemSettings(prev => ({
                         ...DEFAULT_SETTINGS,
-                        ...prev
+                        ...prev,
+                        announcement: {
+                            ...DEFAULT_SETTINGS.announcement,
+                            ...(prev?.announcement || {})
+                        }
                     }));
                 }
             } catch (e) {

@@ -22,6 +22,7 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner';
 import { ManualIdModal } from './components/modals/ManualIdModal';
 import { ExpiredBlockOverlay } from './components/shared/ExpiredBlockOverlay';
 import { SystemVersionMonitor } from './components/shared/SystemVersionMonitor';
+import { GlobalAnnouncementBanner } from './components/shared/GlobalAnnouncementBanner';
 import { usePinchZoom } from './hooks/usePinchZoom';
 import { PinchZoomControl } from './components/layout/PinchZoomControl';
 
@@ -53,6 +54,7 @@ const MainLayout: React.FC = () => {
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 md:pt-0">
+                <GlobalAnnouncementBanner />
                 <div 
                     ref={scrollContainerRef}
                     id="main-scroll-container" 

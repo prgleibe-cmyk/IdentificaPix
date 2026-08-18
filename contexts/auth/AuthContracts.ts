@@ -1,6 +1,18 @@
 
 import { SubscriptionStatus } from '../../types';
 
+export interface GlobalAnnouncement {
+    enabled: boolean;
+    type: 'info' | 'warning' | 'maintenance' | 'success';
+    title?: string;
+    message: string;
+    linkUrl?: string;
+    linkLabel?: string;
+    dismissible: boolean;
+    scheduledAt?: string;
+    updatedAt?: string;
+}
+
 export interface SystemSettings {
     defaultTrialDays: number;
     pixKey: string;
@@ -15,6 +27,7 @@ export interface SystemSettings {
     ownerCpf?: string;
     ownerEmail?: string;
     ownerDocumentType?: string;
+    announcement?: GlobalAnnouncement;
 }
 
 export interface AuthContextType {
@@ -45,5 +58,14 @@ export const DEFAULT_SETTINGS: SystemSettings = {
     ownerName: 'Gleibe Oliveira da Silva',
     ownerCpf: '907.169.901-30',
     ownerEmail: 'identificapix@gmail.com',
-    ownerDocumentType: 'PF'
+    ownerDocumentType: 'PF',
+    announcement: {
+        enabled: false,
+        type: 'info',
+        title: '',
+        message: '',
+        linkUrl: '',
+        linkLabel: '',
+        dismissible: true
+    }
 };
