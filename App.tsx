@@ -22,11 +22,15 @@ import { LoadingSpinner } from './components/shared/LoadingSpinner';
 import { ManualIdModal } from './components/modals/ManualIdModal';
 import { ExpiredBlockOverlay } from './components/shared/ExpiredBlockOverlay';
 import { SystemVersionMonitor } from './components/shared/SystemVersionMonitor';
+import { usePinchZoom } from './hooks/usePinchZoom';
+import { PinchZoomControl } from './components/layout/PinchZoomControl';
 
 // --- Main Application Layout ---
 const MainLayout: React.FC = () => {
     const { isLoading, initialDataLoaded, toast, savedReports } = useContentController();
     const hasCachedData = !!savedReports?.length;
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+    const pinchState = usePinchZoom(scrollContainerRef);
 
     const context = React.useContext(AppContext);
     const bulkIdentificationTxs = context?.bulkIdentificationTxs;
@@ -49,9 +53,17 @@ const MainLayout: React.FC = () => {
             <Sidebar />
 
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative pt-16 md:pt-0">
-                <div className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative">
-                    <div className="max-w-[1920px] mx-auto h-full flex flex-col relative z-10">
-                        <div className={`h-full transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                <div 
+                    ref={scrollContainerRef}
+                    id="main-scroll-container" 
+                    className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y pinch-zoom' }}
+                >
+                    <div 
+                        className="max-w-[1920px] mx-auto min-h-full flex flex-col relative z-10 pb-8 md:pb-4 transition-[zoom] duration-150 origin-top-left"
+                        style={{ zoom: pinchState.zoom }}
+                    >
+                        <div className={`min-h-full flex-1 flex flex-col transition-opacity duration-300 ${isLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                             <AppRouter />
                         </div>
 
@@ -67,6 +79,7 @@ const MainLayout: React.FC = () => {
                     </div>
                 </div>
                 <ModalsRenderer />
+                <PinchZoomControl pinchState={pinchState} />
             </main>
 
             {toast && <Toast message={toast.message} type={toast.type} />}
