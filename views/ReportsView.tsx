@@ -337,7 +337,7 @@ export const ReportsView: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative">
+                    <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-card overflow-hidden flex flex-col p-0 relative min-h-[500px]">
                         <StatsStrip 
                             category={ctrl.activeCategory} 
                             reportName={reportDisplayName} 
@@ -347,21 +347,19 @@ export const ReportsView: React.FC = () => {
                             language={language}
                         />
                         
-                        <div className="flex-1 min-h-0 relative">
+                        <div className="flex-1 w-full flex flex-col relative min-h-[350px]">
                             {ctrl.sortedData.length > 0 ? (
-                                <div className="absolute inset-0">
-                                    <EditableReportTable 
-                                        data={ctrl.sortedData}
-                                        onRowChange={(row) => ctrl.updateReportData(row)}
-                                        reportType={ctrl.activeCategory === 'expenses' ? 'expenses' : 'income'}
-                                        sortConfig={ctrl.sortConfig}
-                                        onSort={ctrl.handleSort}
-                                        onSplit={setSplitRow}
-                                        loadingAiId={loadingAiId}
-                                    />
-                                </div>
+                                <EditableReportTable 
+                                    data={ctrl.sortedData}
+                                    onRowChange={(row) => ctrl.updateReportData(row)}
+                                    reportType={ctrl.activeCategory === 'expenses' ? 'expenses' : 'income'}
+                                    sortConfig={ctrl.sortConfig}
+                                    onSort={ctrl.handleSort}
+                                    onSplit={setSplitRow}
+                                    loadingAiId={loadingAiId}
+                                />
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                                     <p className="text-xs italic">Nenhum dado encontrado para esta seleção.</p>
                                 </div>
                             )}

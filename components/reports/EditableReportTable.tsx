@@ -623,9 +623,9 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
     }, [data, currentPage]);
 
     return (
-        <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900 relative">
+        <div className="flex flex-col flex-1 w-full bg-white dark:bg-slate-900 relative min-h-[350px]">
             <BulkActionToolbar selectedIds={selectedIds} results={data} onClear={() => setSelectedIds([])} />
-            <div className="flex-1 w-full overflow-auto custom-scrollbar relative">
+            <div className="flex-1 w-full overflow-x-auto overflow-y-visible md:overflow-auto custom-scrollbar relative">
                 {/* Desktop Table View */}
                 <table className="hidden md:table w-full text-left border-collapse">
                     <thead className="bg-slate-200 dark:bg-slate-950 sticky top-0 z-20 shadow-sm">
