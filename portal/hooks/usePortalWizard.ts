@@ -149,15 +149,39 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
 
             if (data.found && data.contributor) {
                 const matched = data.contributor;
-                const foundContribObj = {
+                const foundContribObj: ContributorMockProfile = {
                     id: matched.id,
-                    name: matched.canonical_name || '',
+                    name: matched.name || matched.canonical_name || '',
+                    canonical_name: matched.canonical_name || matched.name || '',
                     cpf: matched.cpf || (type === 'cpf' ? val : ''),
-                    phone: matched.phone || (type === 'phone' ? val : ''),
+                    phone: matched.phone || matched.whatsapp || (type === 'phone' ? val : ''),
+                    whatsapp: matched.whatsapp || matched.phone || '',
                     email: matched.email || (type === 'email' ? val : ''),
-                    city: 'São Paulo',
-                    state: 'SP',
+                    birth_date: matched.birth_date || '',
+                    person_type: matched.person_type || 'PF',
+                    trade_name: matched.trade_name || '',
+                    rg_ie: matched.rg_ie || '',
+                    contact_person: matched.contact_person || '',
+                    category: matched.category || '',
+                    role_position: matched.role_position || '',
+                    pix_key: matched.pix_key || '',
+                    bank_name: matched.bank_name || '',
+                    bank_agency: matched.bank_agency || '',
+                    bank_account: matched.bank_account || '',
+                    address_cep: matched.address_cep || '',
+                    address_street: matched.address_street || '',
+                    address_number: matched.address_number || '',
+                    address_city: matched.address_city || matched.city || '',
+                    address_state: matched.address_state || matched.state || '',
+                    city: matched.address_city || matched.city || 'São Paulo',
+                    state: matched.address_state || matched.state || 'SP',
                     congregation: (matched.congregation && matched.congregation !== 'Sede Central') ? matched.congregation : (churchName || ''),
+                    notes: matched.notes || '',
+                    photo_url: matched.photo_url || '',
+                    church_id: matched.church_id || targetChurchId,
+                    status: matched.status || 'active',
+                    updated_at: matched.updated_at || matched.created_at || new Date().toISOString(),
+                    last_confirmed_at: matched.last_confirmed_at || matched.updated_at || matched.created_at || new Date().toISOString(),
                     isExisting: true
                 };
                 try {
@@ -181,6 +205,12 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                         cpf: type === 'cpf' ? val : '',
                         phone: type === 'phone' ? val : '',
                         email: type === 'email' ? val : '',
+                        birth_date: '',
+                        address_cep: '',
+                        address_street: '',
+                        address_number: '',
+                        address_city: '',
+                        address_state: '',
                         city: 'São Paulo',
                         state: 'SP',
                         congregation: churchName || '',
@@ -196,9 +226,9 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             setIsSearching(false);
             return false;
         }
-    }, [wizardState.identificationType, wizardState.identificationValue, churchId]);
+    }, [wizardState.identificationType, wizardState.identificationValue, churchId, churchName]);
 
-    // Save new contributor to database
+    // Save or update contributor to database
     const saveContributor = useCallback(async (activeChurchId?: string): Promise<boolean> => {
         const contrib = wizardState.contributor;
         if (contrib.isExisting && contrib.id) {
@@ -216,10 +246,19 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     church_id: targetChurchId,
-                    canonical_name: contrib.name,
+                    canonical_name: contrib.name || contrib.canonical_name,
+                    name: contrib.name,
                     cpf: contrib.cpf,
                     email: contrib.email,
                     phone: contrib.phone,
+                    whatsapp: contrib.whatsapp || contrib.phone,
+                    birth_date: contrib.birth_date,
+                    address_cep: contrib.address_cep,
+                    address_street: contrib.address_street,
+                    address_number: contrib.address_number,
+                    address_city: contrib.address_city || contrib.city,
+                    address_state: contrib.address_state || contrib.state,
+                    role_position: contrib.role_position,
                     status: 'active'
                 })
             });
@@ -233,10 +272,11 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             }
 
             const newRecord = await response.json();
-            const newContribObj = {
+            const newContribObj: ContributorMockProfile = {
                 ...contrib,
                 id: newRecord.id,
-                isExisting: true
+                isExisting: true,
+                church_id: targetChurchId
             };
             try {
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(newContribObj));
@@ -257,6 +297,103 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
             return false;
         }
     }, [wizardState.contributor, churchId]);
+
+    // Update contributor profile directly on server
+    const updateContributorProfileOnServer = useCallback(async (updatedData: Partial<ContributorMockProfile>): Promise<boolean> => {
+        const merged: ContributorMockProfile = {
+            ...wizardState.contributor,
+            ...updatedData
+        };
+
+        setIsSaving(true);
+        setApiError(null);
+
+        try {
+            if (merged.id) {
+                const res = await fetch(`/api/v1/contributors/${merged.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        canonical_name: merged.name || merged.canonical_name,
+                        name: merged.name,
+                        cpf: merged.cpf,
+                        phone: merged.phone,
+                        whatsapp: merged.whatsapp || merged.phone,
+                        email: merged.email,
+                        birth_date: merged.birth_date,
+                        address_cep: merged.address_cep,
+                        address_street: merged.address_street,
+                        address_number: merged.address_number,
+                        address_city: merged.address_city || merged.city,
+                        address_state: merged.address_state || merged.state,
+                        role_position: merged.role_position
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || 'Falha ao atualizar dados.');
+                }
+            }
+
+            try {
+                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(merged));
+                window.dispatchEvent(new Event('storage'));
+            } catch (_) {}
+
+            setWizardState(prev => ({
+                ...prev,
+                contributor: merged
+            }));
+
+            setIsSaving(false);
+            return true;
+        } catch (err: any) {
+            console.error('[usePortalWizard] Erro ao atualizar perfil:', err);
+            setApiError(err.message || 'Erro ao atualizar dados.');
+            setIsSaving(false);
+            return false;
+        }
+    }, [wizardState.contributor]);
+
+    // 1-Click Periodic Confirmation (6 months)
+    const confirmContributorProfileOnServer = useCallback(async (): Promise<boolean> => {
+        const contrib = wizardState.contributor;
+        setIsSaving(true);
+        try {
+            if (contrib.id) {
+                await fetch('/api/v1/contributors/confirm-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: contrib.id,
+                        cpf: contrib.cpf
+                    })
+                });
+            }
+            const nowIso = new Date().toISOString();
+            const updatedObj: ContributorMockProfile = {
+                ...contrib,
+                updated_at: nowIso,
+                last_confirmed_at: nowIso
+            };
+            try {
+                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedObj));
+                window.dispatchEvent(new Event('storage'));
+            } catch (_) {}
+
+            setWizardState(prev => ({
+                ...prev,
+                contributor: updatedObj
+            }));
+            setIsSaving(false);
+            return true;
+        } catch (err: any) {
+            console.error('[usePortalWizard] Erro ao confirmar perfil semestral:', err);
+            setIsSaving(false);
+            return false;
+        }
+    }, [wizardState.contributor]);
 
     const getTotalAmount = useCallback(() => {
         return wizardState.contributionItems
@@ -404,6 +541,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
         createContributionRequest,
         setMockSearchFound,
         updateContributor,
+        updateContributorProfileOnServer,
+        confirmContributorProfileOnServer,
         toggleItemSelection,
         setItemAmount,
         getTotalAmount,

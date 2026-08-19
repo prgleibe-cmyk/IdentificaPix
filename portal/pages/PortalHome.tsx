@@ -31,6 +31,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
         createContributionRequest,
         setMockSearchFound,
         updateContributor,
+        confirmContributorProfileOnServer,
         toggleItemSelection,
         setItemAmount,
         getTotalAmount,
@@ -57,6 +58,7 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
                         onSaveContributor={() => saveContributor(church?.id)}
                         onMockSearchToggle={setMockSearchFound}
                         onContinue={nextStep}
+                        onConfirmProfile={confirmContributorProfileOnServer}
                     />
                 );
             case 2:

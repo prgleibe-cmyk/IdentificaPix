@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
 import { IdentificationType, ContributorMockProfile, PortalChurch } from '../types/portal';
+import { PortalIncompleteProfileBanner } from '../components/PortalIncompleteProfileBanner';
+import { PortalEditProfileModal } from '../components/PortalEditProfileModal';
 import { 
     formatCpf, 
     formatPhone, 
@@ -22,7 +24,10 @@ import {
     Building2, 
     ArrowRight,
     Search,
-    RefreshCw
+    RefreshCw,
+    Edit3,
+    Calendar,
+    MapPin
 } from 'lucide-react';
 
 const logoImg = '/logo.png?v=15';
@@ -43,6 +48,7 @@ interface PortalIdentifyStepProps {
     onSaveContributor: () => Promise<boolean>;
     onMockSearchToggle: (found: boolean) => void;
     onContinue: () => void;
+    onConfirmProfile?: () => Promise<boolean>;
 }
 
 export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
@@ -60,9 +66,11 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
     onUpdateContributor,
     onSaveContributor,
     onMockSearchToggle,
-    onContinue
+    onContinue,
+    onConfirmProfile
 }) => {
     const [showRegisterForm, setShowRegisterForm] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [inputError, setInputError] = useState<string | null>(null);
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -262,6 +270,17 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Edit / Complete Profile Modal */}
+            <PortalEditProfileModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                contributor={contributor}
+                church={church}
+                onProfileUpdated={(updated) => {
+                    onUpdateContributor(updated);
+                }}
+            />
         </div>
     );
 
@@ -278,75 +297,105 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                 <div className="lg:col-span-5 xl:col-span-5">
                     {/* STATE 1: ALREADY LOGGED IN / IDENTIFIED */}
                     {mockSearchFound && contributor.name ? (
-                        <PortalCard
-                            title="Bem-vindo(a) de Volta!"
-                            subtitle="Sua identificação como contribuinte foi confirmada no sistema."
-                            className="shadow-xl border-slate-200 dark:border-slate-700"
-                        >
-                            <div className="space-y-6">
-                                <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 flex flex-col items-center text-center space-y-3">
-                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-md ring-4 ring-white dark:ring-slate-800 shrink-0">
-                                        {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                        <div className="space-y-4">
+                            <PortalCard
+                                title="Bem-vindo(a) de Volta!"
+                                subtitle="Sua identificação como contribuinte foi confirmada no sistema."
+                                className="shadow-xl border-slate-200 dark:border-slate-700"
+                            >
+                                <div className="space-y-5">
+                                    <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 to-indigo-50/50 dark:from-slate-800 dark:to-slate-900 border border-blue-100 dark:border-slate-700 flex flex-col items-center text-center space-y-3">
+                                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-amber-500 text-white flex items-center justify-center font-black text-2xl shadow-md ring-4 ring-white dark:ring-slate-800 shrink-0">
+                                            {contributor.name ? contributor.name.charAt(0).toUpperCase() : 'C'}
+                                        </div>
+
+                                        <div className="space-y-1 w-full">
+                                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                <CheckCircle2 className="w-3.5 h-3.5" /> Contribuinte Conectado
+                                            </span>
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-white pt-1 truncate">
+                                                {contributor.name}
+                                            </h3>
+                                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                Congregação: <span className="text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
+                                            </p>
+                                        </div>
+
+                                        <div className="w-full pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300 text-left">
+                                            {contributor.cpf && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400">CPF:</span>
+                                                    <span className="font-bold">{contributor.cpf}</span>
+                                                </div>
+                                            )}
+                                            {(contributor.phone || contributor.whatsapp) && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400">Telefone:</span>
+                                                    <span className="font-bold">{contributor.phone || contributor.whatsapp}</span>
+                                                </div>
+                                            )}
+                                            {contributor.email && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400">E-mail:</span>
+                                                    <span className="font-bold truncate max-w-[180px]">{contributor.email}</span>
+                                                </div>
+                                            )}
+                                            {contributor.birth_date && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400">Nascimento:</span>
+                                                    <span className="font-bold">{contributor.birth_date}</span>
+                                                </div>
+                                            )}
+                                            {(contributor.address_city || contributor.address_street) && (
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400">Cidade/UF:</span>
+                                                    <span className="font-bold">{contributor.address_city || contributor.city || ''} {contributor.address_state ? `- ${contributor.address_state}` : ''}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-1 w-full">
-                                        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                            <CheckCircle2 className="w-3.5 h-3.5" /> Contribuinte Conectado
-                                        </span>
-                                        <h3 className="text-lg font-black text-slate-800 dark:text-white pt-1 truncate">
-                                            {contributor.name}
-                                        </h3>
-                                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                            Congregação: <span className="text-slate-700 dark:text-slate-200">{(contributor.congregation && contributor.congregation !== 'Sede Central') ? contributor.congregation : (church?.name || 'Igreja Local')}</span>
-                                        </p>
-                                    </div>
+                                    {/* Incomplete Profile Alert Banner */}
+                                    <PortalIncompleteProfileBanner
+                                        contributor={contributor}
+                                        onOpenEditModal={() => setIsEditModalOpen(true)}
+                                        onConfirmProfile={onConfirmProfile}
+                                    />
 
-                                    <div className="w-full pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-col gap-1.5 text-xs text-slate-600 dark:text-slate-300 text-left">
-                                        {contributor.cpf && (
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[11px] text-slate-400">CPF:</span>
-                                                <span className="font-bold">{contributor.cpf}</span>
-                                            </div>
-                                        )}
-                                        {contributor.phone && (
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[11px] text-slate-400">Telefone:</span>
-                                                <span className="font-bold">{contributor.phone}</span>
-                                            </div>
-                                        )}
-                                        {contributor.email && (
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[11px] text-slate-400">E-mail:</span>
-                                                <span className="font-bold truncate max-w-[180px]">{contributor.email}</span>
-                                            </div>
-                                        )}
+                                    <div className="space-y-2.5 pt-1">
+                                        <PortalButton
+                                            variant="primary"
+                                            size="md"
+                                            className="w-full py-3 text-sm font-bold shadow-md bg-gradient-to-r from-brand-blue to-amber-500 hover:from-blue-600 hover:to-amber-600 cursor-pointer"
+                                            onClick={onContinue}
+                                        >
+                                            Continuar para Contribuição &rarr;
+                                        </PortalButton>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditModalOpen(true)}
+                                            className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                                        >
+                                            <Edit3 className="w-3.5 h-3.5 text-brand-blue dark:text-blue-400" />
+                                            Atualizar / Completar Meus Dados
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onMockSearchToggle(false);
+                                                onValueChange('');
+                                                setShowRegisterForm(false);
+                                            }}
+                                            className="w-full py-2 text-xs font-bold text-slate-500 hover:text-brand-blue dark:text-slate-400 dark:hover:text-blue-400 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                        >
+                                            <RefreshCw className="w-3.5 h-3.5" /> Entrar com outro cadastro
+                                        </button>
                                     </div>
                                 </div>
-
-                                <div className="space-y-2.5 pt-1">
-                                    <PortalButton
-                                        variant="primary"
-                                        size="md"
-                                        className="w-full py-3 text-sm font-bold shadow-md bg-gradient-to-r from-brand-blue to-amber-500 hover:from-blue-600 hover:to-amber-600"
-                                        onClick={onContinue}
-                                    >
-                                        Continuar para Contribuição &rarr;
-                                    </PortalButton>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            onMockSearchToggle(false);
-                                            onValueChange('');
-                                            setShowRegisterForm(false);
-                                        }}
-                                        className="w-full py-2 text-xs font-bold text-slate-500 hover:text-brand-blue dark:text-slate-400 dark:hover:text-blue-400 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                                    >
-                                        <RefreshCw className="w-3.5 h-3.5" /> Entrar com outro cadastro
-                                    </button>
-                                </div>
-                            </div>
-                        </PortalCard>
+                            </PortalCard>
+                        </div>
                     ) : showRegisterForm ? (
                         /* STATE 2: REGISTRATION FORM (NEW CONTRIBUTOR) */
                         <PortalCard
@@ -583,6 +632,17 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* Edit / Complete Profile Modal */}
+            <PortalEditProfileModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                contributor={contributor}
+                church={church}
+                onProfileUpdated={(updated) => {
+                    onUpdateContributor(updated);
+                }}
+            />
         </div>
     );
 };

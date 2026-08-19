@@ -58,8 +58,8 @@ const MainLayout: React.FC = () => {
                 <div 
                     ref={scrollContainerRef}
                     id="main-scroll-container" 
-                    className="flex-1 overflow-y-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative"
-                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y pinch-zoom' }}
+                    className="flex-1 overflow-auto p-2 md:p-3 scroll-smooth z-10 custom-scrollbar relative"
+                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom', overscrollBehavior: 'contain' }}
                 >
                     <div 
                         className="max-w-[1920px] mx-auto min-h-full flex flex-col relative z-10 pb-8 md:pb-4 transition-[zoom] duration-150 origin-top-left"

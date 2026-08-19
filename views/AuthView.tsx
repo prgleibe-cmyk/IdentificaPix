@@ -27,8 +27,8 @@ export const AuthView: React.FC = () => {
             <div 
                 ref={scrollContainerRef}
                 id="auth-scroll-container"
-                className="flex-1 w-full overflow-y-auto z-10 relative custom-scrollbar overscroll-y-contain"
-                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+                className="flex-1 w-full overflow-auto z-10 relative custom-scrollbar overscroll-contain"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom', overscrollBehavior: 'contain' }}
             >
                 <div className="w-full max-w-[1400px] mx-auto grid grid-cols-1 md:grid-cols-2 p-4 sm:p-6 md:p-8 lg:p-12 items-center gap-6 md:gap-8 lg:gap-12 min-h-full">
                     

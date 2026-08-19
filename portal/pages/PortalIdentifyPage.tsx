@@ -20,6 +20,7 @@ export const PortalIdentifyPage: React.FC<PortalIdentifyPageProps> = ({ church, 
         performSearchContributor,
         updateContributor,
         saveContributor,
+        confirmContributorProfileOnServer,
         setMockSearchFound
     } = usePortalWizard(church?.id, church?.name);
 
@@ -41,6 +42,7 @@ export const PortalIdentifyPage: React.FC<PortalIdentifyPageProps> = ({ church, 
                 onSaveContributor={() => saveContributor(church?.id)}
                 onMockSearchToggle={setMockSearchFound}
                 onContinue={() => onNavigate('home')}
+                onConfirmProfile={confirmContributorProfileOnServer}
             />
         </PortalContainer>
     );

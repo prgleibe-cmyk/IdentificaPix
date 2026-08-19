@@ -3,6 +3,8 @@ import { PortalChurch, ContributorMockProfile } from '../types/portal';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalCard } from '../components/PortalCard';
 import { PortalButton } from '../components/PortalButton';
+import { PortalIncompleteProfileBanner } from '../components/PortalIncompleteProfileBanner';
+import { PortalEditProfileModal } from '../components/PortalEditProfileModal';
 import { formatCurrencyBrl } from '../utils/portalFormatters';
 import { 
     FileText, 
@@ -31,7 +33,8 @@ import {
     Target,
     Users,
     ChevronRight,
-    Flame
+    Flame,
+    Edit3
 } from 'lucide-react';
 
 interface PortalReportsPageProps {
@@ -65,6 +68,7 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
     const [selectedPixRecord, setSelectedPixRecord] = useState<ContributionRecord | null>(null);
     const [copiedPix, setCopiedPix] = useState<boolean>(false);
     const [receiptRecord, setReceiptRecord] = useState<ContributionRecord | null>(null);
+    const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
 
     // Load stored contributor from localStorage
     useEffect(() => {
@@ -80,6 +84,35 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
             console.error('[PortalReportsPage] Erro ao carregar perfil do contribuinte:', err);
         }
     }, []);
+
+    const handleConfirmPeriodicProfile = async () => {
+        if (!contributor) return;
+        try {
+            if (contributor.id) {
+                await fetch('/api/v1/contributors/confirm-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: contributor.id,
+                        cpf: contributor.cpf
+                    })
+                });
+            }
+            const nowIso = new Date().toISOString();
+            const updated = {
+                ...contributor,
+                updated_at: nowIso,
+                last_confirmed_at: nowIso
+            };
+            try {
+                localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updated));
+                window.dispatchEvent(new Event('storage'));
+            } catch (_) {}
+            setContributor(updated);
+        } catch (err) {
+            console.error('[PortalReportsPage] Erro ao confirmar perfil:', err);
+        }
+    };
 
     // Fetch contributions for contributor
     const fetchHistory = async () => {
@@ -347,6 +380,7 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
 
                 {/* Contributor Card Banner */}
                 {contributor ? (
+                    <>
                     <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:to-slate-950 text-white p-5 rounded-2xl shadow-xl border border-slate-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-brand-orange/20 border border-brand-orange/40 flex items-center justify-center text-brand-orange font-black text-xl shadow-inner shrink-0">
@@ -371,6 +405,14 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
 
                         <div className="flex items-center gap-2 border-t sm:border-t-0 border-slate-700/60 pt-3 sm:pt-0 shrink-0">
                             <button
+                                type="button"
+                                onClick={() => setIsEditProfileOpen(true)}
+                                className="text-xs font-bold text-amber-300 hover:text-amber-200 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Atualizar Meus Dados
+                            </button>
+                            <button
                                 onClick={handleClearContributor}
                                 className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                             >
@@ -378,6 +420,14 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                             </button>
                         </div>
                     </div>
+
+                    {/* Incomplete Profile Alert Banner */}
+                    <PortalIncompleteProfileBanner
+                        contributor={contributor}
+                        onOpenEditModal={() => setIsEditProfileOpen(true)}
+                        onConfirmProfile={handleConfirmPeriodicProfile}
+                    />
+                    </>
                 ) : (
                     <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
@@ -1216,6 +1266,16 @@ export const PortalReportsPage: React.FC<PortalReportsPageProps> = ({ church, on
                     </div>
                 </div>
             )}
+            {/* Edit / Complete Profile Modal */}
+            <PortalEditProfileModal
+                isOpen={isEditProfileOpen}
+                onClose={() => setIsEditProfileOpen(false)}
+                contributor={contributor}
+                church={church}
+                onProfileUpdated={(updated) => {
+                    setContributor(updated);
+                }}
+            />
         </PortalContainer>
     );
 };

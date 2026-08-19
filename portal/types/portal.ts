@@ -49,14 +49,59 @@ export type IdentificationType = 'cpf' | 'phone' | 'email';
 export interface ContributorMockProfile {
     id: string;
     name: string;
+    canonical_name?: string;
     cpf: string;
     phone: string;
+    whatsapp?: string;
     email: string;
-    city: string;
-    state: string;
-    congregation: string;
+    birth_date?: string;
+    person_type?: 'PF' | 'PJ' | string;
+    trade_name?: string;
+    rg_ie?: string;
+    contact_person?: string;
+    category?: string;
+    role_position?: string;
+    pix_key?: string;
+    bank_name?: string;
+    bank_agency?: string;
+    bank_account?: string;
+    address_cep?: string;
+    address_street?: string;
+    address_number?: string;
+    address_city?: string;
+    address_state?: string;
+    city?: string;
+    state?: string;
+    congregation?: string;
+    notes?: string;
     avatarUrl?: string;
-    isExisting: boolean;
+    photo_url?: string;
+    isExisting?: boolean;
+    church_id?: string;
+    status?: string;
+    updated_at?: string;
+    last_confirmed_at?: string;
+}
+
+export interface ProfileMissingField {
+    key: string;
+    label: string;
+    iconName: 'user' | 'phone' | 'mail' | 'calendar' | 'mapPin' | 'church' | 'idCard';
+    importance: 'critical' | 'recommended' | 'optional';
+    hint: string;
+}
+
+export interface ProfileCompletenessResult {
+    score: number; // 0 to 100
+    isComplete: boolean;
+    missingFields: ProfileMissingField[];
+    totalFields: number;
+    filledFields: number;
+    statusText: string;
+    badgeColor: 'rose' | 'amber' | 'blue' | 'emerald';
+    needsPeriodicReview?: boolean;
+    daysSinceLastUpdate?: number;
+    lastConfirmedDateFormatted?: string;
 }
 
 export interface ContributionItemMock {

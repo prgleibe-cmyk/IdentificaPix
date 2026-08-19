@@ -993,7 +993,10 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
       }
 
       const result = await pool.query(
-        `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+        `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                address_number, address_city, address_state, notes, role_position, photo_url
          FROM contributors 
          WHERE status = $1 AND (church_id = $2 OR church_id IS NULL) AND (cpf = $3 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $3)
          LIMIT 1`,
@@ -1004,7 +1007,10 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         matchedContributor = result.rows[0];
       } else {
         const allRes = await pool.query(
-          `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+          `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                  person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                  pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                  address_number, address_city, address_state, notes, role_position, photo_url
            FROM contributors 
            WHERE status = $1`,
           ['active']
@@ -1019,7 +1025,10 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
       }
 
       const result = await pool.query(
-        `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+        `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                address_number, address_city, address_state, notes, role_position, photo_url
          FROM contributors 
          WHERE status = $1 AND (church_id = $2 OR church_id IS NULL) AND (phone = $3 OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '(', ''), ')', ''), '-', ''), '+', '') = $3)
          LIMIT 1`,
@@ -1030,7 +1039,10 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         matchedContributor = result.rows[0];
       } else {
         const allRes = await pool.query(
-          `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+          `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                  person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                  pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                  address_number, address_city, address_state, notes, role_position, photo_url
            FROM contributors 
            WHERE status = $1`,
           ['active']
@@ -1042,7 +1054,10 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
       const cleanEmail = rawVal.toLowerCase();
 
       const result = await pool.query(
-        `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+        `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                address_number, address_city, address_state, notes, role_position, photo_url
          FROM contributors 
          WHERE status = $1 AND (church_id = $2 OR church_id IS NULL) AND LOWER(TRIM(email)) = $3
          LIMIT 1`,
@@ -1053,7 +1068,10 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         matchedContributor = result.rows[0];
       } else {
         const allRes = await pool.query(
-          `SELECT id, church_id, canonical_name, cpf, email, phone, status 
+          `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                  person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                  pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                  address_number, address_city, address_state, notes, role_position, photo_url
            FROM contributors 
            WHERE status = $1`,
           ['active']
@@ -1067,10 +1085,33 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         found: true,
         contributor: {
           id: matchedContributor.id,
+          church_id: matchedContributor.church_id,
           canonical_name: matchedContributor.canonical_name,
+          name: matchedContributor.name || matchedContributor.canonical_name,
           cpf: matchedContributor.cpf || null,
           email: matchedContributor.email || null,
           phone: matchedContributor.phone || null,
+          whatsapp: matchedContributor.whatsapp || matchedContributor.phone || null,
+          birth_date: matchedContributor.birth_date || null,
+          person_type: matchedContributor.person_type || 'PF',
+          trade_name: matchedContributor.trade_name || null,
+          rg_ie: matchedContributor.rg_ie || null,
+          contact_person: matchedContributor.contact_person || null,
+          category: matchedContributor.category || null,
+          pix_key: matchedContributor.pix_key || null,
+          bank_name: matchedContributor.bank_name || null,
+          bank_agency: matchedContributor.bank_agency || null,
+          bank_account: matchedContributor.bank_account || null,
+          address_cep: matchedContributor.address_cep || null,
+          address_street: matchedContributor.address_street || null,
+          address_number: matchedContributor.address_number || null,
+          address_city: matchedContributor.address_city || null,
+          address_state: matchedContributor.address_state || null,
+          notes: matchedContributor.notes || null,
+          role_position: matchedContributor.role_position || null,
+          photo_url: matchedContributor.photo_url || null,
+          updated_at: matchedContributor.updated_at || matchedContributor.created_at || null,
+          created_at: matchedContributor.created_at || null,
           status: matchedContributor.status
         }
       });
@@ -1090,6 +1131,148 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
 
 app.post('/api/v1/contributors/identify', identifyContributorHandler);
 app.get('/api/v1/contributors/identify', identifyContributorHandler);
+
+// POST /api/v1/contributors/confirm-profile (1-click 6-month periodic data confirmation)
+app.post('/api/v1/contributors/confirm-profile', async (req: Request, res: Response) => {
+  try {
+    const { id, cpf } = req.body;
+    let targetId = id;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!targetId || !uuidRegex.test(targetId)) {
+      const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
+      if (cleanCpf) {
+        const findRes = await pool.query(
+          "SELECT id FROM contributors WHERE status = 'active' AND (cpf = $1 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $1) LIMIT 1",
+          [cleanCpf]
+        );
+        if (findRes.rows.length > 0) {
+          targetId = findRes.rows[0].id;
+        }
+      }
+    }
+
+    if (!targetId) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ID ou CPF do contribuinte não localizado.' });
+    }
+
+    const result = await pool.query(
+      'UPDATE contributors SET updated_at = NOW() WHERE id = $1 RETURNING id, updated_at',
+      [targetId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Contribuinte não encontrado.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Cadastro confirmado com sucesso para os próximos 6 meses.',
+      updated_at: result.rows[0].updated_at
+    });
+  } catch (err: any) {
+    console.error('[Contributors API] Error confirming contributor profile:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Erro ao confirmar cadastro.' });
+  }
+});
+
+// POST /api/v1/contributors/update-profile (Direct contributor self-service update)
+app.post('/api/v1/contributors/update-profile', async (req: Request, res: Response) => {
+  try {
+    const { 
+      id, church_id, canonical_name, name, cpf, email, phone, whatsapp,
+      birth_date, person_type, trade_name, rg_ie, contact_person,
+      category, role_position, pix_key, bank_name, bank_agency, bank_account,
+      address_cep, address_street, address_number, address_city, address_state, notes
+    } = req.body;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    
+    let targetId = id;
+    if (!targetId || !uuidRegex.test(targetId)) {
+      // If no ID provided, try finding by CPF
+      const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
+      if (cleanCpf) {
+        const findRes = await pool.query(
+          "SELECT id FROM contributors WHERE status = 'active' AND (cpf = $1 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $1) LIMIT 1",
+          [cleanCpf]
+        );
+        if (findRes.rows.length > 0) {
+          targetId = findRes.rows[0].id;
+        }
+      }
+    }
+
+    if (!targetId) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'ID ou CPF do contribuinte não localizado.' });
+    }
+
+    const updates: string[] = ['updated_at = NOW()'];
+    const params: any[] = [targetId];
+    let counter = 2;
+
+    const addField = (fieldName: string, val: any) => {
+      if (val !== undefined) {
+        updates.push(`${fieldName} = ${counter}`);
+        params.push(val);
+        counter++;
+      }
+    };
+
+    if (canonical_name !== undefined || name !== undefined) {
+      const chosenName = canonical_name || name;
+      if (typeof chosenName === 'string' && chosenName.trim()) {
+        addField('canonical_name', chosenName.trim().replace(/\s+/g, ' ').toUpperCase());
+        addField('name', chosenName.trim());
+      }
+    }
+
+    if (cpf !== undefined) {
+      const cleanCpf = cpf ? String(cpf).replace(/\D/g, '') : null;
+      addField('cpf', cleanCpf);
+    }
+
+    if (email !== undefined) {
+      addField('email', email && typeof email === 'string' ? email.trim() : null);
+    }
+
+    if (phone !== undefined || whatsapp !== undefined) {
+      const cleanPhone = phone || whatsapp;
+      addField('phone', cleanPhone && typeof cleanPhone === 'string' ? cleanPhone.trim() : null);
+      addField('whatsapp', cleanPhone && typeof cleanPhone === 'string' ? cleanPhone.trim() : null);
+    }
+
+    addField('birth_date', birth_date || null);
+    addField('person_type', person_type || 'PF');
+    addField('trade_name', trade_name || null);
+    addField('rg_ie', rg_ie || null);
+    addField('contact_person', contact_person || null);
+    addField('category', category || null);
+    addField('role_position', role_position || null);
+    addField('pix_key', pix_key || null);
+    addField('bank_name', bank_name || null);
+    addField('bank_agency', bank_agency || null);
+    addField('bank_account', bank_account || null);
+    addField('address_cep', address_cep || null);
+    addField('address_street', address_street || null);
+    addField('address_number', address_number || null);
+    addField('address_city', address_city || null);
+    addField('address_state', address_state || null);
+    addField('notes', notes || null);
+
+    const updateQuery = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
+    const result = await pool.query(updateQuery, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Contribuinte não encontrado.' });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err: any) {
+    console.error('[Contributors API] Error updating contributor profile:', err);
+    return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Erro ao atualizar dados do contribuinte.' });
+  }
+});
 
 // POST /api/v1/contribution-requests (Register contribution request intention)
 app.post('/api/v1/contribution-requests', async (req: Request, res: Response) => {
