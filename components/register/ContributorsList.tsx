@@ -922,6 +922,850 @@ export const ContributorsList: React.FC = () => {
                 </div>
             </div>
 
+            {/* INLINE NEW / EDIT CONTRIBUTOR FORM */}
+            {isModalOpen && (
+                <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-900/80 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4 animate-fade-in mb-6 w-full" id="contributor-form-panel">
+                    <form onSubmit={handleSave} className="space-y-4 w-full" id="contributor-inline-form">
+                        
+                        {/* Form Header */}
+                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                            <div className="flex items-center space-x-3 flex-wrap gap-y-2">
+                                <div className="p-2.5 rounded-xl bg-slate-700 text-white shadow-md shadow-slate-500/20">
+                                    <UsersIcon className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h4 className="text-xs md:text-sm font-black uppercase text-slate-800 dark:text-white tracking-wider" id="contributor-form-title">
+                                        {editingContributor ? 'Editar Empresa / Pessoa' : 'Nova Empresa / Pessoa'}
+                                    </h4>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                                        Gerenciamento de Pessoas, Empresas e Fornecedores
+                                    </span>
+                                </div>
+
+                                {/* Switcher Pill PF / PJ */}
+                                <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700 text-[10px] ml-2" id="toggle-person-type">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPersonType('PF')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                            personType === 'PF'
+                                                ? 'bg-blue-600 text-white shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                        id="btn-type-pf"
+                                    >
+                                        <User className="w-3 h-3" />
+                                        <span>• Pessoa Física (PF)</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPersonType('PJ')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                            personType === 'PJ'
+                                                ? 'bg-amber-600 text-white shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                        id="btn-type-pj"
+                                    >
+                                        <Building2 className="w-3 h-3" />
+                                        <span>• Empresa / PJ</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button 
+                                type="button" 
+                                onClick={handleCloseModal} 
+                                className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
+                                id="btn-close-contributor-form"
+                                title="Fechar formulário"
+                            >
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form Body with inputs - Full Width */}
+                        <div className="space-y-4 md:space-y-5 w-full">
+                            
+                            {/* BLOCO 1: DADOS DE IDENTIFICAÇÃO E FOTO/LOGO INTEGRADOS */}
+                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
+                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                    {personType === 'PF' ? <User className="w-4 h-4 text-blue-500" /> : <Building2 className="w-4 h-4 text-amber-500" />}
+                                    <span>{personType === 'PF' ? 'Identificação & Vínculo Pessoal' : 'Dados Fiscais & Corporativos'}</span>
+                                </div>
+
+                                <div className="flex flex-col md:flex-row items-start gap-4">
+                                    {/* Compact Avatar / Logo Section */}
+                                    <div className="flex md:flex-col items-center gap-2.5 shrink-0 w-full md:w-28 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/70 dark:border-slate-700/60" id="photo-section">
+                                        <div className="relative group shadow-xs rounded-xl overflow-hidden" id="photo-avatar-wrapper">
+                                            <div className="w-16 h-16 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-center overflow-hidden" id="photo-avatar-container">
+                                                {photoPreview ? (
+                                                    <img 
+                                                        src={photoPreview} 
+                                                        alt="Preview do cadastrado" 
+                                                        className="w-full h-full object-cover"
+                                                        id="photo-avatar-preview"
+                                                        referrerPolicy="no-referrer"
+                                                    />
+                                                ) : personType === 'PF' ? (
+                                                    <User className="w-7 h-7 text-slate-300 dark:text-slate-600" />
+                                                ) : (
+                                                    <Building2 className="w-7 h-7 text-amber-400 dark:text-amber-600" />
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1 w-full" id="photo-actions">
+                                            <input 
+                                                type="file" 
+                                                ref={fileInputRef} 
+                                                onChange={handleFileChange} 
+                                                accept="image/*" 
+                                                className="hidden" 
+                                                id="photo-file-input"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="flex items-center justify-center space-x-1 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-all uppercase border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
+                                                id="btn-select-photo"
+                                                title="Adicionar ou alterar imagem"
+                                            >
+                                                <Camera className="w-3 h-3" />
+                                                <span>{personType === 'PF' ? 'Foto' : 'Logo'}</span>
+                                            </button>
+                                            
+                                            {photoPreview && (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={handleRemovePhoto}
+                                                    className="flex items-center justify-center space-x-1 px-2 py-0.5 text-[8px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all uppercase cursor-pointer"
+                                                    id="btn-remove-photo"
+                                                >
+                                                    <Trash2 className="w-2.5 h-2.5" />
+                                                    <span>Remover</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Main Form Fields Grid */}
+                                    <div className="flex-1 w-full space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {/* Nome / Razão Social */}
+                                            <div>
+                                                <label htmlFor="contributor-fullname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    {personType === 'PF' ? 'Nome Completo' : 'Razão Social'} <span className="text-rose-500">*</span>
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-fullname" 
+                                                    value={fullName} 
+                                                    onChange={(e) => setFullName(e.target.value)} 
+                                                    placeholder={personType === 'PF' ? 'Ex: João da Silva' : 'Ex: ABC Materiais LTDA'}
+                                                    className={`block w-full rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none transition-all font-bold ${
+                                                        isNameInvalid 
+                                                            ? 'border-2 border-rose-500 focus:border-rose-500' 
+                                                            : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue'
+                                                    }`}
+                                                />
+                                                {isNameInvalid && (
+                                                    <p className="text-rose-500 text-[9px] font-bold mt-0.5">
+                                                        Campo obrigatório.
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Nome Fantasia (PJ) ou Vínculo/Cargo (PF) */}
+                                            {personType === 'PJ' ? (
+                                                <div>
+                                                    <label htmlFor="contributor-tradename" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Nome Fantasia
+                                                    </label>
+                                                    <input 
+                                                        type="text" 
+                                                        id="contributor-tradename" 
+                                                        value={tradeName} 
+                                                        onChange={(e) => setTradeName(e.target.value)} 
+                                                        placeholder="Ex: Depósito ABC"
+                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none transition-all focus:border-brand-blue font-bold"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label htmlFor="contributor-role-position" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Vínculo / Cargo
+                                                    </label>
+                                                    <InlineRoleSelector
+                                                        value={rolePosition}
+                                                        onChange={(val) => {
+                                                            setRolePosition(val);
+                                                            setCategory(val);
+                                                        }}
+                                                        roles={customRoles}
+                                                        onAddRole={handleAddRole}
+                                                        onRenameRole={handleRenameRole}
+                                                        onDeleteRole={handleDeleteRole}
+                                                        themeColor="amber"
+                                                        itemLabel="Vínculo/Cargo"
+                                                        placeholder="Selecione o vínculo ou cargo..."
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {/* CPF / CNPJ */}
+                                            <div>
+                                                <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    {personType === 'PF' ? 'CPF' : 'CNPJ'}
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-cpf" 
+                                                    value={cpf} 
+                                                    onChange={(e) => setCpf(e.target.value)} 
+                                                    placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
+                                                {existingContributorWithCpf && (
+                                                    <div className="flex items-start space-x-1.5 mt-1 text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 p-2 rounded-lg border border-amber-200 dark:border-amber-800/80 font-medium">
+                                                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500 mt-0.5" />
+                                                        <div>
+                                                            <strong>Documento já cadastrado:</strong> Pertence a <strong>{existingContributorWithCpf.canonical_name}</strong>.
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* RG / IE */}
+                                            <div>
+                                                <label htmlFor="contributor-rg-ie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                    {personType === 'PF' ? 'RG' : 'Inscrição Estadual (IE)'}
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    id="contributor-rg-ie" 
+                                                    value={rgIe} 
+                                                    onChange={(e) => setRgIe(e.target.value)} 
+                                                    placeholder={personType === 'PF' ? '00.000.000-0' : 'Isento ou número IE'}
+                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                />
+                                            </div>
+
+                                            {/* Data Nasc (PF) ou Contato Responsável (PJ) */}
+                                            {personType === 'PF' ? (
+                                                <div>
+                                                    <label htmlFor="contributor-birth" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Data de Nascimento
+                                                    </label>
+                                                    <input 
+                                                        type="date" 
+                                                        id="contributor-birth" 
+                                                        value={birthDate} 
+                                                        onChange={(e) => setBirthDate(e.target.value)} 
+                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label htmlFor="contributor-contact-person" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Pessoa de Contato / Vendedor
+                                                    </label>
+                                                    <input 
+                                                        type="text" 
+                                                        id="contributor-contact-person" 
+                                                        value={contactPerson} 
+                                                        onChange={(e) => setContactPerson(e.target.value)} 
+                                                        placeholder="Ex: Carlos (Vendas)"
+                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* PJ: Categoria + Igreja */}
+                                        {personType === 'PJ' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label htmlFor="contributor-pj-category" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Ramo de Atuação / Categoria
+                                                    </label>
+                                                    <InlineRoleSelector
+                                                        value={category}
+                                                        onChange={(val) => setCategory(val)}
+                                                        roles={supplierCategories}
+                                                        onAddRole={handleAddSupplierCategory}
+                                                        onRenameRole={handleRenameSupplierCategory}
+                                                        onDeleteRole={handleDeleteSupplierCategory}
+                                                        themeColor="emerald"
+                                                        itemLabel="Categoria"
+                                                        placeholder="Selecione o ramo de atuação..."
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Igreja <span className="text-rose-500">*</span>
+                                                    </label>
+                                                    <select 
+                                                        id="contributor-church" 
+                                                        value={selectedChurchId} 
+                                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                                        className={`block w-full rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold ${
+                                                            isChurchInvalid 
+                                                                ? 'border-2 border-rose-500' 
+                                                                : 'border border-slate-200 dark:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        {tempChurches.map((church) => (
+                                                            <option key={church.id} value={church.id}>
+                                                                {church.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* PF: Igreja + Status */}
+                                        {personType === 'PF' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Igreja <span className="text-rose-500">*</span>
+                                                    </label>
+                                                    <select 
+                                                        id="contributor-church" 
+                                                        value={selectedChurchId} 
+                                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
+                                                        className={`block w-full rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold ${
+                                                            isChurchInvalid 
+                                                                ? 'border-2 border-rose-500' 
+                                                                : 'border border-slate-200 dark:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        {tempChurches.map((church) => (
+                                                            <option key={church.id} value={church.id}>
+                                                                {church.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label htmlFor="contributor-status" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                                        Status do Cadastro
+                                                    </label>
+                                                    <select 
+                                                        id="contributor-status" 
+                                                        value={status} 
+                                                        onChange={(e) => setStatus(e.target.value as 'Ativo' | 'Inativo')} 
+                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                                    >
+                                                        <option value="Ativo">Ativo</option>
+                                                        <option value="Inativo">Inativo</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* COMPARTILHAMENTO GLOBAL ENTRE TODAS AS IGREJAS */}
+                                <div className="p-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5" id="global-share-card">
+                                    <div className="flex items-center space-x-2">
+                                        <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                        <div>
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
+                                                Disponível para todas as Igrejas (Cadastro Global)
+                                            </span>
+                                            <span className="text-[9px] text-slate-500 dark:text-slate-400 block">
+                                                {isPrincipalUser 
+                                                    ? "Permite lançar despesas, doações ou serviços desta pessoa/empresa em qualquer igreja do sistema."
+                                                    : "Recurso restrito ao Usuário Principal."}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {isPrincipalUser ? (
+                                        <label className="relative inline-flex items-center cursor-pointer shrink-0 self-start sm:self-center">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isGlobal} 
+                                                onChange={(e) => setIsGlobal(e.target.checked)} 
+                                                className="sr-only peer"
+                                                id="chk-contributor-is-global"
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    ) : (
+                                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg shrink-0">
+                                            Usuário Principal
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* BLOCO 2: CONTATO & ENDEREÇO */}
+                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
+                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                    <Phone className="w-4 h-4 text-emerald-500" />
+                                    <span>Contato & Localização</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label htmlFor="contributor-phone" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            {personType === 'PF' ? 'Telefone / WhatsApp' : 'Telefone Comercial / WhatsApp'}
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-phone" 
+                                            value={phone} 
+                                            onChange={(e) => setPhone(e.target.value)} 
+                                            placeholder="(00) 00000-0000"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-email" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            {personType === 'PF' ? 'E-mail Pessoal' : 'E-mail Oficial / NFe'}
+                                        </label>
+                                        <input 
+                                            type="email" 
+                                            id="contributor-email" 
+                                            value={email} 
+                                            onChange={(e) => setEmail(e.target.value)} 
+                                            placeholder="exemplo@contato.com"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                    <div>
+                                        <label htmlFor="contributor-cep" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            CEP
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-cep" 
+                                            value={addressCep} 
+                                            onChange={(e) => setAddressCep(e.target.value)} 
+                                            placeholder="00000-000"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div className="md:col-span-2">
+                                        <label htmlFor="contributor-street" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Logradouro / Endereço
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-street" 
+                                            value={addressStreet} 
+                                            onChange={(e) => setAddressStreet(e.target.value)} 
+                                            placeholder="Ex: Rua das Flores, Av. Central"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-number" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Número / Bairro
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-number" 
+                                            value={addressNumber} 
+                                            onChange={(e) => setAddressNumber(e.target.value)} 
+                                            placeholder="Nº 123, Bairro Centro"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                    <div className="md:col-span-3">
+                                        <label htmlFor="contributor-city" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Cidade
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-city" 
+                                            value={addressCity} 
+                                            onChange={(e) => setAddressCity(e.target.value)} 
+                                            placeholder="Ex: São Paulo"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-state" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            UF / Estado
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-state" 
+                                            value={addressState} 
+                                            onChange={(e) => setAddressState(e.target.value.toUpperCase())} 
+                                            placeholder="SP"
+                                            maxLength={2}
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold uppercase"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* BLOCO 3: DADOS BANCÁRIOS & PIX */}
+                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3 shadow-xs">
+                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                    <Landmark className="w-4 h-4 text-cyan-500" />
+                                    <span>Dados Bancários & Chave Pix (Pagamentos / Transferências)</span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label htmlFor="contributor-pix" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Chave Pix Principal
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-pix" 
+                                            value={pixKey} 
+                                            onChange={(e) => setPixKey(e.target.value)} 
+                                            placeholder="E-mail, CPF/CNPJ, Telefone ou Aleatória"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-bankname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Instituição Bancária / Banco
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-bankname" 
+                                            value={bankName} 
+                                            onChange={(e) => setBankName(e.target.value)} 
+                                            placeholder="Ex: Itaú, Bradesco, Banco do Brasil, Nubank, Sicoob"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label htmlFor="contributor-bankagency" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Agência
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-bankagency" 
+                                            value={bankAgency} 
+                                            onChange={(e) => setBankAgency(e.target.value)} 
+                                            placeholder="0000"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="contributor-bankaccount" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                                            Conta Corrente / Poupança
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="contributor-bankaccount" 
+                                            value={bankAccount} 
+                                            onChange={(e) => setBankAccount(e.target.value)} 
+                                            placeholder="00000-0"
+                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* BLOCO 4: OBSERVAÇÕES INTERNAS */}
+                            <div className="p-4 bg-white dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2 shadow-xs">
+                                <label htmlFor="contributor-notes" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                    Observações / Anotações Internas
+                                </label>
+                                <textarea 
+                                    id="contributor-notes" 
+                                    value={notes} 
+                                    onChange={(e) => setNotes(e.target.value)} 
+                                    rows={2}
+                                    placeholder="Anotações sobre condições de pagamento, contratos ou histórico..."
+                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs p-2.5 outline-none font-medium resize-none"
+                                />
+                            </div>
+
+                        </div>
+
+                        {/* Form Actions Footer */}
+                        <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200 dark:border-slate-800" id="contributor-form-actions">
+                            <button 
+                                type="button" 
+                                onClick={handleCloseModal} 
+                                className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer" 
+                                id="btn-cancel-contributor"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                type="submit" 
+                                className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                id="btn-save-contributor"
+                            >
+                                Salvar
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            )}
+
+            {/* INLINE BATCH IMPORT PANEL */}
+            {isImportModalOpen && (
+                <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-900/80 p-4 md:p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-4 animate-fade-in mb-6 w-full" id="import-form-panel">
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl shadow-md shadow-emerald-500/10">
+                                <Sparkles className="w-4 h-4 animate-pulse" />
+                            </div>
+                            <div>
+                                <h4 className="text-xs md:text-sm font-black uppercase text-slate-800 dark:text-white tracking-wider">
+                                    Importar Empresas / Pessoas em Lote
+                                </h4>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                                    Extraia dados de arquivos OFX, CSV, TXT ou Planilhas Excel
+                                </span>
+                            </div>
+                        </div>
+                        <button 
+                            type="button" 
+                            onClick={() => {
+                                setIsImportModalOpen(false);
+                                setImportFile(null);
+                                setParsedContributors([]);
+                            }} 
+                            className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                            title="Fechar importação"
+                        >
+                            <XMarkIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Body */}
+                    <div className="w-full">
+                        {!importFile ? (
+                            /* Drag and Drop / Select File Zone */
+                            <div className="flex flex-col items-center justify-center">
+                                <div 
+                                    onClick={() => importFileInputRef.current?.click()}
+                                    className="w-full border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-brand-blue dark:hover:border-brand-blue/60 bg-white dark:bg-slate-900/40 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-[1.005] group shadow-xs"
+                                >
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl shadow-xs text-slate-400 dark:text-slate-500 group-hover:text-brand-blue transition-colors mb-3">
+                                        <FileUp className="w-6 h-6" />
+                                    </div>
+                                    <h4 className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">
+                                        Carregar arquivo do extrato ou lista
+                                    </h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-3">
+                                        Selecione um extrato <span className="font-bold">OFX</span>, arquivo <span className="font-bold">CSV/TXT</span> ou planilha <span className="font-bold">Excel</span> contendo os nomes, razões sociais, CPFs ou CNPJs.
+                                    </p>
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tracking-wider">
+                                        Processamento 100% Local e Seguro
+                                    </span>
+                                </div>
+                                <input 
+                                    type="file"
+                                    ref={importFileInputRef}
+                                    onChange={handleImportFileChange}
+                                    accept=".ofx,.csv,.txt,.xlsx,.xls"
+                                    className="hidden"
+                                />
+                            </div>
+                        ) : isLoadingImport ? (
+                            /* Loading Parse State */
+                            <div className="flex flex-col items-center justify-center py-10 text-center">
+                                <Loader2 className="w-8 h-8 text-brand-blue animate-spin mb-3" />
+                                <h5 className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200">
+                                    Analisando documento localmente...
+                                </h5>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Mapeando registros, normalizando nomes e detectando CPFs.
+                                </p>
+                            </div>
+                        ) : (
+                            /* Review & Edit State */
+                            <div className="space-y-4">
+                                {/* Default Church selection */}
+                                <div className="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-xs">
+                                    <div>
+                                        <label className="block text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                                            Igreja de Destino
+                                        </label>
+                                        <p className="text-[10px] font-medium text-slate-500 mt-0.5">
+                                            Selecione a igreja à qual estas empresas ou pessoas pertencem.
+                                        </p>
+                                    </div>
+                                    <select
+                                        value={defaultImportChurchId}
+                                        onChange={(e) => setDefaultImportChurchId(e.target.value)}
+                                        className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-xs font-bold p-2.5 outline-none focus:border-brand-blue focus:ring-brand-blue cursor-pointer min-w-[200px]"
+                                    >
+                                        {tempChurches.filter(c => c.id !== 'church-1').map((church) => (
+                                            <option key={church.id} value={church.id}>
+                                                {church.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Summary Stats */}
+                                <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                                    <span>Registros Encontrados: {parsedContributors.length}</span>
+                                    <div className="flex space-x-3">
+                                        <span className="text-emerald-600">
+                                            Novos: {parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
+                                        </span>
+                                        <span className="text-amber-500">
+                                            Duplicados (pulados): {parsedContributors.filter(c => checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Contributors Editable Table */}
+                                <div className="overflow-x-auto max-h-[35vh] border border-slate-200 dark:border-slate-800 rounded-xl custom-scrollbar">
+                                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs font-bold uppercase">
+                                        <thead className="bg-slate-100/70 dark:bg-slate-900 sticky top-0 z-10">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
+                                                    Nome / Razão Social
+                                                </th>
+                                                <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
+                                                    CPF / CNPJ Identificado
+                                                </th>
+                                                <th className="px-4 py-2 text-right font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px] w-[110px]">
+                                                    Situação
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30">
+                                            {parsedContributors.map((c, idx) => {
+                                                const isDup = checkDuplicate(c.cpf, c.name, defaultImportChurchId);
+                                                return (
+                                                    <tr key={c.id} className="hover:bg-slate-50/50">
+                                                        <td className="px-4 py-2">
+                                                            <input
+                                                                type="text"
+                                                                value={c.name}
+                                                                onChange={(e) => {
+                                                                    const updated = [...parsedContributors];
+                                                                    updated[idx].name = e.target.value;
+                                                                    setParsedContributors(updated);
+                                                                }}
+                                                                disabled={isDup}
+                                                                className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-bold uppercase ${
+                                                                    isDup 
+                                                                        ? 'text-slate-400 border-transparent cursor-not-allowed' 
+                                                                        : 'text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-800 focus:border-brand-blue outline-none'
+                                                                }`}
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            <input
+                                                                type="text"
+                                                                value={c.cpf}
+                                                                onChange={(e) => {
+                                                                    const updated = [...parsedContributors];
+                                                                    updated[idx].cpf = e.target.value;
+                                                                    setParsedContributors(updated);
+                                                                }}
+                                                                disabled={isDup}
+                                                                placeholder="Sem CPF/CNPJ"
+                                                                className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-mono font-bold ${
+                                                                    isDup 
+                                                                        ? 'text-slate-400 border-transparent cursor-not-allowed' 
+                                                                        : 'text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-800 focus:border-brand-blue outline-none'
+                                                                }`}
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-2 text-right">
+                                                            {isDup ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40 uppercase">
+                                                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                                                    Duplicado
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40 uppercase">
+                                                                    <Check className="w-2.5 h-2.5" />
+                                                                    Novo
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                                    * Linhas marcadas como "Duplicado" possuem CPF/CNPJ ou Nome idênticos a cadastros já ativos nesta igreja e serão pulados automaticamente para evitar duplicidade.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800">
+                        <div>
+                            {isImporting && (
+                                <div className="text-left">
+                                    <p className="text-[10px] font-black uppercase text-brand-blue tracking-wider">
+                                        Importando {importProgress.current} de {importProgress.total}...
+                                    </p>
+                                    <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
+                                        <div 
+                                            className="bg-brand-blue h-full rounded-full transition-all duration-300" 
+                                            style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex space-x-3">
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setIsImportModalOpen(false);
+                                    setImportFile(null);
+                                    setParsedContributors([]);
+                                }} 
+                                disabled={isImporting}
+                                className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
+                            >
+                                {importFile ? 'Voltar' : 'Fechar'}
+                            </button>
+                            {importFile && !isLoadingImport && (
+                                <button 
+                                    type="button" 
+                                    onClick={handleExecuteImport}
+                                    disabled={isImporting || parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length === 0}
+                                    className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                                >
+                                    {isImporting ? 'Cadastrando...' : 'Confirmar Cadastro'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Visual Search input & Church Filter Selector below header */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 flex-shrink-0">
                 <div className="relative flex-1">
@@ -1179,853 +2023,6 @@ export const ContributorsList: React.FC = () => {
                             </button>
                         </div>
                     )}
-                </div>
-            )}
-
-            {/* NEW / EDIT CONTRIBUTOR MODAL */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-0 overflow-hidden" id="contributor-modal-container">
-                    <form onSubmit={handleSave} className="flex flex-col h-full w-full min-h-0" id="contributor-modal-form">
-                        
-                        {/* Modal Header */}
-                        <div className="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4 flex-shrink-0 bg-white dark:bg-[#0F172A]">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-xl bg-slate-700 text-white shadow-md shadow-slate-500/20">
-                                    <UsersIcon className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-base md:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase" id="contributor-modal-title">
-                                        {editingContributor ? 'Editar Empresa / Pessoa' : 'Nova Empresa / Pessoa'}
-                                    </h3>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                        Gerenciamento de Pessoas, Empresas e Fornecedores
-                                    </p>
-                                </div>
-                            </div>
-                            <button 
-                                type="button" 
-                                onClick={handleCloseModal} 
-                                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
-                                id="btn-close-contributor-modal"
-                            >
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {/* Modal Body with inputs */}
-                        <div className="p-4 md:p-8 flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
-                            <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
-                            
-                            {/* TOGGLE PF / PJ */}
-                            <div className="flex items-center justify-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl max-w-md mx-auto shadow-inner" id="toggle-person-type">
-                                <button
-                                    type="button"
-                                    onClick={() => setPersonType('PF')}
-                                    className={`flex-1 flex items-center justify-center space-x-2 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        personType === 'PF'
-                                            ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm scale-[1.01]'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                    id="btn-type-pf"
-                                >
-                                    <User className="w-3.5 h-3.5" />
-                                    <span>Pessoa Física (PF)</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setPersonType('PJ')}
-                                    className={`flex-1 flex items-center justify-center space-x-2 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        personType === 'PJ'
-                                            ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm scale-[1.01]'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                                    }`}
-                                    id="btn-type-pj"
-                                >
-                                    <Building2 className="w-3.5 h-3.5" />
-                                    <span>Empresa / PJ</span>
-                                </button>
-                            </div>
-
-                            {/* BLOCO 1: DADOS DE IDENTIFICAÇÃO E FOTO/LOGO INTEGRADOS */}
-                            <div className="p-4 bg-slate-50/60 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-3">
-                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                    {personType === 'PF' ? <User className="w-4 h-4 text-blue-500" /> : <Building2 className="w-4 h-4 text-amber-500" />}
-                                    <span>{personType === 'PF' ? 'Identificação & Vínculo Pessoal' : 'Dados Fiscais & Corporativos'}</span>
-                                </div>
-
-                                <div className="flex flex-col md:flex-row items-start gap-4">
-                                    {/* Compact Avatar / Logo Section */}
-                                    <div className="flex md:flex-col items-center gap-2.5 shrink-0 w-full md:w-28 p-2.5 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-200/70 dark:border-slate-800" id="photo-section">
-                                        <div className="relative group shadow-sm rounded-xl overflow-hidden" id="photo-avatar-wrapper">
-                                            <div className="w-16 h-16 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center overflow-hidden" id="photo-avatar-container">
-                                                {photoPreview ? (
-                                                    <img 
-                                                        src={photoPreview} 
-                                                        alt="Preview do cadastrado" 
-                                                        className="w-full h-full object-cover"
-                                                        id="photo-avatar-preview"
-                                                        referrerPolicy="no-referrer"
-                                                    />
-                                                ) : personType === 'PF' ? (
-                                                    <User className="w-7 h-7 text-slate-300 dark:text-slate-600" />
-                                                ) : (
-                                                    <Building2 className="w-7 h-7 text-amber-400 dark:text-amber-600" />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-1 w-full" id="photo-actions">
-                                            <input 
-                                                type="file" 
-                                                ref={fileInputRef} 
-                                                onChange={handleFileChange} 
-                                                accept="image/*" 
-                                                className="hidden" 
-                                                id="photo-file-input"
-                                            />
-                                            <button 
-                                                type="button" 
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="flex items-center justify-center space-x-1 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-all uppercase border border-slate-200 dark:border-slate-700 cursor-pointer"
-                                                id="btn-select-photo"
-                                                title="Adicionar ou alterar imagem"
-                                            >
-                                                <Camera className="w-3 h-3" />
-                                                <span>{personType === 'PF' ? 'Foto' : 'Logo'}</span>
-                                            </button>
-                                            
-                                            {photoPreview && (
-                                                <button 
-                                                    type="button" 
-                                                    onClick={handleRemovePhoto}
-                                                    className="flex items-center justify-center space-x-1 px-2 py-0.5 text-[8px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-all uppercase cursor-pointer"
-                                                    id="btn-remove-photo"
-                                                >
-                                                    <Trash2 className="w-2.5 h-2.5" />
-                                                    <span>Remover</span>
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Main Form Fields Grid */}
-                                    <div className="flex-1 w-full space-y-3">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {/* Nome / Razão Social */}
-                                            <div>
-                                                <label htmlFor="contributor-fullname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                    {personType === 'PF' ? 'Nome Completo' : 'Razão Social'} <span className="text-rose-500">*</span>
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    id="contributor-fullname" 
-                                                    value={fullName} 
-                                                    onChange={(e) => setFullName(e.target.value)} 
-                                                    placeholder={personType === 'PF' ? 'Ex: João da Silva' : 'Ex: ABC Materiais LTDA'}
-                                                    className={`block w-full rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none transition-all font-bold ${
-                                                        isNameInvalid 
-                                                            ? 'border-2 border-rose-500 focus:border-rose-500' 
-                                                            : 'border border-slate-200 dark:border-slate-700 focus:border-brand-blue'
-                                                    }`}
-                                                />
-                                                {isNameInvalid && (
-                                                    <p className="text-rose-500 text-[9px] font-bold mt-0.5">
-                                                        Campo obrigatório.
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            {/* Nome Fantasia (PJ) ou Vínculo/Cargo (PF) */}
-                                            {personType === 'PJ' ? (
-                                                <div>
-                                                    <label htmlFor="contributor-tradename" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Nome Fantasia
-                                                    </label>
-                                                    <input 
-                                                        type="text" 
-                                                        id="contributor-tradename" 
-                                                        value={tradeName} 
-                                                        onChange={(e) => setTradeName(e.target.value)} 
-                                                        placeholder="Ex: Depósito ABC"
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none transition-all focus:border-brand-blue font-bold"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <label htmlFor="contributor-role-position" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Vínculo / Cargo
-                                                    </label>
-                                                    <InlineRoleSelector
-                                                        value={rolePosition}
-                                                        onChange={(val) => {
-                                                            setRolePosition(val);
-                                                            setCategory(val);
-                                                        }}
-                                                        roles={customRoles}
-                                                        onAddRole={handleAddRole}
-                                                        onRenameRole={handleRenameRole}
-                                                        onDeleteRole={handleDeleteRole}
-                                                        themeColor="amber"
-                                                        itemLabel="Vínculo/Cargo"
-                                                        placeholder="Selecione o vínculo ou cargo..."
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            {/* CPF / CNPJ */}
-                                            <div>
-                                                <label htmlFor="contributor-cpf" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                    {personType === 'PF' ? 'CPF' : 'CNPJ'}
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    id="contributor-cpf" 
-                                                    value={cpf} 
-                                                    onChange={(e) => setCpf(e.target.value)} 
-                                                    placeholder={personType === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                />
-                                                {existingContributorWithCpf && (
-                                                    <div className="flex items-start space-x-1.5 mt-1 text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 p-2 rounded-lg border border-amber-200 dark:border-amber-800/80 font-medium">
-                                                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500 mt-0.5" />
-                                                        <div>
-                                                            <strong>Documento já cadastrado:</strong> Pertence a <strong>{existingContributorWithCpf.canonical_name}</strong>.
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* RG / IE */}
-                                            <div>
-                                                <label htmlFor="contributor-rg-ie" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                    {personType === 'PF' ? 'RG' : 'Inscrição Estadual (IE)'}
-                                                </label>
-                                                <input 
-                                                    type="text" 
-                                                    id="contributor-rg-ie" 
-                                                    value={rgIe} 
-                                                    onChange={(e) => setRgIe(e.target.value)} 
-                                                    placeholder={personType === 'PF' ? '00.000.000-0' : 'Isento ou número IE'}
-                                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                />
-                                            </div>
-
-                                            {/* Data Nasc (PF) ou Contato Responsável (PJ) */}
-                                            {personType === 'PF' ? (
-                                                <div>
-                                                    <label htmlFor="contributor-birth" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Data de Nascimento
-                                                    </label>
-                                                    <input 
-                                                        type="date" 
-                                                        id="contributor-birth" 
-                                                        value={birthDate} 
-                                                        onChange={(e) => setBirthDate(e.target.value)} 
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div>
-                                                    <label htmlFor="contributor-contact-person" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Pessoa de Contato / Vendedor
-                                                    </label>
-                                                    <input 
-                                                        type="text" 
-                                                        id="contributor-contact-person" 
-                                                        value={contactPerson} 
-                                                        onChange={(e) => setContactPerson(e.target.value)} 
-                                                        placeholder="Ex: Carlos (Vendas)"
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* PJ: Categoria + Igreja */}
-                                        {personType === 'PJ' && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label htmlFor="contributor-pj-category" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Ramo de Atuação / Categoria
-                                                    </label>
-                                                    <InlineRoleSelector
-                                                        value={category}
-                                                        onChange={(val) => setCategory(val)}
-                                                        roles={supplierCategories}
-                                                        onAddRole={handleAddSupplierCategory}
-                                                        onRenameRole={handleRenameSupplierCategory}
-                                                        onDeleteRole={handleDeleteSupplierCategory}
-                                                        themeColor="emerald"
-                                                        itemLabel="Categoria"
-                                                        placeholder="Selecione o ramo de atuação..."
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Igreja <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <select 
-                                                        id="contributor-church" 
-                                                        value={selectedChurchId} 
-                                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                                        className={`block w-full rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold ${
-                                                            isChurchInvalid 
-                                                                ? 'border-2 border-rose-500' 
-                                                                : 'border border-slate-200 dark:border-slate-700'
-                                                        }`}
-                                                    >
-                                                        {tempChurches.map((church) => (
-                                                            <option key={church.id} value={church.id}>
-                                                                {church.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* PF: Igreja + Status */}
-                                        {personType === 'PF' && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label htmlFor="contributor-church" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Igreja <span className="text-rose-500">*</span>
-                                                    </label>
-                                                    <select 
-                                                        id="contributor-church" 
-                                                        value={selectedChurchId} 
-                                                        onChange={(e) => setSelectedChurchId(e.target.value)} 
-                                                        className={`block w-full rounded-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold ${
-                                                            isChurchInvalid 
-                                                                ? 'border-2 border-rose-500' 
-                                                                : 'border border-slate-200 dark:border-slate-700'
-                                                        }`}
-                                                    >
-                                                        {tempChurches.map((church) => (
-                                                            <option key={church.id} value={church.id}>
-                                                                {church.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                <div>
-                                                    <label htmlFor="contributor-status" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                                        Status do Cadastro
-                                                    </label>
-                                                    <select 
-                                                        id="contributor-status" 
-                                                        value={status} 
-                                                        onChange={(e) => setStatus(e.target.value as 'Ativo' | 'Inativo')} 
-                                                        className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                                    >
-                                                        <option value="Ativo">Ativo</option>
-                                                        <option value="Inativo">Inativo</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* COMPARTILHAMENTO GLOBAL ENTRE TODAS AS IGREJAS */}
-                                <div className="p-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200/80 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5" id="global-share-card">
-                                    <div className="flex items-center space-x-2">
-                                        <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                                        <div>
-                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block">
-                                                Disponível para todas as Igrejas (Cadastro Global)
-                                            </span>
-                                            <span className="text-[9px] text-slate-500 dark:text-slate-400 block">
-                                                {isPrincipalUser 
-                                                    ? "Permite lançar despesas, doações ou serviços desta pessoa/empresa em qualquer igreja do sistema."
-                                                    : "Recurso restrito ao Usuário Principal."}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    {isPrincipalUser ? (
-                                        <label className="relative inline-flex items-center cursor-pointer shrink-0 self-start sm:self-center">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={isGlobal} 
-                                                onChange={(e) => setIsGlobal(e.target.checked)} 
-                                                className="sr-only peer"
-                                                id="chk-contributor-is-global"
-                                            />
-                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
-                                        </label>
-                                    ) : (
-                                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg shrink-0">
-                                            Usuário Principal
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* BLOCO 2: CONTATO & ENDEREÇO COMBINADOS DE FORMA CLEAN */}
-                            <div className="p-4 bg-slate-50/60 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-3">
-                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                    <Phone className="w-4 h-4 text-emerald-500" />
-                                    <span>Contato & Localização</span>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label htmlFor="contributor-phone" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'Telefone / WhatsApp' : 'Telefone Comercial / WhatsApp'}
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-phone" 
-                                            value={phone} 
-                                            onChange={(e) => setPhone(e.target.value)} 
-                                            placeholder="(00) 00000-0000"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="contributor-email" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            {personType === 'PF' ? 'E-mail Pessoal' : 'E-mail Oficial / NFe'}
-                                        </label>
-                                        <input 
-                                            type="email" 
-                                            id="contributor-email" 
-                                            value={email} 
-                                            onChange={(e) => setEmail(e.target.value)} 
-                                            placeholder="exemplo@contato.com"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1 border-t border-slate-100 dark:border-slate-800">
-                                    <div>
-                                        <label htmlFor="contributor-cep" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            CEP
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-cep" 
-                                            value={addressCep} 
-                                            onChange={(e) => setAddressCep(e.target.value)} 
-                                            placeholder="00000-000"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-
-                                    <div className="md:col-span-2">
-                                        <label htmlFor="contributor-street" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Logradouro / Endereço
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-street" 
-                                            value={addressStreet} 
-                                            onChange={(e) => setAddressStreet(e.target.value)} 
-                                            placeholder="Ex: Rua das Flores, Av. Central"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="contributor-number" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Número / Bairro
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-number" 
-                                            value={addressNumber} 
-                                            onChange={(e) => setAddressNumber(e.target.value)} 
-                                            placeholder="Nº 123, Bairro Centro"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <div className="md:col-span-3">
-                                        <label htmlFor="contributor-city" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Cidade
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-city" 
-                                            value={addressCity} 
-                                            onChange={(e) => setAddressCity(e.target.value)} 
-                                            placeholder="Ex: São Paulo"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="contributor-state" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            UF / Estado
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-state" 
-                                            value={addressState} 
-                                            onChange={(e) => setAddressState(e.target.value.toUpperCase())} 
-                                            placeholder="SP"
-                                            maxLength={2}
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold uppercase"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* BLOCO 3: DADOS BANCÁRIOS & PIX */}
-                            <div className="p-4 bg-slate-50/60 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-3">
-                                <div className="flex items-center space-x-2 text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                                    <Landmark className="w-4 h-4 text-cyan-500" />
-                                    <span>Dados Bancários & Chave Pix (Pagamentos / Transferências)</span>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label htmlFor="contributor-pix" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Chave Pix Principal
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-pix" 
-                                            value={pixKey} 
-                                            onChange={(e) => setPixKey(e.target.value)} 
-                                            placeholder="E-mail, CPF/CNPJ, Telefone ou Aleatória"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="contributor-bankname" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Instituição Bancária / Banco
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-bankname" 
-                                            value={bankName} 
-                                            onChange={(e) => setBankName(e.target.value)} 
-                                            placeholder="Ex: Itaú, Bradesco, Banco do Brasil, Nubank, Sicoob"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label htmlFor="contributor-bankagency" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Agência
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-bankagency" 
-                                            value={bankAgency} 
-                                            onChange={(e) => setBankAgency(e.target.value)} 
-                                            placeholder="0000"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="contributor-bankaccount" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                                            Conta Corrente / Poupança
-                                        </label>
-                                        <input 
-                                            type="text" 
-                                            id="contributor-bankaccount" 
-                                            value={bankAccount} 
-                                            onChange={(e) => setBankAccount(e.target.value)} 
-                                            placeholder="00000-0"
-                                            className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs py-2 px-3 outline-none font-bold"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* BLOCO 4: OBSERVAÇÕES INTERNAS */}
-                            <div className="p-4 bg-slate-50/60 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-2">
-                                <label htmlFor="contributor-notes" className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                    Observações / Anotações Internas
-                                </label>
-                                <textarea 
-                                    id="contributor-notes" 
-                                    value={notes} 
-                                    onChange={(e) => setNotes(e.target.value)} 
-                                    rows={2}
-                                    placeholder="Anotações sobre condições de pagamento, contratos ou histórico..."
-                                    className="block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs text-xs p-2.5 outline-none font-medium resize-none"
-                                />
-                            </div>
-
-                            </div>
-                        </div>
-
-                        {/* Modal Actions Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/90 px-6 md:px-8 py-4 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/60 mt-auto flex-shrink-0" id="contributor-modal-actions">
-                            <button 
-                                type="button" 
-                                onClick={handleCloseModal} 
-                                className="px-5 py-2.5 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer" 
-                                id="btn-cancel-contributor"
-                            >
-                                Cancelar
-                            </button>
-                            <button 
-                                type="submit" 
-                                className="px-6 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
-                                id="btn-save-contributor"
-                            >
-                                Salvar
-                            </button>
-                        </div>
-
-                    </form>
-                </div>
-            )}
-
-            {/* BATCH IMPORT MODAL */}
-            {isImportModalOpen && (
-                <div className="fixed inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-0 overflow-hidden" id="import-modal-container">
-                    
-                    {/* Header */}
-                    <div className="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4 flex-shrink-0 bg-white dark:bg-[#0F172A]">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl shadow-md shadow-emerald-500/10">
-                                <Sparkles className="w-5 h-5 animate-pulse" />
-                            </div>
-                            <div>
-                                <h3 className="text-base md:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                    Importar Empresas / Pessoas em Lote
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
-                                    Extraia dados diretamente de arquivos OFX, CSV, TXT ou Planilhas Excel.
-                                </p>
-                            </div>
-                        </div>
-                        <button 
-                            type="button" 
-                            onClick={() => {
-                                setIsImportModalOpen(false);
-                                setImportFile(null);
-                                setParsedContributors([]);
-                            }} 
-                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                        >
-                            <XMarkIcon className="w-5 h-5" />
-                        </button>
-                    </div>
-
-                    {/* Body */}
-                    <div className="p-4 md:p-8 flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
-                        <div className="max-w-4xl mx-auto space-y-6 w-full">
-                            {!importFile ? (
-                                /* Drag and Drop / Select File Zone */
-                                <div className="flex flex-col items-center justify-center">
-                                    <div 
-                                        onClick={() => importFileInputRef.current?.click()}
-                                        className="w-full border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-brand-blue dark:hover:border-brand-blue/60 bg-slate-50/50 dark:bg-slate-900/20 rounded-[2rem] p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:scale-[1.01] group"
-                                    >
-                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-slate-400 dark:text-slate-500 group-hover:text-brand-blue transition-colors mb-4">
-                                            <FileUp className="w-8 h-8" />
-                                        </div>
-                                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">
-                                            Carregar arquivo do extrato ou lista
-                                        </h4>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-3">
-                                            Selecione um extrato <span className="font-bold">OFX</span>, arquivo <span className="font-bold">CSV/TXT</span> ou planilha <span className="font-bold">Excel</span> contendo os nomes, razões sociais, CPFs ou CNPJs.
-                                        </p>
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 tracking-wider">
-                                            Processamento 100% Local e Seguro
-                                        </span>
-                                    </div>
-                                    <input 
-                                        type="file"
-                                        ref={importFileInputRef}
-                                        onChange={handleImportFileChange}
-                                        accept=".ofx,.csv,.txt,.xlsx,.xls"
-                                        className="hidden"
-                                    />
-                                </div>
-                            ) : isLoadingImport ? (
-                                /* Loading Parse State */
-                                <div className="flex flex-col items-center justify-center py-12 text-center">
-                                    <Loader2 className="w-10 h-10 text-brand-blue animate-spin mb-4" />
-                                    <h5 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                                        Analisando documento localmente...
-                                    </h5>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                        Mapeando registros, normalizando nomes e detectando CPFs.
-                                    </p>
-                                </div>
-                            ) : (
-                                /* Review & Edit State */
-                                <div className="space-y-6">
-                                    {/* Default Church selection */}
-                                    <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                        <div>
-                                            <label className="block text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
-                                                Igreja de Destino
-                                            </label>
-                                            <p className="text-[10px] font-medium text-slate-500 mt-0.5">
-                                                Selecione a igreja à qual estas empresas ou pessoas pertencem.
-                                            </p>
-                                        </div>
-                                        <select
-                                            value={defaultImportChurchId}
-                                            onChange={(e) => setDefaultImportChurchId(e.target.value)}
-                                            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-brand-graphite dark:text-slate-200 text-xs font-bold p-2.5 outline-none focus:border-brand-blue focus:ring-brand-blue cursor-pointer min-w-[200px]"
-                                        >
-                                            {tempChurches.filter(c => c.id !== 'church-1').map((church) => (
-                                                <option key={church.id} value={church.id}>
-                                                    {church.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Summary Stats */}
-                                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-100 dark:border-slate-800/50 pb-2">
-                                        <span>Registros Encontrados: {parsedContributors.length}</span>
-                                        <div className="flex space-x-3">
-                                            <span className="text-emerald-600">
-                                                Novos: {parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
-                                            </span>
-                                            <span className="text-amber-500">
-                                                Duplicados (pulados): {parsedContributors.filter(c => checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Contributors Editable Table */}
-                                    <div className="overflow-x-auto max-h-[35vh] border border-slate-100 dark:border-slate-800 rounded-2xl custom-scrollbar">
-                                        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold uppercase">
-                                            <thead className="bg-slate-50/50 dark:bg-slate-900/40 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
-                                                        Nome / Razão Social
-                                                    </th>
-                                                    <th className="px-4 py-2 text-left font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px]">
-                                                        CPF / CNPJ Identificado
-                                                    </th>
-                                                    <th className="px-4 py-2 text-right font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[9px] w-[110px]">
-                                                        Situação
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900/30">
-                                                {parsedContributors.map((c, idx) => {
-                                                    const isDup = checkDuplicate(c.cpf, c.name, defaultImportChurchId);
-                                                    return (
-                                                        <tr key={c.id} className="hover:bg-slate-50/20">
-                                                            <td className="px-4 py-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={c.name}
-                                                                    onChange={(e) => {
-                                                                        const updated = [...parsedContributors];
-                                                                        updated[idx].name = e.target.value;
-                                                                        setParsedContributors(updated);
-                                                                    }}
-                                                                    disabled={isDup}
-                                                                    className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-bold uppercase ${
-                                                                        isDup 
-                                                                            ? 'text-slate-400 border-transparent cursor-not-allowed' 
-                                                                            : 'text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-800 focus:border-brand-blue outline-none'
-                                                                    }`}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 py-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={c.cpf}
-                                                                    onChange={(e) => {
-                                                                        const updated = [...parsedContributors];
-                                                                        updated[idx].cpf = e.target.value;
-                                                                        setParsedContributors(updated);
-                                                                    }}
-                                                                    disabled={isDup}
-                                                                    placeholder="Sem CPF/CNPJ"
-                                                                    className={`w-full bg-transparent p-1 border-b rounded transition-colors text-xs font-mono font-bold ${
-                                                                        isDup 
-                                                                            ? 'text-slate-400 border-transparent cursor-not-allowed' 
-                                                                            : 'text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-800 focus:border-brand-blue outline-none'
-                                                                    }`}
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 py-2 text-right">
-                                                                {isDup ? (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/40 uppercase">
-                                                                        <AlertTriangle className="w-2.5 h-2.5" />
-                                                                        Duplicado
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/40 uppercase">
-                                                                        <Check className="w-2.5 h-2.5" />
-                                                                        Novo
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                                        * Linhas marcadas como "Duplicado" possuem CPF/CNPJ ou Nome idênticos a cadastros já ativos nesta igreja e serão pulados automaticamente para evitar duplicidade.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="bg-slate-50 dark:bg-slate-900/90 px-6 md:px-8 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800/60 mt-auto flex-shrink-0">
-                        <div>
-                            {isImporting && (
-                                <div className="text-left">
-                                    <p className="text-[10px] font-black uppercase text-brand-blue tracking-wider">
-                                        Importando {importProgress.current} de {importProgress.total}...
-                                    </p>
-                                    <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
-                                        <div 
-                                            className="bg-brand-blue h-full rounded-full transition-all duration-300" 
-                                            style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex space-x-3">
-                            <button 
-                                type="button" 
-                                onClick={() => {
-                                    setIsImportModalOpen(false);
-                                    setImportFile(null);
-                                    setParsedContributors([]);
-                                }} 
-                                disabled={isImporting}
-                                className="px-5 py-2.5 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
-                            >
-                                {importFile ? 'Voltar' : 'Fechar'}
-                            </button>
-                            {importFile && !isLoadingImport && (
-                                <button 
-                                    type="button" 
-                                    onClick={handleExecuteImport}
-                                    disabled={isImporting || parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length === 0}
-                                    className="px-6 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                                >
-                                    {isImporting ? 'Cadastrando...' : 'Confirmar Cadastro'}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
                 </div>
             )}
         </div>
