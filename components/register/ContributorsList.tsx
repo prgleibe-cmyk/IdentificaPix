@@ -1182,13 +1182,13 @@ export const ContributorsList: React.FC = () => {
                 </div>
             )}
 
-            {/* NEW CONTRIBUTOR MODAL */}
+            {/* NEW / EDIT CONTRIBUTOR MODAL */}
             {isModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-[550px] overflow-hidden" id="contributor-modal-container">
-                    <form onSubmit={handleSave} className="flex flex-col h-full w-full" id="contributor-modal-form">
+                <div className="fixed inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-0 overflow-hidden" id="contributor-modal-container">
+                    <form onSubmit={handleSave} className="flex flex-col h-full w-full min-h-0" id="contributor-modal-form">
                         
                         {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4 flex-shrink-0">
+                        <div className="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4 flex-shrink-0 bg-white dark:bg-[#0F172A]">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 rounded-xl bg-slate-700 text-white shadow-md shadow-slate-500/20">
                                     <UsersIcon className="w-5 h-5" />
@@ -1205,7 +1205,7 @@ export const ContributorsList: React.FC = () => {
                             <button 
                                 type="button" 
                                 onClick={handleCloseModal} 
-                                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
+                                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer" 
                                 id="btn-close-contributor-modal"
                             >
                                 <XMarkIcon className="w-5 h-5" />
@@ -1213,7 +1213,8 @@ export const ContributorsList: React.FC = () => {
                         </div>
 
                         {/* Modal Body with inputs */}
-                        <div className="p-4 md:p-6 flex-1 overflow-auto w-full custom-scrollbar space-y-4" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                        <div className="p-4 md:p-8 flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                            <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
                             
                             {/* TOGGLE PF / PJ */}
                             <div className="flex items-center justify-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl max-w-md mx-auto shadow-inner" id="toggle-person-type">
@@ -1760,21 +1761,22 @@ export const ContributorsList: React.FC = () => {
                                 />
                             </div>
 
+                            </div>
                         </div>
 
                         {/* Modal Actions Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-6 py-3.5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto flex-shrink-0" id="contributor-modal-actions">
+                        <div className="bg-slate-50 dark:bg-slate-900/90 px-6 md:px-8 py-4 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/60 mt-auto flex-shrink-0" id="contributor-modal-actions">
                             <button 
                                 type="button" 
                                 onClick={handleCloseModal} 
-                                className="px-5 py-2 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer" 
+                                className="px-5 py-2.5 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer" 
                                 id="btn-cancel-contributor"
                             >
                                 Cancelar
                             </button>
                             <button 
                                 type="submit" 
-                                className="px-6 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
+                                className="px-6 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer"
                                 id="btn-save-contributor"
                             >
                                 Salvar
@@ -1787,16 +1789,16 @@ export const ContributorsList: React.FC = () => {
 
             {/* BATCH IMPORT MODAL */}
             {isImportModalOpen && (
-                <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden" id="import-modal-container">
+                <div className="fixed inset-0 z-50 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full min-h-0 overflow-hidden" id="import-modal-container">
                     
                     {/* Header */}
-                    <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4">
+                    <div className="px-6 md:px-8 py-4 md:py-5 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4 flex-shrink-0 bg-white dark:bg-[#0F172A]">
                         <div className="flex items-center gap-4">
-                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl shadow-lg shadow-emerald-500/10">
-                                <Sparkles className="w-6 h-6 animate-pulse" />
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl shadow-md shadow-emerald-500/10">
+                                <Sparkles className="w-5 h-5 animate-pulse" />
                             </div>
                             <div>
-                                <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                <h3 className="text-base md:text-lg font-black text-slate-800 dark:text-white tracking-tight uppercase">
                                     Importar Empresas / Pessoas em Lote
                                 </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">
@@ -1811,15 +1813,15 @@ export const ContributorsList: React.FC = () => {
                                 setImportFile(null);
                                 setParsedContributors([]);
                             }} 
-                            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                         >
-                            <XMarkIcon className="w-6 h-6" />
+                            <XMarkIcon className="w-5 h-5" />
                         </button>
                     </div>
 
                     {/* Body */}
-                    <div className="p-8 flex-1 overflow-y-auto w-full">
-                        <div className="space-y-6 w-full">
+                    <div className="p-4 md:p-8 flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                        <div className="max-w-4xl mx-auto space-y-6 w-full">
                             {!importFile ? (
                                 /* Drag and Drop / Select File Zone */
                                 <div className="flex flex-col items-center justify-center">
@@ -1982,7 +1984,7 @@ export const ContributorsList: React.FC = () => {
                     </div>
 
                     {/* Footer */}
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-between items-center border-t border-slate-100 dark:border-slate-800/50 mt-auto">
+                    <div className="bg-slate-50 dark:bg-slate-900/90 px-6 md:px-8 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800/60 mt-auto flex-shrink-0">
                         <div>
                             {isImporting && (
                                 <div className="text-left">
@@ -2007,7 +2009,7 @@ export const ContributorsList: React.FC = () => {
                                     setParsedContributors([]);
                                 }} 
                                 disabled={isImporting}
-                                className="px-6 py-2.5 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-2xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
+                                className="px-5 py-2.5 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 rounded-xl shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50"
                             >
                                 {importFile ? 'Voltar' : 'Fechar'}
                             </button>
@@ -2016,7 +2018,7 @@ export const ContributorsList: React.FC = () => {
                                     type="button" 
                                     onClick={handleExecuteImport}
                                     disabled={isImporting || parsedContributors.filter(c => !checkDuplicate(c.cpf, c.name, defaultImportChurchId)).length === 0}
-                                    className="px-8 py-2.5 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                                    className="px-6 py-2.5 text-[11px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 active:translate-y-0 transition-all tracking-wider uppercase cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                                 >
                                     {isImporting ? 'Cadastrando...' : 'Confirmar Cadastro'}
                                 </button>

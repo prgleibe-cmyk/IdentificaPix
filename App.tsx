@@ -24,6 +24,7 @@ import { ExpiredBlockOverlay } from './components/shared/ExpiredBlockOverlay';
 import { SystemVersionMonitor } from './components/shared/SystemVersionMonitor';
 import { GlobalAnnouncementBanner } from './components/shared/GlobalAnnouncementBanner';
 import { usePinchZoom } from './hooks/usePinchZoom';
+import { useGlobalDragScroll } from './hooks/useGlobalDragScroll';
 import { PinchZoomControl } from './components/layout/PinchZoomControl';
 
 // --- Main Application Layout ---
@@ -99,6 +100,7 @@ const isPortalRoute = () => {
 };
 
 const AppContent: React.FC = () => {
+    useGlobalDragScroll();
     const [isPortal, setIsPortal] = React.useState(isPortalRoute());
 
     React.useEffect(() => {
