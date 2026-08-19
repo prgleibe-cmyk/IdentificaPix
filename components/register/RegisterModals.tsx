@@ -83,7 +83,7 @@ export const BankModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
         <div className="absolute inset-0 z-40 bg-white dark:bg-[#0F172A] flex flex-col animate-fade-in w-full h-full overflow-hidden" id="bank-modal-container">
             <form onSubmit={handleSubmit} className="flex flex-col h-full w-full" id="bank-modal-form">
                 {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-shrink-0">
                     <div className="flex flex-row flex-wrap items-center gap-4 md:gap-8 w-full md:w-auto">
                         <div className="flex items-center gap-4">
                             <div className="p-3 rounded-2xl bg-brand-blue text-white shadow-lg shadow-blue-500/20 flex items-center justify-center">

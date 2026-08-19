@@ -870,7 +870,7 @@ export const ContributorsList: React.FC = () => {
     }, [filteredContributors, displayLimit]);
 
     return (
-        <div className="h-full flex flex-col animate-fade-in" id="contributors-container">
+        <div className="h-full flex-1 min-h-[550px] flex flex-col animate-fade-in relative" id="contributors-container">
             {/* Header Area */}
             <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/50">
                 <div className="flex items-center space-x-3">
@@ -1188,7 +1188,7 @@ export const ContributorsList: React.FC = () => {
                     <form onSubmit={handleSave} className="flex flex-col h-full w-full" id="contributor-modal-form">
                         
                         {/* Modal Header */}
-                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4">
+                        <div className="px-8 py-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center gap-4 flex-shrink-0">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 rounded-2xl bg-slate-700 text-white shadow-lg shadow-slate-500/20">
                                     <UsersIcon className="w-6 h-6" />
@@ -1770,7 +1770,7 @@ export const ContributorsList: React.FC = () => {
                         </div>
 
                         {/* Modal Actions Footer */}
-                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto" id="contributor-modal-actions">
+                        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-end space-x-3 border-t border-slate-100 dark:border-slate-800/50 mt-auto flex-shrink-0" id="contributor-modal-actions">
                             <button 
                                 type="button" 
                                 onClick={handleCloseModal} 

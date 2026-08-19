@@ -70,8 +70,8 @@ export const RegisterView: React.FC = memo(() => {
             </div>
             
             {/* Main Content Area */}
-            <div className="flex-1 min-h-0">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 h-full flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up">
+            <div className="flex-1 min-h-[600px] flex flex-col">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-card border border-slate-100 dark:border-slate-700 min-h-[600px] flex-1 flex flex-col hover:shadow-soft transition-all duration-500 relative overflow-hidden animate-fade-in-up">
                     
                     {/* Dynamic Headers per Tab */}
                     {activeTab === 'banks' && (
