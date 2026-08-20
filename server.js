@@ -146,7 +146,16 @@ if (fs.existsSync(distPath)) {
 }
 
 // Middlewares
-app.use(compression());
+app.use(compression({
+    level: 6, // Equilíbrio ideal entre compressão e uso de CPU
+    threshold: 1024, // Comprime respostas >= 1KB
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+            return false;
+        }
+        return compression.filter(req, res);
+    }
+}));
 app.use(cors());
 
 // Condicional para aplicar express.json exceto em rotas /api/inbox (que possuem um parser resiliente próprio para evitar erros do MacroDroid)
@@ -336,14 +345,20 @@ try {
 
 // Servir arquivos estáticos do frontend apenas em produção
 if (process.env.NODE_ENV === 'production') {
-    // Pasta de arquivos estáticos com suporte a cache longo para assets imutáveis
+    // Pasta de arquivos estáticos com suporte a cache longo e granular para assets imutáveis
     app.use(express.static(distPath, {
-        maxAge: '7d',
+        maxAge: '1y',
         etag: true,
-        setHeaders: (res, path) => {
-            if (path.endsWith('.html')) {
-                // index.html não deve ser retido sem verificação de e-tag
-                res.setHeader('Cache-Control', 'no-cache');
+        setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.html')) {
+                // index.html nunca deve ser cacheado sem revalidação
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            } else if (filePath.includes('/assets/') || filePath.includes('\\assets\\')) {
+                // Assets gerados pelo Vite com hash no arquivo são 100% imutáveis
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            } else {
+                // Imagens e recursos estáticos da raiz com revalidação stale-while-revalidate
+                res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
             }
         }
     }));
@@ -352,7 +367,10 @@ if (process.env.NODE_ENV === 'production') {
     app.get('*', (req, res) => {
         if (req.url.startsWith('/api/')) return res.status(404).json({ error: 'Not Found' });
         const indexPath = path.join(distPath, 'index.html');
-        if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+        if (fs.existsSync(indexPath)) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            return res.sendFile(indexPath);
+        }
         res.status(200).send("IdentificaPix Server Active.");
     });
 }

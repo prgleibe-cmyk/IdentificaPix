@@ -177,7 +177,7 @@ export const Sidebar: React.FC = memo(() => {
             {/* Mobile Header */}
             <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#F8FAFC] dark:bg-[#0B0F17] border-b border-slate-200/80 dark:border-white/5 flex items-center justify-between px-4 z-[60] shadow-sm">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveView('dashboard')}>
-                    <img src={logoImg} className="h-8 w-auto object-contain" alt="Logo" />
+                    <img src={logoImg} className="h-8 w-auto object-contain" alt="Logo" loading="eager" decoding="async" />
                     <span className="font-display font-black text-lg tracking-tight text-slate-800 dark:text-white">
                         Ig<span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-blue to-amber-600">Gestor</span>
                     </span>
@@ -219,6 +219,8 @@ export const Sidebar: React.FC = memo(() => {
                                 src={logoImg} 
                                 className={`${isCollapsed ? 'h-8' : 'h-8 md:h-10'} w-auto object-contain transition-all duration-300 drop-shadow-sm group-hover:scale-105`} 
                                 alt="Logo" 
+                                loading="eager"
+                                decoding="async"
                             />
                         </div>
                         {!isCollapsed && (

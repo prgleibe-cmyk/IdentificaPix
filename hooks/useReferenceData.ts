@@ -5,6 +5,7 @@ import { usePersistentState } from './usePersistentState';
 import { strictNormalize, DEFAULT_CONTRIBUTION_KEYWORDS, isInvalidOrNumericName } from '../services/utils/parsingUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { batchState } from './reconciliation/useCloudSync';
+import { fetchWithMemoryCache } from '../services/clientDataCache';
 
 const DEFAULT_PAYMENT_METHODS = ['PIX', 'DINHEIRO'];
 
@@ -23,14 +24,16 @@ export const useReferenceData = (user: any | null, showToast: (msg: string, type
     const [paymentMethods, setPaymentMethods] = usePersistentState<string[]>(`identificapix-payment-methods${userSuffix}`, DEFAULT_PAYMENT_METHODS);
     const [contributionTypes, setContributionTypes] = useState<ContributionType[]>([]);
 
-    const fetchContributionTypes = useCallback(async () => {
+    const fetchContributionTypes = useCallback(async (forceRefresh = false) => {
         try {
             const url = effectiveUserId 
                 ? `/api/v1/contribution-types?user_id=${encodeURIComponent(effectiveUserId)}`
                 : '/api/v1/contribution-types';
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
+            const data = await fetchWithMemoryCache<ContributionType[]>(url, {}, {
+                ttlMs: 45000,
+                forceRefresh
+            });
+            if (Array.isArray(data)) {
                 setContributionTypes(data);
             }
         } catch (err) {

@@ -169,6 +169,8 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
                         src={logoImg} 
                         className="h-14 sm:h-16 w-auto object-contain drop-shadow-md" 
                         alt="Logo IgGestor" 
+                        loading="eager"
+                        decoding="async"
                     />
                 </div>
                 <div>

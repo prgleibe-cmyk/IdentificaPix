@@ -67,7 +67,16 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3010;
 
 app.use(cors());
-app.use(compression() as any);
+app.use(compression({
+  level: 6,
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}) as any);
 app.use(express.json());
 
 // Configure PostgreSQL connection
@@ -187,6 +196,10 @@ async function initializeDatabase() {
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_church_status ON contributors(church_id, status);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_canonical_name ON contributors(canonical_name);");
     await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_cpf ON contributors(cpf);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_phone ON contributors(phone);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_whatsapp ON contributors(whatsapp);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_email ON contributors(email);");
+    await client.query("CREATE INDEX IF NOT EXISTS idx_contributors_pix_key ON contributors(pix_key);");
     console.log('[Contributors API] Table "contributors" verified or successfully created.');
 
     // Create table banks
@@ -367,6 +380,10 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_type VARCHAR(255);');
     await client.query('ALTER TABLE consolidated_transactions ADD COLUMN IF NOT EXISTS contribution_request_id UUID;');
     await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_contrib_req ON consolidated_transactions(church_id, contribution_request_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_church_user ON consolidated_transactions(church_id, user_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_date ON consolidated_transactions(transaction_date);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_contributor ON consolidated_transactions(contributor_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_consolidated_tx_status ON consolidated_transactions(status);');
     console.log('[Contributors API] Table "consolidated_transactions" verified or successfully created.');
 
     // Create table learned_associations
@@ -385,6 +402,8 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS contributor_normalized_name VARCHAR(255);');
     await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS church_id UUID;');
     await client.query('ALTER TABLE learned_associations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_learned_assoc_church_desc ON learned_associations(church_id, normalized_description);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_learned_assoc_user ON learned_associations(user_id);');
     console.log('[Contributors API] Table "learned_associations" verified or successfully created.');
 
     // Create table saved_reports
@@ -418,6 +437,8 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS user_id UUID;');
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS data JSONB;');
     await client.query('ALTER TABLE saved_reports ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_saved_reports_church ON saved_reports(church_id);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_saved_reports_user ON saved_reports(user_id);');
     console.log('[Contributors API] Table "saved_reports" verified or successfully created.');
 
     // Create table financial_records
@@ -458,6 +479,8 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS bank_transaction_desc VARCHAR(255);');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_fin_records_church_date ON financial_records(church_id, due_date);');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_fin_records_status ON financial_records(status);');
     console.log('[Contributors API] Table "financial_records" verified or successfully created.');
 
     // Create table pastor_automations

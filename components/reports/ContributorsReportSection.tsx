@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { useUI } from '../../contexts/UIContext';
 import { ExportService } from '../../services/ExportService';
+import { getCachedContributors } from '../../services/contributorsCache';
 import { 
     Users, Building2, UserCheck, Search, Download, 
     FileSpreadsheet, FileText, Filter, Loader2, RefreshCw, FileCode, Printer,
@@ -31,6 +32,7 @@ export const ContributorsReportSection: React.FC = () => {
     const [contributors, setContributors] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     
     // Multi-select church filter
     const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
@@ -48,6 +50,14 @@ export const ContributorsReportSection: React.FC = () => {
     const churchDropdownRef = useRef<HTMLDivElement>(null);
     const downloadMenuRef = useRef<HTMLDivElement>(null);
 
+    // Debounce search input to maintain 60 FPS typing
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     // Close popovers on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -63,15 +73,11 @@ export const ContributorsReportSection: React.FC = () => {
     }, []);
 
     // Load contributor data from API and merge local files if needed
-    const loadContributorsData = async () => {
+    const loadContributorsData = async (forceRefresh = false) => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/v1/contributors');
-            let apiData: any[] = [];
-            if (res.ok) {
-                const json = await res.json();
-                apiData = Array.isArray(json) ? json : (json.contributors || []);
-            }
+            const apiDataRaw = await getCachedContributors(forceRefresh);
+            let apiData: any[] = Array.isArray(apiDataRaw) ? [...apiDataRaw] : [];
 
             // Fallback: merge with local contributorFiles
             if (contributorFiles && contributorFiles.length > 0) {
@@ -171,32 +177,38 @@ export const ContributorsReportSection: React.FC = () => {
 
     // Filter contributors
     const filteredContributors = useMemo(() => {
+        const query = debouncedSearchQuery.toLowerCase().trim();
+        const cleanQueryDoc = query.replace(/\D/g, '');
+        const normalizedQuery = query ? query.normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+
         return contributors.filter(c => {
             // Search Query
-            if (searchQuery) {
-                const query = searchQuery.toLowerCase().trim();
-                const nameMatch = (c.name || c.fullName || '').toLowerCase().includes(query);
-                const docMatch = (c.cpfCnpj || c.cpf || c.document || '').includes(query);
-                const phoneMatch = (c.phone || c.mobile || '').includes(query);
+            if (query) {
+                const nameStr = (c.name || c.fullName || c.canonical_name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const nameMatch = nameStr.includes(normalizedQuery);
+                const docRaw = c.cpfCnpj || c.cpf || c.document || '';
+                const docMatch = cleanQueryDoc ? docRaw.replace(/\D/g, '').includes(cleanQueryDoc) : docRaw.toLowerCase().includes(query);
+                const phoneMatch = cleanQueryDoc ? (c.phone || c.mobile || '').replace(/\D/g, '').includes(cleanQueryDoc) : false;
                 const emailMatch = (c.email || '').toLowerCase().includes(query);
-                const cityMatch = (c.city || c.cidade || '').toLowerCase().includes(query);
+                const cityMatch = (c.city || c.cidade || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalizedQuery);
                 if (!nameMatch && !docMatch && !phoneMatch && !emailMatch && !cityMatch) return false;
             }
 
             // Multi-Church Filter
             if (selectedChurchIds.length > 0) {
-                if (!selectedChurchIds.includes(c.churchId)) return false;
+                const cChurch = c.churchId || c.church_id;
+                if (!selectedChurchIds.includes(cChurch)) return false;
             }
 
             // Person Type
             if (selectedPersonType !== 'ALL') {
-                const type = c.personType || (c.cpfCnpj?.length === 18 ? 'PJ' : 'PF');
+                const type = c.personType || c.person_type || (c.cpfCnpj?.length === 18 ? 'PJ' : 'PF');
                 if (type !== selectedPersonType) return false;
             }
 
             // Role
             if (selectedRole !== 'ALL') {
-                const r = c.role || c.churchRole || 'Membro';
+                const r = c.role || c.churchRole || c.role_position || 'Membro';
                 if (r !== selectedRole) return false;
             }
 
@@ -213,7 +225,7 @@ export const ContributorsReportSection: React.FC = () => {
 
             return true;
         });
-    }, [contributors, searchQuery, selectedChurchIds, selectedPersonType, selectedRole, missingFilter]);
+    }, [contributors, debouncedSearchQuery, selectedChurchIds, selectedPersonType, selectedRole, missingFilter]);
 
     // Statistics & Data Quality Overview
     const stats = useMemo(() => {
@@ -408,7 +420,7 @@ export const ContributorsReportSection: React.FC = () => {
                 {/* Export Button & Refresh */}
                 <div className="relative flex items-center gap-2" ref={downloadMenuRef}>
                     <button
-                        onClick={loadContributorsData}
+                        onClick={() => loadContributorsData(true)}
                         title="Recarregar Cadastros"
                         className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
                     >

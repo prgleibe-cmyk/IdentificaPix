@@ -89,6 +89,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({ church, onNavigate }
                     <img 
                         src={logoSrc} 
                         alt={`${brandName} Logo`} 
+                        loading="eager"
+                        decoding="async"
                         className="h-8 w-8 sm:h-9 sm:w-9 object-cover rounded-xl border border-slate-200/80 dark:border-slate-700 bg-white shadow-2xs transition-transform group-hover:scale-105 shrink-0"
                         onError={(e) => {
                             (e.target as HTMLImageElement).src = "/logo.png?v=15";

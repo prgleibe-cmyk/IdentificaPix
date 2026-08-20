@@ -1861,6 +1861,8 @@ export const ContributorsList: React.FC = () => {
                                                             src={c.photo_url || c.photo || c.photoUrl || c.avatarUrl} 
                                                             alt={c.canonical_name} 
                                                             className="w-full h-full object-cover" 
+                                                            loading="lazy"
+                                                            decoding="async"
                                                             referrerPolicy="no-referrer"
                                                         />
                                                     ) : isPJ ? (
