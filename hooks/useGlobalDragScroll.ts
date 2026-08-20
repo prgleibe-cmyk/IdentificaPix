@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 
 /**
  * useGlobalDragScroll
- * Permite deslizar/rolar qualquer tela, modal ou tabela clicando e arrastando com o mouse
- * em qualquer lugar livre da tela (drag-to-scroll com inércia cinética), sem precisar mirar na barra lateral.
+ * Permite deslizar/rolar qualquer tela, modal, relatório ou tabela tocando/arrastando
+ * em qualquer lugar da tela em qualquer dispositivo (mobile, tablet, desktop, touch screens),
+ * preservando toques normais em botões/links e permitindo navegação fluida.
  */
 export function useGlobalDragScroll() {
     useEffect(() => {
@@ -13,8 +14,10 @@ export function useGlobalDragScroll() {
         let startY = 0;
         let initialScrollLeft = 0;
         let initialScrollTop = 0;
-        let scrollTarget: HTMLElement | null = null;
+        let scrollTargetX: HTMLElement | null = null;
+        let scrollTargetY: HTMLElement | null = null;
         let animationFrameId: number | null = null;
+        let activePointerId: number | null = null;
 
         // Inércia cinética
         let lastTime = 0;
@@ -23,13 +26,12 @@ export function useGlobalDragScroll() {
         let velocityX = 0;
         let velocityY = 0;
 
-        const isInteractiveElement = (el: HTMLElement | null): boolean => {
+        const isFormInputElement = (el: HTMLElement | null): boolean => {
             if (!el) return false;
             const tag = el.tagName.toLowerCase();
             if (['input', 'textarea', 'select', 'option'].includes(tag)) return true;
             if (el.isContentEditable) return true;
             
-            // Verifica se está dentro de campos de entrada ou controles especiais de formulário
             const interactiveParent = el.closest(
                 'input, textarea, select, [contenteditable="true"], [role="slider"], [role="switch"], [data-no-drag-scroll]'
             );
@@ -38,26 +40,39 @@ export function useGlobalDragScroll() {
             return false;
         };
 
-        const findScrollableAncestor = (startEl: HTMLElement | null): HTMLElement | null => {
+        const findHorizontalScrollTarget = (startEl: HTMLElement | null): HTMLElement | null => {
+            let current: HTMLElement | null = startEl;
+            while (current && current !== document.body && current !== document.documentElement) {
+                const style = window.getComputedStyle(current);
+                const overflowX = style.overflowX;
+                if ((overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth + 4) {
+                    return current;
+                }
+                current = current.parentElement;
+            }
+            return null;
+        };
+
+        const findVerticalScrollTarget = (startEl: HTMLElement | null): HTMLElement | null => {
             let current: HTMLElement | null = startEl;
             while (current && current !== document.body && current !== document.documentElement) {
                 const style = window.getComputedStyle(current);
                 const overflowY = style.overflowY;
-                const overflowX = style.overflowX;
-
-                const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight + 4;
-                const isScrollableX = (overflowX === 'auto' || overflowX === 'scroll') && current.scrollWidth > current.clientWidth + 4;
-
-                if (isScrollableY || isScrollableX) {
+                if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight + 4) {
                     return current;
                 }
                 current = current.parentElement;
             }
 
-            // Fallback para o container principal de scroll se existir e tiver conteúdo que permita rolar
+            // Fallback para o container principal da aplicação
             const mainContainer = document.getElementById('main-scroll-container');
             if (mainContainer && (mainContainer.scrollHeight > mainContainer.clientHeight + 4 || mainContainer.scrollWidth > mainContainer.clientWidth + 4)) {
                 return mainContainer;
+            }
+
+            // Fallback para scrollingElement do documento
+            if (document.scrollingElement && document.scrollingElement.scrollHeight > window.innerHeight + 4) {
+                return document.scrollingElement as HTMLElement;
             }
 
             return null;
@@ -70,25 +85,29 @@ export function useGlobalDragScroll() {
             }
         };
 
-        const handleMouseDown = (e: MouseEvent) => {
-            // Apenas clique com o botão esquerdo principal do mouse
-            if (e.button !== 0) return;
+        const handlePointerDown = (e: PointerEvent) => {
+            // Apenas primeiro toque ou clique esquerdo
+            if (e.button !== 0 || (e.isPrimary === false)) return;
 
             const target = e.target as HTMLElement | null;
-            if (isInteractiveElement(target)) return;
+            if (isFormInputElement(target)) return;
 
-            const scrollable = findScrollableAncestor(target);
-            if (!scrollable) return;
+            const targetX = findHorizontalScrollTarget(target);
+            const targetY = findVerticalScrollTarget(target);
+
+            if (!targetX && !targetY) return;
 
             stopMomentum();
 
             isDown = true;
             hasMoved = false;
-            scrollTarget = scrollable;
+            activePointerId = e.pointerId;
+            scrollTargetX = targetX;
+            scrollTargetY = targetY;
             startX = e.clientX;
             startY = e.clientY;
-            initialScrollLeft = scrollable.scrollLeft;
-            initialScrollTop = scrollable.scrollTop;
+            initialScrollLeft = targetX ? targetX.scrollLeft : 0;
+            initialScrollTop = targetY ? targetY.scrollTop : 0;
 
             lastTime = performance.now();
             lastX = e.clientX;
@@ -97,23 +116,27 @@ export function useGlobalDragScroll() {
             velocityY = 0;
         };
 
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDown || !scrollTarget) return;
+        const handlePointerMove = (e: PointerEvent) => {
+            if (!isDown || activePointerId !== e.pointerId) return;
 
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
 
             if (!hasMoved) {
-                // Threshold de 4px para distinguir clique intencional de início de arrasto
-                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+                // Threshold de 5px para distinguir clique/tap estático de arraste intencional
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                     hasMoved = true;
                     document.body.classList.add('select-none');
                 }
             }
 
             if (hasMoved) {
-                scrollTarget.scrollLeft = initialScrollLeft - dx;
-                scrollTarget.scrollTop = initialScrollTop - dy;
+                if (scrollTargetX) {
+                    scrollTargetX.scrollLeft = initialScrollLeft - dx;
+                }
+                if (scrollTargetY) {
+                    scrollTargetY.scrollTop = initialScrollTop - dy;
+                }
 
                 const now = performance.now();
                 const dt = Math.max(1, now - lastTime);
@@ -128,36 +151,40 @@ export function useGlobalDragScroll() {
             }
         };
 
-        const handleMouseUp = () => {
-            if (!isDown) return;
+        const handlePointerUp = (e: PointerEvent) => {
+            if (!isDown || (activePointerId !== null && e.pointerId !== activePointerId)) return;
             isDown = false;
+            activePointerId = null;
             document.body.classList.remove('select-none');
 
             if (hasMoved) {
-                // Previne que o clique acidental ao soltar o mouse dispare eventos em botões/cards
+                // Impede que o clique final ao soltar dispare botões ou links acidentalmente
                 const captureClick = (clickEvent: MouseEvent) => {
                     clickEvent.stopPropagation();
                     clickEvent.preventDefault();
                     window.removeEventListener('click', captureClick, true);
                 };
                 window.addEventListener('click', captureClick, true);
-                setTimeout(() => window.removeEventListener('click', captureClick, true), 100);
+                setTimeout(() => window.removeEventListener('click', captureClick, true), 120);
 
-                // Aplica inércia suave ao soltar o arrasto
-                if (scrollTarget && (Math.abs(velocityX) > 0.15 || Math.abs(velocityY) > 0.15)) {
+                // Aplica inércia cinética suave em ambos os eixos
+                if ((scrollTargetX || scrollTargetY) && (Math.abs(velocityX) > 0.15 || Math.abs(velocityY) > 0.15)) {
                     let vx = velocityX * 16;
                     let vy = velocityY * 16;
                     const friction = 0.92;
-                    const target = scrollTarget;
+                    const targetX = scrollTargetX;
+                    const targetY = scrollTargetY;
 
                     const step = () => {
                         if (Math.abs(vx) < 0.5 && Math.abs(vy) < 0.5) {
                             animationFrameId = null;
                             return;
                         }
-                        if (target) {
-                            target.scrollLeft -= vx;
-                            target.scrollTop -= vy;
+                        if (targetX) {
+                            targetX.scrollLeft -= vx;
+                        }
+                        if (targetY) {
+                            targetY.scrollTop -= vy;
                         }
                         vx *= friction;
                         vy *= friction;
@@ -167,18 +194,30 @@ export function useGlobalDragScroll() {
                 }
             }
 
-            scrollTarget = null;
+            scrollTargetX = null;
+            scrollTargetY = null;
         };
 
-        window.addEventListener('mousedown', handleMouseDown, { passive: true });
-        window.addEventListener('mousemove', handleMouseMove, { passive: true });
-        window.addEventListener('mouseup', handleMouseUp, { passive: true });
+        const handlePointerCancel = () => {
+            isDown = false;
+            activePointerId = null;
+            document.body.classList.remove('select-none');
+            scrollTargetX = null;
+            scrollTargetY = null;
+        };
+
+        window.addEventListener('pointerdown', handlePointerDown, { passive: true });
+        window.addEventListener('pointermove', handlePointerMove, { passive: true });
+        window.addEventListener('pointerup', handlePointerUp, { passive: true });
+        window.addEventListener('pointercancel', handlePointerCancel, { passive: true });
 
         return () => {
             stopMomentum();
-            window.removeEventListener('mousedown', handleMouseDown);
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerCancel);
         };
     }, []);
 }
+

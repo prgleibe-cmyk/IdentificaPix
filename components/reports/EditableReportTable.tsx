@@ -212,6 +212,7 @@ const MobileCard = memo(({
 
                     <div className="flex items-center justify-end gap-2 w-full flex-wrap">
                         <button 
+                            type="button"
                             onClick={() => {
                                 if (openWhatsAppReceiptModal) {
                                     openWhatsAppReceiptModal({
@@ -225,16 +226,19 @@ const MobileCard = memo(({
                                     });
                                 }
                             }}
-                            className={`px-3.5 py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors border ${
+                            className={`p-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center transition-all border ${
                                 waSent
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 border-transparent shadow-sm'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100'
+                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 border-transparent shadow-xs'
                             }`}
                             title={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
+                            aria-label={waSent ? "WhatsApp Enviado (Reenviar)" : "Disparar WhatsApp"}
                         >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>{waSent ? 'WhatsApp Enviado' : 'WhatsApp'}</span>
-                            {waSent && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+                            {waSent ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                                <MessageCircle className="w-4 h-4" />
+                            )}
                         </button>
 
                         <button 
