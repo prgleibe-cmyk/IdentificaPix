@@ -374,15 +374,6 @@ export const PortalIdentifyStep: React.FC<PortalIdentifyStepProps> = ({
 
                                         <button
                                             type="button"
-                                            onClick={() => setIsEditModalOpen(true)}
-                                            className="w-full py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                                        >
-                                            <Edit3 className="w-3.5 h-3.5 text-brand-blue dark:text-blue-400" />
-                                            Atualizar / Completar Meus Dados
-                                        </button>
-
-                                        <button
-                                            type="button"
                                             onClick={() => {
                                                 onMockSearchToggle(false);
                                                 onValueChange('');

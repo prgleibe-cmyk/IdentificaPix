@@ -23,8 +23,13 @@ const INITIAL_EMPTY_CONTRIBUTOR: ContributorMockProfile = {
     cpf: '',
     phone: '',
     email: '',
-    city: 'São Paulo',
-    state: 'SP',
+    address_cep: '',
+    address_street: '',
+    address_number: '',
+    address_city: '',
+    address_state: '',
+    city: '',
+    state: '',
     congregation: '',
     isExisting: false
 };
@@ -173,8 +178,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                     address_number: matched.address_number || '',
                     address_city: matched.address_city || matched.city || '',
                     address_state: matched.address_state || matched.state || '',
-                    city: matched.address_city || matched.city || 'São Paulo',
-                    state: matched.address_state || matched.state || 'SP',
+                    city: matched.address_city || matched.city || '',
+                    state: matched.address_state || matched.state || '',
                     congregation: (matched.congregation && matched.congregation !== 'Sede Central') ? matched.congregation : (churchName || ''),
                     notes: matched.notes || '',
                     photo_url: matched.photo_url || '',
@@ -211,8 +216,8 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                         address_number: '',
                         address_city: '',
                         address_state: '',
-                        city: 'São Paulo',
-                        state: 'SP',
+                        city: '',
+                        state: '',
                         congregation: churchName || '',
                         isExisting: false
                     }

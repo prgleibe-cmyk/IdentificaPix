@@ -87,8 +87,10 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
     const liveProfile: ContributorMockProfile = {
         id: contributor?.id || '',
         name,
+        canonical_name: name.trim().toUpperCase(),
         cpf,
         phone,
+        whatsapp: phone,
         email,
         birth_date: birthDate,
         address_cep: addressCep,
@@ -96,6 +98,8 @@ export const PortalEditProfileModal: React.FC<PortalEditProfileModalProps> = ({
         address_number: addressNumber,
         address_city: addressCity,
         address_state: addressState,
+        city: addressCity,
+        state: addressState,
         congregation,
         role_position: rolePosition,
         isExisting: contributor?.isExisting ?? true
