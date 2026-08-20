@@ -769,21 +769,22 @@ export const LivroCaixaView: React.FC = memo(() => {
                     </div>
 
                     <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
-                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                        <table className="w-full text-left text-xs border-collapse min-w-[850px]">
                             <thead className="bg-slate-100/70 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider sticky top-0 z-10">
                                 <tr>
                                     <th className="px-4 py-3">Data</th>
-                                    <th className="px-4 py-3">Descrição / Histórico</th>
                                     <th className="px-4 py-3">Contribuinte / Favorecido</th>
-                                    <th className="px-4 py-3">Categoria</th>
                                     <th className="px-4 py-3">Igreja</th>
+                                    <th className="px-4 py-3">Tipo</th>
+                                    <th className="px-4 py-3">Forma</th>
+                                    <th className="px-4 py-3">Categoria</th>
                                     <th className="px-4 py-3 text-right">Valor</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                 {filteredReportData.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="text-center py-12 text-slate-400 italic">
+                                        <td colSpan={7} className="text-center py-12 text-slate-400 italic">
                                             Nenhum lançamento encontrado no Livro Caixa para os filtros selecionados.
                                         </td>
                                     </tr>
@@ -791,25 +792,49 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     filteredReportData.map((tx: any, idx: number) => {
                                         const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
                                         const amt = Math.abs(Number(tx.amount) || Number(tx.val) || 0);
+                                        const tipoLabel = tx.contributionType || tx.tipo || (tx.type === 'expense' ? 'Despesa' : tx.type === 'income' ? 'Receita' : isExpense ? 'Despesa' : 'Entrada');
+                                        const formaLabel = tx.paymentMethod || tx.forma || tx.formaPagamento || tx.payment_method || tx.raw?.payment_method || 'Pix';
+                                        const payerName = tx.payer || tx.contribuinte || tx.nome || tx.title || 'Lançamento de Caixa';
+                                        const descText = tx.desc || tx.description || tx.historico || '';
 
                                         return (
                                             <tr key={tx.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-slate-600 dark:text-slate-400">
                                                     {formatDateBRL(tx.date)}
                                                 </td>
-                                                <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200 max-w-xs truncate">
-                                                    {tx.desc || tx.description || tx.historico || 'Lançamento de Caixa'}
+                                                <td className="px-4 py-2.5">
+                                                    <div className="font-bold text-slate-800 dark:text-slate-100 uppercase flex items-center gap-1.5">
+                                                        <span>{payerName}</span>
+                                                    </div>
+                                                    {descText && (
+                                                        <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-1 max-w-sm">
+                                                            {descText}
+                                                        </div>
+                                                    )}
                                                 </td>
-                                                <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
-                                                    {tx.payer || tx.contribuinte || tx.nome || '-'}
+                                                <td className="px-4 py-2.5">
+                                                    <span className="text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full uppercase whitespace-nowrap">
+                                                        {tx.church || getChurchName(tx.churchId)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase whitespace-nowrap ${
+                                                        isExpense 
+                                                            ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/30' 
+                                                            : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30'
+                                                    }`}>
+                                                        {tipoLabel}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/50 uppercase whitespace-nowrap">
+                                                        {formaLabel}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-2.5">
                                                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                                         {tx.category || tx.categoria || 'Geral'}
                                                     </span>
-                                                </td>
-                                                <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 text-[11px]">
-                                                    {tx.church || getChurchName(tx.churchId)}
                                                 </td>
                                                 <td className={`px-4 py-2.5 text-right font-mono font-bold whitespace-nowrap ${isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                                     {isExpense ? `- ${formatBRL(amt)}` : `+ ${formatBRL(amt)}`}

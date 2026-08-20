@@ -97,9 +97,12 @@ function parseSMS(text) {
     // 4. EXTRAÇÃO DE NOME / DESCRIÇÃO (A MÁGICA DE PURIFICAÇÃO)
     const patterns = [
         // Sicredi / Sicoob / Itaú / Bradesco / Nubank / Caixa / Santander / Inter / C6 / PagBank / Mercado Pago
-        /recebeu\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+de\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
-        /recebeu\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
-        /pagou\s+um\s+pix\s+no\s+valor\s+de\s+r\$\s*[0-9.,]+\s+([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
+        /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
+        /(?:recebeu\s+(?:uma\s+transfer[eê]ncia\s+)?(?:um\s+)?pix\s+(?:de|por)\s+)([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
+        /(?:pix\s+recebido\s+(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:de|por)\s+)([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
+        /(?:pix\s+recebido\s+(?:de|por)\s+)([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$|\s*-\s*r\$)/i,
+        /(?:transfer[eê]ncia\s+(?:pix\s+)?recebida\s+(?:de|por)\s+)([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})(?:\s+no\s+valor|\s+de\s+r\$|\s*r\$)/i,
+        /(?:transfer[eê]ncia\s+(?:pix\s+)?(?:no\s+valor\s+de\s+|de\s+)?r\$\s*[0-9.,]+\s+(?:recebida\s+)?(?:de|por)\s+)([a-z\s\u00c0-\u00ff0-9\.\-\/]{3,60})/i,
         /pagador\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
         /remetente\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
         /origem\s*:\s*([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
@@ -109,8 +112,8 @@ function parseSMS(text) {
         /enviado\s+para\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+para\s+|\s+\.|\s*R\$|\d|$)/i,
         /pago\s+a\s+([A-Z\s\u00C0-\u00FF]+?)(?:\s+no\s+valor|\s+em\s+|\s+\.|\s*R\$|\d|$)/i,
         /de\s+([A-Z\s\u00C0-\u00FF]+?)\s+em\s+\d{2}\/\d{2}/i,
-        /de\s+([A-Z\s\u00C0-\u00FF]{3,30})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
-        /para\s+([A-Z\s\u00C0-\u00FF]{3,30})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
+        /de\s+([A-Z\s\u00C0-\u00FF]{3,35})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
+        /para\s+([A-Z\s\u00C0-\u00FF]{3,35})(?:\s+em\s+|\s+no\s+valor|\s*R\$|\s*\.|\s*$)/i,
     ];
 
     for (const pattern of patterns) {
@@ -238,21 +241,31 @@ export default (ai) => {
         }
 
         // Resiliently extract the SMS body text from various potential payload keys or formats
-        let text = req.body?.text || 
-                   req.body?.texto || 
-                   req.body?.message || 
-                   req.body?.mensagem || 
-                   req.body?.body || 
-                   req.body?.content || 
-                   req.body?.notification || 
-                   req.body?.notif || 
-                   req.body?.notif_text || 
-                   req.body?.sms_text || 
-                   req.body?.sms_body || 
-                   req.body?.sms || 
-                   req.query?.text || 
-                   req.query?.texto || 
-                   req.query?.message;
+        const candidateTexts = [
+            req.body?.text,
+            req.body?.texto,
+            req.body?.message,
+            req.body?.mensagem,
+            req.body?.body,
+            req.body?.content,
+            req.body?.notification,
+            req.body?.notif,
+            req.body?.notif_text,
+            req.body?.sms_text,
+            req.body?.sms_body,
+            req.body?.sms,
+            req.query?.text,
+            req.query?.texto,
+            req.query?.message,
+            req.query?.notification
+        ].filter(Boolean);
+
+        // Pick the first candidate that is not a literal macro placeholder like "{notification}" or "[not_text]"
+        let text = candidateTexts.find(t => typeof t === 'string' && t.trim().length > 0 && !/^(\{|\[)notification(\}|\])$/i.test(t.trim()) && !/^(\{|\[)not_text(\}|\])$/i.test(t.trim()));
+
+        if (!text && candidateTexts.length > 0) {
+            text = candidateTexts[0];
+        }
 
         if (!text && typeof req.body === 'string') {
             text = req.body;
