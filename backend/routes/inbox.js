@@ -15,6 +15,8 @@ function parseSMS(text) {
 
     const normalizedText = text.replace(/\s+/g, ' ').trim();
 
+
+
     // 1. EXTRAÇÃO DE VALOR
     // Ex: "R$ 150,00", "R$1.250,55", "R$ 50", "VALOR: R$ 5,00", "BRL 100,00"
     const amountMatch = normalizedText.match(/(?:R\$|RS|BRL|R\$:|VALOR:?\s*R\$?)\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9\.]+)/i)
@@ -219,7 +221,14 @@ export default (ai) => {
 
     router.post('/:userId/:bankId', resilientBodyParser, async (req, res) => {
         let { userId, bankId } = req.params;
-        const rawApiKey = req.headers['x-api-key'] || req.query.key;
+        const rawApiKey = req.headers['x-api-key'] || 
+                          req.headers['authorization'] || 
+                          req.query?.key || 
+                          req.query?.apiKey || 
+                          req.query?.api_key || 
+                          req.body?.key || 
+                          req.body?.apiKey || 
+                          req.body?.api_key;
         const envKey = (process.env.INBOX_API_KEY || '').trim();
         
         // Chaves aceitas: INBOX_API_KEY do ambiente e a chave padrão de instrução no app
