@@ -34,3 +34,32 @@ The architecture of IdentificaPix is currently **STABILIZED and FROZEN**. It uti
 *   Fixing specific, reproducible bugs.
 *   Adding new, independent features that do not conflict with the core synchronization logic.
 *   Performance improvements that have been benchmarked and do not alter the atomic/incremental nature of the sync.
+
+---
+
+# PROTOCOLO DE AJUSTES CIRÚRGICOS E BLINDAGEM DEFINITIVA (IGGESTOR)
+
+Este protocolo é permanente, prioritário e obrigatório para toda e qualquer intervenção no sistema.
+
+## 1. Princípio Fundamental: Uma Alteração por Vez
+- Tratar cada solicitação como uma intervenção individual, isolada e cirúrgica.
+- **UM PROBLEMA → UM DIAGNÓSTICO → UMA INTERVENÇÃO → UMA VALIDAÇÃO → UM RESULTADO**
+- Proibido agrupar ajustes, refatorar por conveniência, ou alterar código vizinho sem necessidade direta.
+
+## 2. Princípio da Cirurgia Mínima
+- Alterar somente o mínimo necessário para produzir exatamente o resultado solicitado.
+- Diagnosticar o comportamento atual, desejado, causa-raiz exata e o menor ponto possível de intervenção antes de tocar no código.
+
+## 3. Proibição de Efeitos Colaterais & Preservação da Estrutura
+- Tudo o que já está funcionando corretamente deve permanecer intocado.
+- Preservar integralmente: arquitetura, autenticação, autorização, segurança, contratos, banco de dados, APIs, serviços, hooks, filas, monitoramento e integridade do frontend/backend.
+
+## 4. Proibição de "Melhorias Aproveitadas"
+- Proibido usar solicitações para modernizar, limpar ou refatorar código fora do escopo estrito solicitado.
+
+## 5. Validação Obrigatória
+- Confirmar que o comportamento solicitado foi atendido sem erros de compilação, tipagem ou regressão em fluxos existentes.
+
+## 6. Blindagem Definitiva
+- Uma funcionalidade validada e concluída é consolidada e blindada contra alterações futuras sem autorização explícita do usuário.
+

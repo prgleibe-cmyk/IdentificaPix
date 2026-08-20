@@ -643,7 +643,7 @@ export const PastorAutomationTab: React.FC<PastorAutomationTabProps> = ({
                         </div>
 
                         {/* Body */}
-                        <div className="p-8 flex-1 overflow-y-auto w-full">
+                        <div className="p-8 flex-1 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             <div className="space-y-6 w-full max-w-3xl mx-auto">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-3">

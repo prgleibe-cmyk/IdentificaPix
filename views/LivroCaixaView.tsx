@@ -108,7 +108,9 @@ export const LivroCaixaView: React.FC = memo(() => {
     }, [context?.banks, isSecondaryUser, allowedBankIds]);
 
     const reportData = context?.reportData || [];
-    const isHydratingFromCloud = context?.isHydratingFromCloud || context?.isHydrating || false;
+    const isHydratingFromCloud = typeof context?.isHydrating === 'boolean'
+        ? context.isHydrating
+        : Boolean(context?.isHydratingFromCloud?.current || context?.isHydrating?.current);
 
     // Click outside listener
     useEffect(() => {
@@ -448,7 +450,7 @@ export const LivroCaixaView: React.FC = memo(() => {
             </div>
 
             {/* Main Content */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm flex-1 min-h-0 flex flex-col space-y-4 overflow-y-auto custom-scrollbar">
+            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm space-y-4">
                 {/* Control & Filter Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100 dark:border-white/5">
                     <div>
@@ -670,15 +672,16 @@ export const LivroCaixaView: React.FC = memo(() => {
                             )}
                         </div>
 
-                        {/* Recarregar Button */}
+                        {/* Recarregar Button (Icon-Only) */}
                         <button
                             onClick={handleRefresh}
                             disabled={isRefreshing || isHydratingFromCloud}
-                            className="px-3 py-1.5 bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            className="p-2 bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-800 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
                             title="Recarregar dados do Livro Caixa"
+                            aria-label="Recarregar dados do Livro Caixa"
+                            id="btn-refresh-livro-caixa"
                         >
                             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || isHydratingFromCloud ? 'animate-spin text-orange-500' : ''}`} />
-                            <span className="hidden sm:inline text-xs font-semibold">Recarregar</span>
                         </button>
 
                         {/* Export & Print Menu */}
@@ -759,14 +762,14 @@ export const LivroCaixaView: React.FC = memo(() => {
                 </div>
 
                 {/* Livro Caixa Table (Extrato Analítico) */}
-                <div className="flex-1 min-h-[300px] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col bg-white dark:bg-slate-900 shadow-xs">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
                     <div className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                         <span>Extrato Analítico ({financialTotals.totalTransactions} registros)</span>
                         <span>IgGestor Módulo Financeiro</span>
                     </div>
 
-                    <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-left text-xs border-collapse">
+                    <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
                             <thead className="bg-slate-100/70 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 uppercase font-black text-[10px] tracking-wider sticky top-0 z-10">
                                 <tr>
                                     <th className="px-4 py-3">Data</th>

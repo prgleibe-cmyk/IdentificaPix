@@ -1101,8 +1101,8 @@ export const FinancialView: React.FC = memo(() => {
                             <span className="text-xs">Clique em "Novo Lançamento" para cadastrar sua primeira despesa ou adiantamento.</span>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                        <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
+                            <table className="w-full text-left border-collapse min-w-[850px]">
                                 <thead>
                                     <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/10">
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Título / Descrição</th>
@@ -1266,7 +1266,7 @@ export const FinancialView: React.FC = memo(() => {
                         </div>
 
                         {/* Body */}
-                        <div className="p-8 flex-1 overflow-y-auto w-full">
+                        <div className="p-8 flex-1 overflow-y-auto w-full custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
                             <div className="space-y-6 w-full">
                                 {/* Title & Amount */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
