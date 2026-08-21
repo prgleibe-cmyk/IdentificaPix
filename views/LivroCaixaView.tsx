@@ -775,7 +775,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     <th className="px-4 py-3">Data</th>
                                     <th className="px-4 py-3">Contribuinte / Favorecido</th>
                                     <th className="px-4 py-3">Igreja</th>
-                                    <th className="px-4 py-3">Tipo</th>
+                                    <th className="px-4 py-3">Descrição</th>
                                     <th className="px-4 py-3">Forma</th>
                                     <th className="px-4 py-3">Categoria</th>
                                     <th className="px-4 py-3 text-right">Valor</th>

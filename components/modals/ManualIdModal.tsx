@@ -27,6 +27,7 @@ export const ManualIdModal: React.FC = () => {
         setBulkIdentificationTxs,
         setMatchResults,
         churches,
+        banks,
         confirmBulkManualIdentification,
         closeManualIdentify,
         findMatchResult,
@@ -46,6 +47,7 @@ export const ManualIdModal: React.FC = () => {
         subscription?.role !== 'principal';
     
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
+    const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('DINHEIRO');
     const [isCustomType, setIsCustomType] = useState(false);
@@ -57,6 +59,17 @@ export const ManualIdModal: React.FC = () => {
 
     // Auto-busca de contribuintes cadastrados ao digitar
     const [showSuggestions, setShowSuggestions] = useState(false);
+
+    const allowedBankIds = useMemo(() => {
+        if (!isSecondaryUser) return null;
+        return subscription?.bankIds || [];
+    }, [isSecondaryUser, subscription?.bankIds]);
+
+    const availableBanks = useMemo(() => {
+        const raw = banks || [];
+        if (!isSecondaryUser || !allowedBankIds || allowedBankIds.length === 0) return raw;
+        return raw.filter((b: any) => allowedBankIds.includes(b.id));
+    }, [banks, isSecondaryUser, allowedBankIds]);
 
     const paymentMethodsOptions = useMemo(() => {
         const list = Array.isArray(paymentMethods) ? [...paymentMethods] : [];
@@ -230,11 +243,19 @@ export const ManualIdModal: React.FC = () => {
                 setManualDescription(desc);
             }
 
-            // 4. Church ID
+            // 4. Church ID & Bank ID
             if (matchedResult?.church?.id) {
                 setSelectedChurchId(matchedResult.church.id);
             } else if (churches.length === 1) {
                 setSelectedChurchId(churches[0].id);
+            }
+
+            if (tx.bank_id) {
+                setSelectedBankId(tx.bank_id);
+            } else if (matchedResult?.transaction?.bank_id) {
+                setSelectedBankId(matchedResult.transaction.bank_id);
+            } else if (availableBanks.length === 1) {
+                setSelectedBankId(availableBanks[0].id);
             }
 
             // 5. Manual Type
@@ -269,7 +290,7 @@ export const ManualIdModal: React.FC = () => {
             }
             setManualAmount('');
         }
-    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, contributionKeywords]);
+    }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, contributionKeywords, availableBanks]);
 
     // --- FUNÇÃO PARA ALTERNAR ENTRE ENTRADA E SAÍDA ---
     const handleTypeSwitch = (type: 'entrada' | 'saida') => {
@@ -322,6 +343,12 @@ export const ManualIdModal: React.FC = () => {
         }
     }, [churches, selectedChurchId]);
 
+    useEffect(() => {
+        if (availableBanks.length === 1 && !selectedBankId) {
+            setSelectedBankId(availableBanks[0].id);
+        }
+    }, [availableBanks, selectedBankId]);
+
     if (!isBulk) return null;
     
     const handleConfirm = async () => {
@@ -352,7 +379,8 @@ export const ManualIdModal: React.FC = () => {
                     manualDescription,
                     manualAmount,
                     selectedAssociationType === 'unify' ? selectedUnifiedField : undefined,
-                    isManualLaunch ? manualType : undefined
+                    isManualLaunch ? manualType : undefined,
+                    selectedBankId || undefined
                 );
 
                 if (setActiveView) {
@@ -667,33 +695,66 @@ export const ManualIdModal: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between flex-wrap gap-1">
-                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                    Escolha a Igreja de Destino
-                                </label>
-                                {selectedAssociationType === 'unify' && selectedChurchId && (
-                                    <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                                        ✓ Auto-preenchida pelo contribuinte
-                                    </span>
-                                )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                        Escolha a Igreja de Destino
+                                    </label>
+                                    {selectedAssociationType === 'unify' && selectedChurchId && (
+                                        <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                            ✓ Auto-preenchida
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="relative group">
+                                    <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                    <select
+                                        value={selectedChurchId}
+                                        onChange={e => setSelectedChurchId(e.target.value)}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                    >
+                                        <option value="">-- Clique para ver as igrejas --</option>
+                                        {churches.map(church => (
+                                            <option key={church.id} value={church.id}>
+                                                {church.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-4 h-4" />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="relative group">
-                                <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                                <select
-                                    value={selectedChurchId}
-                                    onChange={e => setSelectedChurchId(e.target.value)}
-                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
-                                >
-                                    <option value="">-- Clique para ver as igrejas --</option>
-                                    {churches.map(church => (
-                                        <option key={church.id} value={church.id}>
-                                            {church.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                    <ChevronDownIcon className="w-4 h-4" />
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                    <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                        Conta / Caixa de Destino
+                                    </label>
+                                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-800/50">
+                                        🏦 Destino do Lançamento
+                                    </span>
+                                </div>
+                                <div className="relative group">
+                                    <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                    </svg>
+                                    <select
+                                        value={selectedBankId}
+                                        onChange={e => setSelectedBankId(e.target.value)}
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                    >
+                                        <option value="">-- Sem Conta / Caixa Principal --</option>
+                                        {availableBanks.map((bank: any) => (
+                                            <option key={bank.id} value={bank.id}>
+                                                {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                        <ChevronDownIcon className="w-4 h-4" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1191,26 +1252,54 @@ export const ManualIdModal: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="space-y-3">
-                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                           Escolha a Igreja de Destino
-                        </label>
-                        <div className="relative group">
-                            <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
-                            <select
-                                value={selectedChurchId}
-                                onChange={e => setSelectedChurchId(e.target.value)}
-                                className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none"
-                            >
-                                <option value="">-- Clique para ver as igrejas --</option>
-                                {churches.map(church => (
-                                    <option key={church.id} value={church.id}>
-                                        {church.name}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <ChevronDownIcon className="w-4 h-4" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                               Escolha a Igreja de Destino
+                            </label>
+                            <div className="relative group">
+                                <BuildingOfficeIcon className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" />
+                                <select
+                                    value={selectedChurchId}
+                                    onChange={e => setSelectedChurchId(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none"
+                                >
+                                    <option value="">-- Clique para ver as igrejas --</option>
+                                    {churches.map(church => (
+                                        <option key={church.id} value={church.id}>
+                                            {church.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                               Conta / Caixa de Destino
+                            </label>
+                            <div className="relative group">
+                                <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-brand-blue transition-colors pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                </svg>
+                                <select
+                                    value={selectedBankId}
+                                    onChange={e => setSelectedBankId(e.target.value)}
+                                    className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 pl-12 pr-10 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
+                                >
+                                    <option value="">-- Sem Conta / Caixa Principal --</option>
+                                    {availableBanks.map((bank: any) => (
+                                        <option key={bank.id} value={bank.id}>
+                                            {bank.account_name || bank.name || 'Conta Bancária / Caixa'}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -104,7 +104,8 @@ export const useReconciliationActions = ({
     manualDescription?: string,
     manualAmount?: string,
     unifiedContributorId?: string,
-    manualType?: 'entrada' | 'saida'
+    manualType?: 'entrada' | 'saida',
+    selectedBankId?: string
   ) => {
     const church = referenceData.churches.find((c: Church) => c.id === churchId);
     if (!church) return;
@@ -159,7 +160,7 @@ export const useReconciliationActions = ({
           type: txType,
           transaction_date: finalDate,
           description: finalDescription,
-          bank_id: null,
+          bank_id: selectedBankId || null,
           row_hash: globalHash
         };
 
@@ -181,7 +182,8 @@ export const useReconciliationActions = ({
             rawDescription: finalDescription,
             amount: finalAmount,
             isConfirmed: false,
-            cleanedDescription: finalDescription
+            cleanedDescription: finalDescription,
+            bank_id: selectedBankId || undefined
           },
           contributor: null,
           status: ReconciliationStatus.PENDING,
@@ -231,7 +233,7 @@ export const useReconciliationActions = ({
           id: realId,
           status: 'identified' as const,
           churchId,
-          bankId: undefined,
+          bankId: selectedBankId || undefined,
           contributorId: actualContributorId,
           isConfirmed: false,
           type: txType,
@@ -242,7 +244,7 @@ export const useReconciliationActions = ({
           realId,
           'identified',
           churchId,
-          undefined,
+          selectedBankId || undefined,
           actualContributorId,
           false,
           txType, // 🔥 CORREÇÃO: Passar txType ('income' | 'expense') para garantir validador e tipo corretos!

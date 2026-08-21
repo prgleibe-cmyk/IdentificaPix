@@ -1486,7 +1486,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                                     <th className="py-2.5 px-3">Contribuinte / Favorecido</th>
                                                     <th className="py-2.5 px-3">Categoria</th>
                                                     <th className="py-2.5 px-3">Igreja</th>
-                                                    <th className="py-2.5 px-3 text-center">Tipo</th>
+                                                    <th className="py-2.5 px-3 text-center">Descrição</th>
                                                     <th className="py-2.5 px-3 text-right">Valor (R$)</th>
                                                 </tr>
                                             </thead>
@@ -2083,7 +2083,7 @@ export const RelatoriosView: React.FC = memo(() => {
                                                                 <thead>
                                                                     <tr className="bg-slate-100 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider">
                                                                         <th className="py-2 px-3">Data</th>
-                                                                        <th className="py-2 px-3">Tipo</th>
+                                                                        <th className="py-2 px-3">Descrição</th>
                                                                         <th className="py-2 px-3">Histórico / Descrição</th>
                                                                         <th className="py-2 px-3">Contribuinte / Favorecido</th>
                                                                         <th className="py-2 px-3">Forma Pagto</th>

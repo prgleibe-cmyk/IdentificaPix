@@ -659,7 +659,7 @@ export const EditableReportTable: React.FC<EditableReportTableProps> = memo(({ d
                             <SortableHeader sortKey="transaction.source" title="Origem" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="center" />
                             <SortableHeader sortKey="church.name" title="Igreja" sortConfig={sortConfig} onSort={onSort} className="w-[13%]" align="left" />
                             <SortableHeader sortKey="status" title="Status" sortConfig={sortConfig} onSort={onSort} className="w-[9%]" align="center" />
-                            <SortableHeader sortKey="contributionType" title="Tipo" sortConfig={sortConfig} onSort={onSort} className="w-[11%]" align="left" />
+                            <SortableHeader sortKey="contributionType" title="Descrição" sortConfig={sortConfig} onSort={onSort} className="w-[11%]" align="left" />
                             <SortableHeader sortKey="paymentMethod" title="Forma" sortConfig={sortConfig} onSort={onSort} className="w-[10%]" align="left" />
                             <SortableHeader sortKey="transaction.amount" title={t('table.amount')} sortConfig={sortConfig} onSort={onSort} className="w-[12%]" align="right" />
                             <SortableHeader sortKey="status" title="Ações" sortConfig={sortConfig} onSort={onSort} className="w-[7%]" align="center" />

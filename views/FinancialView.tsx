@@ -39,6 +39,8 @@ interface FinancialRecord {
     id: string;
     user_id: string;
     church_id: string | null;
+    account_id?: string | null;
+    bank_id?: string | null;
     title: string;
     description: string;
     amount: number;
@@ -73,7 +75,7 @@ const months = [
 
 export const FinancialView: React.FC = memo(() => {
     const { user, subscription } = useAuth();
-    const { churches, matchResults } = useContext(AppContext);
+    const { churches, matchResults, banks } = useContext(AppContext);
     const { showToast, setActiveView } = useUI();
     const { language } = useTranslation();
 
@@ -81,6 +83,17 @@ export const FinancialView: React.FC = memo(() => {
         subscription?.role !== 'owner' &&
         subscription?.role !== 'admin' &&
         subscription?.role !== 'principal';
+
+    const allowedBankIds = useMemo(() => {
+        if (!isSecondaryUser) return null;
+        return subscription?.bankIds || [];
+    }, [isSecondaryUser, subscription?.bankIds]);
+
+    const availableBanks = useMemo(() => {
+        const raw = banks || [];
+        if (!isSecondaryUser || !allowedBankIds || allowedBankIds.length === 0) return raw;
+        return raw.filter((b: any) => allowedBankIds.includes(b.id));
+    }, [banks, isSecondaryUser, allowedBankIds]);
 
     const [records, setRecords] = useState<FinancialRecord[]>([]);
     const [loading, setLoading] = useState(false);
@@ -169,6 +182,7 @@ export const FinancialView: React.FC = memo(() => {
     const [formRecipientName, setFormRecipientName] = useState('');
     const [formRecipientType, setFormRecipientType] = useState<'pastor' | 'employee' | 'supplier' | 'other'>('supplier');
     const [formChurchId, setFormChurchId] = useState<string>('');
+    const [formBankId, setFormBankId] = useState<string>('');
     const [formDueDate, setFormDueDate] = useState('');
     const [formPaymentDate, setFormPaymentDate] = useState('');
     const [formRecurrence, setFormRecurrence] = useState<'none' | 'monthly' | 'weekly'>('none');
@@ -311,6 +325,7 @@ export const FinancialView: React.FC = memo(() => {
             setFormRecipientName(record.recipient_name || '');
             setFormRecipientType(record.recipient_type || 'supplier');
             setFormChurchId(record.church_id || (churches && churches.length > 0 ? churches[0].id : ''));
+            setFormBankId(record.bank_id || record.account_id || (availableBanks.length === 1 ? availableBanks[0].id : ''));
             setFormDueDate(record.due_date ? record.due_date.split('T')[0] : '');
             setFormPaymentDate(record.payment_date ? record.payment_date.split('T')[0] : '');
             setFormRecurrence(record.recurrence || 'none');
@@ -326,6 +341,7 @@ export const FinancialView: React.FC = memo(() => {
             setFormRecipientName('');
             setFormRecipientType('supplier');
             setFormChurchId(churches && churches.length > 0 ? churches[0].id : '');
+            setFormBankId(availableBanks.length === 1 ? availableBanks[0].id : '');
             setFormDueDate('');
             setFormPaymentDate('');
             setFormRecurrence('none');
@@ -352,6 +368,8 @@ export const FinancialView: React.FC = memo(() => {
         const payload = {
             user_id: user?.id,
             church_id: formChurchId || null,
+            bank_id: formBankId || null,
+            account_id: formBankId || null,
             title: formTitle,
             description: formDescription,
             amount: parseFloat(formAmount),
@@ -1312,8 +1330,8 @@ export const FinancialView: React.FC = memo(() => {
                                     />
                                 </div>
 
-                                {/* Church & Type */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Church, Account & Type */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="space-y-3">
                                         <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
                                             Igreja Destinação
@@ -1325,6 +1343,24 @@ export const FinancialView: React.FC = memo(() => {
                                         >
                                             {churches?.map((c: any) => (
                                                 <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                            Conta Bancária / Caixa
+                                        </label>
+                                        <select
+                                            value={formBankId}
+                                            onChange={(e) => setFormBankId(e.target.value)}
+                                            className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold"
+                                        >
+                                            <option value="">-- Sem Conta / Caixa Principal --</option>
+                                            {availableBanks.map((b: any) => (
+                                                <option key={b.id} value={b.id}>
+                                                    {b.account_name || b.name || 'Conta Bancária / Caixa'}
+                                                </option>
                                             ))}
                                         </select>
                                     </div>

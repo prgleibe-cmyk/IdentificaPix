@@ -76,7 +76,7 @@ export const ContributionTypesList: React.FC = () => {
         setErrorMsg(null);
 
         if (!name.trim()) {
-            setErrorMsg('O nome do tipo de contribuição é obrigatório.');
+            setErrorMsg('A descrição do lançamento é obrigatória.');
             return;
         }
 
@@ -102,15 +102,15 @@ export const ContributionTypesList: React.FC = () => {
                 handleCloseForm();
             }
         } catch (err: any) {
-            console.error('Erro ao salvar tipo de contribuição:', err);
-            setErrorMsg('Erro ao salvar tipo de contribuição.');
+            console.error('Erro ao salvar descrição de entrada/saída:', err);
+            setErrorMsg('Erro ao salvar descrição de entrada/saída.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleDelete = async (id: string, name: string) => {
-        if (window.confirm(`Tem certeza que deseja excluir o tipo "${name}"?`)) {
+        if (window.confirm(`Tem certeza que deseja excluir a descrição "${name}"?`)) {
             await removeContributionType(id);
         }
     };
@@ -125,10 +125,10 @@ export const ContributionTypesList: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white leading-none">
-                            Tipos de Contribuição
+                            Descrição (Entrada/Saída)
                         </h3>
                         <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block uppercase">
-                            {filteredContributionTypes.length} cadastrados
+                            {filteredContributionTypes.length} cadastradas
                         </span>
                     </div>
 
@@ -176,7 +176,7 @@ export const ContributionTypesList: React.FC = () => {
                         className="flex items-center space-x-1.5 px-5 py-2 text-[10px] font-black text-white bg-gradient-to-r from-orange-500 via-amber-600 to-stone-900 rounded-2xl shadow-md shadow-orange-500/20 hover:opacity-95 hover:-translate-y-0.5 transition-all tracking-wider uppercase cursor-pointer"
                     >
                         <PlusIcon className="w-3.5 h-3.5" />
-                        <span>Novo Tipo</span>
+                        <span>Nova Descrição</span>
                     </button>
                 )}
             </div>
@@ -187,7 +187,7 @@ export const ContributionTypesList: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-2">
                         <div className="flex items-center space-x-3">
                             <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-200 tracking-wider">
-                                {editingType ? 'Editar Tipo de Contribuição' : 'Novo Tipo de Contribuição'}
+                                {editingType ? 'Editar Descrição (Entrada/Saída)' : 'Nova Descrição (Entrada/Saída)'}
                             </h4>
                             <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-200/70 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px]">
                                 <button
@@ -230,13 +230,13 @@ export const ContributionTypesList: React.FC = () => {
                         <div className="grid grid-cols-1 gap-3">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1">
-                                    Nome *
+                                    Descrição *
                                 </label>
                                 <input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="Ex: Dízimo, Oferta, Missões..."
+                                    placeholder="Ex: Dízimo, Oferta, Missões, Aluguel..."
                                     className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
                                     required
                                 />
@@ -333,7 +333,7 @@ export const ContributionTypesList: React.FC = () => {
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2">
                 {(!filteredContributionTypes || filteredContributionTypes.length === 0) ? (
                     <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-xs font-medium">
-                        Nenhum tipo de contribuição encontrado.
+                        Nenhuma descrição de entrada/saída encontrada.
                     </div>
                 ) : (
                     filteredContributionTypes.map((item: ContributionType) => {

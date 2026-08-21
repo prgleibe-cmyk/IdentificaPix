@@ -956,7 +956,7 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
       ? ctx.churchId
       : (requestedChurchId || (req.headers['x-church-id'] as string) || ctx.churchId);
 
-    const { status } = req.query;
+    const { status, search, q } = req.query;
     let query = 'SELECT * FROM contributors WHERE 1=1';
     const params: any[] = [];
     let paramCounter = 1;
@@ -968,9 +968,31 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
     }
 
     if (status && typeof status === 'string') {
-      query += ` AND status = $${paramCounter}`;
-      params.push(status);
-      paramCounter++;
+      const sLower = status.trim().toLowerCase();
+      if (sLower === 'active' || sLower === 'ativo') {
+        query += ` AND (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`;
+      } else if (sLower === 'inactive' || sLower === 'inativo') {
+        query += ` AND (status ILIKE 'inativ%' OR status = 'inactive' OR status = 'Inativo')`;
+      } else {
+        query += ` AND status = $${paramCounter}`;
+        params.push(status);
+        paramCounter++;
+      }
+    }
+
+    const searchTerm = (search || q) as string | undefined;
+    if (searchTerm && typeof searchTerm === 'string' && searchTerm.trim()) {
+      const cleanTerm = `%${searchTerm.trim()}%`;
+      const cleanDigits = searchTerm.replace(/\D/g, '');
+      if (cleanDigits.length >= 3) {
+        query += ` AND (name ILIKE $${paramCounter} OR canonical_name ILIKE $${paramCounter} OR cpf ILIKE $${paramCounter} OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') LIKE $${paramCounter + 1})`;
+        params.push(cleanTerm, `%${cleanDigits}%`);
+        paramCounter += 2;
+      } else {
+        query += ` AND (name ILIKE $${paramCounter} OR canonical_name ILIKE $${paramCounter})`;
+        params.push(cleanTerm);
+        paramCounter++;
+      }
     }
 
     query += ' ORDER BY canonical_name ASC';
@@ -983,12 +1005,12 @@ app.get('/api/v1/contributors', async (req: Request, res: Response) => {
   }
 });
 
-// POST & GET /api/v1/contributors/identify (Single-record identification endpoint for Portal do Contribuinte - LGPD & Multi-church secure)
+// POST & GET /api/v1/contributors/identify (Single-record & search identification endpoint for Portal do Contribuinte - LGPD & Multi-church secure)
 const identifyContributorHandler = async (req: Request, res: Response) => {
   try {
     const rawChurchId = (req.body.church_id || req.query.church_id) as string | undefined;
-    const identifier = (req.body.identifier || req.query.identifier) as string | undefined;
-    const identifier_type = (req.body.identifier_type || req.query.identifier_type) as string | undefined;
+    const identifier = (req.body.identifier || req.query.identifier || req.query.q || req.body.q) as string | undefined;
+    const identifier_type = (req.body.identifier_type || req.query.identifier_type || req.query.type || req.body.type) as string | undefined;
 
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -1002,12 +1024,13 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
     }
 
     const typeLower = (identifier_type || 'cpf').trim().toLowerCase();
-    if (!['cpf', 'phone', 'email'].includes(typeLower)) {
-      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'identifier_type inválido. Tipos permitidos: cpf, phone, email.' });
+    if (!['cpf', 'phone', 'email', 'name'].includes(typeLower)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'identifier_type inválido. Tipos permitidos: cpf, phone, email, name.' });
     }
 
     const rawVal = identifier.trim();
     let matchedContributor: any = null;
+    let multipleMatches: any[] = [];
 
     if (typeLower === 'cpf') {
       const cleanDigits = rawVal.replace(/\D/g, '');
@@ -1015,15 +1038,22 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'CPF inválido.' });
       }
 
+      // Query with flexible active status and robust CPF digit stripping
       const result = await pool.query(
         `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
                 person_type, trade_name, rg_ie, birth_date, contact_person, category,
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
                 address_number, address_city, address_state, notes, role_position, photo_url
          FROM contributors 
-         WHERE status = $1 AND (church_id = $2 OR church_id IS NULL) AND (cpf = $3 OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', '') = $3)
+         WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
+           AND (
+             cpf = $1 
+             OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = $1
+             OR REPLACE(REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), '/', ''), ' ', '') = $1
+           )
+         ORDER BY (CASE WHEN church_id = $2 THEN 0 ELSE 1 END), updated_at DESC
          LIMIT 1`,
-        ['active', church_id, cleanDigits]
+        [cleanDigits, church_id]
       );
 
       if (result.rows.length > 0) {
@@ -1035,10 +1065,37 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
                   pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
                   address_number, address_city, address_state, notes, role_position, photo_url
            FROM contributors 
-           WHERE status = $1`,
-          ['active']
+           WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`
         );
         matchedContributor = allRes.rows.find((c: any) => c.cpf && String(c.cpf).replace(/\D/g, '') === cleanDigits) || null;
+      }
+
+    } else if (typeLower === 'name') {
+      const cleanName = rawVal.trim();
+      if (cleanName.length < 2) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Informe pelo menos 2 caracteres para pesquisar pelo nome.' });
+      }
+
+      const nameTerm = `%${cleanName}%`;
+      const result = await pool.query(
+        `SELECT id, church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
+                person_type, trade_name, rg_ie, birth_date, contact_person, category,
+                pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
+                address_number, address_city, address_state, notes, role_position, photo_url
+         FROM contributors 
+         WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
+           AND (
+             name ILIKE $1 
+             OR canonical_name ILIKE $1
+           )
+         ORDER BY (CASE WHEN church_id = $2 THEN 0 ELSE 1 END), canonical_name ASC
+         LIMIT 10`,
+        [nameTerm, church_id]
+      );
+
+      if (result.rows.length > 0) {
+        multipleMatches = result.rows;
+        matchedContributor = result.rows[0];
       }
 
     } else if (typeLower === 'phone') {
@@ -1053,9 +1110,16 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
                 address_number, address_city, address_state, notes, role_position, photo_url
          FROM contributors 
-         WHERE status = $1 AND (church_id = $2 OR church_id IS NULL) AND (phone = $3 OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '(', ''), ')', ''), '-', ''), '+', '') = $3)
+         WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
+           AND (
+             phone = $1 
+             OR whatsapp = $1
+             OR REGEXP_REPLACE(COALESCE(phone, ''), '\\D', '', 'g') = $1
+             OR REGEXP_REPLACE(COALESCE(whatsapp, ''), '\\D', '', 'g') = $1
+           )
+         ORDER BY (CASE WHEN church_id = $2 THEN 0 ELSE 1 END), updated_at DESC
          LIMIT 1`,
-        ['active', church_id, cleanDigits]
+        [cleanDigits, church_id]
       );
 
       if (result.rows.length > 0) {
@@ -1067,10 +1131,9 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
                   pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
                   address_number, address_city, address_state, notes, role_position, photo_url
            FROM contributors 
-           WHERE status = $1`,
-          ['active']
+           WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`
         );
-        matchedContributor = allRes.rows.find((c: any) => c.phone && String(c.phone).replace(/\D/g, '') === cleanDigits) || null;
+        matchedContributor = allRes.rows.find((c: any) => (c.phone && String(c.phone).replace(/\D/g, '') === cleanDigits) || (c.whatsapp && String(c.whatsapp).replace(/\D/g, '') === cleanDigits)) || null;
       }
 
     } else if (typeLower === 'email') {
@@ -1082,9 +1145,11 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
                 pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
                 address_number, address_city, address_state, notes, role_position, photo_url
          FROM contributors 
-         WHERE status = $1 AND (church_id = $2 OR church_id IS NULL) AND LOWER(TRIM(email)) = $3
+         WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)
+           AND LOWER(TRIM(COALESCE(email, ''))) = $1
+         ORDER BY (CASE WHEN church_id = $2 THEN 0 ELSE 1 END), updated_at DESC
          LIMIT 1`,
-        ['active', church_id, cleanEmail]
+        [cleanEmail, church_id]
       );
 
       if (result.rows.length > 0) {
@@ -1096,52 +1161,55 @@ const identifyContributorHandler = async (req: Request, res: Response) => {
                   pix_key, bank_name, bank_agency, bank_account, address_cep, address_street,
                   address_number, address_city, address_state, notes, role_position, photo_url
            FROM contributors 
-           WHERE status = $1`,
-          ['active']
+           WHERE (status ILIKE 'ativ%' OR status = 'active' OR status = 'Ativo' OR status IS NULL)`
         );
         matchedContributor = allRes.rows.find((c: any) => c.email && String(c.email).trim().toLowerCase() === cleanEmail) || null;
       }
     }
 
+    const formatContributorResponse = (c: any) => ({
+      id: c.id,
+      church_id: c.church_id,
+      canonical_name: c.canonical_name,
+      name: c.name || c.canonical_name,
+      cpf: c.cpf || null,
+      email: c.email || null,
+      phone: c.phone || null,
+      whatsapp: c.whatsapp || c.phone || null,
+      birth_date: c.birth_date || null,
+      person_type: c.person_type || 'PF',
+      trade_name: c.trade_name || null,
+      rg_ie: c.rg_ie || null,
+      contact_person: c.contact_person || null,
+      category: c.category || null,
+      pix_key: c.pix_key || null,
+      bank_name: c.bank_name || null,
+      bank_agency: c.bank_agency || null,
+      bank_account: c.bank_account || null,
+      address_cep: c.address_cep || null,
+      address_street: c.address_street || null,
+      address_number: c.address_number || null,
+      address_city: c.address_city || null,
+      address_state: c.address_state || null,
+      notes: c.notes || null,
+      role_position: c.role_position || null,
+      photo_url: c.photo_url || null,
+      updated_at: c.updated_at || c.created_at || null,
+      created_at: c.created_at || null,
+      status: c.status
+    });
+
     if (matchedContributor) {
       return res.json({
         found: true,
-        contributor: {
-          id: matchedContributor.id,
-          church_id: matchedContributor.church_id,
-          canonical_name: matchedContributor.canonical_name,
-          name: matchedContributor.name || matchedContributor.canonical_name,
-          cpf: matchedContributor.cpf || null,
-          email: matchedContributor.email || null,
-          phone: matchedContributor.phone || null,
-          whatsapp: matchedContributor.whatsapp || matchedContributor.phone || null,
-          birth_date: matchedContributor.birth_date || null,
-          person_type: matchedContributor.person_type || 'PF',
-          trade_name: matchedContributor.trade_name || null,
-          rg_ie: matchedContributor.rg_ie || null,
-          contact_person: matchedContributor.contact_person || null,
-          category: matchedContributor.category || null,
-          pix_key: matchedContributor.pix_key || null,
-          bank_name: matchedContributor.bank_name || null,
-          bank_agency: matchedContributor.bank_agency || null,
-          bank_account: matchedContributor.bank_account || null,
-          address_cep: matchedContributor.address_cep || null,
-          address_street: matchedContributor.address_street || null,
-          address_number: matchedContributor.address_number || null,
-          address_city: matchedContributor.address_city || null,
-          address_state: matchedContributor.address_state || null,
-          notes: matchedContributor.notes || null,
-          role_position: matchedContributor.role_position || null,
-          photo_url: matchedContributor.photo_url || null,
-          updated_at: matchedContributor.updated_at || matchedContributor.created_at || null,
-          created_at: matchedContributor.created_at || null,
-          status: matchedContributor.status
-        }
+        contributor: formatContributorResponse(matchedContributor),
+        results: multipleMatches.length > 0 ? multipleMatches.map(formatContributorResponse) : [formatContributorResponse(matchedContributor)]
       });
     } else {
       return res.json({
         found: false,
         contributor: null,
+        results: [],
         message: 'Nenhum contribuinte localizado para os dados informados.'
       });
     }

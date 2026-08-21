@@ -255,7 +255,7 @@ export const ExportService = {
      * Gera e dispara o download de um arquivo CSV a partir dos resultados da conciliação.
      */
     downloadCsv: (data: MatchResult[], filename: string = 'relatorio_conciliacao.csv') => {
-        const headers = ["Data", "Descrição", "Tipo", "Status", "Valor", "Igreja"];
+        const headers = ["Data", "Nome / Lançamento", "Descrição", "Status", "Valor", "Igreja"];
         const csvContent = [
             headers.join(";"),
             ...data.flatMap(r => {
@@ -462,7 +462,7 @@ export const ExportService = {
                                 <th style="width: 12%">Data</th>
                                 <th style="width: 35%">Descrição do Lançamento</th>
                                 <th style="width: 20%">Igreja / Unidade</th>
-                                <th style="width: 10%; text-align: center;">Tipo</th>
+                                <th style="width: 10%; text-align: center;">Descrição</th>
                                 <th style="width: 10%; text-align: center;">Status</th>
                                 <th style="width: 13%; text-align: right;">Valor</th>
                             </tr>
@@ -515,7 +515,7 @@ export const ExportService = {
                     return {
                         "Data": date,
                         "Descrição do Lançamento": splitDesc,
-                        "Tipo": `${splitType} (RATEADO)`,
+                        "Descrição": `${splitType} (RATEADO)`,
                         "Status": status,
                         "Valor": splitAmount,
                         "Igreja / Unidade": church
@@ -528,7 +528,7 @@ export const ExportService = {
                 return {
                     "Data": date,
                     "Descrição do Lançamento": desc,
-                    "Tipo": type,
+                    "Descrição": type,
                     "Status": status,
                     "Valor": amount,
                     "Igreja / Unidade": church
@@ -710,7 +710,7 @@ ${transactionsOfx}
         doc.setTextColor(totalAmount < 0 ? 220 : 5, totalAmount < 0 ? 38 : 150, totalAmount < 0 ? 38 : 105);
         doc.text(totalFormatted, 65, 44.5);
 
-        const headers = [["Data", "Descrição do Lançamento", "Igreja / Unidade", "Tipo", "Status", "Valor"]];
+        const headers = [["Data", "Descrição do Lançamento", "Igreja / Unidade", "Descrição", "Status", "Valor"]];
         
         const rows: any[] = data.flatMap((r: MatchResult) => {
             const isGhost = r.status === 'PENDENTE';
@@ -1126,7 +1126,7 @@ ${itemsOfx}
                 "Contribuinte / Favorecido": tx.payer || tx.contribuinte || tx.nome || '---',
                 "Categoria": tx.category || tx.categoria || 'Geral',
                 "Igreja": getChurchName(tx),
-                "Tipo": isExpense ? 'Saída' : 'Entrada',
+                "Descrição": isExpense ? 'Saída' : 'Entrada',
                 "Valor (R$)": isExpense ? -amount : amount
             };
         });
@@ -1284,7 +1284,7 @@ ${itemsOfx}
         doc.setTextColor(15, 23, 42);
         doc.text(`${transactions.length}`, 200, 38.5);
 
-        const headers = [["Data", "Descrição / Histórico", "Contribuinte / Favorecido", "Categoria", "Igreja", "Tipo", "Valor (R$)"]];
+        const headers = [["Data", "Descrição / Histórico", "Contribuinte / Favorecido", "Categoria", "Igreja", "Descrição", "Valor (R$)"]];
         
         const rows = transactions.map(tx => {
             const isExpense = tx.type === 'expense' || Number(tx.amount) < 0 || (tx.category && tx.category.toLowerCase().includes('saida'));
@@ -1505,7 +1505,7 @@ ${itemsOfx}
                                 <th>Contribuinte / Favorecido</th>
                                 <th>Categoria</th>
                                 <th>Igreja</th>
-                                <th>Tipo</th>
+                                <th>Descrição</th>
                                 <th style="text-align: right;">Valor (R$)</th>
                             </tr>
                         </thead>
@@ -2155,7 +2155,7 @@ ${itemsOfx}
                             <th style="padding: 7px; text-align: left;">Histórico / Descrição</th>
                             <th style="padding: 7px; text-align: left;">Pessoa / Favorecido</th>
                             <th style="padding: 7px; text-align: left;">Categoria</th>
-                            <th style="padding: 7px; text-align: center;">Tipo</th>
+                            <th style="padding: 7px; text-align: center;">Descrição</th>
                             <th style="padding: 7px; text-align: right;">Valor (R$)</th>
                         </tr>
                     </thead>
