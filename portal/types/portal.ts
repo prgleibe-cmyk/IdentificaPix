@@ -15,6 +15,7 @@ export type PortalRoute =
     | 'church'
     | 'identify'
     | 'register'
+    | 'cadastro'
     | 'reports'
     | 'pledges'
     | 'coming_soon'

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { QrCode, Copy, Check, Download, Share2, ExternalLink, X, Building2 } from 'lucide-react';
+import { QrCode, Copy, Check, Download, Share2, ExternalLink, X, Building2, MessageCircle, UserPlus, Smartphone, Sparkles } from 'lucide-react';
 
 interface ChurchPortalShareModalProps {
     church: {
@@ -15,6 +15,7 @@ interface ChurchPortalShareModalProps {
 
 export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ church, onClose }) => {
     const [copied, setCopied] = useState(false);
+    const [copiedRegister, setCopiedRegister] = useState(false);
     const [shareMessage, setShareMessage] = useState<string | null>(null);
     const qrContainerRef = useRef<HTMLDivElement>(null);
 
@@ -34,6 +35,7 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
     const slug = church.slug || getChurchSlug(church.name);
     // Security constraint: window.location.origin + official church slug
     const portalUrl = `${window.location.origin}/portal/church/${slug}`;
+    const registerUrl = `${window.location.origin}/cadastro?church=${slug}`;
 
     const handleCopy = async () => {
         try {
@@ -47,6 +49,26 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
         } catch (err) {
             console.error('Erro ao copiar link:', err);
         }
+    };
+
+    const handleCopyRegister = async () => {
+        try {
+            await navigator.clipboard.writeText(registerUrl);
+            setCopiedRegister(true);
+            setShareMessage('Link de Cadastro para WhatsApp copiado!');
+            setTimeout(() => {
+                setCopiedRegister(false);
+                setShareMessage(null);
+            }, 3000);
+        } catch (err) {
+            console.error('Erro ao copiar link de cadastro:', err);
+        }
+    };
+
+    const handleWhatsAppShare = () => {
+        const text = `A Paz do Senhor! 🙏\n\nFaça o seu cadastro oficial no Portal da *${church.name}* para ter acesso ao app da igreja e identificar suas contribuições e dízimos via Pix:\n\n👉 ${registerUrl}\n\nLeva menos de 1 minuto!`;
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     };
 
     const handleDownloadQrCode = () => {
@@ -226,6 +248,61 @@ export const ChurchPortalShareModal: React.FC<ChurchPortalShareModalProps> = ({ 
 
                     {/* Right Column: Portal Public Link, Share Actions & Instructions */}
                     <div className="lg:col-span-7 space-y-6 w-full">
+                        
+                        {/* WhatsApp Self-Registration Box (NEW) */}
+                        <div className="space-y-3 p-6 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent rounded-3xl border border-emerald-500/30 shadow-sm relative overflow-hidden">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+                                        <MessageCircle className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+                                            Link de Cadastro para WhatsApp
+                                        </label>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            O membro preenche seus dados e é direcionado para baixar o App e acessar o Portal
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                                    ✦ Recomendado
+                                </span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 rounded-2xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 shadow-inner">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={registerUrl}
+                                    className="w-full bg-transparent text-xs font-mono font-bold text-slate-800 dark:text-slate-200 outline-none select-all px-3 py-2"
+                                />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyRegister}
+                                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                            copiedRegister
+                                                ? 'bg-emerald-700 text-white'
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                                        }`}
+                                    >
+                                        {copiedRegister ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                        <span>{copiedRegister ? 'Copiado!' : 'Copiar'}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleWhatsAppShare}
+                                        className="px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                                        title="Enviar no WhatsApp"
+                                    >
+                                        <MessageCircle className="w-4 h-4 fill-white" />
+                                        <span>WhatsApp</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Portal Public URL Box */}
                         <div className="space-y-2.5 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                             <div className="flex items-center justify-between">

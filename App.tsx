@@ -96,7 +96,16 @@ const isPortalRoute = () => {
     if (typeof window === 'undefined') return false;
     const path = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
-    return path.startsWith('/portal') || hash.startsWith('#/portal');
+    return (
+        path.startsWith('/portal') || 
+        hash.startsWith('#/portal') ||
+        path.startsWith('/cadastro') || 
+        hash.startsWith('#/cadastro') ||
+        path.startsWith('/cadastrar') || 
+        hash.startsWith('#/cadastrar') ||
+        path.startsWith('/register') || 
+        hash.startsWith('#/register')
+    );
 };
 
 const AppContent: React.FC = () => {

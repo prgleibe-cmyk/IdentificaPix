@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalStepper } from '../components/PortalStepper';
 import { usePortalWizard } from '../hooks/usePortalWizard';
@@ -8,6 +8,7 @@ import { PortalContributionsStep } from './PortalContributionsStep';
 import { PortalSummaryStep } from './PortalSummaryStep';
 import { PortalPaymentStep } from './PortalPaymentStep';
 import { PortalSuccessStep } from './PortalSuccessStep';
+import { PortalWelcomeRegisterModal } from '../components/PortalWelcomeRegisterModal';
 import { PortalChurch } from '../types/portal';
 
 interface PortalHomeProps {
@@ -16,6 +17,24 @@ interface PortalHomeProps {
 }
 
 export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
+    const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+    useEffect(() => {
+        try {
+            const justRegistered = localStorage.getItem('iggestor_just_registered');
+            if (justRegistered === 'true') {
+                setShowWelcomeModal(true);
+            }
+        } catch (_) {}
+    }, []);
+
+    const handleCloseWelcomeModal = () => {
+        setShowWelcomeModal(false);
+        try {
+            localStorage.removeItem('iggestor_just_registered');
+        } catch (_) {}
+    };
+
     const {
         wizardState,
         isSearching,
@@ -142,6 +161,14 @@ export const PortalHome: React.FC<PortalHomeProps> = ({ church }) => {
             <div className="transition-all duration-300">
                 {renderStepContent()}
             </div>
+
+            {/* Welcome Modal for newly registered users via WhatsApp link */}
+            {showWelcomeModal && (
+                <PortalWelcomeRegisterModal
+                    church={church}
+                    onClose={handleCloseWelcomeModal}
+                />
+            )}
         </PortalContainer>
     );
 };

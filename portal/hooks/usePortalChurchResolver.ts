@@ -45,12 +45,16 @@ export const usePortalChurchResolver = (churchSlug?: string) => {
 
                     setChurchesList(formattedChurches);
 
-                    if (churchSlug) {
-                        const slugClean = churchSlug.trim().toLowerCase();
+                    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+                    const querySlug = urlParams ? (urlParams.get('church') || urlParams.get('igreja') || urlParams.get('c')) : null;
+                    const targetSlug = (churchSlug || querySlug || '').trim().toLowerCase();
+
+                    if (targetSlug) {
                         const found = formattedChurches.find(c => 
-                            c.id === churchSlug || 
-                            c.slug === slugClean || 
-                            c.slug.includes(slugClean)
+                            c.id === targetSlug || 
+                            c.slug === targetSlug || 
+                            c.slug.includes(targetSlug) ||
+                            c.name.toLowerCase().includes(targetSlug)
                         );
 
                         if (found) {
