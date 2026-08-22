@@ -331,3 +331,65 @@ export interface PastorAutomation {
   created_at: string;
   updated_at: string;
 }
+
+export type ExpenseDocumentType = 
+  | 'comprovante_pix'
+  | 'comprovante_pagamento'
+  | 'boleto'
+  | 'nota_fiscal'
+  | 'fatura'
+  | 'recibo'
+  | 'outro';
+
+export type ExpenseValidationStatus = 'validated' | 'divergent' | 'pending_attachment' | 'manual_review';
+
+export interface ExtractedExpenseDoc {
+  documentType: ExpenseDocumentType;
+  documentTypeLabel: string;
+  extractedAmount: number | null;
+  allDetectedAmounts: number[];
+  extractedDate: string | null;
+  extractedRecipient: string | null;
+  extractedPayer: string | null;
+  barcodeOrAuth: string | null;
+  rawText: string;
+  confidenceScore: number;
+}
+
+export interface ExpenseAttachment {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+  dataUrl?: string;
+  extractedData?: ExtractedExpenseDoc;
+  validationStatus: ExpenseValidationStatus;
+  validationNotes?: string;
+}
+
+export interface FinancialRecord {
+  id: string;
+  user_id: string;
+  church_id: string | null;
+  account_id?: string | null;
+  bank_id?: string | null;
+  title: string;
+  description: string;
+  amount: number;
+  type: 'invoice' | 'fixed' | 'other' | 'advance' | 'receivable';
+  status: 'pending' | 'paid';
+  recipient_name: string;
+  recipient_type: 'pastor' | 'employee' | 'supplier' | 'other';
+  due_date: string | null;
+  payment_date: string | null;
+  recurrence: 'none' | 'monthly' | 'weekly';
+  parent_id: string | null;
+  bank_transaction_id?: string | null;
+  bank_transaction_desc?: string | null;
+  attachments?: ExpenseAttachment[];
+  validation_status?: ExpenseValidationStatus;
+  validation_notes?: string;
+  created_at: string;
+  updated_at: string;
+}

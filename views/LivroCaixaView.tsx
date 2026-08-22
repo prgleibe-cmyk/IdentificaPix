@@ -57,7 +57,12 @@ export const LivroCaixaView: React.FC = memo(() => {
         { val: 12, name: 'Dezembro' }
     ];
 
-    const yearsList = [2027, 2026, 2025, 2024];
+    const currentYear = new Date().getFullYear();
+    const yearsList = useMemo(() => {
+        const list = [currentYear + 1, currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+        if (!list.includes(selectedYear)) list.push(selectedYear);
+        return Array.from(new Set(list)).sort((a, b) => b - a);
+    }, [currentYear, selectedYear]);
     
     // Multi-select church filter
     const [selectedChurchIds, setSelectedChurchIds] = useState<string[]>([]);
@@ -197,20 +202,88 @@ export const LivroCaixaView: React.FC = memo(() => {
         }
     };
 
+    const startSelected = context?.searchFilters?.dateRange?.start;
+    const endSelected = context?.searchFilters?.dateRange?.end;
+
+    // Auto-inicializar e sincronizar com o período definido nos filtros globais
+    useEffect(() => {
+        if (!startSelected || !endSelected) {
+            const m = now.getMonth() + 1;
+            const y = now.getFullYear();
+            setSelectedMonth(m);
+            setSelectedYear(y);
+            const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+            const lastDay = new Date(y, m, 0).getDate();
+            const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            if (context?.setSearchFilters) {
+                context.setSearchFilters((prev: any) => ({
+                    ...prev,
+                    dateRange: { start: startDate, end: endDate }
+                }));
+            }
+        } else {
+            const startParts = startSelected.split('-');
+            const endParts = endSelected.split('-');
+            if (startParts.length === 3 && endParts.length === 3) {
+                const y = Number(startParts[0]);
+                const m = Number(startParts[1]);
+                const lastDay = new Date(y, m, 0).getDate();
+                const isFullMonth = startParts[2] === '01' && Number(endParts[2]) === lastDay && Number(endParts[1]) === m && Number(endParts[0]) === y;
+                if (isFullMonth) {
+                    setSelectedMonth(m);
+                    setSelectedYear(y);
+                    setSelectionMode('month');
+                } else {
+                    setCustomStartDate(startSelected);
+                    setCustomEndDate(endSelected);
+                    setSelectionMode('dates');
+                }
+            } else {
+                setCustomStartDate(startSelected);
+                setCustomEndDate(endSelected);
+            }
+        }
+    }, [startSelected, endSelected, now]);
+
+    const handleMonthYearSelect = (month: number, year: number) => {
+        setSelectedMonth(month);
+        setSelectedYear(year);
+        if (context?.setSearchFilters) {
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            context.setSearchFilters((prev: any) => ({
+                ...prev,
+                dateRange: { start: startDate, end: endDate }
+            }));
+        }
+    };
+
+    const handleCustomDatesChange = (start: string, end: string) => {
+        setCustomStartDate(start);
+        setCustomEndDate(end);
+        if (start && end && context?.setSearchFilters) {
+            context.setSearchFilters((prev: any) => ({
+                ...prev,
+                dateRange: { start, end }
+            }));
+        }
+    };
+
     // Auto-initialize custom dates when switching to period mode
     useEffect(() => {
         if (selectionMode === 'dates') {
             if (!customStartDate) {
-                const start = context?.searchFilters?.dateRange?.start || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+                const start = startSelected || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
                 setCustomStartDate(start);
             }
             if (!customEndDate) {
-                const todayIso = new Date().toISOString().split('T')[0];
-                const end = context?.searchFilters?.dateRange?.end || todayIso;
+                const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+                const end = endSelected || `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
                 setCustomEndDate(end);
             }
         }
-    }, [selectionMode, customStartDate, customEndDate, selectedYear, selectedMonth, context?.searchFilters]);
+    }, [selectionMode, customStartDate, customEndDate, selectedYear, selectedMonth, startSelected, endSelected]);
 
     // Filter reportData
     const filteredReportData = useMemo(() => {
@@ -505,7 +578,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                 <div className="flex items-center gap-1">
                                     <select
                                         value={selectedMonth}
-                                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                        onChange={(e) => handleMonthYearSelect(Number(e.target.value), selectedYear)}
                                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
                                     >
                                         {monthsList.map(m => (
@@ -514,7 +587,7 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     </select>
                                     <select
                                         value={selectedYear}
-                                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                        onChange={(e) => handleMonthYearSelect(selectedMonth, Number(e.target.value))}
                                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-white px-2.5 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500 cursor-pointer"
                                     >
                                         {yearsList.map(y => (
@@ -527,14 +600,14 @@ export const LivroCaixaView: React.FC = memo(() => {
                                     <input
                                         type="date"
                                         value={customStartDate}
-                                        onChange={(e) => setCustomStartDate(e.target.value)}
+                                        onChange={(e) => handleCustomDatesChange(e.target.value, customEndDate)}
                                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
                                     />
                                     <span className="text-slate-400 font-bold text-[10px] uppercase">até</span>
                                     <input
                                         type="date"
                                         value={customEndDate}
-                                        onChange={(e) => setCustomEndDate(e.target.value)}
+                                        onChange={(e) => handleCustomDatesChange(customStartDate, e.target.value)}
                                         className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-white px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-orange-500"
                                     />
                                 </div>

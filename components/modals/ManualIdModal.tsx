@@ -49,7 +49,10 @@ export const ManualIdModal: React.FC = () => {
     const [selectedChurchId, setSelectedChurchId] = useState<string>('');
     const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [selectedType, setSelectedType] = useState<string>(contributionKeywords?.[0] || 'Dízimo');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('DINHEIRO');
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(() => {
+        const isManual = bulkIdentificationTxs?.some(tx => tx.id.startsWith('ghost-manual-'));
+        return isManual ? 'DINHEIRO' : 'PIX';
+    });
     const [isCustomType, setIsCustomType] = useState(false);
     const [isCustomPaymentMethod, setIsCustomPaymentMethod] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -280,7 +283,7 @@ export const ManualIdModal: React.FC = () => {
                 setSelectedPaymentMethod('DINHEIRO');
             }
         } else {
-            // É transação bancária original.
+            // É transação bancária original (selecionada do relatório/extrato para identificação).
             const matchedResult = findMatchResult ? findMatchResult(tx.id) : null;
             if (matchedResult && matchedResult.contributor) {
                 setManualDescription(matchedResult.contributor.name || matchedResult.contributor.cleanedName || '');
@@ -289,6 +292,33 @@ export const ManualIdModal: React.FC = () => {
                 setManualDescription(name || '');
             }
             setManualAmount('');
+
+            // 7. Payment Method (Padrão PIX para transações do relatório)
+            if (matchedResult?.paymentMethod) {
+                setSelectedPaymentMethod(matchedResult.paymentMethod);
+            } else {
+                setSelectedPaymentMethod('PIX');
+            }
+
+            if (matchedResult?.contributionType) {
+                setSelectedType(matchedResult.contributionType);
+            } else {
+                setSelectedType(contributionKeywords?.[0] || 'Dízimo');
+            }
+
+            if (matchedResult?.church?.id) {
+                setSelectedChurchId(matchedResult.church.id);
+            } else if (churches.length === 1) {
+                setSelectedChurchId(churches[0].id);
+            }
+
+            if (tx.bank_id) {
+                setSelectedBankId(tx.bank_id);
+            } else if (matchedResult?.transaction?.bank_id) {
+                setSelectedBankId(matchedResult.transaction.bank_id);
+            } else if (availableBanks.length === 1) {
+                setSelectedBankId(availableBanks[0].id);
+            }
         }
     }, [activeTxId, bulkIdentificationTxs, findMatchResult, churches, contributionKeywords, availableBanks]);
 
@@ -1358,9 +1388,14 @@ export const ManualIdModal: React.FC = () => {
                         </div>
 
                         <div className="space-y-3">
-                            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
-                                Forma
-                            </label>
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.25em] ml-1">
+                                    Forma de Pagamento
+                                </label>
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/50 dark:border-emerald-800/50">
+                                    ⚡ Padrão Pix (Extrato / Relatório)
+                                </span>
+                            </div>
                             {isCustomPaymentMethod ? (
                                 <div className="flex gap-2 items-center">
                                     <input
@@ -1375,7 +1410,7 @@ export const ManualIdModal: React.FC = () => {
                                         type="button"
                                         onClick={() => {
                                             setIsCustomPaymentMethod(false);
-                                            setSelectedPaymentMethod(paymentMethods?.[0] || 'Transferência');
+                                            setSelectedPaymentMethod('PIX');
                                         }}
                                         className="py-4 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold rounded-2xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
                                     >
@@ -1395,9 +1430,9 @@ export const ManualIdModal: React.FC = () => {
                                                 setSelectedPaymentMethod(val);
                                             }
                                         }}
-                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none"
+                                        className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-brand-blue/10 py-4 px-4 transition-all outline-none text-sm font-bold appearance-none cursor-pointer"
                                     >
-                                        {paymentMethods.map((method: string) => (
+                                        {paymentMethodsOptions.map((method: string) => (
                                             <option key={method} value={method}>{method}</option>
                                         ))}
                                         <option value="__CUSTOM__">✍️ Outro (Digitar manual...)</option>

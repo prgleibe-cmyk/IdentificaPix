@@ -30,10 +30,19 @@ import {
     PlusCircle,
     Sparkles,
     SlidersHorizontal,
-    Zap
+    Zap,
+    FileText,
+    Paperclip,
+    Eye,
+    CheckCircle,
+    HelpCircle,
+    FileCheck,
+    FileMinus
 } from 'lucide-react';
 import { formatCurrency, formatDate, isPeriodClosed } from '../utils/formatters';
 import { PastorAutomationTab } from '../components/PastorAutomationTab';
+import { ExpenseDocumentUploader } from '../components/financial/ExpenseDocumentUploader';
+import { ExpenseAttachment, ExpenseValidationStatus, validateExpenseAgainstDocument } from '../utils/expenseDocumentParser';
 
 interface FinancialRecord {
     id: string;
@@ -54,6 +63,9 @@ interface FinancialRecord {
     parent_id: string | null;
     bank_transaction_id?: string | null;
     bank_transaction_desc?: string | null;
+    attachments?: ExpenseAttachment[];
+    validation_status?: ExpenseValidationStatus;
+    validation_notes?: string;
     created_at: string;
     updated_at: string;
 }
@@ -188,6 +200,9 @@ export const FinancialView: React.FC = memo(() => {
     const [formRecurrence, setFormRecurrence] = useState<'none' | 'monthly' | 'weekly'>('none');
     const [formBankTxId, setFormBankTxId] = useState<string | null>(null);
     const [formBankTxDesc, setFormBankTxDesc] = useState<string | null>(null);
+    const [formAttachments, setFormAttachments] = useState<ExpenseAttachment[]>([]);
+    const [documentValidationFilter, setDocumentValidationFilter] = useState<'all' | 'validated' | 'divergent' | 'pending_attachment'>('all');
+    const [selectedDocPreview, setSelectedDocPreview] = useState<{ record: FinancialRecord; attachment?: ExpenseAttachment } | null>(null);
 
     const fetchRecords = async () => {
         if (!user?.id) return;
@@ -331,6 +346,7 @@ export const FinancialView: React.FC = memo(() => {
             setFormRecurrence(record.recurrence || 'none');
             setFormBankTxId(record.bank_transaction_id || null);
             setFormBankTxDesc(record.bank_transaction_desc || null);
+            setFormAttachments(record.attachments || []);
         } else {
             setEditingRecord(null);
             setFormTitle('');
@@ -347,6 +363,7 @@ export const FinancialView: React.FC = memo(() => {
             setFormRecurrence('none');
             setFormBankTxId(null);
             setFormBankTxDesc(null);
+            setFormAttachments([]);
         }
         setIsModalOpen(true);
     };
@@ -365,6 +382,24 @@ export const FinancialView: React.FC = memo(() => {
             return;
         }
 
+        // Calculate document validation status
+        let docValidationStatus: ExpenseValidationStatus = 'pending_attachment';
+        let docValidationNotes: string | null = null;
+
+        const currentAmountNum = parseFloat(formAmount);
+
+        if (formAttachments && formAttachments.length > 0) {
+            const primaryAttachment = formAttachments[0];
+            if (primaryAttachment.extractedData) {
+                const validation = validateExpenseAgainstDocument(currentAmountNum, primaryAttachment.extractedData);
+                docValidationStatus = validation.status;
+                docValidationNotes = validation.message;
+            } else {
+                docValidationStatus = primaryAttachment.validationStatus || 'manual_review';
+                docValidationNotes = primaryAttachment.validationNotes || 'Comprovante anexado sem dados estruturados';
+            }
+        }
+
         const payload = {
             user_id: user?.id,
             church_id: formChurchId || null,
@@ -372,7 +407,7 @@ export const FinancialView: React.FC = memo(() => {
             account_id: formBankId || null,
             title: formTitle,
             description: formDescription,
-            amount: parseFloat(formAmount),
+            amount: currentAmountNum,
             type: formType,
             status: formStatus,
             recipient_name: formRecipientName,
@@ -381,7 +416,10 @@ export const FinancialView: React.FC = memo(() => {
             payment_date: formPaymentDate ? new Date(formPaymentDate).toISOString() : null,
             recurrence: formRecurrence,
             bank_transaction_id: formBankTxId,
-            bank_transaction_desc: formBankTxDesc
+            bank_transaction_desc: formBankTxDesc,
+            attachments: formAttachments,
+            validation_status: docValidationStatus,
+            validation_notes: docValidationNotes
         };
 
         try {
@@ -635,9 +673,17 @@ export const FinancialView: React.FC = memo(() => {
                 return false;
             }
 
+            // Document Validation Filter
+            if (documentValidationFilter !== 'all') {
+                const status = r.validation_status || (r.attachments && r.attachments.length > 0 ? (r.attachments[0].validationStatus || 'manual_review') : 'pending_attachment');
+                if (documentValidationFilter === 'validated' && status !== 'validated') return false;
+                if (documentValidationFilter === 'divergent' && status !== 'divergent') return false;
+                if (documentValidationFilter === 'pending_attachment' && (r.attachments && r.attachments.length > 0)) return false;
+            }
+
             return true;
         });
-    }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth, dateRangeType, startDate, endDate]);
+    }, [records, activeTab, searchTerm, selectedChurchId, selectedStatus, selectedYear, selectedMonth, dateRangeType, startDate, endDate, documentValidationFilter]);
 
     return (
         <div className="px-1 py-3 md:px-2 w-full space-y-4 max-w-full min-h-full pb-8 md:pb-4">
@@ -1106,7 +1152,76 @@ export const FinancialView: React.FC = memo(() => {
                     language={language}
                 />
             ) : (
-                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
+                <div className="space-y-3">
+                    {/* Quick Semaphore Filter Bar for Outflows/Expenses */}
+                    <div className="flex items-center justify-between bg-white dark:bg-slate-900 px-4 py-2.5 rounded-2xl border border-slate-100 dark:border-white/5 flex-wrap gap-2 text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                                <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                Auditoria de Comprovantes / NF:
+                            </span>
+                            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-black/30 p-1 rounded-xl">
+                                <button
+                                    onClick={() => setDocumentValidationFilter('all')}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                        documentValidationFilter === 'all'
+                                            ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                    }`}
+                                >
+                                    Todos ({records.length})
+                                </button>
+                                <button
+                                    onClick={() => setDocumentValidationFilter('validated')}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                        documentValidationFilter === 'validated'
+                                            ? 'bg-emerald-500 text-white shadow-sm'
+                                            : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                    }`}
+                                >
+                                    <FileCheck className="w-3.5 h-3.5" />
+                                    <span>Validados</span>
+                                    <span className={`text-[9px] px-1 rounded-full ${documentValidationFilter === 'validated' ? 'bg-white/20' : 'bg-emerald-100 dark:bg-emerald-900/50'}`}>
+                                        {records.filter(r => r.validation_status === 'validated' || r.attachments?.[0]?.validationStatus === 'validated').length}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => setDocumentValidationFilter('divergent')}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                        documentValidationFilter === 'divergent'
+                                            ? 'bg-rose-500 text-white shadow-sm'
+                                            : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                                    }`}
+                                >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span>Com Divergência</span>
+                                    <span className={`text-[9px] px-1 rounded-full ${documentValidationFilter === 'divergent' ? 'bg-white/20' : 'bg-rose-100 dark:bg-rose-900/50'}`}>
+                                        {records.filter(r => r.validation_status === 'divergent' || r.attachments?.[0]?.validationStatus === 'divergent').length}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => setDocumentValidationFilter('pending_attachment')}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                        documentValidationFilter === 'pending_attachment'
+                                            ? 'bg-amber-500 text-white shadow-sm'
+                                            : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                                    }`}
+                                >
+                                    <FileMinus className="w-3.5 h-3.5" />
+                                    <span>Sem Comprovante</span>
+                                    <span className={`text-[9px] px-1 rounded-full ${documentValidationFilter === 'pending_attachment' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900/50'}`}>
+                                        {records.filter(r => (!r.attachments || r.attachments.length === 0) && r.type !== 'receivable').length}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="text-[11px] text-slate-400 font-medium hidden sm:block">
+                            Mostrando <strong className="text-slate-700 dark:text-white font-mono">{filteredRecords.length}</strong> de {records.length} lançamentos
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
                     {loading ? (
                         <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
                             <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
@@ -1120,7 +1235,7 @@ export const FinancialView: React.FC = memo(() => {
                         </div>
                     ) : (
                         <div className="overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y pinch-zoom' }}>
-                            <table className="w-full text-left border-collapse min-w-[850px]">
+                            <table className="w-full text-left border-collapse min-w-[950px]">
                                 <thead>
                                     <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/10">
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Título / Descrição</th>
@@ -1129,6 +1244,7 @@ export const FinancialView: React.FC = memo(() => {
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Vencimento</th>
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo</th>
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Valor</th>
+                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Comprovante / NF</th>
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Status</th>
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Ações</th>
                                     </tr>
@@ -1137,6 +1253,9 @@ export const FinancialView: React.FC = memo(() => {
                                     {filteredRecords.map((record) => {
                                         const churchName = churches?.find((c: any) => c.id === record.church_id)?.name || '---';
                                         const isOverdue = record.status === 'pending' && record.due_date && new Date(record.due_date) < new Date();
+                                        const hasAttachments = record.attachments && record.attachments.length > 0;
+                                        const primaryDoc = hasAttachments ? record.attachments![0] : null;
+                                        const docStatus: ExpenseValidationStatus = record.validation_status || (primaryDoc?.validationStatus || (hasAttachments ? 'manual_review' : 'pending_attachment'));
                                         
                                         return (
                                             <tr key={record.id} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.01] transition-all">
@@ -1200,6 +1319,66 @@ export const FinancialView: React.FC = memo(() => {
                                                 <td className="p-4 text-xs font-mono font-black text-slate-700 dark:text-slate-200">
                                                     {formatCurrency(record.amount, language)}
                                                 </td>
+
+                                                {/* Comprovante / NF Semaphore Column */}
+                                                <td className="p-4">
+                                                    {record.type === 'receivable' ? (
+                                                        <span className="text-[10px] text-slate-400">N/A</span>
+                                                    ) : hasAttachments && primaryDoc ? (
+                                                        <div className="flex items-center gap-1.5">
+                                                            {docStatus === 'validated' ? (
+                                                                <button
+                                                                    onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
+                                                                    className="px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
+                                                                    title={record.validation_notes || 'Valor confere exatamente com o documento'}
+                                                                >
+                                                                    <FileCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                                                    <span>VALIDADO</span>
+                                                                    {record.attachments!.length > 1 && (
+                                                                        <span className="bg-emerald-200 dark:bg-emerald-800 text-[8px] px-1 rounded-full">
+                                                                            +{record.attachments!.length - 1}
+                                                                        </span>
+                                                                    )}
+                                                                </button>
+                                                            ) : docStatus === 'divergent' ? (
+                                                                <button
+                                                                    onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
+                                                                    className="px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-100 transition-all cursor-pointer shadow-xs animate-pulse"
+                                                                    title={record.validation_notes || 'Divergência entre o valor lançado e o documento anexado'}
+                                                                >
+                                                                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                                                    <span>DIVERGÊNCIA</span>
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
+                                                                    className="px-2.5 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-500/20 hover:bg-sky-100 transition-all cursor-pointer shadow-xs"
+                                                                    title="Comprovante anexado (Clique para visualizar)"
+                                                                >
+                                                                    <Paperclip className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                                                    <span>ANEXADO</span>
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => setSelectedDocPreview({ record, attachment: primaryDoc })}
+                                                                className="p-1 text-slate-400 hover:text-orange-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                                                title="Visualizar documento"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => openModal(record)}
+                                                            className="px-2 py-1 rounded-xl text-[10px] font-bold flex items-center gap-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-dashed border-slate-250 dark:border-slate-700 transition-all cursor-pointer"
+                                                            title="Clique para editar e anexar a nota fiscal ou comprovante"
+                                                        >
+                                                            <FileMinus className="w-3 h-3 text-amber-500/80" />
+                                                            <span>Sem anexo</span>
+                                                        </button>
+                                                    )}
+                                                </td>
+
                                                 <td className="p-4">
                                                     <button
                                                         onClick={() => handleToggleStatus(record)}
@@ -1247,6 +1426,7 @@ export const FinancialView: React.FC = memo(() => {
                             </table>
                         </div>
                     )}
+                </div>
                 </div>
             )}
 
@@ -1329,6 +1509,20 @@ export const FinancialView: React.FC = memo(() => {
                                         className="block w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-4 focus:ring-orange-500/10 py-4 px-5 transition-all outline-none text-sm font-bold h-24 resize-none"
                                     />
                                 </div>
+
+                                {/* Comprovante / Nota Fiscal / Boleto (Validação Automática sem IA) */}
+                                {formType !== 'receivable' && (
+                                    <div className="pt-1">
+                                        <ExpenseDocumentUploader
+                                            launchAmount={formAmount ? parseFloat(formAmount) : undefined}
+                                            recipientName={formRecipientName}
+                                            attachments={formAttachments}
+                                            onChangeAttachments={(updated) => setFormAttachments(updated)}
+                                            onApplyExtractedAmount={(amt) => setFormAmount(amt.toFixed(2))}
+                                            onApplyExtractedRecipient={(rec) => setFormRecipientName(rec)}
+                                        />
+                                    </div>
+                                )}
 
                                 {/* Church, Account & Type */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1651,6 +1845,211 @@ export const FinancialView: React.FC = memo(() => {
                                     Aplicar Filtros
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Document Preview & Validation Details Modal */}
+            {selectedDocPreview && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-in">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-2xl bg-orange-500/10 text-orange-500">
+                                    <FileText className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-800 dark:text-white tracking-tight uppercase">
+                                        Auditoria do Documento
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                        {selectedDocPreview.record.title}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedDocPreview(null)}
+                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+                            {/* Validation Status Banner */}
+                            {(() => {
+                                const rec = selectedDocPreview.record;
+                                const doc = selectedDocPreview.attachment || (rec.attachments && rec.attachments[0]);
+                                const status = rec.validation_status || doc?.validationStatus || 'manual_review';
+                                const notes = rec.validation_notes || doc?.validationNotes;
+                                const extracted = doc?.extractedData;
+
+                                return (
+                                    <div className="space-y-4">
+                                        <div className={`p-4 rounded-2xl border flex items-start gap-3.5 ${
+                                            status === 'validated'
+                                                ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-500/20 text-emerald-800 dark:text-emerald-300'
+                                                : status === 'divergent'
+                                                ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-500/20 text-rose-800 dark:text-rose-300'
+                                                : 'bg-sky-50/70 dark:bg-sky-950/30 border-sky-500/20 text-sky-800 dark:text-sky-300'
+                                        }`}>
+                                            <div className="mt-0.5">
+                                                {status === 'validated' ? (
+                                                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                                                ) : status === 'divergent' ? (
+                                                    <AlertTriangle className="w-6 h-6 text-rose-500" />
+                                                ) : (
+                                                    <Paperclip className="w-6 h-6 text-sky-500" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black uppercase tracking-wider">
+                                                        {status === 'validated'
+                                                            ? 'Lançamento Validado com Sucesso'
+                                                            : status === 'divergent'
+                                                            ? 'Divergência de Valores Detectada'
+                                                            : 'Documento Anexado (Revisão Manual)'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs mt-1 font-medium leading-relaxed opacity-90">
+                                                    {notes || (status === 'validated'
+                                                        ? 'O valor lançado no sistema confere exatamente com o valor total identificado no documento.'
+                                                        : status === 'divergent'
+                                                        ? 'O valor lançado no sistema é diferente do valor indicado no documento fiscal/comprovante.'
+                                                        : 'Documento anexado para conferência manual.')}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Comparison Cards */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 space-y-1">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                                    Valor Lançado na Saída
+                                                </span>
+                                                <span className="text-xl font-black font-mono text-slate-800 dark:text-white">
+                                                    {formatCurrency(rec.amount, language)}
+                                                </span>
+                                            </div>
+
+                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 space-y-1">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                                    Valor no Documento (Extraído)
+                                                </span>
+                                                <span className={`text-xl font-black font-mono ${
+                                                    status === 'validated' ? 'text-emerald-500' : status === 'divergent' ? 'text-rose-500' : 'text-slate-500'
+                                                }`}>
+                                                    {extracted?.extractedAmount != null ? formatCurrency(extracted.extractedAmount, language as any) : 'Não detectado'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Extracted Details Grid */}
+                                        {extracted && (
+                                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 space-y-2 text-xs">
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                                                    Dados Estruturados Extraídos do PDF:
+                                                </span>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 font-mono">
+                                                    {extracted.documentTypeLabel && (
+                                                        <div>
+                                                            <span className="text-[9px] text-slate-400 block uppercase">Tipo de Documento</span>
+                                                            <span className="font-bold text-slate-700 dark:text-slate-200">{extracted.documentTypeLabel}</span>
+                                                        </div>
+                                                    )}
+                                                    {extracted.extractedDate && (
+                                                        <div>
+                                                            <span className="text-[9px] text-slate-400 block uppercase">Data do Documento</span>
+                                                            <span className="font-bold text-slate-700 dark:text-slate-200">{extracted.extractedDate}</span>
+                                                        </div>
+                                                    )}
+                                                    {extracted.barcodeOrAuth && (
+                                                        <div>
+                                                            <span className="text-[9px] text-slate-400 block uppercase">Autenticação / Código</span>
+                                                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate block">{extracted.barcodeOrAuth}</span>
+                                                        </div>
+                                                    )}
+                                                    {extracted.extractedRecipient && (
+                                                        <div className="col-span-2">
+                                                            <span className="text-[9px] text-slate-400 block uppercase">Favorecido / Destinatário</span>
+                                                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate block">{extracted.extractedRecipient}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Document Preview Area */}
+                                        {doc && (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                                        Visualização do Arquivo ({doc.fileName})
+                                                    </span>
+                                                    {doc.dataUrl && (
+                                                        <a
+                                                            href={doc.dataUrl}
+                                                            download={doc.fileName}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs font-bold text-orange-500 hover:text-orange-600 underline flex items-center gap-1"
+                                                        >
+                                                            Abrir / Baixar Arquivo
+                                                        </a>
+                                                    )}
+                                                </div>
+                                                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-100 dark:bg-black/40 min-h-[260px] flex items-center justify-center">
+                                                    {doc.fileType?.includes('pdf') || doc.fileName?.toLowerCase().endsWith('.pdf') ? (
+                                                        <iframe
+                                                            src={doc.dataUrl}
+                                                            className="w-full h-80 border-0 rounded-2xl"
+                                                            title="Pré-visualização do PDF"
+                                                        />
+                                                    ) : doc.fileType?.includes('image') ? (
+                                                        <img
+                                                            src={doc.dataUrl}
+                                                            alt={doc.fileName}
+                                                            className="max-h-80 object-contain mx-auto p-2"
+                                                        />
+                                                    ) : (
+                                                        <div className="p-8 text-center text-slate-400 space-y-2">
+                                                            <FileText className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+                                                            <p className="text-xs font-bold">{doc.fileName}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const rec = selectedDocPreview.record;
+                                    setSelectedDocPreview(null);
+                                    openModal(rec);
+                                }}
+                                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
+                            >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Editar Lançamento</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDocPreview(null)}
+                                className="px-6 py-2 text-xs font-black text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl transition-all cursor-pointer uppercase tracking-wider"
+                            >
+                                Fechar
+                            </button>
                         </div>
                     </div>
                 </div>

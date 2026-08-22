@@ -5,6 +5,43 @@ import { useUI } from '../contexts/UIContext';
 import { AppContext } from '../contexts/AppContext';
 
 // --- Safe Lazy Wrapper for Code-Splitting & Chunk Auto-Recovery ---
+const viewImports: Record<string, () => Promise<any>> = {
+    dashboard: () => import('./DashboardView'),
+    upload: () => import('./UploadView'),
+    cadastro: () => import('./RegisterView'),
+    reports: () => import('./ReportsView'),
+    relatorios: () => import('./RelatoriosView'),
+    livro_caixa: () => import('./LivroCaixaView'),
+    settings: () => import('./SettingsView'),
+    search: () => import('./SearchView'),
+    savedReports: () => import('./SavedReportsView'),
+    admin: () => import('./AdminView'),
+    smart_analysis: () => import('./SmartAnalysisView'),
+    users: () => import('./UsersManagementPage'),
+    launched: () => import('./LaunchedView'),
+    connectors: () => import('./ConnectorsView'),
+    financial: () => import('./FinancialView'),
+    pledges: () => import('./PledgesView'),
+    patrimonio: () => import('./PatrimonyView'),
+};
+
+export const preloadView = (viewKey: string) => {
+    try {
+        const loader = viewImports[viewKey];
+        if (loader) loader().catch(() => {});
+    } catch (_) {}
+};
+
+export const preloadAllViews = () => {
+    try {
+        if (typeof window === 'undefined') return;
+        const idleCallback = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 100));
+        idleCallback(() => {
+            Object.values(viewImports).forEach(fn => fn().catch(() => {}));
+        });
+    } catch (_) {}
+};
+
 const safeLazy = (importFn: () => Promise<any>) => {
     return React.lazy(async () => {
         try {
@@ -43,23 +80,23 @@ const safeLazy = (importFn: () => Promise<any>) => {
 };
 
 // --- Lazy-Loaded Views for Fast Navigation and Code-Splitting ---
-const DashboardView = safeLazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
-const UploadView = safeLazy(() => import('./UploadView').then(m => ({ default: m.UploadView })));
-const RegisterView = safeLazy(() => import('./RegisterView').then(m => ({ default: m.RegisterView })));
-const ReportsView = safeLazy(() => import('./ReportsView').then(m => ({ default: m.ReportsView })));
-const RelatoriosView = safeLazy(() => import('./RelatoriosView').then(m => ({ default: m.RelatoriosView })));
-const LivroCaixaView = safeLazy(() => import('./LivroCaixaView').then(m => ({ default: m.LivroCaixaView })));
-const SettingsView = safeLazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
-const SearchView = safeLazy(() => import('./SearchView').then(m => ({ default: m.SearchView })));
-const SavedReportsView = safeLazy(() => import('./SavedReportsView').then(m => ({ default: m.SavedReportsView })));
-const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
-const SmartAnalysisView = safeLazy(() => import('./SmartAnalysisView').then(m => ({ default: m.SmartAnalysisView })));
-const UsersManagementPage = safeLazy(() => import('./UsersManagementPage').then(m => ({ default: m.UsersManagementPage })));
-const LaunchedView = safeLazy(() => import('./LaunchedView').then(m => ({ default: m.LaunchedView })));
-const ConnectorsView = safeLazy(() => import('./ConnectorsView').then(m => ({ default: m.ConnectorsView })));
-const FinancialView = safeLazy(() => import('./FinancialView').then(m => ({ default: m.FinancialView })));
-const PledgesView = safeLazy(() => import('./PledgesView').then(m => ({ default: m.PledgesView })));
-const PatrimonyView = safeLazy(() => import('./PatrimonyView').then(m => ({ default: m.PatrimonyView })));
+const DashboardView = safeLazy(() => viewImports.dashboard().then(m => ({ default: m.DashboardView })));
+const UploadView = safeLazy(() => viewImports.upload().then(m => ({ default: m.UploadView })));
+const RegisterView = safeLazy(() => viewImports.cadastro().then(m => ({ default: m.RegisterView })));
+const ReportsView = safeLazy(() => viewImports.reports().then(m => ({ default: m.ReportsView })));
+const RelatoriosView = safeLazy(() => viewImports.relatorios().then(m => ({ default: m.RelatoriosView })));
+const LivroCaixaView = safeLazy(() => viewImports.livro_caixa().then(m => ({ default: m.LivroCaixaView })));
+const SettingsView = safeLazy(() => viewImports.settings().then(m => ({ default: m.SettingsView })));
+const SearchView = safeLazy(() => viewImports.search().then(m => ({ default: m.SearchView })));
+const SavedReportsView = safeLazy(() => viewImports.savedReports().then(m => ({ default: m.SavedReportsView })));
+const AdminView = safeLazy(() => viewImports.admin().then(m => ({ default: m.AdminView })));
+const SmartAnalysisView = safeLazy(() => viewImports.smart_analysis().then(m => ({ default: m.SmartAnalysisView })));
+const UsersManagementPage = safeLazy(() => viewImports.users().then(m => ({ default: m.UsersManagementPage })));
+const LaunchedView = safeLazy(() => viewImports.launched().then(m => ({ default: m.LaunchedView })));
+const ConnectorsView = safeLazy(() => viewImports.connectors().then(m => ({ default: m.ConnectorsView })));
+const FinancialView = safeLazy(() => viewImports.financial().then(m => ({ default: m.FinancialView })));
+const PledgesView = safeLazy(() => viewImports.pledges().then(m => ({ default: m.PledgesView })));
+const PatrimonyView = safeLazy(() => viewImports.patrimonio().then(m => ({ default: m.PatrimonyView })));
 
 // --- Modals ---
 import { EditBankModal } from '../components/modals/EditBankModal';
@@ -82,6 +119,11 @@ const ViewFallback: React.FC = () => (
 export const AppRouter: React.FC = memo(() => {
     const { activeView } = useUI();
     const { user, subscription } = useAuth();
+
+    React.useEffect(() => {
+        preloadAllViews();
+    }, []);
+
     const isAdmin = user?.email?.toLowerCase().trim() === 'identificapix@gmail.com';
     const isOwner = subscription?.role === 'owner';
     

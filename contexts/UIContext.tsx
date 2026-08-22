@@ -49,9 +49,7 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         if (loading) {
             setIsLoadingState(true);
         } else {
-            loadingTimeoutRef.current = setTimeout(() => {
-                setIsLoadingState(false);
-            }, 300);
+            setIsLoadingState(false);
         }
     }, []);
 

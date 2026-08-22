@@ -477,6 +477,9 @@ async function initializeDatabase() {
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS parent_id UUID;');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS bank_transaction_id VARCHAR(255);');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS bank_transaction_desc VARCHAR(255);');
+    await client.query("ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb;");
+    await client.query("ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS validation_status VARCHAR(50) DEFAULT 'pending_attachment';");
+    await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS validation_notes TEXT;');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query('ALTER TABLE financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();');
     await client.query('CREATE INDEX IF NOT EXISTS idx_fin_records_church_date ON financial_records(church_id, due_date);');
@@ -1304,7 +1307,7 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
 
     const addField = (fieldName: string, val: any) => {
       if (val !== undefined) {
-        updates.push(`${fieldName} = ${counter}`);
+        updates.push(`${fieldName} = $${counter}`);
         params.push(val);
         counter++;
       }
@@ -1333,23 +1336,26 @@ app.post('/api/v1/contributors/update-profile', async (req: Request, res: Respon
       addField('whatsapp', cleanPhone && typeof cleanPhone === 'string' ? cleanPhone.trim() : null);
     }
 
-    addField('birth_date', birth_date || null);
-    addField('person_type', person_type || 'PF');
-    addField('trade_name', trade_name || null);
-    addField('rg_ie', rg_ie || null);
-    addField('contact_person', contact_person || null);
-    addField('category', category || null);
-    addField('role_position', role_position || null);
-    addField('pix_key', pix_key || null);
-    addField('bank_name', bank_name || null);
-    addField('bank_agency', bank_agency || null);
-    addField('bank_account', bank_account || null);
-    addField('address_cep', address_cep || null);
-    addField('address_street', address_street || null);
-    addField('address_number', address_number || null);
-    addField('address_city', address_city || null);
-    addField('address_state', address_state || null);
-    addField('notes', notes || null);
+    if (birth_date !== undefined) addField('birth_date', birth_date ? String(birth_date).trim() : null);
+    if (person_type !== undefined) addField('person_type', person_type || 'PF');
+    if (trade_name !== undefined) addField('trade_name', trade_name ? String(trade_name).trim() : null);
+    if (rg_ie !== undefined) addField('rg_ie', rg_ie ? String(rg_ie).trim() : null);
+    if (contact_person !== undefined) addField('contact_person', contact_person ? String(contact_person).trim() : null);
+    if (category !== undefined) addField('category', category ? String(category).trim() : null);
+    if (role_position !== undefined) addField('role_position', role_position ? String(role_position).trim() : null);
+    if (pix_key !== undefined) addField('pix_key', pix_key ? String(pix_key).trim() : null);
+    if (bank_name !== undefined) addField('bank_name', bank_name ? String(bank_name).trim() : null);
+    if (bank_agency !== undefined) addField('bank_agency', bank_agency ? String(bank_agency).trim() : null);
+    if (bank_account !== undefined) addField('bank_account', bank_account ? String(bank_account).trim() : null);
+    if (address_cep !== undefined) addField('address_cep', address_cep ? String(address_cep).trim() : null);
+    if (address_street !== undefined) addField('address_street', address_street ? String(address_street).trim() : null);
+    if (address_number !== undefined) addField('address_number', address_number ? String(address_number).trim() : null);
+    if (address_city !== undefined) addField('address_city', address_city ? String(address_city).trim() : null);
+    if (address_state !== undefined) addField('address_state', address_state ? String(address_state).trim() : null);
+    if (notes !== undefined) addField('notes', notes ? String(notes).trim() : null);
+    if (church_id && typeof church_id === 'string' && uuidRegex.test(church_id)) {
+      addField('church_id', church_id);
+    }
 
     const updateQuery = `UPDATE contributors SET ${updates.join(', ')} WHERE id = $1 RETURNING *`;
     const result = await pool.query(updateQuery, params);
@@ -2230,14 +2236,57 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
         const updateResult = await pool.query(
           `UPDATE contributors 
            SET canonical_name = $1, 
+               name = $1,
                email = COALESCE($2, email), 
                phone = COALESCE($3, phone),
+               whatsapp = COALESCE($3, whatsapp),
                photo_url = COALESCE($6, photo_url),
                is_global = CASE WHEN $5 = TRUE THEN TRUE ELSE is_global END,
+               birth_date = COALESCE($7, birth_date),
+               person_type = COALESCE($8, person_type),
+               trade_name = COALESCE($9, trade_name),
+               rg_ie = COALESCE($10, rg_ie),
+               contact_person = COALESCE($11, contact_person),
+               category = COALESCE($12, category),
+               pix_key = COALESCE($13, pix_key),
+               bank_name = COALESCE($14, bank_name),
+               bank_agency = COALESCE($15, bank_agency),
+               bank_account = COALESCE($16, bank_account),
+               address_cep = COALESCE($17, address_cep),
+               address_street = COALESCE($18, address_street),
+               address_number = COALESCE($19, address_number),
+               address_city = COALESCE($20, address_city),
+               address_state = COALESCE($21, address_state),
+               notes = COALESCE($22, notes),
+               role_position = COALESCE($23, role_position),
                updated_at = NOW() 
            WHERE id = $4 
            RETURNING *`,
-          [sanitizedName, sanitizedEmail, sanitizedPhone, existing.id, isGlobalValue, cleanPhotoUrl]
+          [
+            sanitizedName, 
+            sanitizedEmail, 
+            sanitizedPhone, 
+            existing.id, 
+            isGlobalValue, 
+            cleanPhotoUrl,
+            birth_date ? String(birth_date).trim() : null,
+            person_type || null,
+            trade_name ? String(trade_name).trim() : null,
+            rg_ie ? String(rg_ie).trim() : null,
+            contact_person ? String(contact_person).trim() : null,
+            category ? String(category).trim() : null,
+            pix_key ? String(pix_key).trim() : null,
+            bank_name ? String(bank_name).trim() : null,
+            bank_agency ? String(bank_agency).trim() : null,
+            bank_account ? String(bank_account).trim() : null,
+            address_cep ? String(address_cep).trim() : null,
+            address_street ? String(address_street).trim() : null,
+            address_number ? String(address_number).trim() : null,
+            address_city ? String(address_city).trim() : null,
+            address_state ? String(address_state).trim() : null,
+            notes ? String(notes).trim() : null,
+            role_position ? String(role_position).trim() : null
+          ]
         );
         return res.status(200).json(updateResult.rows[0] || existing);
       }
@@ -2246,14 +2295,14 @@ app.post('/api/v1/contributors', async (req: Request, res: Response) => {
     // Insert contributor record with all extended fields
     const insertResult = await pool.query(
       `INSERT INTO contributors (
-        church_id, canonical_name, cpf, email, phone, status,
+        church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
         person_type, trade_name, rg_ie, birth_date, contact_person,
         category, pix_key, bank_name, bank_agency, bank_account,
         address_cep, address_street, address_number, address_city, address_state, notes, is_global, role_position, photo_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
-        cleanChurchId, sanitizedName, sanitizedCpf, sanitizedEmail, sanitizedPhone, sanitizedStatus,
+        cleanChurchId, sanitizedName, (req.body.name ? String(req.body.name).trim() : sanitizedName), sanitizedCpf, sanitizedEmail, sanitizedPhone, (req.body.whatsapp ? String(req.body.whatsapp).trim() : sanitizedPhone), sanitizedStatus,
         person_type || 'PF', trade_name || null, rg_ie || null, birth_date || null, contact_person || null,
         category || null, pix_key || null, bank_name || null, bank_agency || null, bank_account || null,
         address_cep || null, address_street || null, address_number || null, address_city || null, address_state || null, notes || null,
@@ -2317,7 +2366,7 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const ctx = getTenantContext(req);
     const { 
-      church_id, canonical_name, cpf, email, phone, status,
+      church_id, canonical_name, name, cpf, email, phone, whatsapp, status,
       person_type, trade_name, rg_ie, birth_date, contact_person,
       category, pix_key, bank_name, bank_agency, bank_account,
       address_cep, address_street, address_number, address_city, address_state, notes,
@@ -2367,7 +2416,15 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
       if (typeof canonical_name !== 'string' || !canonical_name.trim()) {
         return res.status(400).json({ error: 'VALIDATION_ERROR' });
       }
-      addField('canonical_name', canonical_name.trim().replace(/\s+/g, ' ').toUpperCase());
+      const cleanName = canonical_name.trim();
+      addField('canonical_name', cleanName.replace(/\s+/g, ' ').toUpperCase());
+      addField('name', cleanName);
+    } else if (name !== undefined) {
+      const cleanName = typeof name === 'string' ? name.trim() : '';
+      if (cleanName) {
+        addField('canonical_name', cleanName.replace(/\s+/g, ' ').toUpperCase());
+        addField('name', cleanName);
+      }
     }
 
     if (cpf !== undefined) {
@@ -2392,7 +2449,13 @@ app.put('/api/v1/contributors/:id', async (req: Request, res: Response) => {
     }
 
     if (phone !== undefined) {
-      addField('phone', phone && typeof phone === 'string' ? phone.trim() : null);
+      const cleanPhone = phone && typeof phone === 'string' ? phone.trim() : null;
+      addField('phone', cleanPhone);
+      addField('whatsapp', cleanPhone);
+    } else if (whatsapp !== undefined) {
+      const cleanWhatsapp = whatsapp && typeof whatsapp === 'string' ? whatsapp.trim() : null;
+      addField('whatsapp', cleanWhatsapp);
+      addField('phone', cleanWhatsapp);
     }
 
     if (status !== undefined) {
@@ -4742,7 +4805,10 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       recurrence,
       parent_id,
       bank_transaction_id,
-      bank_transaction_desc
+      bank_transaction_desc,
+      attachments,
+      validation_status,
+      validation_notes
     } = req.body;
 
     const effectiveUserId = (ctx.isAuthenticated && !ctx.isSuperAdmin && ctx.userId) ? ctx.userId : user_id;
@@ -4756,8 +4822,8 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
       `INSERT INTO financial_records (
         user_id, church_id, title, description, amount, type, status, 
         recipient_name, recipient_type, due_date, payment_date, recurrence, parent_id,
-        bank_transaction_id, bank_transaction_desc
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+        bank_transaction_id, bank_transaction_desc, attachments, validation_status, validation_notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
       [
         effectiveUserId,
         effectiveChurchId,
@@ -4773,7 +4839,10 @@ app.post('/api/v1/financial_records', async (req: Request, res: Response) => {
         recurrence || 'none',
         parent_id || null,
         bank_transaction_id || null,
-        bank_transaction_desc || null
+        bank_transaction_desc || null,
+        attachments ? JSON.stringify(attachments) : '[]',
+        validation_status || (attachments && attachments.length > 0 ? 'manual_review' : 'pending_attachment'),
+        validation_notes || null
       ]
     );
 
@@ -4814,7 +4883,10 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       recurrence,
       parent_id,
       bank_transaction_id,
-      bank_transaction_desc
+      bank_transaction_desc,
+      attachments,
+      validation_status,
+      validation_notes
     } = req.body;
 
     const oldRecRes = await pool.query('SELECT * FROM financial_records WHERE id = $1', [id]);
@@ -4845,7 +4917,10 @@ app.put('/api/v1/financial_records/:id', async (req: Request, res: Response) => 
       { name: 'recurrence', value: recurrence },
       { name: 'parent_id', value: parent_id },
       { name: 'bank_transaction_id', value: bank_transaction_id },
-      { name: 'bank_transaction_desc', value: bank_transaction_desc }
+      { name: 'bank_transaction_desc', value: bank_transaction_desc },
+      { name: 'attachments', value: attachments !== undefined ? JSON.stringify(attachments) : undefined },
+      { name: 'validation_status', value: validation_status },
+      { name: 'validation_notes', value: validation_notes }
     ];
 
     fields.forEach(f => {

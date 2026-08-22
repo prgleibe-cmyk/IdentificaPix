@@ -236,16 +236,69 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
     // Save or update contributor to database
     const saveContributor = useCallback(async (activeChurchId?: string): Promise<boolean> => {
         const contrib = wizardState.contributor;
-        if (contrib.isExisting && contrib.id) {
-            return true; // Already registered
-        }
-
         const targetChurchId = activeChurchId || churchId || '00000000-0000-0000-0000-000000000001';
 
         setIsSaving(true);
         setApiError(null);
 
         try {
+            if (contrib.id) {
+                // If ID exists, update profile
+                const updatePayload = {
+                    id: contrib.id,
+                    church_id: targetChurchId,
+                    canonical_name: contrib.name || contrib.canonical_name,
+                    name: contrib.name || contrib.canonical_name,
+                    cpf: contrib.cpf,
+                    phone: contrib.phone,
+                    whatsapp: contrib.whatsapp || contrib.phone,
+                    email: contrib.email,
+                    birth_date: contrib.birth_date,
+                    address_cep: contrib.address_cep,
+                    address_street: contrib.address_street,
+                    address_number: contrib.address_number,
+                    address_city: contrib.address_city || contrib.city,
+                    address_state: contrib.address_state || contrib.state,
+                    role_position: contrib.role_position
+                };
+
+                let res = await fetch('/api/v1/contributors/update-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatePayload)
+                });
+
+                if (!res.ok) {
+                    res = await fetch(`/api/v1/contributors/${contrib.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatePayload)
+                    });
+                }
+
+                const updatedRecord = res.ok ? await res.json().catch(() => null) : null;
+                const updatedObj: ContributorMockProfile = {
+                    ...contrib,
+                    id: updatedRecord?.id || contrib.id,
+                    isExisting: true,
+                    church_id: targetChurchId
+                };
+
+                try {
+                    localStorage.setItem('iggestor_portal_contributor', JSON.stringify(updatedObj));
+                    window.dispatchEvent(new Event('storage'));
+                } catch (_) {}
+
+                setWizardState(prev => ({
+                    ...prev,
+                    mockSearchFound: true,
+                    contributor: updatedObj
+                }));
+
+                setIsSaving(false);
+                return true;
+            }
+
             const response = await fetch('/api/v1/contributors', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -268,23 +321,21 @@ export const usePortalWizard = (churchId?: string, churchName?: string) => {
                 })
             });
 
-            if (!response.ok) {
+            if (!response.ok && response.status !== 409) {
                 const errData = await response.json().catch(() => ({}));
-                if (response.status === 409) {
-                    throw new Error('Já existe um contribuinte cadastrado com este CPF.');
-                }
                 throw new Error(errData.error || 'Falha ao realizar cadastro do contribuinte.');
             }
 
-            const newRecord = await response.json();
+            const newRecord = await response.json().catch(() => ({}));
             const newContribObj: ContributorMockProfile = {
                 ...contrib,
-                id: newRecord.id,
+                id: newRecord?.id || contrib.id || `contrib-${Date.now()}`,
                 isExisting: true,
                 church_id: targetChurchId
             };
             try {
                 localStorage.setItem('iggestor_portal_contributor', JSON.stringify(newContribObj));
+                window.dispatchEvent(new Event('storage'));
             } catch (_) {}
 
             setWizardState(prev => ({

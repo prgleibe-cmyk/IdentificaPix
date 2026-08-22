@@ -4,6 +4,7 @@ import { useTranslation } from '../../contexts/I18nContext';
 import { useUI } from '../../contexts/UIContext';
 import { AppContext } from '../../contexts/AppContext';
 import { ViewType, Transaction, MatchResult, ReconciliationStatus } from '../../types';
+import { preloadView } from '../../views/AppRouter';
 const logoImg = '/logo.png?v=15';
 import { BookmarkPlus, Building2, FileText, BookOpen } from 'lucide-react';
 import { 
@@ -237,7 +238,10 @@ export const Sidebar: React.FC = memo(() => {
                         <button
                             type="button"
                             onClick={() => setActiveView('dashboard')}
-                            className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
+                            onMouseEnter={() => preloadView('dashboard')}
+                            onTouchStart={() => preloadView('dashboard')}
+                            onFocus={() => preloadView('dashboard')}
+                            className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                 activeView === 'dashboard' 
                                     ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
                                     : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'
@@ -255,7 +259,10 @@ export const Sidebar: React.FC = memo(() => {
                             <button
                                 key={item.view}
                                 onClick={() => setActiveView(item.view)}
-                                className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
+                                onMouseEnter={() => preloadView(item.view)}
+                                onTouchStart={() => preloadView(item.view)}
+                                onFocus={() => preloadView(item.view)}
+                                className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                     activeView === item.view 
                                         ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
                                         : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'
@@ -273,7 +280,10 @@ export const Sidebar: React.FC = memo(() => {
                         {showUsersButton && (
                             <button
                                 onClick={handleUsersClick}
-                                className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-300 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
+                                onMouseEnter={() => preloadView('users')}
+                                onTouchStart={() => preloadView('users')}
+                                onFocus={() => preloadView('users')}
+                                className={`relative w-full flex items-center px-4 py-2.5 rounded-xl transition-all duration-150 group mb-0.5 ${isCollapsed ? 'justify-center' : 'gap-3'} ${
                                     activeView === 'users' 
                                         ? 'bg-gradient-to-r from-orange-500/12 to-amber-500/8 text-orange-700 dark:text-orange-400 border border-orange-500/25 font-bold shadow-[0_4px_12px_rgba(249,115,22,0.04)]' 
                                         : 'text-slate-600 dark:text-emerald-100/70 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/5 dark:hover:bg-white/5 border border-transparent'

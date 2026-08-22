@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PortalContainer } from '../components/PortalContainer';
 import { PortalChurch, ContributorMockProfile } from '../types/portal';
 import { formatCpf, formatPhone, validateEmailVisual, validateCpfVisual } from '../utils/portalFormatters';
+import { invalidateContributorsCache } from '../../services/contributorsCache';
 import { 
     Building2, 
     CheckCircle2, 
@@ -332,8 +333,11 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
         }
 
         setIsSaving(true);
+        setApiError(null);
 
         try {
+            let finalId = contributorId;
+
             // If already existing contributor, perform UPDATE
             if (isExisting && contributorId) {
                 const updatePayload = {
@@ -344,29 +348,42 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                     cpf: cleanCpf,
                     phone: cleanPhone,
                     whatsapp: cleanPhone,
-                    email: cleanEmail || undefined,
-                    birth_date: birthDate || undefined,
-                    address_city: city || undefined,
-                    address_state: state || undefined,
+                    email: cleanEmail || null,
+                    birth_date: birthDate || null,
+                    address_city: city || null,
+                    address_state: state || null,
                     role_position: 'Membro'
                 };
 
-                const updateRes = await fetch('/api/v1/contributors/update-profile', {
+                let updateRes = await fetch('/api/v1/contributors/update-profile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updatePayload)
                 });
 
                 if (!updateRes.ok) {
-                    console.warn('[PortalRegisterPage] Falha na atualização direta, tentando endpoint alternativo...');
+                    // Fallback to PUT /api/v1/contributors/:id
+                    updateRes = await fetch(`/api/v1/contributors/${contributorId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatePayload)
+                    });
                 }
 
+                if (updateRes.ok) {
+                    const updateData = await updateRes.json().catch(() => null);
+                    if (updateData?.id) finalId = updateData.id;
+                }
+
+                invalidateContributorsCache();
+
                 const updatedProfile: ContributorMockProfile = {
-                    id: contributorId,
+                    id: finalId || contributorId,
                     name: cleanName,
                     canonical_name: cleanName,
                     cpf: cleanCpf,
                     phone: cleanPhone,
+                    whatsapp: cleanPhone,
                     email: cleanEmail,
                     church_id: activeChurchId,
                     congregation: congregation || selectedChurch?.name || 'Sede Central',
@@ -394,10 +411,10 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 cpf: cleanCpf,
                 phone: cleanPhone,
                 whatsapp: cleanPhone,
-                email: cleanEmail || undefined,
-                birth_date: birthDate || undefined,
-                address_city: city || undefined,
-                address_state: state || undefined,
+                email: cleanEmail || null,
+                birth_date: birthDate || null,
+                address_city: city || null,
+                address_state: state || null,
                 role_position: 'Membro',
                 status: 'active'
             };
@@ -415,17 +432,20 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
 
             // Handle already registered gracefully (HTTP 409)
             if (response.status === 409) {
+                invalidateContributorsCache();
                 const existingObj: ContributorMockProfile = {
-                    id: responseData.existingId || 'existing-contributor',
+                    id: responseData.existingId || responseData.id || contributorId || 'existing-contributor',
                     name: cleanName,
                     canonical_name: cleanName,
                     cpf: cleanCpf,
                     phone: cleanPhone,
+                    whatsapp: cleanPhone,
                     email: cleanEmail,
                     church_id: activeChurchId,
                     congregation: congregation || selectedChurch?.name || 'Sede Central',
                     city: city,
                     state: state,
+                    birth_date: birthDate,
                     isExisting: true
                 };
 
@@ -440,8 +460,10 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
             }
 
             if (!response.ok) {
-                throw new Error(responseData.error || 'Não foi possível concluir o cadastro no momento.');
+                throw new Error(responseData.message || responseData.error || 'Não foi possível concluir o cadastro no momento.');
             }
+
+            invalidateContributorsCache();
 
             // Successfully created new contributor record
             const newContributor: ContributorMockProfile = {
@@ -450,11 +472,13 @@ export const PortalRegisterPage: React.FC<PortalRegisterPageProps> = ({
                 canonical_name: cleanName,
                 cpf: cleanCpf,
                 phone: cleanPhone,
+                whatsapp: cleanPhone,
                 email: cleanEmail,
                 church_id: activeChurchId,
                 congregation: congregation || selectedChurch?.name || 'Sede Central',
                 city: city,
                 state: state,
+                birth_date: birthDate,
                 isExisting: true
             };
 

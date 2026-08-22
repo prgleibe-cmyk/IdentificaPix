@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { useUI } from '../contexts/UIContext';
 import { useTranslation } from '../contexts/I18nContext';
@@ -111,9 +111,14 @@ export const ReportsView: React.FC = () => {
         { val: 12, name: 'Dezembro' }
     ];
 
-    const yearsList = [2027, 2026, 2025, 2024];
+    const currentYear = new Date().getFullYear();
+    const yearsList = useMemo(() => {
+        const list = [currentYear + 1, currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+        if (!list.includes(selectedYear)) list.push(selectedYear);
+        return Array.from(new Set(list)).sort((a, b) => b - a);
+    }, [currentYear, selectedYear]);
 
-    // Auto-inicializar com o mês atual se nenhum período estiver definido
+    // Auto-inicializar e sincronizar com o período definido nos filtros globais
     React.useEffect(() => {
         if (!startSelected || !endSelected) {
             const now = new Date();
@@ -129,8 +134,26 @@ export const ReportsView: React.FC = () => {
                 }));
             }
         } else {
-            setCustomStart(startSelected);
-            setCustomEnd(endSelected);
+            const startParts = startSelected.split('-');
+            const endParts = endSelected.split('-');
+            if (startParts.length === 3 && endParts.length === 3) {
+                const y = Number(startParts[0]);
+                const m = Number(startParts[1]);
+                const lastDay = new Date(y, m, 0).getDate();
+                const isFullMonth = startParts[2] === '01' && Number(endParts[2]) === lastDay && Number(endParts[1]) === m && Number(endParts[0]) === y;
+                if (isFullMonth) {
+                    setSelectedMonth(m);
+                    setSelectedYear(y);
+                    setSelectionMode('month');
+                } else {
+                    setCustomStart(startSelected);
+                    setCustomEnd(endSelected);
+                    setSelectionMode('dates');
+                }
+            } else {
+                setCustomStart(startSelected);
+                setCustomEnd(endSelected);
+            }
         }
     }, [startSelected, endSelected]);
 
