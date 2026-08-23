@@ -86,7 +86,10 @@ export function useGlobalDragScroll() {
         };
 
         const handlePointerDown = (e: PointerEvent) => {
-            // Apenas primeiro toque ou clique esquerdo
+            // Em dispositivos touch (celulares/tablets), permitir 100% a rolagem nativa por toque ultra-fluida do navegador
+            if (e.pointerType === 'touch' || e.pointerType === 'pen') return;
+
+            // Para mouse/desktop, permitir arrastar para rolar
             if (e.button !== 0 || (e.isPrimary === false)) return;
 
             const target = e.target as HTMLElement | null;
